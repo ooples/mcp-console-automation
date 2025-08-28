@@ -1,3 +1,5 @@
+export type ConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto';
+
 export interface ConsoleSession {
   id: string;
   command: string;
@@ -8,6 +10,8 @@ export interface ConsoleSession {
   pid?: number;
   status: 'running' | 'stopped' | 'crashed';
   exitCode?: number;
+  type?: ConsoleType;
+  streaming?: boolean;
 }
 
 export interface ConsoleOutput {
@@ -43,4 +47,7 @@ export interface SessionOptions {
   patterns?: ErrorPattern[];
   timeout?: number;
   shell?: boolean | string;
+  consoleType?: ConsoleType;
+  streaming?: boolean;
+  maxBuffer?: number;
 }

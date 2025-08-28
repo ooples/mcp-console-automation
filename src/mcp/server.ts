@@ -6,7 +6,6 @@ import {
   ListToolsRequestSchema,
   Tool,
   TextContent,
-  ImageContent,
   ErrorCode,
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
@@ -61,6 +60,9 @@ export class ConsoleAutomationServer {
           case 'console_get_output':
             return await this.handleGetOutput(args as any);
           
+          case 'console_get_stream':
+            return await this.handleGetStream(args as any);
+          
           case 'console_wait_for_output':
             return await this.handleWaitForOutput(args as any);
           
@@ -76,8 +78,8 @@ export class ConsoleAutomationServer {
           case 'console_detect_errors':
             return await this.handleDetectErrors(args as any);
           
-          case 'console_resize_session':
-            return await this.handleResizeSession(args as any);
+          case 'console_get_resource_usage':
+            return await this.handleGetResourceUsage();
           
           case 'console_clear_output':
             return await this.handleClearOutput(args as any);
@@ -105,7 +107,13 @@ export class ConsoleAutomationServer {
             cwd: { type: 'string', description: 'Working directory' },
             env: { type: 'object', description: 'Environment variables' },
             detectErrors: { type: 'boolean', description: 'Enable automatic error detection' },
-            timeout: { type: 'number', description: 'Session timeout in milliseconds' }
+            timeout: { type: 'number', description: 'Session timeout in milliseconds' },
+            consoleType: { 
+              type: 'string', 
+              enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'auto'],
+              description: 'Type of console to use' 
+            },
+            streaming: { type: 'boolean', description: 'Enable streaming for long-running processes' }
           },
           required: ['command']
         }
@@ -132,7 +140,7 @@ export class ConsoleAutomationServer {
             key: { 
               type: 'string', 
               description: 'Key to send (e.g., enter, tab, up, down, ctrl+c, escape)',
-              enum: ['enter', 'tab', 'up', 'down', 'left', 'right', 'escape', 'backspace', 'delete', 'home', 'end', 'pageup', 'pagedown', 'ctrl+c', 'ctrl+d', 'ctrl+z', 'ctrl+l']
+              enum: ['enter', 'tab', 'up', 'down', 'left', 'right', 'escape', 'backspace', 'delete', 'ctrl+c', 'ctrl+d', 'ctrl+z', 'ctrl+l', 'ctrl+break']
             }
           },
           required: ['sessionId', 'key']
@@ -146,6 +154,18 @@ export class ConsoleAutomationServer {
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
             limit: { type: 'number', description: 'Maximum number of output lines to return' }
+          },
+          required: ['sessionId']
+        }
+      },
+      {
+        name: 'console_get_stream',
+        description: 'Get streaming output from a long-running console session',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID' },
+            since: { type: 'string', description: 'ISO timestamp to get output since' }
           },
           required: ['sessionId']
         }
@@ -192,7 +212,12 @@ export class ConsoleAutomationServer {
             args: { type: 'array', items: { type: 'string' }, description: 'Command arguments' },
             cwd: { type: 'string', description: 'Working directory' },
             env: { type: 'object', description: 'Environment variables' },
-            timeout: { type: 'number', description: 'Execution timeout in milliseconds' }
+            timeout: { type: 'number', description: 'Execution timeout in milliseconds' },
+            consoleType: { 
+              type: 'string', 
+              enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'auto'],
+              description: 'Type of console to use' 
+            }
           },
           required: ['command']
         }
@@ -209,16 +234,11 @@ export class ConsoleAutomationServer {
         }
       },
       {
-        name: 'console_resize_session',
-        description: 'Resize terminal dimensions for a session',
+        name: 'console_get_resource_usage',
+        description: 'Get resource usage statistics for all sessions',
         inputSchema: {
           type: 'object',
-          properties: {
-            sessionId: { type: 'string', description: 'Session ID' },
-            cols: { type: 'number', description: 'Number of columns' },
-            rows: { type: 'number', description: 'Number of rows' }
-          },
-          required: ['sessionId', 'cols', 'rows']
+          properties: {}
         }
       },
       {
@@ -237,6 +257,8 @@ export class ConsoleAutomationServer {
 
   private async handleCreateSession(args: SessionOptions) {
     const sessionId = await this.consoleManager.createSession(args);
+    const session = this.consoleManager.getSession(sessionId);
+    
     return {
       content: [
         {
@@ -244,7 +266,9 @@ export class ConsoleAutomationServer {
           text: JSON.stringify({
             sessionId,
             message: `Session created for command: ${args.command}`,
-            pid: this.consoleManager.getSession(sessionId)?.pid
+            pid: session?.pid,
+            consoleType: session?.type,
+            streaming: session?.streaming
           }, null, 2)
         } as TextContent
       ]
@@ -283,6 +307,45 @@ export class ConsoleAutomationServer {
         {
           type: 'text',
           text: text || 'No output available'
+        } as TextContent
+      ]
+    };
+  }
+
+  private async handleGetStream(args: { sessionId: string; since?: string }) {
+    const streamManager = this.consoleManager.getStream(args.sessionId);
+    
+    if (!streamManager) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: 'Streaming not enabled for this session',
+              hint: 'Create session with streaming: true'
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+
+    const since = args.since ? new Date(args.since) : undefined;
+    const chunks = streamManager.getChunks(since);
+    const stats = streamManager.getStats();
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            chunks: chunks.map(c => ({
+              data: c.data,
+              timestamp: c.timestamp,
+              isError: c.isError
+            })),
+            stats,
+            fullOutput: chunks.map(c => c.data).join('')
+          }, null, 2)
         } as TextContent
       ]
     };
@@ -331,6 +394,8 @@ export class ConsoleAutomationServer {
             command: s.command,
             status: s.status,
             pid: s.pid,
+            type: s.type,
+            streaming: s.streaming,
             createdAt: s.createdAt
           })), null, 2)
         } as TextContent
@@ -338,14 +403,15 @@ export class ConsoleAutomationServer {
     };
   }
 
-  private async handleExecuteCommand(args: { command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeout?: number }) {
+  private async handleExecuteCommand(args: { command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeout?: number; consoleType?: any }) {
     const result = await this.consoleManager.executeCommand(
       args.command,
       args.args,
       {
         cwd: args.cwd,
         env: args.env,
-        timeout: args.timeout
+        timeout: args.timeout,
+        consoleType: args.consoleType
       }
     );
     return {
@@ -390,13 +456,13 @@ export class ConsoleAutomationServer {
     };
   }
 
-  private async handleResizeSession(args: { sessionId: string; cols: number; rows: number }) {
-    await this.consoleManager.resizeSession(args.sessionId, args.cols, args.rows);
+  private async handleGetResourceUsage() {
+    const usage = this.consoleManager.getResourceUsage();
     return {
       content: [
         {
           type: 'text',
-          text: `Session ${args.sessionId} resized to ${args.cols}x${args.rows}`
+          text: JSON.stringify(usage, null, 2)
         } as TextContent
       ]
     };
@@ -425,6 +491,16 @@ export class ConsoleAutomationServer {
       this.logger.info('Shutting down...');
       await this.consoleManager.stopAllSessions();
       process.exit(0);
+    });
+
+    process.on('uncaughtException', (error) => {
+      this.logger.error('Uncaught exception:', error);
+      this.consoleManager.destroy();
+      process.exit(1);
+    });
+
+    process.on('unhandledRejection', (reason) => {
+      this.logger.error(`Unhandled rejection: ${reason}`);
     });
   }
 

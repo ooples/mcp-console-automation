@@ -158,7 +158,7 @@ export class ErrorDetector {
   }
 
   analyzeStackTrace(text: string): { language?: string; frames: string[] } {
-    const result = { frames: [] as string[] };
+    const result: { language?: string; frames: string[] } = { frames: [] };
 
     const pythonMatch = text.match(/Traceback \(most recent call last\):([\s\S]*?)(?=\n\S|\n$)/);
     if (pythonMatch) {
