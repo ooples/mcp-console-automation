@@ -1,32 +1,60 @@
 # MCP Console Automation Server
 
-A Model Context Protocol (MCP) server that enables AI assistants to fully interact with console applications, monitor output, detect errors, and automate terminal workflows - similar to how Playwright works for web browsers.
+**Production-Ready** Model Context Protocol (MCP) server that enables AI assistants to fully interact with console applications, monitor output, detect errors, and automate terminal workflows - similar to how Playwright works for web browsers.
+
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/ooples/mcp-console-automation)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org)
+
+## Production Status ✅
+
+This server is **fully production-ready** with:
+- ✅ No native compilation required (removed node-pty dependency)
+- ✅ Full cross-platform support (Windows, macOS, Linux)
+- ✅ Streaming support for long-running processes
+- ✅ Multiple console type support (cmd, PowerShell, bash, zsh, sh)
+- ✅ Resource management and automatic cleanup
+- ✅ Comprehensive error handling and recovery
+- ✅ Easy installation scripts for all major MCP clients
+- ✅ All tests passing (see test-functionality.js)
 
 ## Features
 
 - **Full Terminal Control**: Create and manage multiple console sessions simultaneously
 - **Interactive Input**: Send text input and special key sequences (Enter, Tab, Ctrl+C, etc.)
 - **Real-time Output Monitoring**: Capture and analyze console output as it happens
+- **Streaming Support**: Efficient streaming for long-running processes
+- **Multiple Console Types**: Support for cmd, PowerShell, bash, zsh, sh
 - **Automatic Error Detection**: Built-in patterns to detect errors, exceptions, and stack traces
-- **Session Management**: Create, stop, resize, and manage terminal sessions
+- **Session Management**: Create, stop, and manage up to 50 concurrent sessions
+- **Resource Management**: Memory monitoring, automatic cleanup, session limits
 - **Command Execution**: Run commands and wait for completion with timeout support
 - **Pattern Matching**: Wait for specific output patterns before continuing
-- **Cross-platform**: Works on Windows, macOS, and Linux
+- **Cross-platform**: Works on Windows, macOS, and Linux without native dependencies
 
-## Installation
+## Quick Installation
 
-### From npm (when published)
-```bash
-npm install -g @mcp/console-automation
+### Windows (PowerShell as Administrator)
+```powershell
+git clone https://github.com/ooples/mcp-console-automation.git
+cd mcp-console-automation
+.\install.ps1 -Target claude  # or google, openai, custom, all
 ```
 
-### From source
+### macOS/Linux
 ```bash
-git clone https://github.com/yourusername/mcp-console-automation.git
+git clone https://github.com/ooples/mcp-console-automation.git
 cd mcp-console-automation
-npm install
+chmod +x install.sh
+./install.sh --target claude  # or google, openai, custom, all
+```
+
+### Manual Installation
+```bash
+git clone https://github.com/ooples/mcp-console-automation.git
+cd mcp-console-automation
+npm install --production
 npm run build
-npm link
 ```
 
 ## Configuration
@@ -63,7 +91,7 @@ mcp-console --log-level info
 npx @mcp/console-automation --log-level info
 ```
 
-## Available Tools
+## Available Tools (12 Total)
 
 ### `console_create_session`
 Create a new console session for running commands.
@@ -315,28 +343,16 @@ The server is built with:
 
 - Node.js >= 18.0.0
 - Windows, macOS, or Linux operating system
-- Python (for node-pty compilation on some systems)
+- No additional build tools required!
+
+## Testing
+
+Run the included test suite to verify functionality:
+```bash
+node test-functionality.js
+```
 
 ## Troubleshooting
-
-### Installation Issues
-
-If you encounter issues during installation, especially with `node-pty`:
-
-**Windows:**
-```bash
-npm install --global windows-build-tools
-```
-
-**macOS:**
-```bash
-xcode-select --install
-```
-
-**Linux:**
-```bash
-sudo apt-get install build-essential python
-```
 
 ### Common Issues
 
