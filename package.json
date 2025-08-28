@@ -1,0 +1,63 @@
+{
+  "name": "@mcp/console-automation",
+  "version": "1.0.0",
+  "description": "MCP server for AI-driven console application automation and monitoring",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "mcp-console": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "lint": "eslint . --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "console",
+    "automation",
+    "terminal",
+    "pty",
+    "ai",
+    "llm"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.2",
+    "node-pty": "^1.0.0",
+    "strip-ansi": "^7.1.0",
+    "chalk": "^5.3.0",
+    "winston": "^3.11.0",
+    "yargs": "^17.7.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/yargs": "^17.0.32",
+    "@types/uuid": "^9.0.7",
+    "@types/jest": "^29.5.11",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/mcp-console-automation.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/mcp-console-automation/issues"
+  },
+  "homepage": "https://github.com/yourusername/mcp-console-automation#readme"
+}
