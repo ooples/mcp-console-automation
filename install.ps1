@@ -181,7 +181,7 @@ function Install-Custom {
     $serverPath = "$installDir\dist\index.js"
     
     Write-Info "Add the following to your MCP configuration:"
-    Write-Host @"
+    $configJson = @"
 {
   "console-automation": {
     "command": "node",
@@ -191,7 +191,8 @@ function Install-Custom {
     }
   }
 }
-"@ -ForegroundColor Yellow
+"@
+    Write-Host $configJson -ForegroundColor Yellow
     
     if (Test-Path $Path) {
         Write-Warning "`nConfiguration file exists at: $Path"
@@ -238,7 +239,7 @@ $Shortcut.Description = "Test MCP Console Automation Server"
 $Shortcut.Save()
 
 Write-Success "`n✓ Installation completed successfully!"
-Write-Info @"
+$nextSteps = @"
 
 Next steps:
 1. Restart your MCP client ($Target)
@@ -247,5 +248,6 @@ Next steps:
 
 Testing shortcut created on desktop: 'Test MCP Console'
 
-For documentation, visit: https://github.com/yourusername/mcp-console-automation
+For documentation, visit: https://github.com/ooples/mcp-console-automation
 "@
+Write-Info $nextSteps
