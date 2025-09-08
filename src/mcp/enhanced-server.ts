@@ -1002,10 +1002,12 @@ export class EnhancedConsoleAutomationServer {
       const output = await this.consoleManager.waitForOutput(
         args.sessionId,
         args.pattern,
-        args.timeout || 5000
+        {
+          timeout: args.timeout || 5000
+        }
       );
       return {
-        content: [{ type: 'text', text: output } as TextContent]
+        content: [{ type: 'text', text: JSON.stringify(output, null, 2) } as TextContent]
       };
     } catch (error: any) {
       throw new McpError(ErrorCode.InternalError, error.message);

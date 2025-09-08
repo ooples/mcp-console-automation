@@ -12,6 +12,11 @@ export interface ConsoleSession {
   exitCode?: number;
   type?: ConsoleType;
   streaming?: boolean;
+  // Command execution state
+  executionState: 'idle' | 'executing' | 'waiting';
+  currentCommandId?: string;
+  lastCommandCompletedAt?: Date;
+  activeCommands: Map<string, CommandExecution>;
 }
 
 export interface ConsoleOutput {
@@ -20,6 +25,31 @@ export interface ConsoleOutput {
   data: string;
   timestamp: Date;
   raw?: string;
+  // Command tracking
+  commandId?: string;
+  isCommandBoundary?: boolean;
+  boundaryType?: 'start' | 'end';
+  sequence?: number;
+}
+
+export interface CommandExecution {
+  id: string;
+  sessionId: string;
+  command: string;
+  args?: string[];
+  startedAt: Date;
+  completedAt?: Date;
+  status: 'executing' | 'completed' | 'failed' | 'timeout';
+  output: ConsoleOutput[];
+  exitCode?: number;
+  duration?: number;
+  isolatedBufferStartIndex: number;
+  totalOutputLines: number;
+  markers: {
+    startMarker?: string;
+    endMarker?: string;
+    promptPattern?: RegExp;
+  };
 }
 
 export interface ErrorPattern {
@@ -143,7 +173,7 @@ export interface AlertConfig {
 
 export interface ConsoleEvent {
   sessionId: string;
-  type: 'started' | 'stopped' | 'error' | 'input' | 'output';
+  type: 'started' | 'stopped' | 'error' | 'input' | 'output' | 'prompt-detected';
   timestamp: Date;
   data?: any;
 }
@@ -490,6 +520,32 @@ export interface Anomaly {
   description: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
 }
+
+export interface HealthCheckResult {
+  checkId: string;
+  checkType: 'session' | 'system' | 'network' | 'process' | 'custom';
+  sessionId?: string;
+  timestamp: Date;
+  status: 'healthy' | 'warning' | 'unhealthy' | 'critical';
+  metrics: Record<string, number>;
+  details: {
+    message: string;
+    diagnosis?: string;
+    recommendations?: string[];
+    recoverable: boolean;
+  };
+  duration: number;
+  nextCheck?: Date;
+  // Additional properties for compatibility with monitoring systems
+  checks: Record<string, {
+    checkStatus: 'pass' | 'fail' | 'warn';
+    value?: any;
+    message?: string;
+    duration?: number;
+  }>;
+  overallScore: number;
+}
+
 
 // Re-export workflow types for easy access
 export * from './workflow.js';

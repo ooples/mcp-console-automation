@@ -84,6 +84,12 @@ export class ConsoleAutomationServer {
           case 'console_clear_output':
             return await this.handleClearOutput(args as any);
           
+          case 'console_get_session_state':
+            return await this.handleGetSessionState(args as any);
+          
+          case 'console_get_command_history':
+            return await this.handleGetCommandHistory(args as any);
+          
           // Monitoring tools
           case 'console_get_system_metrics':
             return await this.handleGetSystemMetrics();
@@ -269,8 +275,21 @@ export class ConsoleAutomationServer {
             timeout: { type: 'number', description: 'Execution timeout in milliseconds' },
             consoleType: { 
               type: 'string', 
-              enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'auto'],
+              enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'ssh', 'auto'],
               description: 'Type of console to use (for new sessions)' 
+            },
+            sshOptions: {
+              type: 'object',
+              description: 'SSH connection options (for SSH sessions)',
+              properties: {
+                host: { type: 'string', description: 'SSH host' },
+                port: { type: 'number', description: 'SSH port (default: 22)' },
+                username: { type: 'string', description: 'SSH username' },
+                password: { type: 'string', description: 'SSH password' },
+                privateKey: { type: 'string', description: 'Private key content' },
+                privateKeyPath: { type: 'string', description: 'Path to private key file' },
+                passphrase: { type: 'string', description: 'Private key passphrase' }
+              }
             }
           },
           required: ['command']
@@ -302,6 +321,29 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' }
+          },
+          required: ['sessionId']
+        }
+      },
+      {
+        name: 'console_get_session_state',
+        description: 'Get the execution state of a console session',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID' }
+          },
+          required: ['sessionId']
+        }
+      },
+      {
+        name: 'console_get_command_history',
+        description: 'Get the command execution history for a session',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID' },
+            limit: { type: 'number', description: 'Maximum number of commands to return' }
           },
           required: ['sessionId']
         }
@@ -425,15 +467,35 @@ export class ConsoleAutomationServer {
   }
 
   private async handleGetOutput(args: { sessionId: string; limit?: number }) {
+    // Force immediate flush of any pending buffers before getting output
+    const streamManager = this.consoleManager.getStream(args.sessionId);
+    if (streamManager) {
+      streamManager.forceFlush();
+      // Wait a small amount to allow any async processing
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    
     const output = this.consoleManager.getOutput(args.sessionId, args.limit);
     const text = output.map(o => o.data).join('');
+    
+    // Include buffer statistics for debugging
+    const bufferStats = streamManager ? streamManager.getBufferStats() : null;
+    
     return {
       content: [
         {
           type: 'text',
           text: text || 'No output available'
         } as TextContent
-      ]
+      ],
+      ...(bufferStats && { 
+        meta: { 
+          bufferStats,
+          outputLength: text.length,
+          chunkCount: output.length,
+          timestamp: new Date().toISOString()
+        } 
+      })
     };
   }
 
@@ -481,13 +543,15 @@ export class ConsoleAutomationServer {
       const output = await this.consoleManager.waitForOutput(
         args.sessionId,
         args.pattern,
-        args.timeout || 5000
+        {
+          timeout: args.timeout || 5000
+        }
       );
       return {
         content: [
           {
             type: 'text',
-            text: output
+            text: JSON.stringify(output, null, 2)
           } as TextContent
         ]
       };
@@ -528,32 +592,81 @@ export class ConsoleAutomationServer {
     };
   }
 
-  private async handleExecuteCommand(args: { sessionId?: string; command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeout?: number; consoleType?: any }) {
-    // If sessionId is provided, send command to existing session
+  private async handleExecuteCommand(args: { sessionId?: string; command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeout?: number; consoleType?: any; sshOptions?: any }) {
+    // If sessionId is provided, execute command in existing session with proper isolation
     if (args.sessionId) {
-      await this.consoleManager.sendInput(args.sessionId, args.command + '\n');
-      
-      // Wait a bit for command to execute
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Get the output
-      const output = await this.consoleManager.getOutput(args.sessionId);
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              sessionId: args.sessionId,
-              command: args.command,
-              output: output.map(o => o.data).join('')
-            }, null, 2)
-          } as TextContent
-        ]
-      };
+      try {
+        const result = await this.consoleManager.executeCommandInSession(
+          args.sessionId,
+          args.command,
+          args.args,
+          args.timeout || 30000
+        );
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                sessionId: args.sessionId,
+                commandId: result.commandId,
+                command: args.command,
+                args: args.args,
+                output: result.output.map(o => ({
+                  type: o.type,
+                  data: o.data,
+                  timestamp: o.timestamp,
+                  commandId: o.commandId,
+                  isCommandBoundary: o.isCommandBoundary,
+                  boundaryType: o.boundaryType
+                })),
+                outputText: result.output.map(o => o.data).join(''),
+                exitCode: result.exitCode,
+                duration: result.duration,
+                status: result.status,
+                executedAt: new Date().toISOString()
+              }, null, 2)
+            } as TextContent
+          ]
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                sessionId: args.sessionId,
+                command: args.command,
+                error: error.message,
+                timestamp: new Date().toISOString()
+              }, null, 2)
+            } as TextContent
+          ]
+        };
+      }
     }
     
     // Otherwise create new session for one-off command
+    // Detect console type based on command and SSH options
+    let detectedConsoleType = args.consoleType;
+    let finalSSHOptions = args.sshOptions;
+    
+    // If SSH options are provided, force SSH console type
+    if (args.sshOptions && !detectedConsoleType) {
+      detectedConsoleType = 'ssh';
+    }
+    
+    // Auto-detect console type from command patterns if not specified
+    if (!detectedConsoleType || detectedConsoleType === 'auto') {
+      detectedConsoleType = this.detectConsoleTypeFromCommand(args.command, args.sshOptions);
+    }
+    
+    this.logger.debug(`Console type detection for command "${args.command}": ${detectedConsoleType}`, {
+      originalType: args.consoleType,
+      hasSSHOptions: !!args.sshOptions,
+      detectedType: detectedConsoleType
+    });
+    
     const result = await this.consoleManager.executeCommand(
       args.command,
       args.args,
@@ -561,7 +674,8 @@ export class ConsoleAutomationServer {
         cwd: args.cwd,
         env: args.env,
         timeout: args.timeout,
-        consoleType: args.consoleType
+        consoleType: detectedConsoleType,
+        sshOptions: finalSSHOptions
       }
     );
     return {
@@ -572,6 +686,61 @@ export class ConsoleAutomationServer {
         } as TextContent
       ]
     };
+  }
+
+  /**
+   * Detect console type from command patterns and options
+   */
+  private detectConsoleTypeFromCommand(command: string, sshOptions?: any): 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'ssh' | 'auto' {
+    // If SSH options are provided, it's definitely an SSH session
+    if (sshOptions) {
+      return 'ssh';
+    }
+    
+    // Check for Unix/Linux commands that indicate bash/sh
+    const unixCommands = ['ls', 'grep', 'awk', 'sed', 'cat', 'tail', 'head', 'find', 'ps', 'top', 'df', 'du', 'chmod', 'chown', 'sudo', 'which', 'whereis', 'man', 'curl', 'wget', 'tar', 'gzip', 'gunzip', 'ssh', 'scp', 'rsync', 'git'];
+    const cmdTokens = command.toLowerCase().split(/\s+/);
+    const firstCommand = cmdTokens[0];
+    
+    // Check if it's a Unix command
+    if (unixCommands.includes(firstCommand)) {
+      // On Windows, if we see Unix commands, we likely need bash (WSL or Git Bash)
+      if (process.platform === 'win32') {
+        return 'bash';
+      } else {
+        return 'bash'; // Default to bash on Unix systems
+      }
+    }
+    
+    // Check for Windows-specific commands
+    const windowsCommands = ['dir', 'copy', 'move', 'del', 'type', 'cls', 'ipconfig', 'ping', 'tracert', 'netstat', 'tasklist', 'taskkill'];
+    if (windowsCommands.includes(firstCommand)) {
+      return 'cmd';
+    }
+    
+    // Check for PowerShell patterns
+    const powershellPatterns = [
+      /^Get-/i, /^Set-/i, /^New-/i, /^Remove-/i, /^Add-/i, /^Invoke-/i, /^Test-/i, /^Start-/i, /^Stop-/i,
+      /\$\w+/, // PowerShell variables
+      /\|\s*Where-Object/i, /\|\s*Select-Object/i, /\|\s*ForEach-Object/i,
+      /-\w+\s+\w+/ // PowerShell parameters like -Path, -Name, etc.
+    ];
+    
+    if (powershellPatterns.some(pattern => pattern.test(command))) {
+      return process.platform === 'win32' ? 'powershell' : 'pwsh';
+    }
+    
+    // Check for SSH command patterns
+    if (/^ssh\s+/.test(command)) {
+      return 'ssh';
+    }
+    
+    // Default based on platform
+    if (process.platform === 'win32') {
+      return 'cmd';
+    } else {
+      return 'bash';
+    }
   }
 
   private async handleDetectErrors(args: { sessionId?: string; text?: string }) {
@@ -625,6 +794,80 @@ export class ConsoleAutomationServer {
         {
           type: 'text',
           text: `Output buffer cleared for session ${args.sessionId}`
+        } as TextContent
+      ]
+    };
+  }
+
+  private async handleGetSessionState(args: { sessionId: string }) {
+    const state = this.consoleManager.getSessionExecutionState(args.sessionId);
+    
+    if (!state) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `Session ${args.sessionId} not found`,
+              timestamp: new Date().toISOString()
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(state, null, 2)
+        } as TextContent
+      ]
+    };
+  }
+
+  private async handleGetCommandHistory(args: { sessionId: string; limit?: number }) {
+    const history = this.consoleManager.getSessionCommandHistory(args.sessionId);
+    
+    if (history.length === 0) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              sessionId: args.sessionId,
+              commands: [],
+              message: 'No command history found for this session',
+              timestamp: new Date().toISOString()
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+
+    const limitedHistory = args.limit ? history.slice(-args.limit) : history;
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            sessionId: args.sessionId,
+            totalCommands: history.length,
+            returnedCommands: limitedHistory.length,
+            commands: limitedHistory.map(cmd => ({
+              id: cmd.id,
+              command: cmd.command,
+              args: cmd.args,
+              startedAt: cmd.startedAt,
+              completedAt: cmd.completedAt,
+              status: cmd.status,
+              duration: cmd.duration,
+              exitCode: cmd.exitCode,
+              outputLines: cmd.totalOutputLines
+            })),
+            timestamp: new Date().toISOString()
+          }, null, 2)
         } as TextContent
       ]
     };
