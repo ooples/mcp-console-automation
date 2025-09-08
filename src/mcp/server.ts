@@ -84,6 +84,25 @@ export class ConsoleAutomationServer {
           case 'console_clear_output':
             return await this.handleClearOutput(args as any);
           
+          // Monitoring tools
+          case 'console_get_system_metrics':
+            return await this.handleGetSystemMetrics();
+          
+          case 'console_get_session_metrics':
+            return await this.handleGetSessionMetrics(args as any);
+          
+          case 'console_get_alerts':
+            return await this.handleGetAlerts();
+          
+          case 'console_get_monitoring_dashboard':
+            return await this.handleGetMonitoringDashboard();
+          
+          case 'console_start_monitoring':
+            return await this.handleStartMonitoring(args as any);
+          
+          case 'console_stop_monitoring':
+            return await this.handleStopMonitoring(args as any);
+          
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }
@@ -113,7 +132,28 @@ export class ConsoleAutomationServer {
               enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'auto'],
               description: 'Type of console to use' 
             },
-            streaming: { type: 'boolean', description: 'Enable streaming for long-running processes' }
+            streaming: { type: 'boolean', description: 'Enable streaming for long-running processes' },
+            monitoring: {
+              type: 'object',
+              description: 'Monitoring options for the session',
+              properties: {
+                enableMetrics: { type: 'boolean', description: 'Enable metrics collection' },
+                enableTracing: { type: 'boolean', description: 'Enable distributed tracing' },
+                enableProfiling: { type: 'boolean', description: 'Enable performance profiling' },
+                enableAuditing: { type: 'boolean', description: 'Enable audit logging' },
+                enableAnomalyDetection: { type: 'boolean', description: 'Enable anomaly detection' },
+                customTags: { type: 'object', description: 'Custom tags for monitoring' },
+                slaConfig: {
+                  type: 'object',
+                  description: 'SLA configuration',
+                  properties: {
+                    responseTime: { type: 'number', description: 'Response time threshold in ms' },
+                    availabilityThreshold: { type: 'number', description: 'Availability threshold percentage' },
+                    errorRateThreshold: { type: 'number', description: 'Error rate threshold percentage' }
+                  }
+                }
+              }
+            }
           },
           required: ['command']
         }
@@ -244,6 +284,69 @@ export class ConsoleAutomationServer {
       {
         name: 'console_clear_output',
         description: 'Clear the output buffer for a session',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID' }
+          },
+          required: ['sessionId']
+        }
+      },
+      {
+        name: 'console_get_system_metrics',
+        description: 'Get comprehensive system monitoring metrics including CPU, memory, disk, and network usage',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'console_get_session_metrics',
+        description: 'Get detailed metrics for a specific console session',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID' }
+          },
+          required: ['sessionId']
+        }
+      },
+      {
+        name: 'console_get_alerts',
+        description: 'Get current monitoring alerts including performance, error, security, and anomaly alerts',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'console_get_monitoring_dashboard',
+        description: 'Get real-time monitoring dashboard data with metrics, alerts, and system status',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'console_start_monitoring',
+        description: 'Start monitoring for a specific session with custom monitoring options',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID' },
+            enableMetrics: { type: 'boolean', description: 'Enable metrics collection' },
+            enableTracing: { type: 'boolean', description: 'Enable distributed tracing' },
+            enableProfiling: { type: 'boolean', description: 'Enable performance profiling' },
+            enableAuditing: { type: 'boolean', description: 'Enable audit logging' },
+            enableAnomalyDetection: { type: 'boolean', description: 'Enable anomaly detection' },
+            customTags: { type: 'object', description: 'Custom tags for monitoring' }
+          },
+          required: ['sessionId']
+        }
+      },
+      {
+        name: 'console_stop_monitoring',
+        description: 'Stop monitoring for a specific session',
         inputSchema: {
           type: 'object',
           properties: {
@@ -480,22 +583,123 @@ export class ConsoleAutomationServer {
     };
   }
 
+  // Monitoring tool handlers
+  private async handleGetSystemMetrics() {
+    const metrics = await this.consoleManager.getSystemMetrics();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(metrics, null, 2)
+        } as TextContent
+      ]
+    };
+  }
+
+  private async handleGetSessionMetrics(args: { sessionId: string }) {
+    const metrics = await this.consoleManager.getSessionMetrics(args.sessionId);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(metrics, null, 2)
+        } as TextContent
+      ]
+    };
+  }
+
+  private async handleGetAlerts() {
+    const alerts = await this.consoleManager.getAlerts();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(alerts, null, 2)
+        } as TextContent
+      ]
+    };
+  }
+
+  private async handleGetMonitoringDashboard() {
+    const dashboard = await this.consoleManager.getDashboard();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(dashboard, null, 2)
+        } as TextContent
+      ]
+    };
+  }
+
+  private async handleStartMonitoring(args: { 
+    sessionId: string; 
+    enableMetrics?: boolean; 
+    enableTracing?: boolean; 
+    enableProfiling?: boolean; 
+    enableAuditing?: boolean; 
+    enableAnomalyDetection?: boolean; 
+    customTags?: Record<string, string> 
+  }) {
+    const monitoringSystem = this.consoleManager.getMonitoringSystem();
+    const session = this.consoleManager.getSession(args.sessionId);
+    
+    if (!session) {
+      throw new McpError(ErrorCode.InvalidParams, `Session ${args.sessionId} not found`);
+    }
+
+    await monitoringSystem.startSessionMonitoring(args.sessionId, {
+      command: session.command,
+      args: session.args,
+      pid: session.pid!,
+      enableMetrics: args.enableMetrics,
+      enableTracing: args.enableTracing,
+      enableProfiling: args.enableProfiling,
+      enableAuditing: args.enableAuditing,
+      enableAnomalyDetection: args.enableAnomalyDetection,
+      customTags: args.customTags
+    });
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Monitoring started for session ${args.sessionId}`
+        } as TextContent
+      ]
+    };
+  }
+
+  private async handleStopMonitoring(args: { sessionId: string }) {
+    const monitoringSystem = this.consoleManager.getMonitoringSystem();
+    await monitoringSystem.stopSessionMonitoring(args.sessionId);
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Monitoring stopped for session ${args.sessionId}`
+        } as TextContent
+      ]
+    };
+  }
+
   private setupCleanup() {
     process.on('SIGINT', async () => {
       this.logger.info('Shutting down...');
-      await this.consoleManager.stopAllSessions();
+      await this.consoleManager.destroy();
       process.exit(0);
     });
 
     process.on('SIGTERM', async () => {
       this.logger.info('Shutting down...');
-      await this.consoleManager.stopAllSessions();
+      await this.consoleManager.destroy();
       process.exit(0);
     });
 
-    process.on('uncaughtException', (error) => {
+    process.on('uncaughtException', async (error) => {
       this.logger.error('Uncaught exception:', error);
-      this.consoleManager.destroy();
+      await this.consoleManager.destroy();
       process.exit(1);
     });
 

@@ -3,7 +3,7 @@
 
 param(
     [Parameter()]
-    [ValidateSet("claude", "google", "openai", "custom", "all")]
+    [ValidateSet("claude", "claude-code", "google", "openai", "custom", "all")]
     [string]$Target = "claude",
     
     [Parameter()]
@@ -163,6 +163,40 @@ function Install-OpenAI {
     Write-Success "✓ OpenAI Desktop configured at: $configPath"
 }
 
+function Install-ClaudeCode {
+    Write-Info "`nConfiguring for Claude Code (CLI)..."
+    
+    $serverPath = if ($Dev) { 
+        "$installDir\src\index.ts"
+    } else {
+        "$installDir\dist\index.js"
+    }
+    
+    # Use claude mcp add command to configure the server
+    $command = if ($Dev) { "npx" } else { "node" }
+    $args = if ($Dev) { "tsx,$serverPath" } else { $serverPath }
+    
+    Write-Info "Adding console-automation server to Claude Code..."
+    
+    # Build the command to add MCP server
+    $addCommand = "claude mcp add console-automation --command `"$command`" --args `"$args`""
+    
+    Write-Info "Running: $addCommand"
+    
+    try {
+        $result = Invoke-Expression $addCommand 2>&1
+        Write-Success "✓ Claude Code MCP server configured"
+        Write-Info "  Server: console-automation"
+        Write-Info "  Command: $command"
+        Write-Info "  Args: $args"
+    } catch {
+        Write-Warning "Failed to add server automatically. Please run manually:"
+        Write-Host "claude mcp add console-automation --command `"$command`" --args `"$args`"" -ForegroundColor Yellow
+    }
+    
+    Write-Info "`nYou can verify with: claude mcp list"
+}
+
 function Install-Custom {
     param([string]$Path)
     
@@ -217,11 +251,13 @@ function Install-Custom {
 # Perform installation based on target
 switch ($Target) {
     "claude" { Install-ClaudeDesktop }
+    "claude-code" { Install-ClaudeCode }
     "google" { Install-GoogleAI }
     "openai" { Install-OpenAI }
     "custom" { Install-Custom -Path $CustomPath }
     "all" {
         Install-ClaudeDesktop
+        Install-ClaudeCode
         Install-GoogleAI
         Install-OpenAI
     }
