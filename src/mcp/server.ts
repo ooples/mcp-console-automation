@@ -129,8 +129,21 @@ export class ConsoleAutomationServer {
             timeout: { type: 'number', description: 'Session timeout in milliseconds' },
             consoleType: { 
               type: 'string', 
-              enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'auto'],
+              enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'ssh', 'auto'],
               description: 'Type of console to use' 
+            },
+            sshOptions: {
+              type: 'object',
+              description: 'SSH connection options',
+              properties: {
+                host: { type: 'string', description: 'SSH host' },
+                port: { type: 'number', description: 'SSH port (default: 22)' },
+                username: { type: 'string', description: 'SSH username' },
+                password: { type: 'string', description: 'SSH password' },
+                privateKey: { type: 'string', description: 'Private key content' },
+                privateKeyPath: { type: 'string', description: 'Path to private key file' },
+                passphrase: { type: 'string', description: 'Private key passphrase' }
+              }
             },
             streaming: { type: 'boolean', description: 'Enable streaming for long-running processes' },
             monitoring: {

@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import { dirname, join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { createHash, createCipher, createDecipher } from 'crypto';
+import { createHash, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { AuditEvent, ComplianceInfo, LogEntry } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 
@@ -419,10 +419,16 @@ export class AuditLogger extends EventEmitter {
     }
 
     try {
-      const cipher = createCipher(this.config.encryption.algorithm, this.config.encryption.key);
+      const algorithm = 'aes-256-cbc';
+      const key = createHash('sha256').update(this.config.encryption.key).digest();
+      const iv = randomBytes(16);
+      
+      const cipher = createCipheriv(algorithm, key, iv);
       let encrypted = cipher.update(data, 'utf8', 'hex');
       encrypted += cipher.final('hex');
-      return encrypted;
+      
+      // Prepend IV to encrypted data
+      return iv.toString('hex') + ':' + encrypted;
     } catch (error) {
       this.logger.error(`Encryption failed: ${error}`);
       return data; // Return unencrypted if encryption fails
@@ -436,8 +442,20 @@ export class AuditLogger extends EventEmitter {
     }
 
     try {
-      const decipher = createDecipher(this.config.encryption.algorithm, this.config.encryption.key);
-      let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+      const algorithm = 'aes-256-cbc';
+      const key = createHash('sha256').update(this.config.encryption.key).digest();
+      
+      // Extract IV from encrypted data
+      const parts = encryptedData.split(':');
+      if (parts.length !== 2) {
+        throw new Error('Invalid encrypted data format');
+      }
+      
+      const iv = Buffer.from(parts[0], 'hex');
+      const encrypted = parts[1];
+      
+      const decipher = createDecipheriv(algorithm, key, iv);
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
       return decrypted;
     } catch (error) {
