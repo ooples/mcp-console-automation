@@ -20,10 +20,20 @@ build/
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment and Security
 .env
 .env.local
 .env.*.local
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+ssh_keys/
+credentials/
+secrets/
+private/
 
 # Logs
 logs/

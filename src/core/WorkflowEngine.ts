@@ -633,7 +633,7 @@ export class WorkflowEngine extends EventEmitter {
 
     const subExecutionId = await this.executeWorkflow(
       subworkflowId,
-      { ...execution.context, parent: execution.id },
+      { ...execution.context },
       task.input.variables as Record<string, any>
     );
 
@@ -738,7 +738,20 @@ export class WorkflowEngine extends EventEmitter {
       data
     };
     execution.logs.push(log);
-    this.logger.log(level, `[${execution.id}] ${message}`, data);
+    this.logger[level](`[${execution.id}] ${message}`, data);
+  }
+
+  /**
+   * Execute task actions (onSuccess, onError, etc.)
+   */
+  private async executeTaskActions(
+    execution: WorkflowExecution,
+    actions: any[]
+  ): Promise<void> {
+    for (const action of actions) {
+      this.addExecutionLog(execution, 'info', 'task-action', `Executing action: ${action.type || 'custom'}`);
+      // Implementation would depend on action types defined in workflow
+    }
   }
 
   // ... Additional utility methods for task queues, dependency graphs, approvals, etc.

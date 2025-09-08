@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import stripAnsi from 'strip-ansi';
 import { Client as SSHClient, ClientChannel, ConnectConfig } from 'ssh2';
-import { ConsoleSession, ConsoleOutput, ConsoleEvent, SessionOptions, ConsoleType, ConnectionPoolingOptions, SSHConnectionOptions } from '../types/index.js';
+import { ConsoleSession, ConsoleOutput, ConsoleEvent, SessionOptions, ConsoleType, ConnectionPoolingOptions, SSHConnectionOptions, ExtendedErrorPattern } from '../types/index.js';
 import { ErrorDetector } from './ErrorDetector.js';
 import { Logger } from '../utils/logger.js';
 import { StreamManager } from './StreamManager.js';
@@ -559,7 +559,14 @@ export class ConsoleManager extends EventEmitter {
 
       if (options.detectErrors !== false) {
         this.queue.add(async () => {
-          const errors = this.errorDetector.detect(output.data, options.patterns);
+          // Convert ErrorPattern[] to ExtendedErrorPattern[] if needed
+          const extendedPatterns = options.patterns?.map(p => ({
+            ...p,
+            category: 'custom',
+            language: 'unknown'
+          } as ExtendedErrorPattern));
+          
+          const errors = this.errorDetector.detect(output.data, extendedPatterns);
           if (errors.length > 0) {
             this.emitEvent({
               sessionId,
@@ -572,7 +579,7 @@ export class ConsoleManager extends EventEmitter {
             if (this.monitoringSystem.isSessionBeingMonitored(sessionId)) {
               this.monitoringSystem.recordEvent(sessionId, 'error', {
                 errorCount: errors.length,
-                errorTypes: errors.map(e => e.type),
+                errorTypes: errors.map(e => e.pattern.type),
                 output: output.data
               });
             }
@@ -622,7 +629,14 @@ export class ConsoleManager extends EventEmitter {
 
       // Always check stderr for errors
       this.queue.add(async () => {
-        const errors = this.errorDetector.detect(output.data, options.patterns);
+        // Convert ErrorPattern[] to ExtendedErrorPattern[] if needed
+        const extendedPatterns = options.patterns?.map(p => ({
+          ...p,
+          category: 'custom',
+          language: 'unknown'
+        } as ExtendedErrorPattern));
+        
+        const errors = this.errorDetector.detect(output.data, extendedPatterns);
         if (errors.length > 0) {
           this.emitEvent({
             sessionId,
@@ -635,7 +649,7 @@ export class ConsoleManager extends EventEmitter {
           if (this.monitoringSystem.isSessionBeingMonitored(sessionId)) {
             this.monitoringSystem.recordEvent(sessionId, 'error', {
               errorCount: errors.length,
-              errorTypes: errors.map(e => e.type),
+              errorTypes: errors.map(e => e.pattern.type),
               output: output.data,
               isStderr: true
             });
@@ -676,10 +690,8 @@ export class ConsoleManager extends EventEmitter {
       // Release connection back to pool
       const sshClient = this.sshClients.get(sessionId);
       if (sshClient) {
-        const connectionId = Array.from(this.connectionPool.getStats().connectionsByHost.keys()).find(() => true);
-        if (connectionId) {
-          this.connectionPool.releaseConnection(connectionId);
-        }
+        // Note: We'd need to track connection IDs properly, for now just log
+        this.logger.debug(`SSH connection for session ${sessionId} will be released when connection tracking is implemented`);
       }
     });
 
@@ -784,7 +796,14 @@ export class ConsoleManager extends EventEmitter {
 
         if (options.detectErrors !== false) {
           this.queue.add(async () => {
-            const errors = this.errorDetector.detect(output.data, options.patterns);
+            // Convert ErrorPattern[] to ExtendedErrorPattern[] if needed
+            const extendedPatterns = options.patterns?.map(p => ({
+              ...p,
+              category: 'custom',
+              language: 'unknown'
+            } as ExtendedErrorPattern));
+            
+            const errors = this.errorDetector.detect(output.data, extendedPatterns);
             if (errors.length > 0) {
               this.emitEvent({
                 sessionId,
@@ -797,7 +816,7 @@ export class ConsoleManager extends EventEmitter {
               if (this.monitoringSystem.isSessionBeingMonitored(sessionId)) {
                 this.monitoringSystem.recordEvent(sessionId, 'error', {
                   errorCount: errors.length,
-                  errorTypes: errors.map(e => e.type),
+                  errorTypes: errors.map(e => e.pattern.type),
                   output: output.data
                 });
               }
@@ -843,7 +862,14 @@ export class ConsoleManager extends EventEmitter {
 
         // Always check stderr for errors
         this.queue.add(async () => {
-          const errors = this.errorDetector.detect(output.data, options.patterns);
+          // Convert ErrorPattern[] to ExtendedErrorPattern[] if needed
+          const extendedPatterns = options.patterns?.map(p => ({
+            ...p,
+            category: 'custom',
+            language: 'unknown'
+          } as ExtendedErrorPattern));
+          
+          const errors = this.errorDetector.detect(output.data, extendedPatterns);
           if (errors.length > 0) {
             this.emitEvent({
               sessionId,
@@ -856,7 +882,7 @@ export class ConsoleManager extends EventEmitter {
             if (this.monitoringSystem.isSessionBeingMonitored(sessionId)) {
               this.monitoringSystem.recordEvent(sessionId, 'error', {
                 errorCount: errors.length,
-                errorTypes: errors.map(e => e.type),
+                errorTypes: errors.map(e => e.pattern.type),
                 output: output.data,
                 isStderr: true
               });
@@ -1224,7 +1250,14 @@ export class ConsoleManager extends EventEmitter {
 
       if (options.detectErrors !== false) {
         this.queue.add(async () => {
-          const errors = this.errorDetector.detect(output.data, options.patterns);
+          // Convert ErrorPattern[] to ExtendedErrorPattern[] if needed
+          const extendedPatterns = options.patterns?.map(p => ({
+            ...p,
+            category: 'custom',
+            language: 'unknown'
+          } as ExtendedErrorPattern));
+          
+          const errors = this.errorDetector.detect(output.data, extendedPatterns);
           if (errors.length > 0) {
             this.emitEvent({
               sessionId,
@@ -1237,7 +1270,7 @@ export class ConsoleManager extends EventEmitter {
             if (this.monitoringSystem.isSessionBeingMonitored(sessionId)) {
               this.monitoringSystem.recordEvent(sessionId, 'error', {
                 errorCount: errors.length,
-                errorTypes: errors.map(e => e.type),
+                errorTypes: errors.map(e => e.pattern.type),
                 output: output.data
               });
             }
@@ -1280,7 +1313,14 @@ export class ConsoleManager extends EventEmitter {
 
       // Always check stderr for errors
       this.queue.add(async () => {
-        const errors = this.errorDetector.detect(output.data, options.patterns);
+        // Convert ErrorPattern[] to ExtendedErrorPattern[] if needed
+        const extendedPatterns = options.patterns?.map(p => ({
+          ...p,
+          category: 'custom',
+          language: 'unknown'
+        } as ExtendedErrorPattern));
+        
+        const errors = this.errorDetector.detect(output.data, extendedPatterns);
         if (errors.length > 0) {
           this.emitEvent({
             sessionId,
@@ -1293,7 +1333,7 @@ export class ConsoleManager extends EventEmitter {
           if (this.monitoringSystem.isSessionBeingMonitored(sessionId)) {
             this.monitoringSystem.recordEvent(sessionId, 'error', {
               errorCount: errors.length,
-              errorTypes: errors.map(e => e.type),
+              errorTypes: errors.map(e => e.pattern.type),
               output: output.data,
               isStderr: true
             });
@@ -1951,7 +1991,7 @@ export class ConsoleManager extends EventEmitter {
     await this.connectionPool.shutdown();
     await this.sessionManager.shutdown();
     
-    await this.monitoringSystem.shutdown();
+    await this.monitoringSystem.destroy();
     
     // Clean up retry and error recovery systems
     this.retryManager.destroy();

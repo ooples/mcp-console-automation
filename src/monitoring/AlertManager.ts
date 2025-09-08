@@ -391,7 +391,7 @@ export class AlertManager extends EventEmitter {
       throw new Error('SMTP configuration required for email notifications');
     }
 
-    const transporter = nodemailer.createTransporter(config.smtp);
+    const transporter = nodemailer.createTransport(config.smtp);
     
     const subject = `[${alert.severity.toUpperCase()}] ${alert.title}`;
     const html = this.generateEmailHTML(alert);

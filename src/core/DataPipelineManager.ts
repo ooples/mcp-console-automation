@@ -755,7 +755,7 @@ export class DataPipelineManager extends EventEmitter {
     };
     
     execution.logs.push(log);
-    this.logger.log(level, `[${execution.id}] ${stage}: ${message}`);
+    this.logger[level](`[${execution.id}] ${stage}: ${message}`);
   }
 
   private parseCsv(content: string, options: any): any[] {

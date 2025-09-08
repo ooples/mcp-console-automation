@@ -1,4 +1,5 @@
-import { ErrorReport, ParsedError, ErrorAnalysis } from './ErrorDetector.js';
+import { ErrorReport, ErrorAnalysis } from './ErrorDetector.js';
+import { ParsedError } from '../types/index.js';
 import { ExtendedErrorPattern } from '../patterns/ErrorPatterns.js';
 
 export interface ReportingOptions {

@@ -4,8 +4,7 @@ import {
   standardDeviation, 
   quantileRankSorted, 
   linearRegression, 
-  linearRegressionLine,
-  movingAverage
+  linearRegressionLine
 } from 'simple-statistics';
 import { Anomaly, SystemMetrics, ProcessMetrics } from '../types/index.js';
 import { Logger } from '../utils/logger.js';

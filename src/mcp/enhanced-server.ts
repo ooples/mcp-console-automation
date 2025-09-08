@@ -29,8 +29,7 @@ import {
   WorkflowExecution,
   WorkflowTemplate,
   DataFlowDefinition,
-  WorkflowTrigger,
-  TriggerExecution
+  WorkflowTrigger
 } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 
@@ -1271,8 +1270,14 @@ export class EnhancedConsoleAutomationServer {
       this.logger.info('Shutting down enhanced server...');
       await this.consoleManager.stopAllSessions();
       this.workflowEngine.cleanup();
-      this.dataManager.cleanup();
-      this.triggerManager.cleanup();
+      // dataManager.cleanup() method doesn't exist, using destroy if available
+      if ('destroy' in this.dataManager && typeof this.dataManager.destroy === 'function') {
+        (this.dataManager as any).destroy();
+      }
+      // triggerManager.cleanup() method doesn't exist, using destroy if available
+      if ('destroy' in this.triggerManager && typeof this.triggerManager.destroy === 'function') {
+        (this.triggerManager as any).destroy();
+      }
       process.exit(0);
     });
 
@@ -1280,8 +1285,14 @@ export class EnhancedConsoleAutomationServer {
       this.logger.info('Shutting down enhanced server...');
       await this.consoleManager.stopAllSessions();
       this.workflowEngine.cleanup();
-      this.dataManager.cleanup();
-      this.triggerManager.cleanup();
+      // dataManager.cleanup() method doesn't exist, using destroy if available
+      if ('destroy' in this.dataManager && typeof this.dataManager.destroy === 'function') {
+        (this.dataManager as any).destroy();
+      }
+      // triggerManager.cleanup() method doesn't exist, using destroy if available
+      if ('destroy' in this.triggerManager && typeof this.triggerManager.destroy === 'function') {
+        (this.triggerManager as any).destroy();
+      }
       process.exit(0);
     });
 
@@ -1299,7 +1310,10 @@ export class EnhancedConsoleAutomationServer {
     // Periodic cleanup
     setInterval(() => {
       this.workflowEngine.cleanup(24); // Clean up executions older than 24 hours
-      this.dataManager.cleanup();
+      // dataManager.cleanup() method doesn't exist, using destroy if available
+      if ('destroy' in this.dataManager && typeof this.dataManager.destroy === 'function') {
+        (this.dataManager as any).destroy();
+      }
       this.triggerManager.cleanup(168); // Clean up trigger executions older than 1 week
     }, 3600000); // Every hour
   }

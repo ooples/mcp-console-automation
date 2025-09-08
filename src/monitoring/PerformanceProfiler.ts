@@ -233,14 +233,14 @@ export class PerformanceProfiler extends EventEmitter {
       if (this.lastSystemStats) {
         const timeDiff = (Date.now() - (this.lastSystemStats as any).timestamp) / 1000;
         
-        // Calculate disk I/O rates
-        if (fsData && this.lastSystemStats.rx_bytes !== undefined) {
-          diskReadRate = ((fsData.rx_bytes || 0) - (this.lastSystemStats.rx_bytes || 0)) / timeDiff / 1024 / 1024; // MB/s
-          diskWriteRate = ((fsData.tx_bytes || 0) - (this.lastSystemStats.tx_bytes || 0)) / timeDiff / 1024 / 1024; // MB/s
+        // Calculate disk I/O rates (using fsData rIO and wIO)
+        if (fsData && (this.lastSystemStats as any).rIO !== undefined) {
+          diskReadRate = (((fsData as any).rIO || 0) - ((this.lastSystemStats as any).rIO || 0)) / timeDiff / 1024 / 1024; // MB/s
+          diskWriteRate = (((fsData as any).wIO || 0) - ((this.lastSystemStats as any).wIO || 0)) / timeDiff / 1024 / 1024; // MB/s
         }
 
         // Calculate network I/O rates
-        if (networkData && networkData.length > 0 && this.lastSystemStats.iface) {
+        if (networkData && networkData.length > 0) {
           const totalIn = networkData.reduce((sum, iface) => sum + iface.rx_bytes, 0);
           const totalOut = networkData.reduce((sum, iface) => sum + iface.tx_bytes, 0);
           const lastTotalIn = (this.lastSystemStats as any).totalNetworkIn || 0;
@@ -268,8 +268,8 @@ export class PerformanceProfiler extends EventEmitter {
         disk: {
           readRate: Math.max(0, diskReadRate),
           writeRate: Math.max(0, diskWriteRate),
-          totalRead: fsData?.rx_bytes || 0,
-          totalWrite: fsData?.tx_bytes || 0
+          totalRead: (fsData as any)?.rIO || 0,
+          totalWrite: (fsData as any)?.wIO || 0
         },
         network: {
           inRate: Math.max(0, networkInRate),
