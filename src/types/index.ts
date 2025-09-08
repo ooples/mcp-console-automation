@@ -12,6 +12,7 @@ export interface ConsoleSession {
   exitCode?: number;
   type?: ConsoleType;
   streaming?: boolean;
+  sshOptions?: SSHConnectionOptions;
   // Command execution state
   executionState: 'idle' | 'executing' | 'waiting';
   currentCommandId?: string;

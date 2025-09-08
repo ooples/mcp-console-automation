@@ -34,6 +34,15 @@ export interface RecoverySnapshot {
     errorTimestamp: Date;
     errorCount: number;
   };
+  interactiveState?: {
+    isInteractive: boolean;
+    promptType?: string;
+    lastPromptDetected?: Date;
+    pendingCommands: string[];
+    sessionUnresponsive: boolean;
+    timeoutCount: number;
+    lastSuccessfulCommand?: Date;
+  };
 }
 
 export interface RecoveryAttempt {
@@ -57,7 +66,11 @@ export type RecoveryStrategy =
   | 'restore'
   | 'replicate'
   | 'migrate'
-  | 'fallback';
+  | 'fallback'
+  | 'prompt-interrupt'
+  | 'prompt-reset'
+  | 'session-refresh'
+  | 'command-retry';
 
 export interface RecoveryPlan {
   sessionId: string;
@@ -66,6 +79,12 @@ export interface RecoveryPlan {
   estimatedTime: number;
   requiredResources: string[];
   fallbackOptions: string[];
+  interactiveContext?: {
+    promptTimeout: boolean;
+    commandInProgress: boolean;
+    lastKnownPrompt?: string;
+    unresponsiveTime?: number;
+  };
 }
 
 /**
@@ -256,7 +275,7 @@ export class SessionRecovery extends EventEmitter {
    */
   async updateSessionSnapshot(
     sessionId: string, 
-    updates: Partial<Pick<RecoverySnapshot, 'sessionState' | 'environment' | 'workingDirectory' | 'commandHistory' | 'outputBuffer' | 'errorContext'>>
+    updates: Partial<Pick<RecoverySnapshot, 'sessionState' | 'environment' | 'workingDirectory' | 'commandHistory' | 'outputBuffer' | 'errorContext' | 'interactiveState'>>
   ): Promise<void> {
     const snapshot = this.sessionSnapshots.get(sessionId);
     if (!snapshot) {
@@ -375,9 +394,10 @@ export class SessionRecovery extends EventEmitter {
     let priority: 'high' | 'medium' | 'low' = 'medium';
     let estimatedTime = 30000; // 30 seconds default
     
-    if (this.config.enableSmartRecovery && failureReason) {
-      // Analyze failure reason to determine best recovery strategy
-      const reason = failureReason.toLowerCase();
+    // Analyze failure reason to determine best recovery strategy
+    const reason = failureReason?.toLowerCase();
+    
+    if (this.config.enableSmartRecovery && failureReason && reason) {
       
       if (reason.includes('network') || reason.includes('connection')) {
         strategies = sessionType === 'ssh' 
@@ -387,9 +407,16 @@ export class SessionRecovery extends EventEmitter {
         estimatedTime = sessionType === 'ssh' ? 45000 : 15000;
         
       } else if (reason.includes('timeout') || reason.includes('unresponsive')) {
-        strategies = ['restart', 'restore', 'replicate', 'fallback'];
-        priority = 'high';
-        estimatedTime = 20000;
+        // Enhanced timeout handling with interactive prompt awareness
+        if (reason.includes('prompt') || reason.includes('interactive')) {
+          strategies = ['prompt-interrupt', 'prompt-reset', 'session-refresh', 'restart', 'fallback'];
+          priority = 'high';
+          estimatedTime = 15000;
+        } else {
+          strategies = ['restart', 'restore', 'replicate', 'fallback'];
+          priority = 'high';
+          estimatedTime = 20000;
+        }
         
       } else if (reason.includes('memory') || reason.includes('resource')) {
         strategies = ['migrate', 'restart', 'fallback'];
@@ -426,13 +453,27 @@ export class SessionRecovery extends EventEmitter {
       'Archive session for manual recovery'
     ];
 
+    // Add interactive context if dealing with prompt/timeout issues
+    let interactiveContext: RecoveryPlan['interactiveContext'];
+    if (reason && (reason.includes('timeout') || reason.includes('prompt') || reason.includes('interactive'))) {
+      const interactiveState = snapshot.interactiveState;
+      interactiveContext = {
+        promptTimeout: reason.includes('timeout'),
+        commandInProgress: interactiveState?.pendingCommands.length > 0 || false,
+        lastKnownPrompt: interactiveState?.promptType,
+        unresponsiveTime: interactiveState?.sessionUnresponsive ? 
+          (Date.now() - (interactiveState.lastSuccessfulCommand?.getTime() || Date.now())) : undefined
+      };
+    }
+
     return {
       sessionId,
       strategies,
       priority,
       estimatedTime,
       requiredResources,
-      fallbackOptions
+      fallbackOptions,
+      interactiveContext
     };
   }
 
@@ -523,6 +564,18 @@ export class SessionRecovery extends EventEmitter {
         
       case 'fallback':
         return await this.executeFallbackStrategy(sessionId, snapshot);
+        
+      case 'prompt-interrupt':
+        return await this.executePromptInterruptStrategy(sessionId, snapshot);
+        
+      case 'prompt-reset':
+        return await this.executePromptResetStrategy(sessionId, snapshot);
+        
+      case 'session-refresh':
+        return await this.executeSessionRefreshStrategy(sessionId, snapshot);
+        
+      case 'command-retry':
+        return await this.executeCommandRetryStrategy(sessionId, snapshot);
         
       default:
         this.logger.warn(`Unknown recovery strategy: ${strategy}`);
@@ -851,6 +904,279 @@ export class SessionRecovery extends EventEmitter {
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Execute prompt interrupt strategy - interrupt stuck interactive prompts
+   */
+  private async executePromptInterruptStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+    try {
+      this.emit('recovery-strategy-attempt', { 
+        sessionId, 
+        strategy: 'prompt-interrupt',
+        message: 'Interrupting stuck interactive prompt'
+      });
+
+      // Send interrupt signals to break out of stuck prompts
+      this.emit('session-interrupt-request', {
+        sessionId,
+        interruptType: 'prompt',
+        signals: ['SIGINT', 'CTRL_C', 'ESC'],
+        interactiveState: snapshot.interactiveState
+      });
+
+      return true;
+      
+    } catch (error) {
+      this.logger.error(`Prompt interrupt strategy failed for session ${sessionId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Execute prompt reset strategy - reset prompt state and clear buffers
+   */
+  private async executePromptResetStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+    try {
+      this.emit('recovery-strategy-attempt', { 
+        sessionId, 
+        strategy: 'prompt-reset',
+        message: 'Resetting prompt state and clearing buffers'
+      });
+
+      // Clear output buffers and reset prompt detection
+      this.emit('session-prompt-reset-request', {
+        sessionId,
+        actions: [
+          'clear-output-buffer',
+          'reset-prompt-detector',
+          'flush-pending-commands',
+          'reinitialize-prompt-patterns'
+        ],
+        preserveState: {
+          workingDirectory: snapshot.workingDirectory,
+          environment: snapshot.environment
+        }
+      });
+
+      return true;
+      
+    } catch (error) {
+      this.logger.error(`Prompt reset strategy failed for session ${sessionId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Execute session refresh strategy - refresh session without full restart
+   */
+  private async executeSessionRefreshStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+    try {
+      this.emit('recovery-strategy-attempt', { 
+        sessionId, 
+        strategy: 'session-refresh',
+        message: 'Refreshing session state without full restart'
+      });
+
+      // Send refresh command (like newline or space) to re-establish communication
+      this.emit('session-refresh-request', {
+        sessionId,
+        refreshActions: [
+          'send-newline',
+          'check-responsiveness',
+          'verify-prompt',
+          'restore-context'
+        ],
+        timeout: 10000,
+        fallbackToRestart: true,
+        preserveState: snapshot.interactiveState
+      });
+
+      return true;
+      
+    } catch (error) {
+      this.logger.error(`Session refresh strategy failed for session ${sessionId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Execute command retry strategy - retry failed commands with exponential backoff
+   */
+  private async executeCommandRetryStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+    try {
+      this.emit('recovery-strategy-attempt', { 
+        sessionId, 
+        strategy: 'command-retry',
+        message: 'Retrying failed commands with intelligent backoff'
+      });
+
+      const interactiveState = snapshot.interactiveState;
+      if (!interactiveState?.pendingCommands.length) {
+        this.logger.info(`No pending commands to retry for session ${sessionId}`);
+        return true; // Success - nothing to retry
+      }
+
+      // Retry pending commands with exponential backoff
+      this.emit('session-command-retry-request', {
+        sessionId,
+        commands: interactiveState.pendingCommands,
+        retryConfig: {
+          maxRetries: 3,
+          baseDelay: 1000,
+          backoffMultiplier: 2,
+          maxDelay: 10000,
+          jitter: true
+        },
+        verification: {
+          checkPrompt: true,
+          timeoutPerCommand: 15000,
+          verifyOutput: true
+        }
+      });
+
+      return true;
+      
+    } catch (error) {
+      this.logger.error(`Command retry strategy failed for session ${sessionId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Update interactive state for a session
+   */
+  async updateInteractiveState(
+    sessionId: string,
+    interactiveUpdates: Partial<RecoverySnapshot['interactiveState']>
+  ): Promise<void> {
+    const snapshot = this.sessionSnapshots.get(sessionId);
+    if (!snapshot) {
+      return;
+    }
+
+    // Initialize interactive state if it doesn't exist
+    if (!snapshot.interactiveState) {
+      snapshot.interactiveState = {
+        isInteractive: false,
+        pendingCommands: [],
+        sessionUnresponsive: false,
+        timeoutCount: 0
+      };
+    }
+
+    // Update interactive state
+    Object.assign(snapshot.interactiveState, interactiveUpdates);
+    snapshot.timestamp = new Date();
+
+    // Persist if enabled
+    if (this.config.persistenceEnabled) {
+      await this.persistSnapshot(snapshot);
+    }
+
+    this.emit('interactive-state-updated', { sessionId, interactiveState: snapshot.interactiveState });
+  }
+
+  /**
+   * Check if session needs interactive prompt recovery
+   */
+  shouldTriggerInteractiveRecovery(sessionId: string): {
+    shouldTrigger: boolean;
+    reason?: string;
+    urgency: 'low' | 'medium' | 'high';
+  } {
+    const snapshot = this.sessionSnapshots.get(sessionId);
+    if (!snapshot?.interactiveState) {
+      return { shouldTrigger: false, urgency: 'low' };
+    }
+
+    const state = snapshot.interactiveState;
+    const now = Date.now();
+
+    // Check for timeout conditions
+    if (state.sessionUnresponsive) {
+      const unresponsiveTime = state.lastSuccessfulCommand ? 
+        now - state.lastSuccessfulCommand.getTime() : 0;
+      
+      if (unresponsiveTime > 30000) { // 30 seconds
+        return {
+          shouldTrigger: true,
+          reason: 'Session unresponsive for extended period',
+          urgency: 'high'
+        };
+      }
+    }
+
+    // Check for excessive timeouts
+    if (state.timeoutCount >= 3) {
+      return {
+        shouldTrigger: true,
+        reason: 'Multiple consecutive timeouts detected',
+        urgency: 'high'
+      };
+    }
+
+    // Check for stuck interactive prompts
+    if (state.isInteractive && state.lastPromptDetected) {
+      const promptAge = now - state.lastPromptDetected.getTime();
+      if (promptAge > 60000) { // 1 minute
+        return {
+          shouldTrigger: true,
+          reason: 'Interactive prompt appears stuck',
+          urgency: 'medium'
+        };
+      }
+    }
+
+    // Check for pending commands that haven't been processed
+    if (state.pendingCommands.length > 0) {
+      const commandAge = state.lastSuccessfulCommand ? 
+        now - state.lastSuccessfulCommand.getTime() : now;
+      
+      if (commandAge > 45000) { // 45 seconds
+        return {
+          shouldTrigger: true,
+          reason: 'Pending commands not processing',
+          urgency: 'medium'
+        };
+      }
+    }
+
+    return { shouldTrigger: false, urgency: 'low' };
+  }
+
+  /**
+   * Get interactive recovery statistics
+   */
+  getInteractiveRecoveryStats(): {
+    totalInteractiveSessions: number;
+    sessionsWithTimeouts: number;
+    unresponsiveSessions: number;
+    averageTimeoutCount: number;
+    successfulPromptInterrupts: number;
+    successfulPromptResets: number;
+  } {
+    const snapshots = Array.from(this.sessionSnapshots.values());
+    const interactiveSessions = snapshots.filter(s => s.interactiveState?.isInteractive);
+    
+    const sessionsWithTimeouts = interactiveSessions.filter(s => s.interactiveState!.timeoutCount > 0);
+    const unresponsiveSessions = interactiveSessions.filter(s => s.interactiveState!.sessionUnresponsive);
+    
+    const totalTimeouts = interactiveSessions.reduce((sum, s) => sum + (s.interactiveState!.timeoutCount || 0), 0);
+    const averageTimeoutCount = interactiveSessions.length > 0 ? totalTimeouts / interactiveSessions.length : 0;
+    
+    // Get strategy usage stats
+    const promptInterrupts = this.stats.strategiesUsed.get('prompt-interrupt') || 0;
+    const promptResets = this.stats.strategiesUsed.get('prompt-reset') || 0;
+    
+    return {
+      totalInteractiveSessions: interactiveSessions.length,
+      sessionsWithTimeouts: sessionsWithTimeouts.length,
+      unresponsiveSessions: unresponsiveSessions.length,
+      averageTimeoutCount,
+      successfulPromptInterrupts: promptInterrupts,
+      successfulPromptResets: promptResets
+    };
   }
 
   /**

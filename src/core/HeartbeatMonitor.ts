@@ -11,6 +11,10 @@ export interface HeartbeatConfig {
   retryDelay: number;
   gracePeriod: number;
   enablePredictiveFailure: boolean;
+  sshHeartbeatInterval: number;
+  sshTimeoutThreshold: number;
+  enableSSHProactiveReconnect: boolean;
+  sshFailureRiskThreshold: number;
 }
 
 export interface HeartbeatResult {
@@ -33,6 +37,29 @@ export interface SessionHeartbeat {
   adaptiveInterval: number;
   nextHeartbeat: Date;
   failurePredictionScore?: number;
+  isSSHSession?: boolean;
+  sshHealthData?: SSHHeartbeatData;
+}
+
+export interface SSHHeartbeatData {
+  hostname: string;
+  port: number;
+  username: string;
+  lastKeepAliveSuccess: Date;
+  keepAliveSuccessRate: number;
+  connectionStability: number;
+  networkLatency: number;
+  authenticationStatus: 'valid' | 'expired' | 'failed' | 'unknown';
+  encryptionStrength: 'weak' | 'medium' | 'strong' | 'unknown';
+  dataTransferRate: number;
+  commandExecutionTime: number;
+  proactiveReconnectTriggered: boolean;
+  riskFactors: {
+    networkDegradation: number;
+    performanceIssues: number;
+    authenticationRisk: number;
+    connectionAging: number;
+  };
 }
 
 /**
@@ -73,7 +100,11 @@ export class HeartbeatMonitor extends EventEmitter {
       retryAttempts: config?.retryAttempts || 2,
       retryDelay: config?.retryDelay || 5000,
       gracePeriod: config?.gracePeriod || 60000, // 1 minute grace period for new sessions
-      enablePredictiveFailure: config?.enablePredictiveFailure ?? true
+      enablePredictiveFailure: config?.enablePredictiveFailure ?? true,
+      sshHeartbeatInterval: config?.sshHeartbeatInterval || 20000, // 20 seconds for SSH
+      sshTimeoutThreshold: config?.sshTimeoutThreshold || 15000, // 15 seconds SSH timeout
+      enableSSHProactiveReconnect: config?.enableSSHProactiveReconnect ?? true,
+      sshFailureRiskThreshold: config?.sshFailureRiskThreshold || 0.7
     };
 
     this.logger.info('HeartbeatMonitor initialized with config:', this.config);
@@ -127,13 +158,22 @@ export class HeartbeatMonitor extends EventEmitter {
   /**
    * Add a session for heartbeat monitoring
    */
-  addSession(sessionId: string, sessionState?: SessionState): void {
+  addSession(sessionId: string, sessionState?: SessionState, sshConnectionInfo?: {
+    hostname: string;
+    port: number;
+    username: string;
+  }): void {
     if (this.sessionHeartbeats.has(sessionId)) {
       this.logger.warn(`Session ${sessionId} is already being monitored`);
       return;
     }
 
     const now = Date.now();
+    const isSSH = sessionState?.type === 'ssh' || !!sshConnectionInfo;
+    
+    // Use SSH-specific interval for SSH sessions
+    const baseInterval = isSSH ? this.config.sshHeartbeatInterval : this.config.interval;
+    
     const heartbeat: SessionHeartbeat = {
       sessionId,
       lastBeat: new Date(now),
@@ -141,20 +181,47 @@ export class HeartbeatMonitor extends EventEmitter {
       averageResponseTime: 0,
       responseTimeHistory: [],
       isHealthy: true,
-      adaptiveInterval: this.config.interval,
-      nextHeartbeat: new Date(now + this.config.gracePeriod) // Give grace period for new sessions
+      adaptiveInterval: baseInterval,
+      nextHeartbeat: new Date(now + this.config.gracePeriod), // Give grace period for new sessions
+      isSSHSession: isSSH
     };
+
+    // Initialize SSH-specific data if this is an SSH session
+    if (isSSH && sshConnectionInfo) {
+      heartbeat.sshHealthData = {
+        hostname: sshConnectionInfo.hostname,
+        port: sshConnectionInfo.port,
+        username: sshConnectionInfo.username,
+        lastKeepAliveSuccess: new Date(),
+        keepAliveSuccessRate: 1.0,
+        connectionStability: 1.0,
+        networkLatency: 0,
+        authenticationStatus: 'valid',
+        encryptionStrength: 'unknown',
+        dataTransferRate: 0,
+        commandExecutionTime: 0,
+        proactiveReconnectTriggered: false,
+        riskFactors: {
+          networkDegradation: 0,
+          performanceIssues: 0,
+          authenticationRisk: 0,
+          connectionAging: 0
+        }
+      };
+    }
 
     this.sessionHeartbeats.set(sessionId, heartbeat);
     this.stats.totalSessions++;
     this.stats.activeSessions++;
 
-    this.logger.info(`Added session ${sessionId} for heartbeat monitoring`);
+    this.logger.info(`Added ${isSSH ? 'SSH ' : ''}session ${sessionId} for heartbeat monitoring${
+      sshConnectionInfo ? ` (${sshConnectionInfo.hostname}:${sshConnectionInfo.port})` : ''
+    }`);
 
     // Schedule first heartbeat after grace period
     this.scheduleHeartbeat(sessionId, this.config.gracePeriod);
 
-    this.emit('session-added', { sessionId, heartbeat });
+    this.emit('session-added', { sessionId, heartbeat, isSSH });
   }
 
   /**
@@ -283,9 +350,10 @@ export class HeartbeatMonitor extends EventEmitter {
    */
   private calculateAdaptiveInterval(heartbeat: SessionHeartbeat): number {
     if (!this.config.enableAdaptiveInterval) {
-      return this.config.interval;
+      return heartbeat.isSSHSession ? this.config.sshHeartbeatInterval : this.config.interval;
     }
 
+    const baseInterval = heartbeat.isSSHSession ? this.config.sshHeartbeatInterval : this.config.interval;
     let multiplier = 1.0;
 
     // Increase frequency for unhealthy sessions
@@ -300,6 +368,45 @@ export class HeartbeatMonitor extends EventEmitter {
       multiplier = 1.5;
     }
 
+    // SSH-specific adaptive logic
+    if (heartbeat.isSSHSession && heartbeat.sshHealthData) {
+      const sshData = heartbeat.sshHealthData;
+      
+      // Check more frequently for SSH sessions with high risk factors
+      const totalRisk = sshData.riskFactors.networkDegradation + 
+                       sshData.riskFactors.performanceIssues + 
+                       sshData.riskFactors.authenticationRisk + 
+                       sshData.riskFactors.connectionAging;
+      
+      if (totalRisk > 2.0) {
+        multiplier *= 0.4; // Very high risk - check very frequently
+      } else if (totalRisk > 1.0) {
+        multiplier *= 0.6; // High risk - check more frequently
+      }
+      
+      // Adjust based on connection stability
+      if (sshData.connectionStability < 0.5) {
+        multiplier *= 0.5; // Unstable connection - check more frequently
+      } else if (sshData.connectionStability > 0.9 && sshData.keepAliveSuccessRate > 0.95) {
+        multiplier *= 1.3; // Very stable connection - check less frequently
+      }
+      
+      // Adjust based on network latency
+      if (sshData.networkLatency > this.config.sshTimeoutThreshold) {
+        multiplier *= 0.7; // High latency - check more frequently
+      }
+      
+      // Proactive reconnection logic
+      if (this.config.enableSSHProactiveReconnect && !sshData.proactiveReconnectTriggered) {
+        const failureRisk = this.calculateSSHFailureRisk(heartbeat);
+        if (failureRisk >= this.config.sshFailureRiskThreshold) {
+          // Trigger proactive reconnection
+          this.triggerProactiveReconnect(heartbeat.sessionId, failureRisk);
+          sshData.proactiveReconnectTriggered = true;
+        }
+      }
+    }
+
     // Apply predictive failure analysis
     if (this.config.enablePredictiveFailure && heartbeat.failurePredictionScore !== undefined) {
       if (heartbeat.failurePredictionScore > 0.7) {
@@ -309,10 +416,14 @@ export class HeartbeatMonitor extends EventEmitter {
       }
     }
 
-    const adaptiveInterval = Math.floor(this.config.interval * multiplier);
+    const adaptiveInterval = Math.floor(baseInterval * multiplier);
     heartbeat.adaptiveInterval = adaptiveInterval;
 
-    return Math.max(5000, Math.min(adaptiveInterval, 300000)); // Between 5 seconds and 5 minutes
+    // SSH sessions have tighter bounds
+    const minInterval = heartbeat.isSSHSession ? 3000 : 5000; // 3-5 seconds minimum
+    const maxInterval = heartbeat.isSSHSession ? 120000 : 300000; // 2-5 minutes maximum
+
+    return Math.max(minInterval, Math.min(adaptiveInterval, maxInterval));
   }
 
   /**
@@ -409,16 +520,28 @@ export class HeartbeatMonitor extends EventEmitter {
    * Check session health (placeholder for actual implementation)
    */
   private async checkSessionHealth(sessionId: string): Promise<void> {
+    const heartbeat = this.sessionHeartbeats.get(sessionId);
+    if (!heartbeat) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const timeout = heartbeat.isSSHSession ? this.config.sshTimeoutThreshold : this.config.timeout;
+
     return new Promise((resolve, reject) => {
       // Emit request for session health check
       this.emit('heartbeat-check-request', { 
         sessionId, 
-        timeout: this.config.timeout,
+        timeout,
+        isSSHSession: heartbeat.isSSHSession,
         timestamp: new Date(),
-        callback: (error?: Error) => {
+        callback: (error?: Error, healthData?: any) => {
           if (error) {
             reject(error);
           } else {
+            // Update SSH health data if available
+            if (heartbeat.isSSHSession && heartbeat.sshHealthData && healthData) {
+              this.updateSSHHealthData(heartbeat, healthData);
+            }
             resolve();
           }
         }
@@ -426,8 +549,8 @@ export class HeartbeatMonitor extends EventEmitter {
 
       // Timeout mechanism
       setTimeout(() => {
-        reject(new Error(`Heartbeat timeout after ${this.config.timeout}ms`));
-      }, this.config.timeout);
+        reject(new Error(`Heartbeat timeout after ${timeout}ms`));
+      }, timeout);
     });
   }
 
@@ -601,10 +724,182 @@ export class HeartbeatMonitor extends EventEmitter {
   }
 
   /**
+   * Calculate SSH failure risk
+   */
+  private calculateSSHFailureRisk(heartbeat: SessionHeartbeat): number {
+    if (!heartbeat.isSSHSession || !heartbeat.sshHealthData) {
+      return 0;
+    }
+
+    const sshData = heartbeat.sshHealthData;
+    let riskScore = 0;
+
+    // Factor in connection stability
+    riskScore += (1 - sshData.connectionStability) * 0.3;
+
+    // Factor in keep-alive success rate
+    riskScore += (1 - sshData.keepAliveSuccessRate) * 0.25;
+
+    // Factor in network latency
+    if (sshData.networkLatency > this.config.sshTimeoutThreshold) {
+      riskScore += 0.2;
+    }
+
+    // Factor in authentication status
+    switch (sshData.authenticationStatus) {
+      case 'failed':
+        riskScore += 0.4;
+        break;
+      case 'expired':
+        riskScore += 0.3;
+        break;
+      case 'unknown':
+        riskScore += 0.1;
+        break;
+    }
+
+    // Factor in individual risk factors
+    const totalRiskFactors = Object.values(sshData.riskFactors).reduce((sum, risk) => sum + risk, 0);
+    riskScore += Math.min(0.4, totalRiskFactors / 4 * 0.4);
+
+    // Factor in consecutive missed heartbeats
+    if (heartbeat.consecutiveMissed > 0) {
+      riskScore += Math.min(0.2, heartbeat.consecutiveMissed * 0.05);
+    }
+
+    return Math.min(1.0, riskScore);
+  }
+
+  /**
+   * Trigger proactive reconnection
+   */
+  private triggerProactiveReconnect(sessionId: string, failureRisk: number): void {
+    const heartbeat = this.sessionHeartbeats.get(sessionId);
+    if (!heartbeat || !heartbeat.isSSHSession) {
+      return;
+    }
+
+    this.logger.warn(`Triggering proactive reconnection for SSH session ${sessionId} (risk: ${(failureRisk * 100).toFixed(1)}%)`);
+
+    // Emit proactive reconnection event
+    this.emit('ssh-proactive-reconnect', {
+      sessionId,
+      failureRisk,
+      heartbeat,
+      timestamp: new Date(),
+      reason: 'predictive-failure-prevention',
+      urgency: failureRisk > 0.8 ? 'high' : 'medium'
+    });
+
+    // Update statistics
+    this.stats.preventedFailures++;
+
+    // Log the event
+    this.logger.info(`Proactive reconnection triggered for session ${sessionId} with risk score ${failureRisk.toFixed(3)}`);
+  }
+
+  /**
+   * Update SSH health data from heartbeat response
+   */
+  private updateSSHHealthData(heartbeat: SessionHeartbeat, healthData: any): void {
+    if (!heartbeat.sshHealthData) {
+      return;
+    }
+
+    const sshData = heartbeat.sshHealthData;
+
+    // Update basic metrics
+    if (healthData.networkLatency !== undefined) {
+      sshData.networkLatency = healthData.networkLatency;
+    }
+
+    if (healthData.connectionStability !== undefined) {
+      sshData.connectionStability = healthData.connectionStability;
+    }
+
+    if (healthData.dataTransferRate !== undefined) {
+      sshData.dataTransferRate = healthData.dataTransferRate;
+    }
+
+    if (healthData.commandExecutionTime !== undefined) {
+      sshData.commandExecutionTime = healthData.commandExecutionTime;
+    }
+
+    if (healthData.authenticationStatus !== undefined) {
+      sshData.authenticationStatus = healthData.authenticationStatus;
+    }
+
+    if (healthData.encryptionStrength !== undefined) {
+      sshData.encryptionStrength = healthData.encryptionStrength;
+    }
+
+    // Update keep-alive success rate
+    if (healthData.keepAliveSuccess !== undefined) {
+      if (healthData.keepAliveSuccess) {
+        sshData.lastKeepAliveSuccess = new Date();
+        
+        // Update success rate (exponential moving average)
+        sshData.keepAliveSuccessRate = sshData.keepAliveSuccessRate * 0.9 + 0.1;
+      } else {
+        sshData.keepAliveSuccessRate = sshData.keepAliveSuccessRate * 0.9;
+      }
+    }
+
+    // Update risk factors
+    if (healthData.riskFactors) {
+      Object.assign(sshData.riskFactors, healthData.riskFactors);
+    }
+
+    // Calculate connection aging
+    const connectionAge = Date.now() - heartbeat.lastBeat.getTime();
+    const hoursConnected = connectionAge / 3600000;
+    
+    // Connections become riskier after 12 hours
+    if (hoursConnected > 12) {
+      sshData.riskFactors.connectionAging = Math.min(1.0, (hoursConnected - 12) / 24);
+    }
+
+    // Calculate network degradation based on latency trends
+    if (heartbeat.responseTimeHistory.length > 10) {
+      const recent = heartbeat.responseTimeHistory.slice(-5);
+      const older = heartbeat.responseTimeHistory.slice(-10, -5);
+      
+      const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
+      const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
+      
+      if (recentAvg > olderAvg * 1.5) {
+        sshData.riskFactors.networkDegradation = Math.min(1.0, (recentAvg - olderAvg) / olderAvg);
+      }
+    }
+
+    // Calculate performance issues based on command execution time
+    if (sshData.commandExecutionTime > 5000) { // 5 seconds
+      sshData.riskFactors.performanceIssues = Math.min(1.0, sshData.commandExecutionTime / 10000);
+    }
+
+    // Authentication risk based on status
+    switch (sshData.authenticationStatus) {
+      case 'failed':
+        sshData.riskFactors.authenticationRisk = 1.0;
+        break;
+      case 'expired':
+        sshData.riskFactors.authenticationRisk = 0.7;
+        break;
+      case 'unknown':
+        sshData.riskFactors.authenticationRisk = 0.3;
+        break;
+      case 'valid':
+        sshData.riskFactors.authenticationRisk = 0.0;
+        break;
+    }
+  }
+
+  /**
    * Get comprehensive heartbeat statistics
    */
   getStatistics() {
     const sessionStats = Array.from(this.sessionHeartbeats.values());
+    const sshSessions = sessionStats.filter(s => s.isSSHSession);
     
     return {
       ...this.stats,
@@ -616,7 +911,21 @@ export class HeartbeatMonitor extends EventEmitter {
       isRunning: this.isRunning,
       configuredInterval: this.config.interval,
       adaptiveIntervalEnabled: this.config.enableAdaptiveInterval,
-      predictiveFailureEnabled: this.config.enablePredictiveFailure
+      predictiveFailureEnabled: this.config.enablePredictiveFailure,
+      // SSH-specific statistics
+      sshSessions: {
+        total: sshSessions.length,
+        healthy: sshSessions.filter(s => s.isHealthy).length,
+        unhealthy: sshSessions.filter(s => !s.isHealthy).length,
+        highRisk: sshSessions.filter(s => s.sshHealthData && this.calculateSSHFailureRisk(s) > this.config.sshFailureRiskThreshold).length,
+        proactiveReconnectEnabled: this.config.enableSSHProactiveReconnect,
+        averageConnectionStability: sshSessions.length > 0 ? 
+          sshSessions.filter(s => s.sshHealthData).reduce((sum, s) => sum + s.sshHealthData!.connectionStability, 0) / 
+          Math.max(1, sshSessions.filter(s => s.sshHealthData).length) : 1.0,
+        averageKeepAliveSuccessRate: sshSessions.length > 0 ? 
+          sshSessions.filter(s => s.sshHealthData).reduce((sum, s) => sum + s.sshHealthData!.keepAliveSuccessRate, 0) / 
+          Math.max(1, sshSessions.filter(s => s.sshHealthData).length) : 1.0
+      }
     };
   }
 
@@ -625,6 +934,7 @@ export class HeartbeatMonitor extends EventEmitter {
    */
   getHealthSummary() {
     const sessions = Array.from(this.sessionHeartbeats.values());
+    const sshSessions = sessions.filter(s => s.isSSHSession);
     
     return {
       totalSessions: sessions.length,
@@ -634,7 +944,21 @@ export class HeartbeatMonitor extends EventEmitter {
       successRate: this.stats.totalHeartbeats > 0 ? 
         (this.stats.successfulHeartbeats / this.stats.totalHeartbeats) * 100 : 100,
       highRiskSessions: sessions.filter(s => (s.failurePredictionScore || 0) > 0.7).length,
-      lastUpdate: new Date()
+      lastUpdate: new Date(),
+      // SSH-specific summary
+      ssh: {
+        totalSessions: sshSessions.length,
+        healthySessions: sshSessions.filter(s => s.isHealthy).length,
+        unhealthySessions: sshSessions.filter(s => !s.isHealthy).length,
+        highRiskSessions: sshSessions.filter(s => s.sshHealthData && this.calculateSSHFailureRisk(s) > this.config.sshFailureRiskThreshold).length,
+        proactiveReconnectTriggered: sshSessions.filter(s => s.sshHealthData?.proactiveReconnectTriggered).length,
+        averageStability: sshSessions.length > 0 ? 
+          sshSessions.filter(s => s.sshHealthData).reduce((sum, s) => sum + s.sshHealthData!.connectionStability, 0) / 
+          Math.max(1, sshSessions.filter(s => s.sshHealthData).length) : 1.0,
+        averageNetworkLatency: sshSessions.length > 0 ? 
+          sshSessions.filter(s => s.sshHealthData).reduce((sum, s) => sum + s.sshHealthData!.networkLatency, 0) / 
+          Math.max(1, sshSessions.filter(s => s.sshHealthData).length) : 0
+      }
     };
   }
 

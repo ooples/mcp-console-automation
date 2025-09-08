@@ -17,6 +17,7 @@ export interface HealthMonitorConfig {
     process: boolean;
     disk: boolean;
     memory: boolean;
+    ssh: boolean;
   };
   thresholds: {
     cpu: number;
@@ -24,28 +25,122 @@ export interface HealthMonitorConfig {
     disk: number;
     networkLatency: number;
     processResponseTime: number;
+    sshConnectionLatency: number;
+    sshHealthScore: number;
   };
   checkInterval: number;
+  sshHealthCheckInterval: number;
   alertThresholds: {
     consecutive_failures: number;
     response_time_threshold: number;
     memory_usage_threshold: number;
     error_rate_threshold: number;
+    ssh_connection_timeout: number;
+    ssh_failure_rate_threshold: number;
   };
   recovery: {
     enabled: boolean;
     maxAttempts: number;
     backoffMultiplier: number;
     baseDelay: number;
+    sshProactiveReconnect: boolean;
   };
   monitoring: {
     enableMetrics: boolean;
     enableAlerting: boolean;
     enablePredictiveAnalysis: boolean;
+    enableSSHHealthPrediction: boolean;
   };
 }
 
 // HealthCheckResult is imported from types/index.ts
+
+export interface SSHHealthMetrics {
+  connectionLatency: number;
+  lastKeepAliveTimestamp?: number;  // Changed from Date to number timestamp
+  lastKeepAlive?: Date;  // Keep for compatibility
+  consecutiveFailures: number;
+  connectionUptime: number;
+  throughput: number;
+  errorRate: number;
+  authenticationType?: 'password' | 'publickey' | 'keyboard-interactive';
+  encryptionAlgorithm?: string;
+  compressionEnabled?: number;  // Changed to number (0 or 1)
+  serverVersion?: string;
+  clientVersion?: string;
+}
+
+export interface SSHHealthResult extends HealthCheckResult {
+  sshMetrics?: SSHHealthMetrics;
+  connectionId?: string;
+  hostInfo?: {
+    hostname: string;
+    port: number;
+    username: string;
+  };
+  predictiveScores?: {
+    connectionStability: number;
+    performanceDegradation: number;
+    authenticationRisk: number;
+    networkQuality: number;
+    overallFailureRisk: number;
+  };
+}
+
+export interface SSHSessionHealth {
+  sessionId: string;
+  connectionId: string;
+  hostname: string;
+  port: number;
+  username: string;
+  connectedAt: Date;
+  lastActivity: Date;
+  healthScore: number;
+  connectionLatencyHistory: number[];
+  throughputHistory: number[];
+  errorHistory: { timestamp: Date; error: string; recoverable: boolean }[];
+  keepAliveStatus: 'active' | 'failed' | 'degraded';
+  connectionStability: number;
+  predictiveFailureScore: number;
+  authenticationMethod: string;
+  encryptionInfo: {
+    algorithm: string;
+    keySize: number;
+    compressionEnabled: boolean;
+  };
+  serverInfo: {
+    version: string;
+    protocol: string;
+    supportedAlgorithms: string[];
+  };
+  performanceMetrics: {
+    averageLatency: number;
+    maxLatency: number;
+    minLatency: number;
+    throughputBytesPerSecond: number;
+    commandExecutionTime: number;
+    dataTransferTime: number;
+  };
+}
+
+export interface SSHPredictionModel {
+  sessionId: string;
+  connectionStabilityTrend: number[];
+  latencyTrend: number[];
+  throughputTrend: number[];
+  errorRateTrend: number[];
+  keepAliveSuccessRate: number;
+  lastUpdated: Date;
+  confidenceScore: number;
+  predictedFailureTime?: Date;
+  riskFactors: {
+    networkInstability: number;
+    performanceDegradation: number;
+    authenticationIssues: number;
+    serverOverload: number;
+    connectionAging: number;
+  };
+}
 
 export interface HealthReport {
   overall: 'healthy' | 'warning' | 'unhealthy' | 'critical';
@@ -65,6 +160,14 @@ export interface HealthReport {
     predictionNextHour?: 'healthy' | 'warning' | 'unhealthy' | 'critical';
   };
   actionItems: string[];
+  sshHealthSummary?: {
+    totalSSHSessions: number;
+    healthySSHSessions: number;
+    unhealthySSHSessions: number;
+    averageSSHLatency: number;
+    predictedFailures: number;
+    proactiveReconnections: number;
+  };
 }
 
 /**
@@ -79,7 +182,13 @@ export class HealthMonitor extends EventEmitter {
   private healthScoreHistory: number[] = [];
   private lastSystemMetrics?: SystemMetrics;
   private monitoringInterval?: NodeJS.Timeout;
+  private sshHealthInterval?: NodeJS.Timeout;
   private isRunning = false;
+
+  // SSH-specific monitoring data
+  private sshSessions: Map<string, SSHSessionHealth> = new Map();
+  private sshHealthHistory: Map<string, SSHHealthResult[]> = new Map();
+  private sshPredictionModels: Map<string, SSHPredictionModel> = new Map();
 
   // Health check statistics
   private stats = {
@@ -104,6 +213,7 @@ export class HealthMonitor extends EventEmitter {
         process: true,
         disk: true,
         memory: true,
+        ssh: true,
         ...config?.enabledChecks
       },
       thresholds: {
@@ -112,14 +222,19 @@ export class HealthMonitor extends EventEmitter {
         disk: 90,
         networkLatency: 1000,
         processResponseTime: 5000,
+        sshConnectionLatency: 2000,
+        sshHealthScore: 70,
         ...config?.thresholds
       },
       checkInterval: config?.checkInterval || 30000,
+      sshHealthCheckInterval: config?.sshHealthCheckInterval || 15000,
       alertThresholds: {
         consecutive_failures: 3,
         response_time_threshold: 10000,
         memory_usage_threshold: 95,
         error_rate_threshold: 0.1,
+        ssh_connection_timeout: 30000,
+        ssh_failure_rate_threshold: 0.05,
         ...config?.alertThresholds
       },
       recovery: {
@@ -127,12 +242,14 @@ export class HealthMonitor extends EventEmitter {
         maxAttempts: 3,
         backoffMultiplier: 2,
         baseDelay: 5000,
+        sshProactiveReconnect: true,
         ...config?.recovery
       },
       monitoring: {
         enableMetrics: true,
         enableAlerting: true,
         enablePredictiveAnalysis: true,
+        enableSSHHealthPrediction: true,
         ...config?.monitoring
       }
     };
@@ -157,8 +274,18 @@ export class HealthMonitor extends EventEmitter {
       await this.performHealthChecks();
     }, this.config.checkInterval);
 
-    // Perform initial health check
+    // Start SSH-specific health monitoring if enabled
+    if (this.config.enabledChecks.ssh) {
+      this.sshHealthInterval = setInterval(async () => {
+        await this.performSSHHealthChecks();
+      }, this.config.sshHealthCheckInterval);
+    }
+
+    // Perform initial health checks
     await this.performHealthChecks();
+    if (this.config.enabledChecks.ssh) {
+      await this.performSSHHealthChecks();
+    }
 
     this.emit('started');
     this.logger.info('HealthMonitor started successfully');
@@ -180,6 +307,12 @@ export class HealthMonitor extends EventEmitter {
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = undefined;
+    }
+
+    // Clear SSH health monitoring interval
+    if (this.sshHealthInterval) {
+      clearInterval(this.sshHealthInterval);
+      this.sshHealthInterval = undefined;
     }
 
     // Clear active checks
@@ -701,6 +834,806 @@ export class HealthMonitor extends EventEmitter {
   }
 
   /**
+   * Register SSH session for health monitoring
+   */
+  registerSSHSession(sessionId: string, connectionInfo: {
+    hostname: string;
+    port: number;
+    username: string;
+    authenticationMethod?: string;
+  }): void {
+    const sshHealth: SSHSessionHealth = {
+      sessionId,
+      connectionId: `${connectionInfo.hostname}:${connectionInfo.port}`,
+      hostname: connectionInfo.hostname,
+      port: connectionInfo.port,
+      username: connectionInfo.username,
+      connectedAt: new Date(),
+      lastActivity: new Date(),
+      healthScore: 100,
+      connectionLatencyHistory: [],
+      throughputHistory: [],
+      errorHistory: [],
+      keepAliveStatus: 'active',
+      connectionStability: 1.0,
+      predictiveFailureScore: 0,
+      authenticationMethod: connectionInfo.authenticationMethod || 'unknown',
+      encryptionInfo: {
+        algorithm: 'unknown',
+        keySize: 0,
+        compressionEnabled: false
+      },
+      serverInfo: {
+        version: 'unknown',
+        protocol: 'unknown',
+        supportedAlgorithms: []
+      },
+      performanceMetrics: {
+        averageLatency: 0,
+        maxLatency: 0,
+        minLatency: 0,
+        throughputBytesPerSecond: 0,
+        commandExecutionTime: 0,
+        dataTransferTime: 0
+      }
+    };
+
+    this.sshSessions.set(sessionId, sshHealth);
+    this.sshHealthHistory.set(sessionId, []);
+    
+    // Initialize prediction model
+    const predictionModel: SSHPredictionModel = {
+      sessionId,
+      connectionStabilityTrend: [1.0],
+      latencyTrend: [],
+      throughputTrend: [],
+      errorRateTrend: [0],
+      keepAliveSuccessRate: 1.0,
+      lastUpdated: new Date(),
+      confidenceScore: 0.5,
+      riskFactors: {
+        networkInstability: 0,
+        performanceDegradation: 0,
+        authenticationIssues: 0,
+        serverOverload: 0,
+        connectionAging: 0
+      }
+    };
+
+    this.sshPredictionModels.set(sessionId, predictionModel);
+
+    this.logger.info(`SSH session ${sessionId} registered for health monitoring: ${connectionInfo.hostname}:${connectionInfo.port}`);
+    this.emit('ssh-session-registered', { sessionId, connectionInfo, sshHealth });
+  }
+
+  /**
+   * Unregister SSH session from health monitoring
+   */
+  unregisterSSHSession(sessionId: string): void {
+    this.sshSessions.delete(sessionId);
+    this.sshHealthHistory.delete(sessionId);
+    this.sshPredictionModels.delete(sessionId);
+
+    this.logger.info(`SSH session ${sessionId} unregistered from health monitoring`);
+    this.emit('ssh-session-unregistered', { sessionId });
+  }
+
+  /**
+   * Update SSH session activity
+   */
+  updateSSHSessionActivity(sessionId: string, activityData: {
+    latency?: number;
+    throughput?: number;
+    commandExecutionTime?: number;
+    dataTransferSize?: number;
+    error?: { message: string; recoverable: boolean };
+  }): void {
+    const sshHealth = this.sshSessions.get(sessionId);
+    if (!sshHealth) {
+      return;
+    }
+
+    sshHealth.lastActivity = new Date();
+
+    if (activityData.latency !== undefined) {
+      sshHealth.connectionLatencyHistory.push(activityData.latency);
+      if (sshHealth.connectionLatencyHistory.length > 100) {
+        sshHealth.connectionLatencyHistory.shift();
+      }
+
+      // Update performance metrics
+      const latencies = sshHealth.connectionLatencyHistory;
+      sshHealth.performanceMetrics.averageLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+      sshHealth.performanceMetrics.maxLatency = Math.max(...latencies);
+      sshHealth.performanceMetrics.minLatency = Math.min(...latencies);
+    }
+
+    if (activityData.throughput !== undefined) {
+      sshHealth.throughputHistory.push(activityData.throughput);
+      if (sshHealth.throughputHistory.length > 100) {
+        sshHealth.throughputHistory.shift();
+      }
+
+      sshHealth.performanceMetrics.throughputBytesPerSecond = 
+        sshHealth.throughputHistory.reduce((a, b) => a + b, 0) / sshHealth.throughputHistory.length;
+    }
+
+    if (activityData.commandExecutionTime !== undefined) {
+      sshHealth.performanceMetrics.commandExecutionTime = activityData.commandExecutionTime;
+    }
+
+    if (activityData.error) {
+      sshHealth.errorHistory.push({
+        timestamp: new Date(),
+        error: activityData.error.message,
+        recoverable: activityData.error.recoverable
+      });
+
+      if (sshHealth.errorHistory.length > 50) {
+        sshHealth.errorHistory.shift();
+      }
+    }
+
+    // Update health score and prediction model
+    this.updateSSHHealthScore(sessionId);
+    this.updateSSHPredictionModel(sessionId);
+  }
+
+  /**
+   * Perform SSH-specific health checks
+   */
+  private async performSSHHealthChecks(): Promise<void> {
+    if (this.sshSessions.size === 0) {
+      return;
+    }
+
+    const startTime = Date.now();
+    const sshResults: SSHHealthResult[] = [];
+
+    try {
+      for (const [sessionId, sshHealth] of this.sshSessions) {
+        const healthResult = await this.checkSSHSessionHealth(sessionId, sshHealth);
+        sshResults.push(healthResult);
+
+        // Store in history
+        const history = this.sshHealthHistory.get(sessionId) || [];
+        history.push(healthResult);
+        
+        // Keep only last 100 checks
+        if (history.length > 100) {
+          history.shift();
+        }
+        this.sshHealthHistory.set(sessionId, history);
+
+        // Check for critical issues requiring immediate action
+        if (healthResult.status === 'critical' || (healthResult.predictiveScores?.overallFailureRisk || 0) > 0.8) {
+          await this.handleCriticalSSHIssue(sessionId, healthResult);
+        } else if (healthResult.status === 'unhealthy' || (healthResult.predictiveScores?.overallFailureRisk || 0) > 0.6) {
+          this.emit('ssh-session-degraded', { sessionId, healthResult });
+        }
+
+        // Check for proactive reconnection needs
+        if (this.config.recovery.sshProactiveReconnect && 
+            (healthResult.predictiveScores?.overallFailureRisk || 0) > 0.7) {
+          this.emit('ssh-proactive-reconnect-needed', { 
+            sessionId, 
+            healthResult,
+            reason: 'predictive-failure-risk',
+            urgency: 'medium'
+          });
+        }
+      }
+
+      this.emit('ssh-health-checks-completed', { 
+        results: sshResults, 
+        duration: Date.now() - startTime,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      this.logger.error('Error during SSH health checks:', error);
+      this.emit('ssh-health-check-error', { 
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date()
+      });
+    }
+
+    const duration = Date.now() - startTime;
+    this.logger.debug(`SSH health checks completed in ${duration}ms for ${this.sshSessions.size} sessions`);
+  }
+
+  /**
+   * Check health of a specific SSH session
+   */
+  private async checkSSHSessionHealth(sessionId: string, sshHealth: SSHSessionHealth): Promise<SSHHealthResult> {
+    const startTime = Date.now();
+    const checkId = `ssh-${sessionId}-${Date.now()}`;
+
+    try {
+      const now = Date.now();
+      const timeSinceLastActivity = now - sshHealth.lastActivity.getTime();
+      const connectionAge = now - sshHealth.connectedAt.getTime();
+
+      // Perform actual SSH connection test
+      const connectionTest = await this.testSSHConnection(sessionId, sshHealth);
+
+      // Calculate predictive scores
+      const predictiveScores = this.calculateSSHPredictiveScores(sessionId, sshHealth);
+
+      // Update health score based on test results and predictions
+      let healthScore = sshHealth.healthScore;
+      
+      if (!connectionTest.success) {
+        healthScore = Math.max(0, healthScore - 30);
+      }
+      
+      if (timeSinceLastActivity > 300000) { // 5 minutes of inactivity
+        healthScore = Math.max(0, healthScore - 10);
+      }
+
+      if (predictiveScores.overallFailureRisk > 0.5) {
+        healthScore = Math.max(0, healthScore - (predictiveScores.overallFailureRisk * 20));
+      }
+
+      const status: SSHHealthResult['status'] = 
+        healthScore < 20 || predictiveScores.overallFailureRisk > 0.9 ? 'critical' :
+        healthScore < 50 || predictiveScores.overallFailureRisk > 0.7 ? 'unhealthy' :
+        healthScore < 80 || predictiveScores.overallFailureRisk > 0.5 ? 'warning' : 'healthy';
+
+      // Update SSH health object
+      sshHealth.healthScore = healthScore;
+      sshHealth.predictiveFailureScore = predictiveScores.overallFailureRisk;
+
+      const sshMetrics: Record<string, number> = {
+        connectionLatency: connectionTest.latency,
+        lastKeepAliveTimestamp: Date.now(),
+        consecutiveFailures: connectionTest.success ? 0 : sshHealth.errorHistory.filter(e => 
+          Date.now() - e.timestamp.getTime() < 300000
+        ).length,
+        connectionUptime: connectionAge,
+        throughput: sshHealth.performanceMetrics.throughputBytesPerSecond,
+        errorRate: this.calculateSSHErrorRate(sshHealth),
+        compressionEnabled: sshHealth.encryptionInfo.compressionEnabled ? 1 : 0
+      };
+
+      return {
+        checkId,
+        checkType: 'session',
+        sessionId,
+        timestamp: new Date(),
+        status,
+        metrics: {
+          healthScore,
+          connectionLatency: connectionTest.latency,
+          timeSinceLastActivityMs: timeSinceLastActivity,
+          connectionAgeMs: connectionAge,
+          ...sshMetrics
+        },
+        details: {
+          message: `SSH session health: Score ${healthScore.toFixed(0)}/100, Risk ${(predictiveScores.overallFailureRisk * 100).toFixed(0)}%`,
+          diagnosis: status !== 'healthy' ? 
+            `SSH session health degraded. Score: ${healthScore.toFixed(0)}/100, Failure risk: ${(predictiveScores.overallFailureRisk * 100).toFixed(0)}%` :
+            'SSH session operating normally',
+          recommendations: this.generateSSHRecommendations(status, predictiveScores, sshHealth),
+          recoverable: status !== 'critical' || connectionTest.success
+        },
+        duration: Date.now() - startTime,
+        checks: {
+          'connection_test': {
+            checkStatus: connectionTest.success ? 'pass' : 'fail',
+            value: connectionTest.success,
+            message: `Connection test: ${connectionTest.success ? 'SUCCESS' : 'FAILED'}`,
+            duration: connectionTest.duration || 0
+          },
+          'health_score': {
+            checkStatus: healthScore < 50 ? 'fail' : healthScore < 80 ? 'warn' : 'pass',
+            value: healthScore,
+            message: `Health score: ${healthScore.toFixed(0)}/100`,
+            duration: Date.now() - startTime
+          },
+          'failure_risk': {
+            checkStatus: predictiveScores.overallFailureRisk > 0.7 ? 'fail' : predictiveScores.overallFailureRisk > 0.5 ? 'warn' : 'pass',
+            value: predictiveScores.overallFailureRisk,
+            message: `Failure risk: ${(predictiveScores.overallFailureRisk * 100).toFixed(0)}%`,
+            duration: Date.now() - startTime
+          }
+        },
+        overallScore: status === 'healthy' ? 100 : status === 'warning' ? 75 : status === 'unhealthy' ? 50 : 0,
+        sshMetrics: sshMetrics as any,
+        connectionId: sshHealth.connectionId,
+        hostInfo: {
+          hostname: sshHealth.hostname,
+          port: sshHealth.port,
+          username: sshHealth.username
+        },
+        predictiveScores
+      };
+
+    } catch (error) {
+      this.logger.error(`SSH health check failed for session ${sessionId}:`, error);
+      
+      return {
+        checkId,
+        checkType: 'session',
+        sessionId,
+        timestamp: new Date(),
+        status: 'critical',
+        metrics: {},
+        details: {
+          message: `SSH health check failed: ${error instanceof Error ? error.message : String(error)}`,
+          diagnosis: 'Unable to assess SSH session health',
+          recommendations: ['Check SSH connection', 'Verify network connectivity', 'Consider session restart'],
+          recoverable: true
+        },
+        duration: Date.now() - startTime,
+        checks: {
+          'ssh_health': {
+            checkStatus: 'fail',
+            message: `SSH health check failed: ${error instanceof Error ? error.message : String(error)}`
+          }
+        },
+        overallScore: 0,
+        connectionId: sshHealth.connectionId,
+        hostInfo: {
+          hostname: sshHealth.hostname,
+          port: sshHealth.port,
+          username: sshHealth.username
+        }
+      };
+    }
+  }
+
+  /**
+   * Test SSH connection health
+   */
+  private async testSSHConnection(sessionId: string, sshHealth: SSHSessionHealth): Promise<{
+    success: boolean;
+    latency: number;
+    duration?: number;
+    error?: string;
+  }> {
+    const startTime = Date.now();
+
+    return new Promise((resolve) => {
+      // Emit SSH connection test request
+      this.emit('ssh-connection-test-request', {
+        sessionId,
+        timeout: this.config.alertThresholds.ssh_connection_timeout,
+        callback: (result: { success: boolean; latency?: number; error?: string }) => {
+          resolve({
+            success: result.success,
+            latency: result.latency || Date.now() - startTime,
+            duration: Date.now() - startTime,
+            error: result.error
+          });
+        }
+      });
+
+      // Timeout mechanism
+      setTimeout(() => {
+        resolve({
+          success: false,
+          latency: Date.now() - startTime,
+          duration: Date.now() - startTime,
+          error: `SSH connection test timeout after ${this.config.alertThresholds.ssh_connection_timeout}ms`
+        });
+      }, this.config.alertThresholds.ssh_connection_timeout);
+    });
+  }
+
+  /**
+   * Calculate SSH predictive scores
+   */
+  private calculateSSHPredictiveScores(sessionId: string, sshHealth: SSHSessionHealth): {
+    connectionStability: number;
+    performanceDegradation: number;
+    authenticationRisk: number;
+    networkQuality: number;
+    overallFailureRisk: number;
+  } {
+    const predictionModel = this.sshPredictionModels.get(sessionId);
+    if (!predictionModel) {
+      return {
+        connectionStability: 1.0,
+        performanceDegradation: 0,
+        authenticationRisk: 0,
+        networkQuality: 1.0,
+        overallFailureRisk: 0
+      };
+    }
+
+    // Calculate connection stability based on historical data
+    let connectionStability = 1.0;
+    if (predictionModel.connectionStabilityTrend.length > 5) {
+      const recentStability = predictionModel.connectionStabilityTrend.slice(-5);
+      const avgStability = recentStability.reduce((a, b) => a + b, 0) / recentStability.length;
+      connectionStability = Math.max(0, avgStability);
+    }
+
+    // Calculate performance degradation
+    let performanceDegradation = 0;
+    if (predictionModel.latencyTrend.length > 10) {
+      const recent = predictionModel.latencyTrend.slice(-5);
+      const older = predictionModel.latencyTrend.slice(-10, -5);
+      
+      if (older.length > 0) {
+        const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
+        const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
+        
+        if (recentAvg > olderAvg * 1.5) {
+          performanceDegradation = Math.min(1.0, (recentAvg - olderAvg) / olderAvg);
+        }
+      }
+    }
+
+    // Calculate authentication risk based on error history
+    let authenticationRisk = 0;
+    const authErrors = sshHealth.errorHistory.filter(e => 
+      e.error.toLowerCase().includes('auth') || 
+      e.error.toLowerCase().includes('permission') ||
+      e.error.toLowerCase().includes('denied')
+    );
+    if (authErrors.length > 0) {
+      authenticationRisk = Math.min(1.0, authErrors.length / 10);
+    }
+
+    // Calculate network quality based on latency and error patterns
+    let networkQuality = 1.0;
+    if (sshHealth.connectionLatencyHistory.length > 5) {
+      const avgLatency = sshHealth.performanceMetrics.averageLatency;
+      const maxLatency = sshHealth.performanceMetrics.maxLatency;
+      
+      if (avgLatency > this.config.thresholds.sshConnectionLatency) {
+        networkQuality *= 0.7;
+      }
+      
+      if (maxLatency > this.config.thresholds.sshConnectionLatency * 2) {
+        networkQuality *= 0.5;
+      }
+      
+      // Factor in latency variance
+      const variance = sshHealth.connectionLatencyHistory
+        .map(l => Math.pow(l - avgLatency, 2))
+        .reduce((a, b) => a + b, 0) / sshHealth.connectionLatencyHistory.length;
+      
+      if (variance > avgLatency) {
+        networkQuality *= 0.8; // High variance indicates unstable network
+      }
+    }
+
+    // Calculate overall failure risk
+    const weights = {
+      connectionStability: 0.3,
+      performanceDegradation: 0.25,
+      authenticationRisk: 0.2,
+      networkQuality: 0.25
+    };
+
+    const overallFailureRisk = 
+      (1 - connectionStability) * weights.connectionStability +
+      performanceDegradation * weights.performanceDegradation +
+      authenticationRisk * weights.authenticationRisk +
+      (1 - networkQuality) * weights.networkQuality;
+
+    return {
+      connectionStability,
+      performanceDegradation,
+      authenticationRisk,
+      networkQuality,
+      overallFailureRisk: Math.min(1.0, overallFailureRisk)
+    };
+  }
+
+  /**
+   * Update SSH health score
+   */
+  private updateSSHHealthScore(sessionId: string): void {
+    const sshHealth = this.sshSessions.get(sessionId);
+    if (!sshHealth) {
+      return;
+    }
+
+    let healthScore = 100;
+
+    // Factor in recent errors
+    const recentErrors = sshHealth.errorHistory.filter(e => 
+      Date.now() - e.timestamp.getTime() < 300000 // Last 5 minutes
+    );
+    healthScore -= recentErrors.length * 5;
+
+    // Factor in connection stability
+    healthScore *= sshHealth.connectionStability;
+
+    // Factor in performance
+    if (sshHealth.performanceMetrics.averageLatency > this.config.thresholds.sshConnectionLatency) {
+      const latencyPenalty = Math.min(20, (sshHealth.performanceMetrics.averageLatency / this.config.thresholds.sshConnectionLatency - 1) * 20);
+      healthScore -= latencyPenalty;
+    }
+
+    // Factor in keep-alive status
+    if (sshHealth.keepAliveStatus === 'failed') {
+      healthScore -= 30;
+    } else if (sshHealth.keepAliveStatus === 'degraded') {
+      healthScore -= 15;
+    }
+
+    sshHealth.healthScore = Math.max(0, Math.min(100, healthScore));
+  }
+
+  /**
+   * Update SSH prediction model
+   */
+  private updateSSHPredictionModel(sessionId: string): void {
+    const sshHealth = this.sshSessions.get(sessionId);
+    const predictionModel = this.sshPredictionModels.get(sessionId);
+    
+    if (!sshHealth || !predictionModel) {
+      return;
+    }
+
+    // Update trends
+    predictionModel.connectionStabilityTrend.push(sshHealth.connectionStability);
+    if (predictionModel.connectionStabilityTrend.length > 50) {
+      predictionModel.connectionStabilityTrend.shift();
+    }
+
+    if (sshHealth.connectionLatencyHistory.length > 0) {
+      const latestLatency = sshHealth.connectionLatencyHistory[sshHealth.connectionLatencyHistory.length - 1];
+      predictionModel.latencyTrend.push(latestLatency);
+      if (predictionModel.latencyTrend.length > 50) {
+        predictionModel.latencyTrend.shift();
+      }
+    }
+
+    if (sshHealth.throughputHistory.length > 0) {
+      const latestThroughput = sshHealth.throughputHistory[sshHealth.throughputHistory.length - 1];
+      predictionModel.throughputTrend.push(latestThroughput);
+      if (predictionModel.throughputTrend.length > 50) {
+        predictionModel.throughputTrend.shift();
+      }
+    }
+
+    // Update error rate
+    const errorRate = this.calculateSSHErrorRate(sshHealth);
+    predictionModel.errorRateTrend.push(errorRate);
+    if (predictionModel.errorRateTrend.length > 50) {
+      predictionModel.errorRateTrend.shift();
+    }
+
+    // Update risk factors
+    predictionModel.riskFactors.networkInstability = this.calculateNetworkInstability(sshHealth);
+    predictionModel.riskFactors.performanceDegradation = this.calculatePerformanceDegradation(predictionModel);
+    predictionModel.riskFactors.authenticationIssues = this.calculateAuthenticationRisk(sshHealth);
+    predictionModel.riskFactors.connectionAging = this.calculateConnectionAging(sshHealth);
+
+    // Update confidence score based on data availability
+    const dataPoints = predictionModel.connectionStabilityTrend.length + 
+                      predictionModel.latencyTrend.length + 
+                      predictionModel.throughputTrend.length;
+    predictionModel.confidenceScore = Math.min(1.0, dataPoints / 100);
+
+    predictionModel.lastUpdated = new Date();
+  }
+
+  /**
+   * Calculate SSH error rate
+   */
+  private calculateSSHErrorRate(sshHealth: SSHSessionHealth): number {
+    const recentErrors = sshHealth.errorHistory.filter(e => 
+      Date.now() - e.timestamp.getTime() < 3600000 // Last hour
+    );
+    
+    const connectionAge = Date.now() - sshHealth.connectedAt.getTime();
+    const hoursConnected = Math.max(1, connectionAge / 3600000);
+    
+    return recentErrors.length / hoursConnected;
+  }
+
+  /**
+   * Calculate network instability score
+   */
+  private calculateNetworkInstability(sshHealth: SSHSessionHealth): number {
+    if (sshHealth.connectionLatencyHistory.length < 10) {
+      return 0;
+    }
+
+    const latencies = sshHealth.connectionLatencyHistory;
+    const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+    const variance = latencies.map(l => Math.pow(l - avg, 2)).reduce((a, b) => a + b, 0) / latencies.length;
+    const coefficient = Math.sqrt(variance) / avg;
+
+    return Math.min(1.0, coefficient);
+  }
+
+  /**
+   * Calculate performance degradation
+   */
+  private calculatePerformanceDegradation(predictionModel: SSHPredictionModel): number {
+    if (predictionModel.latencyTrend.length < 20) {
+      return 0;
+    }
+
+    const recent = predictionModel.latencyTrend.slice(-10);
+    const older = predictionModel.latencyTrend.slice(-20, -10);
+    
+    const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
+    const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
+    
+    if (recentAvg > olderAvg) {
+      return Math.min(1.0, (recentAvg - olderAvg) / olderAvg);
+    }
+    
+    return 0;
+  }
+
+  /**
+   * Calculate authentication risk
+   */
+  private calculateAuthenticationRisk(sshHealth: SSHSessionHealth): number {
+    const authErrors = sshHealth.errorHistory.filter(e => 
+      e.error.toLowerCase().includes('auth') || 
+      e.error.toLowerCase().includes('permission') ||
+      e.error.toLowerCase().includes('denied')
+    );
+    
+    return Math.min(1.0, authErrors.length / 5);
+  }
+
+  /**
+   * Calculate connection aging factor
+   */
+  private calculateConnectionAging(sshHealth: SSHSessionHealth): number {
+    const connectionAge = Date.now() - sshHealth.connectedAt.getTime();
+    const hoursConnected = connectionAge / 3600000;
+    
+    // Connections become more fragile after 24 hours
+    if (hoursConnected > 24) {
+      return Math.min(1.0, (hoursConnected - 24) / 48);
+    }
+    
+    return 0;
+  }
+
+  /**
+   * Generate SSH-specific recommendations
+   */
+  private generateSSHRecommendations(
+    status: HealthCheckResult['status'],
+    predictiveScores: any,
+    sshHealth: SSHSessionHealth
+  ): string[] {
+    const recommendations: string[] = [];
+
+    if (status === 'critical' || predictiveScores.overallFailureRisk > 0.8) {
+      recommendations.push('URGENT: Consider immediate SSH session restart');
+      recommendations.push('Verify network connectivity and SSH server availability');
+    }
+
+    if (predictiveScores.networkQuality < 0.5) {
+      recommendations.push('Network quality degraded - check network stability');
+      recommendations.push('Consider using compression or connection multiplexing');
+    }
+
+    if (predictiveScores.performanceDegradation > 0.3) {
+      recommendations.push('Performance degradation detected - investigate server load');
+      recommendations.push('Monitor SSH server resource utilization');
+    }
+
+    if (predictiveScores.authenticationRisk > 0.2) {
+      recommendations.push('Authentication issues detected - verify credentials');
+      recommendations.push('Check SSH key validity and server authentication settings');
+    }
+
+    if (sshHealth.performanceMetrics.averageLatency > this.config.thresholds.sshConnectionLatency) {
+      recommendations.push(`High latency detected (${sshHealth.performanceMetrics.averageLatency.toFixed(0)}ms)`);
+      recommendations.push('Consider using SSH connection multiplexing or keep-alive');
+    }
+
+    if (sshHealth.errorHistory.length > 10) {
+      recommendations.push('Frequent errors detected - review connection stability');
+      recommendations.push('Enable SSH debug logging for detailed troubleshooting');
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Handle critical SSH issues
+   */
+  private async handleCriticalSSHIssue(sessionId: string, healthResult: SSHHealthResult): Promise<void> {
+    this.logger.warn(`Handling critical SSH issue for session ${sessionId}`);
+
+    // Emit critical SSH issue event
+    this.emit('critical-ssh-issue', {
+      sessionId,
+      healthResult,
+      timestamp: new Date(),
+      autoRecoveryAttempted: false
+    });
+
+    // Attempt automatic recovery if enabled
+    if (this.config.recovery.enabled && healthResult.details.recoverable) {
+      await this.attemptSSHAutoRecovery(sessionId, healthResult);
+    }
+  }
+
+  /**
+   * Attempt SSH automatic recovery
+   */
+  private async attemptSSHAutoRecovery(sessionId: string, healthResult: SSHHealthResult): Promise<void> {
+    const recoveryKey = `ssh-${sessionId}`;
+    let attempts = this.stats.consecutiveFailures.get(recoveryKey) || 0;
+
+    if (attempts >= this.config.recovery.maxAttempts) {
+      this.logger.warn(`Max SSH recovery attempts reached for ${sessionId}`);
+      return;
+    }
+
+    attempts++;
+    this.stats.consecutiveFailures.set(recoveryKey, attempts);
+
+    const delay = this.config.recovery.baseDelay * Math.pow(this.config.recovery.backoffMultiplier, attempts - 1);
+
+    this.logger.info(`Attempting SSH auto-recovery for ${sessionId} (attempt ${attempts}/${this.config.recovery.maxAttempts}) in ${delay}ms`);
+
+    setTimeout(async () => {
+      try {
+        // Emit SSH recovery attempt event
+        this.emit('ssh-auto-recovery-attempt', {
+          sessionId,
+          healthResult,
+          attempt: attempts,
+          maxAttempts: this.config.recovery.maxAttempts,
+          timestamp: new Date()
+        });
+
+        // Request SSH session recovery
+        let recoverySuccessful = false;
+        
+        // Emit SSH recovery request
+        this.emit('ssh-recovery-request', {
+          sessionId,
+          healthResult,
+          strategy: 'proactive-reconnect',
+          timestamp: new Date(),
+          callback: (success: boolean) => {
+            recoverySuccessful = success;
+          }
+        });
+
+        // Wait a moment for recovery to be attempted
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        if (recoverySuccessful) {
+          this.stats.consecutiveFailures.delete(recoveryKey);
+          this.emit('ssh-auto-recovery-success', {
+            sessionId,
+            attempt: attempts,
+            timestamp: new Date()
+          });
+          this.logger.info(`SSH auto-recovery successful for ${sessionId}`);
+        } else {
+          this.emit('ssh-auto-recovery-failed', {
+            sessionId,
+            attempt: attempts,
+            timestamp: new Date()
+          });
+          this.logger.warn(`SSH auto-recovery failed for ${sessionId} (attempt ${attempts})`);
+        }
+
+      } catch (error) {
+        this.logger.error(`SSH auto-recovery error for ${sessionId}:`, error);
+        this.emit('ssh-auto-recovery-error', {
+          sessionId,
+          attempt: attempts,
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: new Date()
+        });
+      }
+    }, delay);
+  }
+
+  /**
    * Generate comprehensive health report
    */
   private async generateHealthReport(checks: HealthCheckResult[]): Promise<HealthReport> {
@@ -752,7 +1685,41 @@ export class HealthMonitor extends EventEmitter {
         predictionNextHour: this.config.monitoring.enablePredictiveAnalysis ? 
           this.predictHealthStatus() : undefined
       },
-      actionItems
+      actionItems,
+      sshHealthSummary: this.generateSSHHealthSummary()
+    };
+  }
+
+  /**
+   * Generate SSH health summary
+   */
+  private generateSSHHealthSummary(): {
+    totalSSHSessions: number;
+    healthySSHSessions: number;
+    unhealthySSHSessions: number;
+    averageSSHLatency: number;
+    predictedFailures: number;
+    proactiveReconnections: number;
+  } {
+    const sshSessions = Array.from(this.sshSessions.values());
+    const healthySessions = sshSessions.filter(s => s.healthScore >= 80).length;
+    const unhealthySessions = sshSessions.filter(s => s.healthScore < 50).length;
+    
+    const avgLatency = sshSessions.length > 0 ? 
+      sshSessions.reduce((sum, s) => sum + s.performanceMetrics.averageLatency, 0) / sshSessions.length : 0;
+    
+    const predictedFailures = sshSessions.filter(s => s.predictiveFailureScore > 0.7).length;
+    
+    // Count proactive reconnections from stats (would be tracked elsewhere)
+    const proactiveReconnections = 0; // This would be tracked in a separate counter
+
+    return {
+      totalSSHSessions: sshSessions.length,
+      healthySSHSessions: healthySessions,
+      unhealthySSHSessions: unhealthySessions,
+      averageSSHLatency: avgLatency,
+      predictedFailures,
+      proactiveReconnections
     };
   }
 
@@ -1198,6 +2165,12 @@ export class HealthMonitor extends EventEmitter {
     await this.stop();
     this.healthHistory.clear();
     this.healthScoreHistory.length = 0;
+    
+    // Clean up SSH-specific resources
+    this.sshSessions.clear();
+    this.sshHealthHistory.clear();
+    this.sshPredictionModels.clear();
+    
     this.removeAllListeners();
     this.logger.info('HealthMonitor destroyed');
   }

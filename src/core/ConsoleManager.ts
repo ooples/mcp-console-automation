@@ -33,6 +33,17 @@ interface QueuedCommand {
   reject: (error: Error) => void;
   acknowledged: boolean;
   sent: boolean;
+  priority?: number;
+  context?: any;
+}
+
+// Recovery result interface
+interface TimeoutRecoveryResult {
+  success: boolean;
+  error?: string;
+  reconnected?: boolean;
+  restoredCommands?: number;
+  metadata?: Record<string, any>;
 }
 
 interface SessionCommandQueue {
@@ -43,6 +54,66 @@ interface SessionCommandQueue {
   acknowledgmentTimeout: NodeJS.Timeout | null;
   outputBuffer: string;
   expectedPrompt?: RegExp;
+  persistentData?: SessionPersistentData;
+  bookmarks: SessionBookmark[];
+}
+
+// Enhanced session persistence interfaces
+interface SessionPersistentData {
+  sessionId: string;
+  createdAt: Date;
+  lastActivity: Date;
+  sshOptions?: SSHConnectionOptions;
+  environment: Record<string, string>;
+  workingDirectory: string;
+  commandHistory: string[];
+  pendingCommands: SerializedQueuedCommand[];
+  outputHistory: string[];
+  sessionState: any;
+  connectionState: {
+    isConnected: boolean;
+    lastConnectionTime?: Date;
+    connectionAttempts: number;
+    lastError?: string;
+  };
+  recoveryMetadata: {
+    timeoutRecoveryAttempts: number;
+    lastRecoveryTime?: Date;
+    recoveryStrategiesUsed: string[];
+  };
+}
+
+interface SerializedQueuedCommand {
+  id: string;
+  sessionId: string;
+  input: string;
+  timestamp: string;
+  retryCount: number;
+  acknowledged: boolean;
+  sent: boolean;
+  priority?: number;
+  context?: any;
+}
+
+interface SessionBookmark {
+  id: string;
+  sessionId: string;
+  timestamp: Date;
+  description: string;
+  sessionState: any;
+  commandQueueSnapshot: SerializedQueuedCommand[];
+  outputSnapshot: string[];
+  environmentSnapshot: Record<string, string>;
+  metadata?: any;
+}
+
+interface SessionContinuityConfig {
+  enablePersistence: boolean;
+  persistenceInterval: number;
+  maxBookmarks: number;
+  bookmarkStrategy: 'periodic' | 'on-command' | 'on-timeout' | 'hybrid';
+  recoveryTimeout: number;
+  enableSessionMigration: boolean;
 }
 
 interface CommandQueueConfig {
@@ -52,6 +123,39 @@ interface CommandQueueConfig {
   acknowledgmentTimeout: number;
   enablePromptDetection: boolean;
   defaultPromptPattern: RegExp;
+}
+
+// Network performance monitoring for adaptive timeouts
+interface NetworkMetrics {
+  latency: number;
+  jitter: number;
+  packetLoss: number;
+  connectionQuality: 'excellent' | 'good' | 'fair' | 'poor';
+  lastUpdated: Date;
+  sampleCount: number;
+}
+
+// Adaptive timeout configuration
+interface AdaptiveTimeoutConfig {
+  baseTimeout: number;
+  maxTimeout: number;
+  minTimeout: number;
+  latencyMultiplier: number;
+  jitterTolerance: number;
+  qualityThresholds: {
+    excellent: number;
+    good: number;
+    fair: number;
+  };
+}
+
+// Connection health check result
+interface ConnectionHealthCheck {
+  isHealthy: boolean;
+  latency: number;
+  error?: string;
+  timestamp: Date;
+  consecutiveFailures: number;
 }
 
 export class ConsoleManager extends EventEmitter {
@@ -98,13 +202,92 @@ export class ConsoleManager extends EventEmitter {
   
   // Self-healing state
   private selfHealingEnabled = true;
+  
+  // Timeout recovery tracking
+  private timeoutRecoveryAttempts: Map<string, number> = new Map();
+  private readonly maxTimeoutRecoveryAttempts = 3;
+
+  // Recovery success rate monitoring
+  private recoveryMetrics = {
+    totalRecoveryAttempts: 0,
+    successfulRecoveries: 0,
+    failedRecoveries: 0,
+    averageRecoveryTimeMs: 0,
+    recoverySuccessRateByCategory: new Map<string, { attempts: number; successes: number }>(),
+    lastRecoveryTimestamp: 0,
+    recoveryAttemptHistory: [] as Array<{
+      timestamp: number;
+      sessionId: string;
+      category: string;
+      success: boolean;
+      durationMs: number;
+      error?: string;
+    }>
+  };
+
+  // Timeout-specific error patterns for enhanced classification
+  private static readonly TIMEOUT_ERROR_PATTERNS = {
+    command_acknowledgment: [
+      /command acknowledgment timeout/i,
+      /acknowledgment timeout/i,
+      /waiting for command response/i,
+      /command response timeout/i
+    ],
+    ssh_connection: [
+      /ssh connection timeout/i,
+      /connection timed out/i,
+      /handshake timeout/i,
+      /authentication timeout/i,
+      /ssh timeout/i
+    ],
+    network_latency: [
+      /network latency/i,
+      /high latency detected/i,
+      /slow network/i,
+      /network congestion/i
+    ],
+    ssh_responsiveness: [
+      /ssh session unresponsive/i,
+      /channel unresponsive/i,
+      /responsiveness test failed/i,
+      /ssh not responding/i
+    ],
+    command_execution: [
+      /command execution timeout/i,
+      /execution timed out/i,
+      /command took too long/i,
+      /long running command timeout/i
+    ],
+    recovery_timeout: [
+      /recovery timeout/i,
+      /timeout recovery failed/i,
+      /recovery attempt timeout/i,
+      /max recovery attempts/i
+    ]
+  };
+  
+  // Enhanced session persistence and continuity
+  private sessionPersistenceData: Map<string, SessionPersistentData> = new Map();
+  private sessionBookmarks: Map<string, SessionBookmark[]> = new Map();
+  private continuityConfig: SessionContinuityConfig;
+  private persistenceTimer: NodeJS.Timeout | null = null;
+  private bookmarkTimers: Map<string, NodeJS.Timeout> = new Map();
+  
+  // Network performance and adaptive timeout management
+  private networkMetrics: Map<string, NetworkMetrics> = new Map(); // host -> metrics
+  private adaptiveTimeoutConfig: AdaptiveTimeoutConfig;
+  private connectionHealthChecks: Map<string, ConnectionHealthCheck> = new Map(); // host -> health
+  private latencyMeasurements: Map<string, number[]> = new Map(); // host -> recent measurements
+  
+
   private autoRecoveryEnabled = true;
   private predictiveHealingEnabled = true;
   private healingStats = {
     totalHealingAttempts: 0,
     successfulHealingAttempts: 0,
     preventedFailures: 0,
-    automaticRecoveries: 0
+    automaticRecoveries: 0,
+    proactiveReconnections: 0
   };
 
   constructor(config?: {
@@ -146,6 +329,20 @@ export class ConsoleManager extends EventEmitter {
       defaultPromptPattern: /[$#%>]\s*$/m
     };
 
+    // Initialize adaptive timeout configuration
+    this.adaptiveTimeoutConfig = {
+      baseTimeout: 10000,        // 10 seconds base timeout
+      maxTimeout: 60000,         // 60 seconds maximum timeout
+      minTimeout: 3000,          // 3 seconds minimum timeout
+      latencyMultiplier: 5,      // Multiply measured latency by this factor
+      jitterTolerance: 0.3,      // 30% jitter tolerance
+      qualityThresholds: {
+        excellent: 50,           // < 50ms latency
+        good: 200,               // < 200ms latency
+        fair: 1000               // < 1000ms latency
+      }
+    };
+
     // Initialize new production-ready components
     this.connectionPool = new ConnectionPool({
       maxConnectionsPerHost: config?.connectionPooling?.maxConnectionsPerHost ?? 5,
@@ -164,14 +361,51 @@ export class ConsoleManager extends EventEmitter {
 
     this.sessionManager = new SessionManager(config?.sessionManager);
     
+    // Initialize session continuity configuration
+    this.continuityConfig = {
+      enablePersistence: true,
+      persistenceInterval: 30000, // 30 seconds
+      maxBookmarks: 10,
+      bookmarkStrategy: 'hybrid',
+      recoveryTimeout: 60000, // 1 minute
+      enableSessionMigration: true
+    };
+    
     // Setup event listeners for integration
     this.setupPoolingIntegration();
     this.setupErrorRecoveryHandlers();
     this.startResourceMonitor();
+    
+    // Start proactive interactive session monitoring
+    this.startInteractiveSessionMonitoring();
+    this.startNetworkPerformanceMonitoring();
+    this.initializeSessionContinuity();
   }
 
   /**
-   * Initialize command tracking for a session
+   * Initialize session continuity system
+   */
+  private initializeSessionContinuity(): void {
+    if (!this.continuityConfig.enablePersistence) {
+      return;
+    }
+
+    // Start periodic persistence
+    this.persistenceTimer = setInterval(() => {
+      this.persistAllSessionData();
+    }, this.continuityConfig.persistenceInterval);
+
+    // Load any existing persistent data
+    this.loadPersistedSessionData();
+
+    // Integrate with existing SessionRecovery system
+    this.setupSessionRecoveryIntegration();
+
+    this.logger.info('Session continuity system initialized with SessionRecovery integration');
+  }
+
+  /**
+   * Initialize command tracking for a session with enhanced persistence
    */
   private initializeSessionCommandTracking(sessionId: string, options: SessionOptions): void {
     this.sessionCommandQueue.set(sessionId, []);
@@ -191,6 +425,140 @@ export class ConsoleManager extends EventEmitter {
     }
     
     this.promptPatterns.set(sessionId, promptPattern);
+
+    // Initialize persistent session data
+    this.initializeSessionPersistence(sessionId, options);
+  }
+
+  /**
+   * Initialize persistent session data for a session
+   */
+  private initializeSessionPersistence(sessionId: string, options: SessionOptions): void {
+    const persistentData: SessionPersistentData = {
+      sessionId,
+      createdAt: new Date(),
+      lastActivity: new Date(),
+      sshOptions: options.sshOptions,
+      environment: options.env || {},
+      workingDirectory: options.cwd || process.cwd(),
+      commandHistory: [],
+      pendingCommands: [],
+      outputHistory: [],
+      sessionState: {},
+      connectionState: {
+        isConnected: true,
+        lastConnectionTime: new Date(),
+        connectionAttempts: 0
+      },
+      recoveryMetadata: {
+        timeoutRecoveryAttempts: 0,
+        recoveryStrategiesUsed: []
+      }
+    };
+
+    this.sessionPersistenceData.set(sessionId, persistentData);
+    this.sessionBookmarks.set(sessionId, []);
+
+    // Start bookmark creation based on strategy
+    this.initializeBookmarkStrategy(sessionId);
+
+    this.logger.debug(`Initialized session persistence for ${sessionId}`);
+  }
+
+  /**
+   * Initialize bookmark strategy for a session
+   */
+  private initializeBookmarkStrategy(sessionId: string): void {
+    const strategy = this.continuityConfig.bookmarkStrategy;
+    
+    if (strategy === 'periodic' || strategy === 'hybrid') {
+      // Create periodic bookmarks
+      const timer = setInterval(() => {
+        this.createSessionBookmark(sessionId, 'periodic');
+      }, 60000); // Every minute
+      
+      this.bookmarkTimers.set(sessionId, timer);
+    }
+  }
+
+  /**
+   * Create a session bookmark for recovery purposes
+   */
+  private async createSessionBookmark(sessionId: string, trigger: string): Promise<void> {
+    const persistentData = this.sessionPersistenceData.get(sessionId);
+    const queue = this.commandQueues.get(sessionId);
+    
+    if (!persistentData || !queue) {
+      return;
+    }
+
+    const bookmark: SessionBookmark = {
+      id: uuidv4(),
+      sessionId,
+      timestamp: new Date(),
+      description: `${trigger} bookmark`,
+      sessionState: { ...persistentData.sessionState },
+      commandQueueSnapshot: this.serializeCommandQueue(queue.commands),
+      outputSnapshot: [...persistentData.outputHistory],
+      environmentSnapshot: { ...persistentData.environment },
+      metadata: {
+        trigger,
+        connectionState: { ...persistentData.connectionState },
+        queueLength: queue.commands.length
+      }
+    };
+
+    const bookmarks = this.sessionBookmarks.get(sessionId) || [];
+    bookmarks.push(bookmark);
+
+    // Keep only the latest N bookmarks
+    if (bookmarks.length > this.continuityConfig.maxBookmarks) {
+      bookmarks.shift();
+    }
+
+    this.sessionBookmarks.set(sessionId, bookmarks);
+    
+    // Update persistent data with bookmark
+    queue.bookmarks = bookmarks;
+    persistentData.lastActivity = new Date();
+
+    this.logger.debug(`Created ${trigger} bookmark for session ${sessionId}`);
+  }
+
+  /**
+   * Serialize command queue for persistence
+   */
+  private serializeCommandQueue(commands: QueuedCommand[]): SerializedQueuedCommand[] {
+    return commands.map(cmd => ({
+      id: cmd.id,
+      sessionId: cmd.sessionId,
+      input: cmd.input,
+      timestamp: cmd.timestamp.toISOString(),
+      retryCount: cmd.retryCount,
+      acknowledged: cmd.acknowledged,
+      sent: cmd.sent,
+      priority: cmd.priority,
+      context: cmd.context
+    }));
+  }
+
+  /**
+   * Deserialize command queue from persistence
+   */
+  private deserializeCommandQueue(serialized: SerializedQueuedCommand[], sessionId: string): QueuedCommand[] {
+    return serialized.map(cmd => ({
+      id: cmd.id,
+      sessionId: cmd.sessionId,
+      input: cmd.input,
+      timestamp: new Date(cmd.timestamp),
+      retryCount: cmd.retryCount,
+      acknowledged: cmd.acknowledged,
+      sent: cmd.sent,
+      priority: cmd.priority,
+      context: cmd.context,
+      resolve: () => {}, // Will be replaced during recovery
+      reject: () => {}   // Will be replaced during recovery
+    }));
   }
 
   /**
@@ -645,17 +1013,27 @@ export class ConsoleManager extends EventEmitter {
         memory: 85,
         disk: 90,
         networkLatency: 5000,
-        processResponseTime: 5000
+        processResponseTime: 5000,
+        sshConnectionLatency: 2000,
+        sshHealthScore: 70
       }
     });
 
-    // Initialize HeartbeatMonitor for session health tracking
+    // Initialize HeartbeatMonitor for session health tracking with SSH proactive reconnection
     this.heartbeatMonitor = new HeartbeatMonitor({
       interval: 60000, // 1 minute
       timeout: 10000, // 10 seconds
       maxMissedBeats: 3,
       enableAdaptiveInterval: true,
-      enablePredictiveFailure: this.predictiveHealingEnabled
+      enablePredictiveFailure: this.predictiveHealingEnabled,
+      retryAttempts: 3,
+      retryDelay: 2000,
+      gracePeriod: 5000,
+      // SSH-specific proactive reconnection settings
+      sshHeartbeatInterval: 30000, // 30 seconds for SSH sessions
+      sshTimeoutThreshold: 15000, // 15 seconds SSH timeout threshold
+      enableSSHProactiveReconnect: true,
+      sshFailureRiskThreshold: 0.65 // Trigger proactive reconnect at 65% risk
     });
 
     // Initialize SessionRecovery with multiple strategies
@@ -692,23 +1070,36 @@ export class ConsoleManager extends EventEmitter {
       }
     });
 
-    // Initialize SSH KeepAlive for connection maintenance
+    // Initialize SSH KeepAlive for connection maintenance with production-ready configuration
     this.sshKeepAlive = new SSHConnectionKeepAlive({
       enabled: true,
-      keepAliveInterval: 30000, // 30 seconds
-      keepAliveCountMax: 3,
-      serverAliveInterval: 60000, // 1 minute
-      serverAliveCountMax: 3,
-      connectionTimeout: 30000,
+      // Aggressive keepalive for long-running operations
+      keepAliveInterval: 15000, // 15 seconds - more frequent for better stability
+      keepAliveCountMax: 6, // Allow more failures before declaring connection dead
+      // Server alive configuration for detecting unresponsive servers
+      serverAliveInterval: 30000, // 30 seconds - more frequent server checks
+      serverAliveCountMax: 5, // Allow more server alive failures
+      connectionTimeout: 20000, // 20 second timeout for keepalive operations
+      // Enhanced reconnection strategy
       reconnectOnFailure: true,
-      maxReconnectAttempts: 5,
-      reconnectDelay: 5000,
-      backoffMultiplier: 2,
-      maxReconnectDelay: 60000,
-      enableAdaptiveKeepAlive: true,
+      maxReconnectAttempts: 8, // More reconnection attempts for unstable networks
+      reconnectDelay: 3000, // Start with shorter delay
+      backoffMultiplier: 1.5, // More gradual backoff
+      maxReconnectDelay: 45000, // Cap at 45 seconds instead of 60
+      // Advanced features for production stability
+      enableAdaptiveKeepAlive: true, // Adjust intervals based on network conditions
       enablePredictiveReconnect: this.predictiveHealingEnabled,
-      connectionHealthThreshold: 70
+      connectionHealthThreshold: 65 // Lower threshold for more proactive healing
     });
+
+    // Start proactive health monitoring for production environments
+    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_PROACTIVE_MONITORING === 'true') {
+      this.sshKeepAlive.startProactiveMonitoring(3); // Every 3 minutes in production
+      this.logger.info('Proactive health monitoring enabled (3-minute intervals)');
+    } else {
+      this.sshKeepAlive.startProactiveMonitoring(10); // Every 10 minutes in development
+      this.logger.info('Proactive health monitoring enabled (10-minute intervals)');
+    }
 
     this.logger.info('Self-healing components initialized successfully');
   }
@@ -780,6 +1171,117 @@ export class ConsoleManager extends EventEmitter {
       }
     });
 
+    // SSH Proactive Reconnection Integration
+    this.heartbeatMonitor.on('ssh-proactive-reconnect', async ({ sessionId, failureRisk, heartbeat, timestamp, reason, urgency }) => {
+      this.logger.warn(`SSH proactive reconnection triggered for session ${sessionId} (risk: ${(failureRisk * 100).toFixed(1)}%, urgency: ${urgency})`);
+      
+      try {
+        // Get session info for SSH reconnection
+        const session = this.getSession(sessionId);
+        if (!session) {
+          this.logger.error(`Cannot find session ${sessionId} for proactive reconnection`);
+          return;
+        }
+
+        // Update healing stats
+        this.healingStats.totalHealingAttempts++;
+        this.healingStats.proactiveReconnections = (this.healingStats.proactiveReconnections || 0) + 1;
+
+        // Record metrics
+        this.metricsCollector.recordRecoveryAttempt(false, 'ssh-proactive-reconnect', 0, sessionId);
+
+        // Emit event for external monitoring
+        this.emit('ssh-proactive-reconnect-triggered', { 
+          sessionId, 
+          failureRisk, 
+          urgency, 
+          timestamp,
+          reason,
+          sessionMetadata: {
+            hostname: heartbeat.sshHealthData?.hostname,
+            port: heartbeat.sshHealthData?.port,
+            connectionUptime: heartbeat.sshHealthData ? Date.now() - heartbeat.lastBeat.getTime() : 0
+          }
+        });
+
+        // Attempt proactive SSH session reconnection
+        if (session.sshOptions) {
+          this.logger.info(`Initiating proactive SSH reconnection for ${session.sshOptions.host}:${session.sshOptions.port}`);
+          
+          // Stop current session gracefully
+          await this.stopSession(sessionId);
+          
+          // Wait a brief moment for cleanup
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Recreate session with same options
+          let newSessionResult: { success: boolean; sessionId?: string; error?: string };
+          try {
+            const newSessionId = await this.createSession({
+              command: session.command,
+              args: session.args,
+              cwd: session.cwd,
+              env: session.env,
+              sshOptions: session.sshOptions,
+              streaming: session.streaming,
+              timeout: 30000, // Set default timeout
+              monitoring: {
+                enableMetrics: true,
+                enableTracing: false,
+                enableProfiling: false,
+                enableAuditing: false
+              }
+            });
+            newSessionResult = { success: true, sessionId: newSessionId, error: undefined };
+          } catch (error) {
+            newSessionResult = { 
+              success: false, 
+              sessionId: undefined,
+              error: error instanceof Error ? error.message : String(error) 
+            };
+          }
+
+          if (newSessionResult.success) {
+            this.logger.info(`Successfully reconnected SSH session ${sessionId} -> ${newSessionResult.sessionId} (risk prevention)`);
+            this.healingStats.successfulHealingAttempts++;
+            this.healingStats.automaticRecoveries++;
+            
+            // Record successful proactive reconnection
+            this.metricsCollector.recordRecoveryAttempt(true, 'ssh-proactive-reconnect', Date.now() - timestamp.getTime(), newSessionResult.sessionId);
+            
+            // Update session mapping for continuity
+            this.emit('ssh-proactive-reconnect-success', { 
+              oldSessionId: sessionId, 
+              newSessionId: newSessionResult.sessionId,
+              failureRisk,
+              reconnectionTime: Date.now() - timestamp.getTime()
+            });
+          } else {
+            this.logger.error(`Failed to proactively reconnect SSH session ${sessionId}: ${newSessionResult.error}`);
+            this.emit('ssh-proactive-reconnect-failed', { 
+              sessionId, 
+              failureRisk,
+              error: newSessionResult.error,
+              reconnectionTime: Date.now() - timestamp.getTime()
+            });
+          }
+        } else {
+          this.logger.warn(`Session ${sessionId} flagged for proactive reconnection but has no SSH options`);
+        }
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Error during SSH proactive reconnection for session ${sessionId}: ${errorMessage}`);
+        
+        this.emit('ssh-proactive-reconnect-failed', { 
+          sessionId, 
+          failureRisk,
+          error: errorMessage,
+          reconnectionTime: Date.now() - timestamp.getTime()
+        });
+      }
+    });
+
     // Session Recovery Integration
     this.sessionRecovery.on('recoveryAttempted', ({ sessionId, strategy, success, duration, metadata }) => {
       this.logger.info(`Session recovery attempted: ${sessionId}, strategy: ${strategy}, success: ${success}`);
@@ -798,17 +1300,24 @@ export class ConsoleManager extends EventEmitter {
     });
 
     this.sessionRecovery.on('recoveryFailed', ({ sessionId, strategy, error, attempts }) => {
-      this.logger.error(`Session recovery failed: ${sessionId}, strategy: ${strategy}, attempts: ${attempts}`, error);
-      
-      // Try alternative recovery if available
-      if (attempts < 3) {
-        setTimeout(() => {
-          this.sessionRecovery.recoverSession(sessionId, 'recovery-retry');
-        }, Math.pow(2, attempts) * 1000); // Exponential backoff
-      }
-      
-      this.emit('session-recovery-failed', { sessionId, strategy, error, attempts });
+    this.logger.error(`Session recovery failed: ${sessionId}, strategy: ${strategy}, attempts: ${attempts}`, error);
+    
+    // Try alternative recovery if available
+    if (attempts < 3) {
+    setTimeout(() => {
+    this.sessionRecovery.recoverSession(sessionId, 'recovery-retry');
+    }, Math.pow(2, attempts) * 1000); // Exponential backoff
+    }
+
+    this.emit('session-recovery-failed', { sessionId, strategy, error, attempts });
     });
+
+    // Handle new interactive prompt recovery events
+    this.sessionRecovery.on('session-interrupt-request', this.handleSessionInterruptRequest.bind(this));
+    this.sessionRecovery.on('session-prompt-reset-request', this.handlePromptResetRequest.bind(this));
+    this.sessionRecovery.on('session-refresh-request', this.handleSessionRefreshRequest.bind(this));
+    this.sessionRecovery.on('session-command-retry-request', this.handleCommandRetryRequest.bind(this));
+    this.sessionRecovery.on('interactive-state-updated', this.handleInteractiveStateUpdate.bind(this));
 
     // Metrics Collector Integration
     this.metricsCollector.on('alertThresholdExceeded', (alert) => {
@@ -857,6 +1366,41 @@ export class ConsoleManager extends EventEmitter {
         // Proactively establish backup connection
         this.prepareBackupSSHConnection(connectionId);
       }
+    });
+
+    // Server Alive Monitoring Integration
+    this.sshKeepAlive.on('server-alive-success', ({ connectionId, responseTime, timestamp }) => {
+      this.logger.debug(`Server alive check successful for ${connectionId}: ${responseTime}ms`);
+      // Record server alive metrics
+      this.metricsCollector.recordConnectionMetrics(true, responseTime, 'ssh-server-alive');
+    });
+
+    this.sshKeepAlive.on('server-alive-failed', async ({ connectionId, error, timestamp }) => {
+      this.logger.warn(`Server alive check failed for ${connectionId}: ${error}`);
+      // Record server alive failure
+      this.metricsCollector.recordConnectionMetrics(false, 0, 'ssh-server-alive');
+      
+      // Server alive failures indicate potential server-side issues
+      this.emit('ssh-server-unresponsive', { connectionId, error, timestamp });
+    });
+
+    // Proactive Health Monitoring Integration
+    this.sshKeepAlive.on('proactive-health-check-completed', (results) => {
+      this.logger.info('Proactive health check results:', {
+        total: results.totalConnections,
+        healthy: results.healthyConnections,
+        degraded: results.degradedConnections,
+        critical: results.criticalConnections,
+        recommendations: results.recommendations.length
+      });
+
+      // Log recommendations for operational awareness
+      if (results.recommendations.length > 0) {
+        this.logger.warn('Health check recommendations:', results.recommendations);
+      }
+
+      // Emit for external monitoring systems
+      this.emit('proactive-health-check-completed', results);
     });
 
     // Start all monitoring services
@@ -967,6 +1511,1357 @@ export class ConsoleManager extends EventEmitter {
     this.logger.info('Cleaning up temporary files');
     // Implementation would clean up temp files, logs, etc.
     this.emit('cleanup-performed', { type: 'temporary-files', timestamp: new Date() });
+  }
+
+  /**
+   * Enhanced timeout recovery for SSH sessions with session persistence and state restoration
+   */
+  private async attemptTimeoutRecovery(sessionId: string, command: QueuedCommand): Promise<TimeoutRecoveryResult> {
+    const recoveryStartTime = Date.now();
+    const currentAttempts = this.timeoutRecoveryAttempts.get(sessionId) || 0;
+
+    // Create timeout error for enhanced classification
+    const timeoutError = new Error(`SSH command acknowledgment timeout after ${Date.now() - command.timestamp.getTime()}ms`);
+    const timeoutClassification = this.classifyTimeoutError(timeoutError);
+    
+    // Update persistent data with recovery attempt
+    const persistentData = this.sessionPersistenceData.get(sessionId);
+    if (persistentData) {
+      persistentData.recoveryMetadata.timeoutRecoveryAttempts = currentAttempts + 1;
+      persistentData.recoveryMetadata.lastRecoveryTime = new Date();
+      persistentData.connectionState.lastError = 'timeout';
+    }
+
+    // Create recovery bookmark before attempting recovery
+    await this.createSessionBookmark(sessionId, 'timeout-recovery');
+    
+    if (currentAttempts >= this.maxTimeoutRecoveryAttempts) {
+      this.logger.warn(`Max timeout recovery attempts reached for session ${sessionId}`);
+      
+      // Check if this is an interactive prompt timeout that needs specialized recovery
+      const shouldTriggerInteractive = this.sessionRecovery.shouldTriggerInteractiveRecovery(sessionId);
+      if (shouldTriggerInteractive.shouldTrigger) {
+        this.logger.info(`Triggering interactive prompt recovery for session ${sessionId}: ${shouldTriggerInteractive.reason}`);
+        
+        // Update interactive state with timeout information
+        await this.sessionRecovery.updateInteractiveState(sessionId, {
+          sessionUnresponsive: true,
+          timeoutCount: currentAttempts,
+          pendingCommands: [command.input],
+          isInteractive: true
+        });
+        
+        // Attempt interactive prompt recovery
+        const interactiveRecovery = await this.sessionRecovery.recoverSession(
+          sessionId, 
+          `interactive-prompt-timeout-${shouldTriggerInteractive.urgency}`
+        );
+        
+        if (interactiveRecovery) {
+          this.logger.info(`Interactive prompt recovery succeeded for session ${sessionId}`);
+          return { success: true, reconnected: false };
+        }
+      }
+      
+      // Classify this as a permanent timeout failure for error recovery system
+      const errorContext = {
+        sessionId,
+        operation: 'timeout_recovery',
+        error: new Error('Max timeout recovery attempts exceeded'),
+        timestamp: Date.now(),
+        metadata: {
+          attempts: currentAttempts,
+          commandInput: command.input.substring(0, 100),
+          interactivePromptDetected: shouldTriggerInteractive.shouldTrigger
+        }
+      };
+      
+      // Attempt graceful degradation through error recovery system
+      const classification = this.errorRecovery.classifyError(errorContext.error);
+      if (classification?.recoverable) {
+        this.logger.info(`Error recovery system suggests timeout is recoverable, trying fallback strategy`);
+        const recoveryResult = await this.errorRecovery.attemptRecovery(errorContext);
+        if (recoveryResult) {
+          return { success: true, error: 'Recovered via fallback strategy' };
+        }
+      }
+      
+      // Record failed recovery attempt in metrics
+      const recoveryDuration = Date.now() - recoveryStartTime;
+      this.recordRecoveryAttempt(sessionId, timeoutClassification.category, false, recoveryDuration, 'Max recovery attempts exceeded');
+      
+      return { success: false, error: 'Max recovery attempts exceeded' };
+    }
+    
+    this.timeoutRecoveryAttempts.set(sessionId, currentAttempts + 1);
+    this.logger.info(`Attempting timeout recovery for session ${sessionId} (attempt ${currentAttempts + 1})`);
+    
+    // Create error context for integration with error recovery system
+    const recoveryContext = {
+      sessionId,
+      operation: 'ssh_timeout_recovery',
+      error: new Error('SSH timeout recovery attempt'),
+      timestamp: Date.now(),
+      metadata: {
+        attemptNumber: currentAttempts + 1,
+        maxAttempts: this.maxTimeoutRecoveryAttempts,
+        commandInput: command.input.substring(0, 100),
+        commandRetryCount: command.retryCount
+      },
+      previousAttempts: currentAttempts
+    };
+    
+    try {
+      // Step 1: Classify the timeout error to determine optimal recovery strategy
+      const timeoutError = new Error(`SSH command acknowledgment timeout after ${Date.now() - command.timestamp.getTime()}ms`);
+      const errorClassification = this.errorRecovery.classifyError(timeoutError);
+      
+      this.logger.info(`Timeout classified as: ${errorClassification?.type || 'unknown'} (severity: ${errorClassification?.severity || 'medium'})`);
+      
+      // Step 2: Check circuit breaker state before attempting recovery
+      const circuitKey = `ssh_timeout_${sessionId}`;
+      const circuitState = this.retryManager.getCircuitBreakerStates()[circuitKey];
+      
+      if (circuitState?.state === 'open') {
+        this.logger.warn(`Circuit breaker is open for SSH timeout recovery on session ${sessionId}`);
+        
+        // Wait for circuit breaker cooldown or try alternative recovery
+        const now = Date.now();
+        if (now < circuitState.nextAttemptTime) {
+          const waitTime = circuitState.nextAttemptTime - now;
+          this.logger.info(`Waiting ${waitTime}ms for circuit breaker cooldown`);
+          await this.delay(Math.min(waitTime, 5000)); // Max 5 second wait
+        }
+      }
+      
+      // Step 3: Check if SSH connection is still alive
+      const sshClient = this.sshClients.get(sessionId);
+      const sshChannel = this.sshChannels.get(sessionId);
+      
+      if (!sshClient || !sshChannel) {
+        this.logger.warn(`SSH client or channel missing for session ${sessionId}, attempting reconnection`);
+        
+        // Use retry manager for reconnection attempts
+        return await this.retryManager.executeWithRetry(
+          async () => await this.attemptSSHReconnection(sessionId),
+          {
+            sessionId,
+            operationName: 'ssh_reconnection',
+            strategyName: 'ssh',
+            onRetry: (context) => {
+              this.logger.info(`Retrying SSH reconnection for ${sessionId} (attempt ${context.attemptNumber})`);
+            }
+          }
+        );
+      }
+      
+      // Step 4: Enhanced connection responsiveness test with multiple fallbacks
+      const testResult = await this.testSSHResponsiveness(sessionId, sshChannel);
+      if (!testResult.responsive) {
+        this.logger.warn(`SSH session ${sessionId} unresponsive, attempting reconnection`);
+        
+        // Circuit breaker will be handled by the retry operation itself
+        
+        return await this.retryManager.executeWithRetry(
+          async () => await this.attemptSSHReconnection(sessionId),
+          {
+            sessionId,
+            operationName: 'ssh_reconnection_after_timeout',
+            strategyName: 'ssh',
+            onRetry: (context) => {
+              this.logger.info(`Retrying SSH reconnection after timeout for ${sessionId} (attempt ${context.attemptNumber})`);
+            }
+          }
+        );
+      }
+      
+      // Step 5: Clear any stale output and reset acknowledgment state
+      await this.clearStaleOutput(sessionId);
+      
+      // Step 6: Reset command state for retry with exponential backoff
+      command.acknowledged = false;
+      command.sent = false;
+      command.retryCount = (command.retryCount || 0) + 1;
+      
+      // Apply exponential backoff based on retry count
+      const backoffDelay = Math.min(1000 * Math.pow(2, command.retryCount - 1), 8000);
+      if (backoffDelay > 0) {
+        this.logger.info(`Applying ${backoffDelay}ms backoff before command retry`);
+        await this.delay(backoffDelay);
+      }
+      
+      // Step 7: Test with a simple command to ensure the session is truly responsive
+      const finalValidation = await this.validateSessionRecovery(sessionId, sshChannel);
+      if (!finalValidation.valid) {
+        this.logger.warn(`Session validation failed after recovery attempt: ${finalValidation.error}`);
+        return { success: false, error: finalValidation.error };
+      }
+      
+      // Success is automatically recorded by the retry manager
+      
+      // Step 8: Restore session state from latest bookmark if available
+      await this.restoreSessionStateFromBookmark(sessionId);
+      
+      // Step 9: Update persistent data with successful recovery
+      if (persistentData) {
+        persistentData.connectionState.isConnected = true;
+        persistentData.connectionState.lastConnectionTime = new Date();
+        persistentData.recoveryMetadata.recoveryStrategiesUsed.push('timeout-recovery-success');
+        persistentData.lastActivity = new Date();
+      }
+      
+      // Reset recovery attempts on successful recovery
+      this.timeoutRecoveryAttempts.delete(sessionId);
+      
+      // Record successful recovery attempt in metrics
+      const recoveryDuration = Date.now() - recoveryStartTime;
+      this.recordRecoveryAttempt(sessionId, timeoutClassification.category, true, recoveryDuration);
+      
+      this.logger.info(`Successfully recovered SSH session ${sessionId} with state restoration and ${command.retryCount} retries`);
+      return { 
+        success: true, 
+        restoredCommands: this.restoreCommandQueueFromPersistence(sessionId),
+        metadata: { retryCount: command.retryCount, backoffDelay, stateRestored: true, recoveryDurationMs: recoveryDuration } 
+      };
+      
+    } catch (error) {
+      this.logger.error(`Enhanced timeout recovery failed for session ${sessionId}:`, error);
+      
+      // Update persistent data with failure
+      if (persistentData) {
+        persistentData.connectionState.isConnected = false;
+        persistentData.connectionState.lastError = error instanceof Error ? error.message : String(error);
+        persistentData.recoveryMetadata.recoveryStrategiesUsed.push('timeout-recovery-failed');
+      }
+      
+      // Circuit breaker failure will be handled by retry mechanism
+      
+      // Update error context with actual error
+      recoveryContext.error = error as Error;
+      
+      // Attempt error recovery as last resort
+      const errorRecoveryResult = await this.errorRecovery.attemptRecovery(recoveryContext);
+      if (errorRecoveryResult) {
+        this.logger.info(`Error recovery system provided fallback recovery for session ${sessionId}`);
+        return { success: true, error: 'Recovered via error recovery system' };
+      }
+      
+      // Record failed recovery attempt in metrics
+      const recoveryDuration = Date.now() - recoveryStartTime;
+      this.recordRecoveryAttempt(sessionId, timeoutClassification.category, false, recoveryDuration, error instanceof Error ? error.message : String(error));
+      
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
+   * Restore session state from the most recent bookmark
+   */
+  private async restoreSessionStateFromBookmark(sessionId: string): Promise<void> {
+    const bookmarks = this.sessionBookmarks.get(sessionId);
+    if (!bookmarks || bookmarks.length === 0) {
+      this.logger.debug(`No bookmarks available for session ${sessionId} restoration`);
+      return;
+    }
+
+    // Get the most recent bookmark
+    const latestBookmark = bookmarks[bookmarks.length - 1];
+    const persistentData = this.sessionPersistenceData.get(sessionId);
+
+    if (persistentData) {
+      // Restore session state
+      persistentData.sessionState = { ...latestBookmark.sessionState };
+      persistentData.environment = { ...latestBookmark.environmentSnapshot };
+      persistentData.outputHistory = [...latestBookmark.outputSnapshot];
+      
+      this.logger.info(`Restored session state for ${sessionId} from bookmark: ${latestBookmark.description}`);
+    }
+  }
+
+  /**
+   * Restore command queue from persistent data
+   */
+  private restoreCommandQueueFromPersistence(sessionId: string): number {
+    const persistentData = this.sessionPersistenceData.get(sessionId);
+    const queue = this.commandQueues.get(sessionId);
+    
+    if (!persistentData || !queue || persistentData.pendingCommands.length === 0) {
+      return 0;
+    }
+
+    // Deserialize and restore pending commands
+    const restoredCommands = this.deserializeCommandQueue(persistentData.pendingCommands, sessionId);
+    
+    // Add restored commands to the queue (prioritize them)
+    restoredCommands.forEach(cmd => {
+      cmd.priority = 1; // High priority for restored commands
+      queue.commands.unshift(cmd); // Add to front of queue
+    });
+
+    this.logger.info(`Restored ${restoredCommands.length} commands to queue for session ${sessionId}`);
+    return restoredCommands.length;
+  }
+
+  /**
+   * Enhanced SSH reconnection with session persistence
+   */
+  private async attemptSSHReconnectionWithPersistence(sessionId: string): Promise<TimeoutRecoveryResult> {
+    try {
+      this.logger.info(`Attempting SSH reconnection with state persistence for session ${sessionId}`);
+      
+      // Save current command queue state
+      await this.createSessionBookmark(sessionId, 'pre-reconnection');
+      
+      // Get original session info
+      const session = this.sessions.get(sessionId);
+      const persistentData = this.sessionPersistenceData.get(sessionId);
+      
+      if (!session || !session.sshOptions) {
+        return { success: false, error: 'Session or SSH options not found' };
+      }
+      
+      // Update connection state
+      if (persistentData) {
+        persistentData.connectionState.isConnected = false;
+        persistentData.connectionState.connectionAttempts += 1;
+      }
+      
+      // Clean up existing connection
+      await this.cleanupSSHSession(sessionId);
+      
+      // Recreate SSH connection
+      const reconnectResult = await this.createSSHConnection(sessionId, session.sshOptions);
+      if (reconnectResult.success) {
+        // Restore session state after reconnection
+        await this.restoreSessionStateFromBookmark(sessionId);
+        const restoredCommands = this.restoreCommandQueueFromPersistence(sessionId);
+        
+        // Update connection state
+        if (persistentData) {
+          persistentData.connectionState.isConnected = true;
+          persistentData.connectionState.lastConnectionTime = new Date();
+          persistentData.recoveryMetadata.recoveryStrategiesUsed.push('ssh-reconnection-success');
+        }
+        
+        this.logger.info(`Successfully reconnected SSH session ${sessionId} with ${restoredCommands} restored commands`);
+        return { success: true, reconnected: true, restoredCommands };
+      } else {
+        return { success: false, error: 'Reconnection failed' };
+      }
+      
+    } catch (error) {
+      this.logger.error(`SSH reconnection with persistence failed for session ${sessionId}:`, error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
+   * Persist all session data to storage
+   */
+  private async persistAllSessionData(): Promise<void> {
+    if (!this.continuityConfig.enablePersistence) {
+      return;
+    }
+
+    try {
+      for (const [sessionId, persistentData] of this.sessionPersistenceData) {
+        // Update current command queue state
+        const queue = this.commandQueues.get(sessionId);
+        if (queue) {
+          persistentData.pendingCommands = this.serializeCommandQueue(queue.commands);
+        }
+        
+        // Update output history
+        const outputBuffer = this.outputBuffers.get(sessionId);
+        if (outputBuffer) {
+          persistentData.outputHistory = outputBuffer
+            .slice(-100) // Keep last 100 outputs
+            .map(output => output.data);
+        }
+
+        // Save to disk (implement based on your storage preference)
+        await this.persistSessionData(sessionId, persistentData);
+      }
+
+      this.logger.debug(`Persisted data for ${this.sessionPersistenceData.size} sessions`);
+    } catch (error) {
+      this.logger.error('Failed to persist session data:', error);
+    }
+  }
+
+  /**
+   * Persist session data to storage (placeholder - implement based on storage choice)
+   */
+  private async persistSessionData(sessionId: string, data: SessionPersistentData): Promise<void> {
+    // This would typically save to file system, database, or other storage
+    // For now, it's a placeholder that could be implemented based on requirements
+    this.logger.debug(`Persisting session data for ${sessionId}`);
+  }
+
+  /**
+   * Load persisted session data from storage
+   */
+  private async loadPersistedSessionData(): Promise<void> {
+    // This would typically load from file system, database, or other storage
+    // For now, it's a placeholder that could be implemented based on requirements
+    this.logger.debug('Loading persisted session data');
+  }
+
+  /**
+   * Setup integration with SessionRecovery system
+   */
+  private setupSessionRecoveryIntegration(): void {
+    if (!this.sessionRecovery) {
+      return;
+    }
+
+    // Listen for session recovery events and enhance with persistence data
+    this.sessionRecovery.on('sessionRecoveryAttempt', async (data) => {
+      const { sessionId, sessionState, persistentData } = data;
+      
+      // Update our persistent data if we have it
+      const ourPersistentData = this.sessionPersistenceData.get(sessionId);
+      if (ourPersistentData && persistentData) {
+        // Merge session recovery data with our enhanced persistence
+        ourPersistentData.recoveryMetadata.timeoutRecoveryAttempts += 1;
+        ourPersistentData.recoveryMetadata.lastRecoveryTime = new Date();
+        ourPersistentData.recoveryMetadata.recoveryStrategiesUsed.push('session-recovery-attempt');
+      }
+
+      // Create recovery bookmark
+      await this.createSessionBookmark(sessionId, 'session-recovery');
+    });
+
+    // Listen for successful session recovery
+    this.sessionRecovery.on('sessionRecovered', async (data) => {
+      const { sessionId } = data;
+      
+      // Update our persistent data on successful recovery
+      const persistentData = this.sessionPersistenceData.get(sessionId);
+      if (persistentData) {
+        persistentData.connectionState.isConnected = true;
+        persistentData.connectionState.lastConnectionTime = new Date();
+        persistentData.recoveryMetadata.recoveryStrategiesUsed.push('session-recovery-success');
+        persistentData.lastActivity = new Date();
+      }
+
+      // Create success bookmark
+      await this.createSessionBookmark(sessionId, 'recovery-success');
+      
+      this.logger.info(`Session ${sessionId} recovered successfully with enhanced persistence tracking`);
+    });
+
+    // Provide session restoration data to SessionRecovery system
+    this.sessionRecovery.on('snapshot-request', (data) => {
+      const { sessionId, callback } = data;
+      const persistentData = this.sessionPersistenceData.get(sessionId);
+      const bookmarks = this.sessionBookmarks.get(sessionId);
+      
+      if (persistentData && bookmarks) {
+        const updates = {
+          commandHistory: persistentData.commandHistory,
+          outputBuffer: persistentData.outputHistory,
+          workingDirectory: persistentData.workingDirectory,
+          environment: persistentData.environment,
+          metadata: {
+            bookmarksCount: bookmarks.length,
+            lastBookmark: bookmarks[bookmarks.length - 1]?.timestamp,
+            connectionState: persistentData.connectionState,
+            recoveryMetadata: persistentData.recoveryMetadata
+          }
+        };
+        
+        callback(updates);
+      }
+    });
+
+    this.logger.debug('SessionRecovery integration setup complete');
+  }
+
+  /**
+   * Migrate session to a different host (placeholder for advanced feature)
+   */
+  private async migrateSession(sessionId: string, targetHost: string): Promise<boolean> {
+    if (!this.continuityConfig.enableSessionMigration) {
+      this.logger.warn(`Session migration is disabled for session ${sessionId}`);
+      return false;
+    }
+
+    try {
+      this.logger.info(`Initiating session migration for ${sessionId} to ${targetHost}`);
+      
+      // Create pre-migration bookmark
+      await this.createSessionBookmark(sessionId, 'pre-migration');
+      
+      const persistentData = this.sessionPersistenceData.get(sessionId);
+      if (!persistentData || !persistentData.sshOptions) {
+        return false;
+      }
+
+      // Create new SSH options with target host
+      const newSSHOptions = {
+        ...persistentData.sshOptions,
+        host: targetHost
+      };
+
+      // TODO: Implement actual migration logic
+      // This would involve:
+      // 1. Creating new session on target host
+      // 2. Transferring session state
+      // 3. Restoring command queue
+      // 4. Updating connection mappings
+      // 5. Cleaning up old session
+
+      this.logger.info(`Session migration planned for ${sessionId} (implementation pending)`);
+      return true;
+      
+    } catch (error) {
+      this.logger.error(`Session migration failed for ${sessionId}:`, error);
+      return false;
+    }
+  }
+  
+  /**
+   * Measure network latency to a host
+   */
+  private async measureNetworkLatency(host: string, port: number = 22): Promise<number> {
+    const startTime = Date.now();
+    
+    try {
+      // Use a simple TCP connection test for latency measurement
+      const client = new SSHClient();
+      
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          client.destroy();
+          resolve(5000); // Return high latency on timeout
+        }, 5000);
+        
+        client.on('ready', () => {
+          clearTimeout(timeout);
+          const latency = Date.now() - startTime;
+          client.destroy();
+          resolve(latency);
+        });
+        
+        client.on('error', () => {
+          clearTimeout(timeout);
+          client.destroy();
+          resolve(5000); // Return high latency on error
+        });
+        
+        // Minimal connection attempt just for timing
+        client.connect({
+          host,
+          port,
+          username: 'test', // This will fail but still measure connection time
+          timeout: 5000
+        });
+      });
+    } catch (error) {
+      return 5000; // Return high latency on exception
+    }
+  }
+  
+  /**
+   * Update network metrics for a host
+   */
+  private updateNetworkMetrics(host: string, latency: number): void {
+    const existing = this.networkMetrics.get(host);
+    const measurements = this.latencyMeasurements.get(host) || [];
+    
+    // Keep last 10 measurements for jitter calculation
+    measurements.push(latency);
+    if (measurements.length > 10) {
+      measurements.shift();
+    }
+    this.latencyMeasurements.set(host, measurements);
+    
+    // Calculate jitter (variance in latency)
+    const avgLatency = measurements.reduce((sum, lat) => sum + lat, 0) / measurements.length;
+    const jitter = measurements.length > 1 
+      ? Math.sqrt(measurements.reduce((sum, lat) => sum + Math.pow(lat - avgLatency, 2), 0) / measurements.length)
+      : 0;
+    
+    // Determine connection quality
+    let connectionQuality: 'excellent' | 'good' | 'fair' | 'poor';
+    if (avgLatency < this.adaptiveTimeoutConfig.qualityThresholds.excellent) {
+      connectionQuality = 'excellent';
+    } else if (avgLatency < this.adaptiveTimeoutConfig.qualityThresholds.good) {
+      connectionQuality = 'good';
+    } else if (avgLatency < this.adaptiveTimeoutConfig.qualityThresholds.fair) {
+      connectionQuality = 'fair';
+    } else {
+      connectionQuality = 'poor';
+    }
+    
+    const metrics: NetworkMetrics = {
+      latency: avgLatency,
+      jitter,
+      packetLoss: 0, // Would need more sophisticated testing for packet loss
+      connectionQuality,
+      lastUpdated: new Date(),
+      sampleCount: (existing?.sampleCount || 0) + 1
+    };
+    
+    this.networkMetrics.set(host, metrics);
+    this.logger.debug(`Updated network metrics for ${host}:`, {
+      latency: avgLatency.toFixed(2) + 'ms',
+      jitter: jitter.toFixed(2) + 'ms',
+      quality: connectionQuality
+    });
+  }
+  
+  /**
+   * Calculate adaptive timeout based on network conditions
+   */
+  private calculateAdaptiveTimeout(host: string): number {
+    const metrics = this.networkMetrics.get(host);
+    const config = this.adaptiveTimeoutConfig;
+    
+    if (!metrics) {
+      return config.baseTimeout;
+    }
+    
+    // Base calculation: base timeout + (latency * multiplier)
+    let adaptiveTimeout = config.baseTimeout + (metrics.latency * config.latencyMultiplier);
+    
+    // Adjust for jitter
+    const jitterAdjustment = metrics.jitter * config.jitterTolerance;
+    adaptiveTimeout += jitterAdjustment;
+    
+    // Apply connection quality adjustments
+    switch (metrics.connectionQuality) {
+      case 'poor':
+        adaptiveTimeout *= 2.0; // Double timeout for poor connections
+        break;
+      case 'fair':
+        adaptiveTimeout *= 1.5; // 50% increase for fair connections
+        break;
+      case 'good':
+        adaptiveTimeout *= 1.1; // 10% increase for good connections
+        break;
+      case 'excellent':
+        // No adjustment for excellent connections
+        break;
+    }
+    
+    // Ensure timeout stays within bounds
+    adaptiveTimeout = Math.max(config.minTimeout, Math.min(config.maxTimeout, adaptiveTimeout));
+    
+    this.logger.debug(`Calculated adaptive timeout for ${host}: ${adaptiveTimeout.toFixed(0)}ms (quality: ${metrics.connectionQuality})`);
+    return Math.round(adaptiveTimeout);
+  }
+  
+  /**
+   * Perform connection health check
+   */
+  private async performConnectionHealthCheck(host: string, port: number = 22): Promise<ConnectionHealthCheck> {
+    const startTime = Date.now();
+    const existing = this.connectionHealthChecks.get(host);
+    
+    try {
+      const latency = await this.measureNetworkLatency(host, port);
+      const healthCheck: ConnectionHealthCheck = {
+        isHealthy: latency < this.adaptiveTimeoutConfig.qualityThresholds.fair,
+        latency,
+        timestamp: new Date(),
+        consecutiveFailures: 0
+      };
+      
+      this.connectionHealthChecks.set(host, healthCheck);
+      this.updateNetworkMetrics(host, latency);
+      
+      return healthCheck;
+    } catch (error) {
+      const healthCheck: ConnectionHealthCheck = {
+        isHealthy: false,
+        latency: 5000,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date(),
+        consecutiveFailures: (existing?.consecutiveFailures || 0) + 1
+      };
+      
+      this.connectionHealthChecks.set(host, healthCheck);
+      return healthCheck;
+    }
+  }
+  
+  /**
+   * Test SSH connection responsiveness with enhanced fallback mechanisms
+   */
+  private async testSSHResponsiveness(sessionId: string, channel: ClientChannel): Promise<{ responsive: boolean; details?: string }> {
+    return new Promise((resolve) => {
+      const primaryTimeout = 2000;
+      const fallbackTimeout = 5000;
+      let responseReceived = false;
+      let testPhase = 'primary';
+      
+      const cleanup = () => {
+        channel.removeListener('data', onData);
+        channel.removeListener('error', onError);
+        channel.removeListener('close', onClose);
+      };
+      
+      // Primary timeout (2 seconds)
+      const primaryTimer = setTimeout(async () => {
+        if (!responseReceived) {
+          this.logger.warn(`Primary responsiveness test failed for session ${sessionId}, trying fallback`);
+          testPhase = 'fallback';
+          
+          // Try a different command as fallback
+          try {
+            channel.write('\n'); // Just send a newline
+            
+            // Extended timeout for fallback
+            setTimeout(() => {
+              if (!responseReceived) {
+                this.logger.warn(`Fallback responsiveness test also failed for session ${sessionId}`);
+                cleanup();
+                resolve({ responsive: false, details: 'Both primary and fallback tests failed' });
+              }
+            }, fallbackTimeout - primaryTimeout);
+            
+          } catch (error) {
+            this.logger.error(`Error during fallback responsiveness test:`, error);
+            cleanup();
+            resolve({ responsive: false, details: `Fallback test error: ${error}` });
+          }
+        }
+      }, primaryTimeout);
+      
+      const onData = (data: Buffer) => {
+        if (!responseReceived) {
+          responseReceived = true;
+          clearTimeout(primaryTimer);
+          cleanup();
+          
+          const dataStr = data.toString();
+          this.logger.debug(`Responsiveness test ${testPhase} succeeded for session ${sessionId}: ${dataStr.substring(0, 50)}`);
+          resolve({ 
+            responsive: true, 
+            details: `${testPhase} test succeeded: ${dataStr.length} bytes received` 
+          });
+        }
+      };
+      
+      const onError = (error: Error) => {
+        if (!responseReceived) {
+          responseReceived = true;
+          clearTimeout(primaryTimer);
+          cleanup();
+          
+          this.logger.error(`SSH channel error during responsiveness test for session ${sessionId}:`, error);
+          resolve({ responsive: false, details: `Channel error: ${error.message}` });
+        }
+      };
+      
+      const onClose = () => {
+        if (!responseReceived) {
+          responseReceived = true;
+          clearTimeout(primaryTimer);
+          cleanup();
+          
+          this.logger.warn(`SSH channel closed during responsiveness test for session ${sessionId}`);
+          resolve({ responsive: false, details: 'Channel closed during test' });
+        }
+      };
+      
+      // Set up event listeners
+      channel.on('data', onData);
+      channel.on('error', onError);
+      channel.on('close', onClose);
+      
+      try {
+        // Send a simple echo command that should respond immediately
+        channel.write('echo "responsiveness-test-$(date +%s)"\n');
+      } catch (error) {
+        clearTimeout(primaryTimer);
+        cleanup();
+        resolve({ responsive: false, details: `Write error: ${error}` });
+      }
+    });
+  }
+  
+  /**
+   * Clear stale output from buffers
+   */
+  private async clearStaleOutput(sessionId: string): Promise<void> {
+    // Clear command queue output buffer
+    const queue = this.commandQueues.get(sessionId);
+    if (queue) {
+      queue.outputBuffer = '';
+    }
+    
+    // Optional: Clear session output buffer if needed
+    const outputBuffer = this.outputBuffers.get(sessionId);
+    if (outputBuffer && outputBuffer.length > 50) {
+      // Keep only recent outputs
+      const recentOutputs = outputBuffer.slice(-10);
+      this.outputBuffers.set(sessionId, recentOutputs);
+    }
+  }
+
+  /**
+   * Utility method to add delay with promise
+   */
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Enhanced timeout error classification with specific timeout patterns
+   */
+  private classifyTimeoutError(error: Error): { type: string; severity: string; category: string; recoverable: boolean } {
+    const errorMsg = error.message.toLowerCase();
+    
+    // Check for specific timeout patterns
+    for (const [category, patterns] of Object.entries(ConsoleManager.TIMEOUT_ERROR_PATTERNS)) {
+      for (const pattern of patterns) {
+        if (pattern.test(errorMsg)) {
+          const classification = this.determineTimeoutSeverity(category, errorMsg);
+          return {
+            type: 'timeout',
+            severity: classification.severity,
+            category: `timeout_${category}`,
+            recoverable: classification.recoverable
+          };
+        }
+      }
+    }
+    
+    // Fallback to standard error recovery classification
+    const standardClassification = this.errorRecovery.classifyError(error);
+    return standardClassification || {
+      type: 'timeout',
+      severity: 'medium',
+      category: 'timeout_unknown',
+      recoverable: true
+    };
+  }
+
+  /**
+   * Determine timeout severity and recoverability based on category
+   */
+  private determineTimeoutSeverity(category: string, errorMsg: string): { severity: string; recoverable: boolean } {
+    const severityMap = {
+      command_acknowledgment: { severity: 'medium', recoverable: true },
+      ssh_connection: { severity: 'high', recoverable: true },
+      network_latency: { severity: 'low', recoverable: true },
+      ssh_responsiveness: { severity: 'medium', recoverable: true },
+      command_execution: { severity: 'medium', recoverable: true },
+      recovery_timeout: { severity: 'high', recoverable: false }
+    };
+
+    // Check for critical indicators that make errors less recoverable
+    const criticalIndicators = [
+      'max attempts',
+      'circuit breaker',
+      'permanent failure',
+      'authentication failed',
+      'host unreachable'
+    ];
+
+    const isCritical = criticalIndicators.some(indicator => errorMsg.includes(indicator));
+    const baseSeverity = severityMap[category as keyof typeof severityMap] || { severity: 'medium', recoverable: true };
+
+    return {
+      severity: isCritical ? 'critical' : baseSeverity.severity,
+      recoverable: isCritical ? false : baseSeverity.recoverable
+    };
+  }
+
+  /**
+   * Record recovery attempt metrics
+   */
+  private recordRecoveryAttempt(sessionId: string, category: string, success: boolean, durationMs: number, error?: string): void {
+    const timestamp = Date.now();
+    
+    // Update overall metrics
+    this.recoveryMetrics.totalRecoveryAttempts++;
+    if (success) {
+      this.recoveryMetrics.successfulRecoveries++;
+    } else {
+      this.recoveryMetrics.failedRecoveries++;
+    }
+    
+    // Update average recovery time
+    const totalDuration = (this.recoveryMetrics.averageRecoveryTimeMs * (this.recoveryMetrics.totalRecoveryAttempts - 1)) + durationMs;
+    this.recoveryMetrics.averageRecoveryTimeMs = totalDuration / this.recoveryMetrics.totalRecoveryAttempts;
+    
+    // Update category-specific metrics
+    const categoryStats = this.recoveryMetrics.recoverySuccessRateByCategory.get(category) || { attempts: 0, successes: 0 };
+    categoryStats.attempts++;
+    if (success) {
+      categoryStats.successes++;
+    }
+    this.recoveryMetrics.recoverySuccessRateByCategory.set(category, categoryStats);
+    
+    // Add to history (keep only recent 100 attempts)
+    this.recoveryMetrics.recoveryAttemptHistory.push({
+      timestamp,
+      sessionId,
+      category,
+      success,
+      durationMs,
+      error
+    });
+    
+    if (this.recoveryMetrics.recoveryAttemptHistory.length > 100) {
+      this.recoveryMetrics.recoveryAttemptHistory.shift();
+    }
+    
+    this.recoveryMetrics.lastRecoveryTimestamp = timestamp;
+    
+    // Log metrics periodically
+    if (this.recoveryMetrics.totalRecoveryAttempts % 10 === 0) {
+      this.logRecoveryMetrics();
+    }
+  }
+
+  /**
+   * Get current recovery success rates and metrics
+   */
+  getTimeoutRecoveryMetrics() {
+    const successRate = this.recoveryMetrics.totalRecoveryAttempts > 0 
+      ? (this.recoveryMetrics.successfulRecoveries / this.recoveryMetrics.totalRecoveryAttempts) * 100
+      : 0;
+
+    const categoryRates = new Map<string, number>();
+    for (const [category, stats] of this.recoveryMetrics.recoverySuccessRateByCategory) {
+      const rate = stats.attempts > 0 ? (stats.successes / stats.attempts) * 100 : 0;
+      categoryRates.set(category, rate);
+    }
+
+    return {
+      overallSuccessRate: successRate,
+      totalAttempts: this.recoveryMetrics.totalRecoveryAttempts,
+      successfulRecoveries: this.recoveryMetrics.successfulRecoveries,
+      failedRecoveries: this.recoveryMetrics.failedRecoveries,
+      averageRecoveryTimeMs: this.recoveryMetrics.averageRecoveryTimeMs,
+      categorySuccessRates: Object.fromEntries(categoryRates),
+      recentHistory: this.recoveryMetrics.recoveryAttemptHistory.slice(-10),
+      lastRecoveryTimestamp: this.recoveryMetrics.lastRecoveryTimestamp
+    };
+  }
+
+  /**
+   * Log recovery metrics for monitoring and debugging
+   */
+  private logRecoveryMetrics(): void {
+    const metrics = this.getTimeoutRecoveryMetrics();
+    
+    this.logger.info(`Recovery Metrics Summary:
+      Overall Success Rate: ${metrics.overallSuccessRate.toFixed(1)}%
+      Total Attempts: ${metrics.totalAttempts}
+      Successful: ${metrics.successfulRecoveries}
+      Failed: ${metrics.failedRecoveries}
+      Avg Recovery Time: ${metrics.averageRecoveryTimeMs.toFixed(0)}ms`);
+    
+    if (Object.keys(metrics.categorySuccessRates).length > 0) {
+      const categoryReport = Object.entries(metrics.categorySuccessRates)
+        .map(([category, rate]) => `${category}: ${rate.toFixed(1)}%`)
+        .join(', ');
+      
+      this.logger.info(`Category Success Rates: ${categoryReport}`);
+    }
+  }
+
+  /**
+   * Validate session recovery by testing actual command execution
+   */
+  private async validateSessionRecovery(sessionId: string, channel: ClientChannel): Promise<{ valid: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      const validationTimeout = 3000;
+      let validationReceived = false;
+      const testId = Date.now().toString(36);
+      
+      const cleanup = () => {
+        channel.removeListener('data', onValidationData);
+        channel.removeListener('error', onValidationError);
+        channel.removeListener('close', onValidationClose);
+      };
+      
+      const timer = setTimeout(() => {
+        if (!validationReceived) {
+          validationReceived = true;
+          cleanup();
+          resolve({ valid: false, error: 'Validation command timeout' });
+        }
+      }, validationTimeout);
+      
+      const onValidationData = (data: Buffer) => {
+        if (!validationReceived) {
+          const dataStr = data.toString();
+          
+          // Check if we received our test response
+          if (dataStr.includes(testId) || dataStr.includes('validation-success')) {
+            validationReceived = true;
+            clearTimeout(timer);
+            cleanup();
+            resolve({ valid: true });
+          }
+        }
+      };
+      
+      const onValidationError = (error: Error) => {
+        if (!validationReceived) {
+          validationReceived = true;
+          clearTimeout(timer);
+          cleanup();
+          resolve({ valid: false, error: `Validation error: ${error.message}` });
+        }
+      };
+      
+      const onValidationClose = () => {
+        if (!validationReceived) {
+          validationReceived = true;
+          clearTimeout(timer);
+          cleanup();
+          resolve({ valid: false, error: 'Channel closed during validation' });
+        }
+      };
+      
+      // Set up listeners
+      channel.on('data', onValidationData);
+      channel.on('error', onValidationError);
+      channel.on('close', onValidationClose);
+      
+      try {
+        // Send a validation command that should respond quickly
+        channel.write(`echo "validation-success-${testId}"\n`);
+      } catch (error) {
+        clearTimeout(timer);
+        cleanup();
+        resolve({ valid: false, error: `Write error during validation: ${error}` });
+      }
+    });
+  }
+  
+  /**
+   * Attempt SSH reconnection with enhanced recovery strategies
+   */
+  private async attemptSSHReconnection(sessionId: string): Promise<TimeoutRecoveryResult> {
+    const startTime = Date.now();
+    const reconnectContext = {
+      sessionId,
+      operation: 'ssh_reconnection',
+      error: new Error('SSH reconnection attempt'),
+      timestamp: startTime,
+      metadata: { phase: 'start' }
+    };
+
+    try {
+      this.logger.info(`Attempting SSH reconnection for session ${sessionId}`);
+      
+      // Get original session info
+      const session = this.sessions.get(sessionId);
+      if (!session || !session.sshOptions) {
+        const error = new Error('Session or SSH options not found');
+        reconnectContext.error = error;
+        
+        // Check if error recovery can provide fallback session info
+        const errorClassification = this.errorRecovery.classifyError(error);
+        if (errorClassification?.recoverable) {
+          const recoveryResult = await this.errorRecovery.attemptRecovery(reconnectContext);
+          if (recoveryResult) {
+            this.logger.info(`Error recovery provided session restoration for ${sessionId}`);
+          }
+        }
+        
+        return { success: false, error: 'Session or SSH options not found' };
+      }
+
+      // Update context with session details
+      reconnectContext.metadata = {
+        ...reconnectContext.metadata,
+        phase: 'start',
+        host: session.sshOptions.host,
+        port: session.sshOptions.port,
+        username: session.sshOptions.username
+      } as any;
+
+      // Check if we should proceed based on circuit breaker state
+      const circuitKey = `ssh_reconnect_${session.sshOptions.host}`;
+      const circuitState = this.retryManager.getCircuitBreakerStates()[circuitKey];
+      
+      if (circuitState?.state === 'open') {
+        const waitTime = circuitState.nextAttemptTime - Date.now();
+        if (waitTime > 0) {
+          this.logger.warn(`Circuit breaker is open for SSH reconnection to ${session.sshOptions.host}, waiting ${waitTime}ms`);
+          await this.delay(Math.min(waitTime, 10000)); // Max 10 second wait
+        }
+      }
+
+      // Pre-connection health check
+      const healthCheck = await this.performConnectionHealthCheck(
+        session.sshOptions.host, 
+        session.sshOptions.port || 22
+      );
+      
+      if (!healthCheck.isHealthy) {
+        this.logger.warn(`Health check failed for ${session.sshOptions.host}: ${healthCheck.error || 'unhealthy'}`);
+        
+        // Circuit breaker failure will be handled by retry mechanism
+        
+        // Apply additional delay for unhealthy connections
+        const backoffDelay = Math.min(2000 + (healthCheck.consecutiveFailures * 1000), 10000);
+        this.logger.info(`Applying ${backoffDelay}ms backoff for unhealthy connection`);
+        await this.delay(backoffDelay);
+      }
+      
+      // Clean up existing connection
+      reconnectContext.metadata.phase = 'cleanup';
+      await this.cleanupSSHSession(sessionId);
+      
+      // Recreate SSH connection with enhanced configuration
+      reconnectContext.metadata.phase = 'reconnecting';
+      const reconnectResult = await this.createSSHConnection(sessionId, session.sshOptions);
+      
+      if (reconnectResult.success) {
+        // Validate the new connection
+        const sshChannel = this.sshChannels.get(sessionId);
+        if (sshChannel) {
+          reconnectContext.metadata.phase = 'validating';
+          
+          const validationResult = await this.validateSessionRecovery(sessionId, sshChannel);
+          if (validationResult.valid) {
+            // Success is automatically recorded by retry manager
+            
+            const reconnectTime = Date.now() - startTime;
+            this.logger.info(`Successfully reconnected SSH session ${sessionId} in ${reconnectTime}ms`);
+            
+            return { 
+              success: true, 
+              reconnected: true,
+              metadata: { 
+                reconnectTimeMs: reconnectTime,
+                healthCheck: healthCheck.isHealthy,
+                connectionQuality: this.networkMetrics.get(session.sshOptions.host)?.connectionQuality || 'unknown'
+              }
+            };
+          } else {
+            this.logger.warn(`Connection validation failed after reconnection: ${validationResult.error}`);
+            // Clean up the failed connection
+            await this.cleanupSSHSession(sessionId);
+            
+            // Circuit breaker failure will be handled by retry mechanism
+            
+            return { success: false, error: `Connection validation failed: ${validationResult.error}` };
+          }
+        } else {
+          // Circuit breaker failure will be handled by retry mechanism
+          return { success: false, error: 'SSH channel not available after reconnection' };
+        }
+      } else {
+        // Circuit breaker failure will be handled by retry mechanism
+        
+        // Try error recovery as fallback
+        reconnectContext.error = new Error(reconnectResult.error || 'Connection creation failed');
+        reconnectContext.metadata.phase = 'error_recovery';
+        
+        const errorRecoveryResult = await this.errorRecovery.attemptRecovery(reconnectContext);
+        if (errorRecoveryResult) {
+          this.logger.info(`Error recovery provided fallback for SSH reconnection failure`);
+          return { success: true, error: 'Recovered via error recovery fallback' };
+        }
+        
+        return { success: false, error: reconnectResult.error || 'Reconnection failed' };
+      }
+      
+    } catch (error) {
+      const reconnectTime = Date.now() - startTime;
+      this.logger.error(`SSH reconnection failed for session ${sessionId} after ${reconnectTime}ms:`, error);
+      
+      // Record failure in circuit breaker
+      const session = this.sessions.get(sessionId);
+      // Circuit breaker failure will be handled by retry mechanism
+      
+      // Update error context and attempt recovery
+      reconnectContext.error = error as Error;
+      reconnectContext.metadata.phase = 'exception_recovery';
+      
+      const errorRecoveryResult = await this.errorRecovery.attemptRecovery(reconnectContext);
+      if (errorRecoveryResult) {
+        this.logger.info(`Error recovery handled SSH reconnection exception for session ${sessionId}`);
+        return { success: true, error: 'Recovered via exception recovery' };
+      }
+      
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+  
+  /**
+   * Clean up SSH session resources
+   */
+  private async cleanupSSHSession(sessionId: string): Promise<void> {
+    // Close and remove SSH channel
+    const channel = this.sshChannels.get(sessionId);
+    if (channel) {
+      channel.removeAllListeners();
+      channel.end();
+      this.sshChannels.delete(sessionId);
+    }
+    
+    // Close and remove SSH client
+    const client = this.sshClients.get(sessionId);
+    if (client) {
+      client.removeAllListeners();
+      client.end();
+      this.sshClients.delete(sessionId);
+    }
+    
+    // Reset timeout recovery attempts on successful cleanup
+    this.timeoutRecoveryAttempts.delete(sessionId);
+  }
+  
+  /**
+   * Create SSH connection for recovery purposes
+   */
+  private async createSSHConnection(sessionId: string, sshOptions: SSHConnectionOptions): Promise<{ success: boolean; error?: string }> {
+    try {
+      this.logger.info(`Creating SSH connection for recovery: ${sessionId}`);
+      
+      // Create new SSH client
+      const sshClient = new SSHClient();
+      
+      const connectConfig: ConnectConfig = {
+        host: sshOptions.host,
+        port: sshOptions.port || 22,
+        username: sshOptions.username || process.env.USER || process.env.USERNAME || 'root',
+        // Production-ready keepalive configuration
+        keepaliveInterval: sshOptions.keepAliveInterval || 15000, // 15 seconds - frequent for long operations
+        keepaliveCountMax: sshOptions.keepAliveCountMax || 6, // Allow up to 6 failed keepalives (90 seconds)
+        readyTimeout: sshOptions.readyTimeout || 30000, // 30 seconds for initial connection
+        // Server alive configuration for detecting unresponsive servers
+        algorithms: {
+          serverHostKey: ['ssh-ed25519', 'ecdsa-sha2-nistp256', 'ssh-rsa'],
+          kex: ['ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'diffie-hellman-group14-sha256'],
+          cipher: ['aes256-gcm@openssh.com', 'aes128-gcm@openssh.com', 'aes256-ctr'],
+          hmac: ['hmac-sha2-256-etm@openssh.com', 'hmac-sha2-512-etm@openssh.com']
+        }
+      };
+
+      // Authentication setup
+      if (sshOptions.password) {
+        connectConfig.password = sshOptions.password;
+      } else if (sshOptions.privateKey) {
+        try {
+          connectConfig.privateKey = readFileSync(sshOptions.privateKey);
+        } catch (error) {
+          this.logger.error(`Failed to read private key: ${error}`);
+          return { success: false, error: `Failed to read private key: ${sshOptions.privateKey}` };
+        }
+      } else if (sshOptions.privateKeyPath) {
+        try {
+          connectConfig.privateKey = readFileSync(sshOptions.privateKeyPath);
+        } catch (error) {
+          this.logger.error(`Failed to read private key: ${error}`);
+          return { success: false, error: `Failed to read private key: ${sshOptions.privateKeyPath}` };
+        }
+      }
+      
+      // Connect with timeout
+      await this.connectSSHForRecovery(sshClient, connectConfig, sessionId);
+      
+      // Create shell channel
+      const channel = await this.createSSHChannel(sshClient, sessionId);
+      
+      // Store the new connection
+      this.sshClients.set(sessionId, sshClient);
+      this.sshChannels.set(sessionId, channel);
+      
+      // Setup handlers
+      const session = this.sessions.get(sessionId);
+      if (session) {
+        this.setupSSHHandlers(sessionId, channel, {
+          command: session.command,
+          args: session.args,
+          cwd: session.cwd,
+          env: session.env,
+          consoleType: 'ssh',
+          sshOptions: sshOptions
+        });
+      }
+      
+      this.logger.info(`Successfully recreated SSH connection for session ${sessionId}`);
+      return { success: true };
+      
+    } catch (error) {
+      this.logger.error(`Failed to create SSH connection for session ${sessionId}:`, error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+  
+  /**
+   * Connect SSH client for recovery with timeout
+   */
+  private async connectSSHForRecovery(client: SSHClient, config: ConnectConfig, sessionId: string): Promise<void> {
+    const host = config.host || 'unknown';
+    
+    // Perform pre-connection health check
+    const healthCheck = await this.performConnectionHealthCheck(host, config.port);
+    if (!healthCheck.isHealthy && healthCheck.consecutiveFailures > 3) {
+      throw new Error(`Host ${host} appears to be unreachable (${healthCheck.consecutiveFailures} consecutive failures)`);
+    }
+    
+    // Calculate adaptive timeout based on network conditions
+    const adaptiveTimeout = this.calculateAdaptiveTimeout(host);
+    this.logger.info(`Using adaptive timeout for SSH recovery connection to ${host}: ${adaptiveTimeout}ms`);
+    
+    return new Promise((resolve, reject) => {
+      let connectionTimeout: NodeJS.Timeout;
+      let connectionStartTime = Date.now();
+      
+      const cleanup = () => {
+        client.removeAllListeners();
+        if (connectionTimeout) {
+          clearTimeout(connectionTimeout);
+        }
+      };
+      
+      connectionTimeout = setTimeout(() => {
+        cleanup();
+        const actualTimeout = Date.now() - connectionStartTime;
+        this.logger.warn(`SSH connection timeout during recovery for ${host} after ${actualTimeout}ms`);
+        
+        // Update network metrics with timeout information
+        this.updateNetworkMetrics(host, actualTimeout);
+        
+        reject(new Error(`SSH connection timeout during recovery after ${adaptiveTimeout}ms (actual: ${actualTimeout}ms)`));
+      }, adaptiveTimeout);
+      
+      client.on('ready', () => {
+        cleanup();
+        const connectionTime = Date.now() - connectionStartTime;
+        this.logger.info(`SSH connection ready for recovery: ${sessionId} (${connectionTime}ms)`);
+        
+        // Update network metrics with successful connection time
+        this.updateNetworkMetrics(host, connectionTime);
+        
+        resolve();
+      });
+      
+      client.on('error', (error) => {
+        cleanup();
+        const connectionTime = Date.now() - connectionStartTime;
+        this.logger.error(`SSH connection error during recovery: ${sessionId} after ${connectionTime}ms`, error);
+        
+        // Update network metrics with error timing
+        this.updateNetworkMetrics(host, Math.max(connectionTime, adaptiveTimeout));
+        
+        reject(error);
+      });
+      
+      // Set connection timeout in config for SSH client
+      const enhancedConfig = {
+        ...config,
+        readyTimeout: adaptiveTimeout,
+        timeout: adaptiveTimeout
+      };
+      
+      client.connect(enhancedConfig);
+    });
   }
 
   private async optimizeNetworkConnections(): Promise<void> {
@@ -1230,7 +3125,7 @@ export class ConsoleManager extends EventEmitter {
    */
   private async registerSessionWithHealthMonitoring(sessionId: string, session: ConsoleSession, options: SessionOptions): Promise<void> {
     try {
-      // Register with heartbeat monitor
+      // Register with heartbeat monitor (with SSH-specific health monitoring)
       this.heartbeatMonitor.addSession(sessionId, {
         id: sessionId,
         createdAt: session.createdAt,
@@ -1245,7 +3140,11 @@ export class ConsoleManager extends EventEmitter {
           command: session.command,
           args: session.args || []
         }
-      });
+      }, options.sshOptions ? {
+        hostname: options.sshOptions.host,
+        port: options.sshOptions.port || 22,
+        username: options.sshOptions.username || 'unknown'
+      } : undefined);
 
       // Record session creation metrics
       this.metricsCollector.recordSessionLifecycle('created', sessionId, session.type);
@@ -1386,6 +3285,7 @@ export class ConsoleManager extends EventEmitter {
       status: 'running',
       type: options.consoleType || 'auto',
       streaming: options.streaming || false,
+      sshOptions: options.sshOptions,
       // Initialize command execution state
       executionState: 'idle',
       activeCommands: new Map()
@@ -2305,7 +4205,18 @@ export class ConsoleManager extends EventEmitter {
         const connectConfig: ConnectConfig = {
           host: sshConfig.host,
           port: sshConfig.port || 22,
-          username: sshConfig.user || process.env.USER || process.env.USERNAME || 'root'
+          username: sshConfig.user || process.env.USER || process.env.USERNAME || 'root',
+          // Production-ready keepalive configuration for legacy SSH sessions
+          keepaliveInterval: 15000, // 15 seconds - frequent for long operations
+          keepaliveCountMax: 6, // Allow up to 6 failed keepalives (90 seconds)
+          readyTimeout: 30000, // 30 seconds for initial connection
+          // Enhanced security and performance algorithms
+          algorithms: {
+            serverHostKey: ['ssh-ed25519', 'ecdsa-sha2-nistp256', 'ssh-rsa'],
+            kex: ['ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'diffie-hellman-group14-sha256'],
+            cipher: ['aes256-gcm@openssh.com', 'aes128-gcm@openssh.com', 'aes256-ctr'],
+            hmac: ['hmac-sha2-256-etm@openssh.com', 'hmac-sha2-512-etm@openssh.com']
+          }
         };
 
         // Authentication setup
@@ -2323,8 +4234,10 @@ export class ConsoleManager extends EventEmitter {
           connectConfig.agent = process.env.SSH_AUTH_SOCK;
         }
 
-        // Set connection timeout
-        connectConfig.readyTimeout = options.timeout || 10000;
+        // Additional timeout configuration if specified
+        if (options.timeout && options.timeout !== 10000) {
+          connectConfig.readyTimeout = options.timeout;
+        }
 
         await this.connectSSH(sshClient, connectConfig, poolKey, sessionId);
       }
@@ -2377,38 +4290,83 @@ export class ConsoleManager extends EventEmitter {
   }
 
   private async connectSSH(client: SSHClient, config: ConnectConfig, poolKey: string, sessionId: string): Promise<void> {
-    const maxRetries = 3;
-    const baseDelay = 1000; // 1 second
+    const host = config.host || 'unknown';
     const retryKey = `${poolKey}_${sessionId}`;
     
+    // Perform pre-connection health check
+    const healthCheck = await this.performConnectionHealthCheck(host, config.port);
+    if (!healthCheck.isHealthy && healthCheck.consecutiveFailures > 5) {
+      throw new Error(`Host ${host} appears to be unreachable (${healthCheck.consecutiveFailures} consecutive failures)`);
+    }
+    
+    // Calculate adaptive retry strategy based on connection quality
+    const networkMetrics = this.networkMetrics.get(host);
+    const maxRetries = this.calculateAdaptiveMaxRetries(networkMetrics?.connectionQuality);
+    const baseDelay = this.calculateAdaptiveBaseDelay(networkMetrics?.connectionQuality);
+    
     let currentAttempt = this.retryAttempts.get(retryKey) || 0;
+    this.logger.info(`Starting SSH connection to ${host} with adaptive retry strategy: maxRetries=${maxRetries}, baseDelay=${baseDelay}ms`);
 
     return new Promise((resolve, reject) => {
-      const attemptConnection = () => {
+      const attemptConnection = async () => {
         currentAttempt++;
         this.retryAttempts.set(retryKey, currentAttempt);
+        
+        // Calculate adaptive timeout for this attempt
+        const adaptiveTimeout = this.calculateAdaptiveTimeout(host);
+        const connectionStartTime = Date.now();
+        
+        this.logger.info(`SSH connection attempt ${currentAttempt}/${maxRetries} to ${host} with timeout ${adaptiveTimeout}ms`);
 
-        client.connect(config);
+        // Enhanced config with adaptive timeout
+        const enhancedConfig = {
+          ...config,
+          readyTimeout: adaptiveTimeout,
+          timeout: adaptiveTimeout
+        };
+        
+        client.connect(enhancedConfig);
+        let connectionTimeout: NodeJS.Timeout;
+        
+        const cleanup = () => {
+          if (connectionTimeout) {
+            clearTimeout(connectionTimeout);
+          }
+        };
 
-        const connectionTimeout = setTimeout(() => {
+        connectionTimeout = setTimeout(() => {
           client.destroy();
-          const error = new Error(`SSH connection timeout after ${config.readyTimeout}ms`);
+          const actualTimeout = Date.now() - connectionStartTime;
+          this.logger.warn(`SSH connection timeout (attempt ${currentAttempt}) to ${host} after ${actualTimeout}ms`);
+          
+          // Update network metrics with timeout information
+          this.updateNetworkMetrics(host, actualTimeout);
+          
+          const error = new Error(`SSH connection timeout after ${adaptiveTimeout}ms (actual: ${actualTimeout}ms)`);
           
           if (currentAttempt < maxRetries) {
-            const delay = baseDelay * Math.pow(2, currentAttempt - 1); // Exponential backoff
-            this.logger.warn(`SSH connection attempt ${currentAttempt} failed, retrying in ${delay}ms`);
+            // Calculate exponential backoff with jitter for better distributed retry
+            const exponentialDelay = baseDelay * Math.pow(2, currentAttempt - 1);
+            const jitter = Math.random() * 0.1 * exponentialDelay; // 10% jitter
+            const delay = exponentialDelay + jitter;
+            
+            this.logger.warn(`SSH connection attempt ${currentAttempt} failed, retrying in ${Math.round(delay)}ms`);
             setTimeout(attemptConnection, delay);
           } else {
             this.retryAttempts.delete(retryKey);
             reject(error);
           }
-        }, config.readyTimeout || 10000);
+        }, adaptiveTimeout);
 
         client.once('ready', () => {
-          clearTimeout(connectionTimeout);
+          cleanup();
+          const connectionTime = Date.now() - connectionStartTime;
           this.retryAttempts.delete(retryKey);
           this.sshConnectionPool.set(poolKey, client);
-          this.logger.info(`SSH connection established: ${poolKey}`);
+          this.logger.info(`SSH connection established: ${poolKey} (${connectionTime}ms, attempt ${currentAttempt})`);
+          
+          // Update network metrics with successful connection time
+          this.updateNetworkMetrics(host, connectionTime);
           
           // Setup connection error handler for reconnection
           client.on('error', (error) => {
@@ -2425,11 +4383,26 @@ export class ConsoleManager extends EventEmitter {
         });
 
         client.once('error', (error) => {
-          clearTimeout(connectionTimeout);
+          cleanup();
+          const connectionTime = Date.now() - connectionStartTime;
+          this.logger.error(`SSH connection error (attempt ${currentAttempt}) to ${host}: ${error.message} after ${connectionTime}ms`);
+          
+          // Update network metrics with error timing
+          this.updateNetworkMetrics(host, Math.max(connectionTime, adaptiveTimeout / 2));
           
           if (currentAttempt < maxRetries) {
-            const delay = baseDelay * Math.pow(2, currentAttempt - 1); // Exponential backoff
-            this.logger.warn(`SSH connection attempt ${currentAttempt} failed: ${error.message}, retrying in ${delay}ms`);
+            // Calculate exponential backoff with jitter and error-specific adjustments
+            let exponentialDelay = baseDelay * Math.pow(2, currentAttempt - 1);
+            
+            // Adjust delay based on error type
+            if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+              exponentialDelay *= 1.5; // Longer delay for connection refused/DNS errors
+            }
+            
+            const jitter = Math.random() * 0.1 * exponentialDelay; // 10% jitter
+            const delay = exponentialDelay + jitter;
+            
+            this.logger.warn(`SSH connection attempt ${currentAttempt} failed: ${error.message}, retrying in ${Math.round(delay)}ms`);
             setTimeout(attemptConnection, delay);
           } else {
             this.retryAttempts.delete(retryKey);
@@ -2440,6 +4413,115 @@ export class ConsoleManager extends EventEmitter {
 
       attemptConnection();
     });
+  }
+
+  /**
+   * Calculate adaptive maximum retries based on connection quality
+   */
+  private calculateAdaptiveMaxRetries(connectionQuality?: 'excellent' | 'good' | 'fair' | 'poor'): number {
+    switch (connectionQuality) {
+      case 'excellent':
+        return 2; // Fewer retries for excellent connections
+      case 'good':
+        return 3; // Standard retries for good connections
+      case 'fair':
+        return 4; // More retries for fair connections
+      case 'poor':
+        return 5; // Maximum retries for poor connections
+      default:
+        return 3; // Default for unknown quality
+    }
+  }
+
+  /**
+   * Calculate adaptive base delay based on connection quality
+   */
+  private calculateAdaptiveBaseDelay(connectionQuality?: 'excellent' | 'good' | 'fair' | 'poor'): number {
+    switch (connectionQuality) {
+      case 'excellent':
+        return 500;  // 0.5 seconds for excellent connections
+      case 'good':
+        return 1000; // 1 second for good connections
+      case 'fair':
+        return 2000; // 2 seconds for fair connections
+      case 'poor':
+        return 3000; // 3 seconds for poor connections
+      default:
+        return 1000; // Default 1 second
+    }
+  }
+
+  /**
+   * Start periodic network performance monitoring
+   */
+  private startNetworkPerformanceMonitoring(): void {
+    // Monitor all known hosts every 5 minutes
+    const monitoringInterval = 5 * 60 * 1000; // 5 minutes
+    
+    setInterval(async () => {
+      const hosts = Array.from(new Set([
+        ...Array.from(this.networkMetrics.keys()),
+        ...Array.from(this.sshConnectionPool.keys()).map(key => {
+          // Extract host from poolKey format (usually host:port)
+          return key.split(':')[0];
+        })
+      ]));
+      
+      for (const host of hosts) {
+        try {
+          await this.performConnectionHealthCheck(host);
+          this.logger.debug(`Completed periodic health check for ${host}`);
+        } catch (error) {
+          this.logger.warn(`Failed periodic health check for ${host}:`, error);
+        }
+      }
+      
+      // Clean up old metrics (older than 24 hours)
+      this.cleanupOldNetworkMetrics();
+      
+    }, monitoringInterval);
+    
+    this.logger.info('Started network performance monitoring');
+  }
+
+  /**
+   * Clean up old network metrics and measurements
+   */
+  private cleanupOldNetworkMetrics(): void {
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    const now = Date.now();
+    
+    for (const [host, metrics] of this.networkMetrics.entries()) {
+      if (now - metrics.lastUpdated.getTime() > maxAge) {
+        this.networkMetrics.delete(host);
+        this.latencyMeasurements.delete(host);
+        this.connectionHealthChecks.delete(host);
+        this.logger.debug(`Cleaned up old metrics for ${host}`);
+      }
+    }
+  }
+
+  /**
+   * Get network performance summary for debugging
+   */
+  public getNetworkPerformanceSummary(): Array<{
+    host: string;
+    latency: number;
+    jitter: number;
+    quality: string;
+    adaptiveTimeout: number;
+    lastUpdated: Date;
+    sampleCount: number;
+  }> {
+    return Array.from(this.networkMetrics.entries()).map(([host, metrics]) => ({
+      host,
+      latency: metrics.latency,
+      jitter: metrics.jitter,
+      quality: metrics.connectionQuality,
+      adaptiveTimeout: this.calculateAdaptiveTimeout(host),
+      lastUpdated: metrics.lastUpdated,
+      sampleCount: metrics.sampleCount
+    }));
   }
 
   private async createSSHChannel(client: SSHClient, sessionId: string): Promise<ClientChannel> {
@@ -2713,10 +4795,13 @@ export class ConsoleManager extends EventEmitter {
   }
 
   /**
-   * Initialize command queue for a session
+   * Initialize command queue for a session with persistence support
    */
   private initializeCommandQueue(sessionId: string): void {
     if (!this.commandQueues.has(sessionId)) {
+      const persistentData = this.sessionPersistenceData.get(sessionId);
+      const bookmarks = this.sessionBookmarks.get(sessionId) || [];
+      
       const queue: SessionCommandQueue = {
         sessionId,
         commands: [],
@@ -2724,11 +4809,19 @@ export class ConsoleManager extends EventEmitter {
         lastCommandTime: 0,
         acknowledgmentTimeout: null,
         outputBuffer: '',
-        expectedPrompt: this.queueConfig.defaultPromptPattern
+        expectedPrompt: this.queueConfig.defaultPromptPattern,
+        persistentData,
+        bookmarks
       };
       
+      // Restore pending commands if available
+      if (persistentData && persistentData.pendingCommands.length > 0) {
+        queue.commands = this.deserializeCommandQueue(persistentData.pendingCommands, sessionId);
+        this.logger.info(`Restored ${queue.commands.length} pending commands for session ${sessionId}`);
+      }
+      
       this.commandQueues.set(sessionId, queue);
-      this.logger.debug(`Command queue initialized for session ${sessionId}`);
+      this.logger.debug(`Command queue with persistence initialized for session ${sessionId}`);
     }
   }
 
@@ -2751,15 +4844,118 @@ export class ConsoleManager extends EventEmitter {
         const command = queue.commands[0];
         
         if (command.sent && !command.acknowledged) {
+          // Calculate adaptive acknowledgment timeout based on network conditions
+          const session = this.sessions.get(sessionId);
+          const adaptiveTimeout = session?.sshOptions?.host 
+            ? this.calculateAdaptiveTimeout(session.sshOptions.host)
+            : this.queueConfig.acknowledgmentTimeout;
+          
           // Wait for acknowledgment or timeout
           const waitTime = Date.now() - command.timestamp.getTime();
-          if (waitTime < this.queueConfig.acknowledgmentTimeout) {
+          const effectiveTimeout = Math.max(adaptiveTimeout, this.queueConfig.acknowledgmentTimeout);
+          
+          if (waitTime < effectiveTimeout) {
+            // Still within timeout window, but check if we should provide progress updates
+            if (waitTime > effectiveTimeout * 0.7) {
+              // Getting close to timeout, log progress
+              this.logger.debug(`Command waiting for acknowledgment: ${sessionId}, ${waitTime}ms/${effectiveTimeout}ms`);
+            }
             break; // Wait for acknowledgment
           } else {
-            this.logger.warn(`Command acknowledgment timeout for session ${sessionId}, command: ${command.input.substring(0, 50)}...`);
-            command.reject(new Error('Command acknowledgment timeout'));
-            queue.commands.shift();
-            continue;
+            // Timeout reached - enhanced handling
+            const timeoutDuration = Date.now() - command.timestamp.getTime();
+            this.logger.warn(`Command acknowledgment timeout for session ${sessionId} after ${timeoutDuration}ms (adaptive: ${adaptiveTimeout}ms), command: ${command.input.substring(0, 50)}...`);
+            
+            // Create detailed timeout context for error recovery
+            const timeoutContext = {
+              sessionId,
+              operation: 'command_acknowledgment_timeout',
+              error: new Error(`Command acknowledgment timeout after ${timeoutDuration}ms`),
+              timestamp: Date.now(),
+              metadata: {
+                commandInput: command.input.substring(0, 200),
+                commandRetryCount: command.retryCount || 0,
+                timeoutDuration,
+                adaptiveTimeout,
+                effectiveTimeout,
+                networkQuality: this.networkMetrics.get(session?.sshOptions?.host || '')?.connectionQuality || 'unknown'
+              }
+            };
+
+            // Check if this command has been retried too many times
+            const maxCommandRetries = 2;
+            if ((command.retryCount || 0) >= maxCommandRetries) {
+              this.logger.error(`Command retry limit exceeded for session ${sessionId}, giving up`);
+              
+              // Attempt error recovery as last resort before failing
+              const errorRecoveryResult = await this.errorRecovery.attemptRecovery(timeoutContext);
+              if (errorRecoveryResult) {
+                this.logger.info(`Error recovery provided fallback for command timeout in session ${sessionId}`);
+                command.resolve('Command completed via error recovery');
+              } else {
+                command.reject(new Error(`Command acknowledgment timeout after ${maxCommandRetries} retries`));
+              }
+              
+              queue.commands.shift();
+              continue;
+            }
+
+            // Attempt timeout recovery with enhanced context
+            const recoveryResult = await this.attemptTimeoutRecovery(sessionId, command);
+            if (recoveryResult.success) {
+              this.logger.info(`Successfully recovered from timeout for session ${sessionId}${recoveryResult.metadata ? ` (${JSON.stringify(recoveryResult.metadata)})` : ''}`);
+              
+              // Reset command state for retry with exponential backoff
+              command.timestamp = new Date();
+              command.retryCount = (command.retryCount || 0) + 1;
+              
+              // Apply adaptive backoff based on network conditions and retry count
+              const networkMetrics = this.networkMetrics.get(session?.sshOptions?.host || '');
+              let backoffMs = 1000 * Math.pow(2, command.retryCount - 1); // Exponential backoff
+              
+              // Adjust backoff based on network quality
+              if (networkMetrics) {
+                switch (networkMetrics.connectionQuality) {
+                  case 'poor':
+                    backoffMs *= 2.5; // Longer backoff for poor connections
+                    break;
+                  case 'fair':
+                    backoffMs *= 1.8;
+                    break;
+                  case 'good':
+                    backoffMs *= 1.2;
+                    break;
+                  case 'excellent':
+                    // No multiplier for excellent connections
+                    break;
+                }
+              }
+              
+              // Cap the backoff at 10 seconds
+              backoffMs = Math.min(backoffMs, 10000);
+              
+              if (backoffMs > 0) {
+                this.logger.info(`Applying ${backoffMs}ms adaptive backoff before command retry (network: ${networkMetrics?.connectionQuality || 'unknown'})`);
+                await this.delay(backoffMs);
+              }
+              
+              continue; // Retry the command
+            } else {
+              // Recovery failed, try error recovery system as fallback
+              const errorRecoveryResult = await this.errorRecovery.attemptRecovery(timeoutContext);
+              if (errorRecoveryResult) {
+                this.logger.info(`Error recovery provided fallback after timeout recovery failure for session ${sessionId}`);
+                command.resolve('Command completed via error recovery after timeout');
+                queue.commands.shift();
+                continue;
+              }
+              
+              // All recovery attempts failed
+              this.logger.error(`All recovery attempts failed for command timeout in session ${sessionId}: ${recoveryResult.error}`);
+              command.reject(new Error(`Command acknowledgment timeout: ${recoveryResult.error}`));
+              queue.commands.shift();
+              continue;
+            }
           }
         }
 
@@ -2769,6 +4965,23 @@ export class ConsoleManager extends EventEmitter {
             await this.sendCommandToSSH(sessionId, command, sshChannel);
             command.sent = true;
             command.timestamp = new Date();
+            
+            // Update persistent data with command activity
+            const persistentData = this.sessionPersistenceData.get(sessionId);
+            if (persistentData) {
+              persistentData.lastActivity = new Date();
+              persistentData.commandHistory.push(command.input);
+              // Keep only last 50 commands in history
+              if (persistentData.commandHistory.length > 50) {
+                persistentData.commandHistory = persistentData.commandHistory.slice(-50);
+              }
+            }
+            
+            // Create bookmark on command if using hybrid or on-command strategy
+            if (this.continuityConfig.bookmarkStrategy === 'on-command' || 
+                this.continuityConfig.bookmarkStrategy === 'hybrid') {
+              await this.createSessionBookmark(sessionId, 'on-command');
+            }
             
             // Wait for inter-command delay
             if (queue.commands.length > 1) {
@@ -2967,12 +5180,6 @@ export class ConsoleManager extends EventEmitter {
     };
   }
 
-  /**
-   * Helper method to create delays
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
     return await this.retryManager.executeWithRetry(
@@ -3293,12 +5500,32 @@ export class ConsoleManager extends EventEmitter {
   }
 
   private cleanupSession(sessionId: string) {
+    // Create final bookmark before cleanup if persistent data exists
+    const persistentData = this.sessionPersistenceData.get(sessionId);
+    if (persistentData && this.continuityConfig.enablePersistence) {
+      this.createSessionBookmark(sessionId, 'session-cleanup').catch(error => {
+        this.logger.error(`Failed to create cleanup bookmark for session ${sessionId}:`, error);
+      });
+    }
+    
     // Clean up command executions for this session
     const commandIds = this.sessionCommandQueue.get(sessionId) || [];
     commandIds.forEach(commandId => {
       this.commandExecutions.delete(commandId);
     });
     
+    // Clean up enhanced session persistence data
+    this.sessionPersistenceData.delete(sessionId);
+    this.sessionBookmarks.delete(sessionId);
+    
+    // Clear bookmark timers
+    const bookmarkTimer = this.bookmarkTimers.get(sessionId);
+    if (bookmarkTimer) {
+      clearInterval(bookmarkTimer);
+      this.bookmarkTimers.delete(sessionId);
+    }
+    
+    // Clean up original session data
     this.sessions.delete(sessionId);
     this.processes.delete(sessionId);
     this.sshClients.delete(sessionId);
@@ -3945,11 +6172,595 @@ export class ConsoleManager extends EventEmitter {
     this.streamManagers.clear();
     this.retryAttempts.clear();
     
+    // Clean up enhanced session persistence system
+    if (this.persistenceTimer) {
+      clearInterval(this.persistenceTimer);
+      this.persistenceTimer = null;
+    }
+    
+    // Clear all bookmark timers
+    for (const [sessionId, timer] of this.bookmarkTimers) {
+      clearInterval(timer);
+    }
+    this.bookmarkTimers.clear();
+    
+    // Persist final session state before shutdown
+    await this.persistAllSessionData();
+    
+    // Clear persistence data
+    this.sessionPersistenceData.clear();
+    this.sessionBookmarks.clear();
+    
     // Clean up command queue system
     this.commandQueues.forEach((queue, sessionId) => {
       this.clearCommandQueue(sessionId);
     });
     this.commandQueues.clear();
     this.commandProcessingIntervals.clear();
+    
+    this.logger.info('Enhanced session persistence system shutdown complete');
   }
+
+  // Interactive prompt recovery event handlers
+  
+  /**
+   * Handle session interrupt request - send interrupt signals to break stuck prompts
+   */
+  private async handleSessionInterruptRequest(data: {
+    sessionId: string;
+    interruptType: string;
+    signals: string[];
+    interactiveState?: any;
+  }): Promise<void> {
+    try {
+      this.logger.info(`Handling session interrupt request for ${data.sessionId}`);
+      
+      const session = this.sessions.get(data.sessionId);
+      if (!session) {
+        this.logger.warn(`Session ${data.sessionId} not found for interrupt request`);
+        return;
+      }
+      
+      // Send interrupt signals based on session type
+      if (session.sshOptions) {
+        // SSH session - send SIGINT via channel
+        const channel = this.sshChannels.get(data.sessionId);
+        if (channel) {
+          for (const signal of data.signals) {
+            if (signal === 'SIGINT' || signal === 'CTRL_C') {
+              channel.write('\x03'); // Send Ctrl+C
+            } else if (signal === 'ESC') {
+              channel.write('\x1B'); // Send ESC
+            }
+            await this.delay(500); // Small delay between signals
+          }
+        }
+      } else {
+        // Local process - send system signals
+        const process = this.processes.get(data.sessionId);
+        if (process && !process.killed) {
+          process.kill('SIGINT');
+        }
+      }
+      
+      // Update interactive state
+      await this.sessionRecovery.updateInteractiveState(data.sessionId, {
+        sessionUnresponsive: false,
+        lastSuccessfulCommand: new Date()
+      });
+      
+      this.logger.info(`Successfully sent interrupt signals to session ${data.sessionId}`);
+      
+    } catch (error) {
+      this.logger.error(`Failed to handle session interrupt request for ${data.sessionId}:`, error);
+    }
+  }
+  
+  /**
+   * Handle prompt reset request - clear buffers and reset prompt detection
+   */
+  private async handlePromptResetRequest(data: {
+    sessionId: string;
+    actions: string[];
+    preserveState: any;
+  }): Promise<void> {
+    try {
+      this.logger.info(`Handling prompt reset request for ${data.sessionId}`);
+      
+      const session = this.sessions.get(data.sessionId);
+      if (!session) {
+        this.logger.warn(`Session ${data.sessionId} not found for prompt reset`);
+        return;
+      }
+      
+      for (const action of data.actions) {
+        switch (action) {
+          case 'clear-output-buffer':
+            // Clear the output buffer
+            this.outputBuffers.set(data.sessionId, []);
+            this.promptDetector.clearBuffer(data.sessionId);
+            break;
+            
+          case 'reset-prompt-detector':
+            // Reset prompt detection patterns
+            this.promptDetector.removeSession(data.sessionId);
+            this.promptDetector.configureSession({
+              sessionId: data.sessionId,
+              shellType: this.detectShellType(session.type),
+              adaptiveLearning: true
+            });
+            break;
+            
+          case 'flush-pending-commands':
+            // Clear command queue for this session
+            const commandQueue = this.commandQueues.get(data.sessionId);
+            if (commandQueue) {
+              commandQueue.commands = [];
+              commandQueue.outputBuffer = '';
+            }
+            break;
+            
+          case 'reinitialize-prompt-patterns':
+            // Reinitialize prompt patterns based on session type
+            this.initializeSessionCommandTracking(data.sessionId, session);
+            break;
+        }
+      }
+      
+      // Update interactive state
+      await this.sessionRecovery.updateInteractiveState(data.sessionId, {
+        sessionUnresponsive: false,
+        timeoutCount: 0,
+        pendingCommands: []
+      });
+      
+      this.logger.info(`Successfully reset prompt state for session ${data.sessionId}`);
+      
+    } catch (error) {
+      this.logger.error(`Failed to handle prompt reset request for ${data.sessionId}:`, error);
+    }
+  }
+  
+  /**
+   * Handle session refresh request - refresh session without full restart
+   */
+  private async handleSessionRefreshRequest(data: {
+    sessionId: string;
+    refreshActions: string[];
+    timeout: number;
+    fallbackToRestart: boolean;
+    preserveState: any;
+  }): Promise<void> {
+    try {
+      this.logger.info(`Handling session refresh request for ${data.sessionId}`);
+      
+      const session = this.sessions.get(data.sessionId);
+      if (!session) {
+        this.logger.warn(`Session ${data.sessionId} not found for refresh`);
+        return;
+      }
+      
+      let refreshSuccessful = false;
+      
+      for (const action of data.refreshActions) {
+        try {
+          switch (action) {
+            case 'send-newline':
+              // Send newline to re-establish communication
+              if (session.sshOptions) {
+                const channel = this.sshChannels.get(data.sessionId);
+                if (channel) {
+                  channel.write('\n');
+                }
+              } else {
+                const process = this.processes.get(data.sessionId);
+                if (process && process.stdin) {
+                  process.stdin.write('\n');
+                }
+              }
+              break;
+              
+            case 'check-responsiveness':
+              // Check if session responds to simple command
+              const responseCheck = await this.checkSessionResponsiveness(data.sessionId, data.timeout);
+              refreshSuccessful = responseCheck;
+              break;
+              
+            case 'verify-prompt':
+              // Wait for and verify prompt appears
+              try {
+                await this.waitForPrompt(data.sessionId, data.timeout);
+                refreshSuccessful = true;
+              } catch (error) {
+                this.logger.debug(`Prompt verification failed for ${data.sessionId}:`, error);
+              }
+              break;
+              
+            case 'restore-context':
+              // Restore working directory and environment if needed
+              if (data.preserveState?.workingDirectory) {
+                // Commands to restore context would be session-type specific
+                // This is a placeholder for more sophisticated context restoration
+              }
+              break;
+          }
+        } catch (actionError) {
+          this.logger.warn(`Refresh action '${action}' failed for session ${data.sessionId}:`, actionError);
+        }
+      }
+      
+      if (!refreshSuccessful && data.fallbackToRestart) {
+        this.logger.info(`Session refresh failed for ${data.sessionId}, attempting fallback restart`);
+        await this.sessionRecovery.recoverSession(data.sessionId, 'restart-fallback');
+      } else if (refreshSuccessful) {
+        // Update interactive state on success
+        await this.sessionRecovery.updateInteractiveState(data.sessionId, {
+          sessionUnresponsive: false,
+          lastSuccessfulCommand: new Date(),
+          timeoutCount: 0
+        });
+      }
+      
+      this.logger.info(`Session refresh ${refreshSuccessful ? 'succeeded' : 'failed'} for ${data.sessionId}`);
+      
+    } catch (error) {
+      this.logger.error(`Failed to handle session refresh request for ${data.sessionId}:`, error);
+    }
+  }
+  
+  /**
+   * Handle command retry request - retry failed commands with backoff
+   */
+  private async handleCommandRetryRequest(data: {
+    sessionId: string;
+    commands: string[];
+    retryConfig: {
+      maxRetries: number;
+      baseDelay: number;
+      backoffMultiplier: number;
+      maxDelay: number;
+      jitter: boolean;
+    };
+    verification: {
+      checkPrompt: boolean;
+      timeoutPerCommand: number;
+      verifyOutput: boolean;
+    };
+  }): Promise<void> {
+    try {
+      this.logger.info(`Handling command retry request for ${data.sessionId}`);
+      
+      const session = this.sessions.get(data.sessionId);
+      if (!session) {
+        this.logger.warn(`Session ${data.sessionId} not found for command retry`);
+        return;
+      }
+      
+      let successfulRetries = 0;
+      
+      for (const command of data.commands) {
+        let retryCount = 0;
+        let commandSucceeded = false;
+        
+        while (retryCount < data.retryConfig.maxRetries && !commandSucceeded) {
+          try {
+            // Calculate delay with exponential backoff and optional jitter
+            let delay = data.retryConfig.baseDelay * Math.pow(data.retryConfig.backoffMultiplier, retryCount);
+            delay = Math.min(delay, data.retryConfig.maxDelay);
+            
+            if (data.retryConfig.jitter) {
+              delay += Math.random() * 1000; // Add up to 1 second of jitter
+            }
+            
+            if (retryCount > 0) {
+              await this.delay(delay);
+            }
+            
+            // Execute the command
+            const result = await this.executeCommandInSession(
+              data.sessionId, 
+              command, 
+              [], 
+              data.verification.timeoutPerCommand
+            );
+            
+            if (result.status === 'completed') {
+              commandSucceeded = true;
+              successfulRetries++;
+            }
+            
+          } catch (error) {
+            this.logger.debug(`Command retry ${retryCount + 1} failed for '${command}' in session ${data.sessionId}:`, error);
+          }
+          
+          retryCount++;
+        }
+        
+        if (!commandSucceeded) {
+          this.logger.warn(`All retries failed for command '${command}' in session ${data.sessionId}`);
+        }
+      }
+      
+      // Update interactive state based on results
+      await this.sessionRecovery.updateInteractiveState(data.sessionId, {
+        sessionUnresponsive: successfulRetries === 0,
+        lastSuccessfulCommand: successfulRetries > 0 ? new Date() : undefined,
+        pendingCommands: []
+      });
+      
+      this.logger.info(`Command retry completed for ${data.sessionId}: ${successfulRetries}/${data.commands.length} commands succeeded`);
+      
+    } catch (error) {
+      this.logger.error(`Failed to handle command retry request for ${data.sessionId}:`, error);
+    }
+  }
+  
+  /**
+   * Handle interactive state updates
+   */
+  private async handleInteractiveStateUpdate(data: {
+    sessionId: string;
+    interactiveState: any;
+  }): Promise<void> {
+    try {
+      // Emit event for external monitoring
+      this.emit('interactive-state-changed', {
+        sessionId: data.sessionId,
+        state: data.interactiveState,
+        timestamp: new Date()
+      });
+      
+      // Check if proactive measures are needed
+      const shouldTrigger = this.sessionRecovery.shouldTriggerInteractiveRecovery(data.sessionId);
+      if (shouldTrigger.shouldTrigger && shouldTrigger.urgency === 'high') {
+        this.logger.warn(`High urgency interactive recovery needed for ${data.sessionId}: ${shouldTrigger.reason}`);
+        // Trigger recovery in next tick to avoid recursion
+        setImmediate(() => {
+          this.sessionRecovery.recoverSession(data.sessionId, `proactive-${shouldTrigger.urgency}-${Date.now()}`);
+        });
+      }
+      
+    } catch (error) {
+      this.logger.error(`Failed to handle interactive state update for ${data.sessionId}:`, error);
+    }
+  }
+  
+  /**
+   * Check if a session is responsive by sending a simple command
+   */
+  private async checkSessionResponsiveness(sessionId: string, timeout: number = 5000): Promise<boolean> {
+    try {
+      // Use a simple, non-destructive command to test responsiveness
+      const testCommand = this.sessions.get(sessionId)?.type === 'powershell' ? 'echo test' : 'echo test';
+      
+      const result = await this.executeCommandInSession(sessionId, testCommand, [], timeout);
+      return result.status === 'completed';
+    } catch (error) {
+      return false;
+    }
+  }
+  
+  /**
+   * Detect shell type from console type
+   */
+  private detectShellType(consoleType?: string): 'bash' | 'powershell' | 'cmd' | 'auto' {
+    if (!consoleType) return 'auto';
+    
+    switch (consoleType) {
+      case 'powershell':
+      case 'pwsh':
+        return 'powershell';
+      case 'cmd':
+        return 'cmd';
+      case 'bash':
+      case 'zsh':
+      case 'sh':
+        return 'bash';
+      default:
+        return 'auto';
+    }
+  }
+  
+  /**
+   * Start proactive interactive session monitoring
+   */
+  private startInteractiveSessionMonitoring(): void {
+    // Monitor every 15 seconds for interactive prompt issues
+    const monitoringInterval = setInterval(async () => {
+      try {
+        for (const [sessionId, session] of this.sessions) {
+          // Check if session needs interactive prompt recovery
+          const shouldTrigger = this.sessionRecovery.shouldTriggerInteractiveRecovery(sessionId);
+          
+          if (shouldTrigger.shouldTrigger) {
+            this.logger.info(`Proactive recovery triggered for session ${sessionId}: ${shouldTrigger.reason} (${shouldTrigger.urgency})`);
+            
+            // Update interactive state with current issues
+            const commandQueue = this.commandQueues.get(sessionId);
+            const pendingCommands = commandQueue?.commands.map(cmd => cmd.input) || [];
+            
+            await this.sessionRecovery.updateInteractiveState(sessionId, {
+              isInteractive: true,
+              sessionUnresponsive: shouldTrigger.urgency === 'high',
+              pendingCommands,
+              timeoutCount: this.timeoutRecoveryAttempts.get(sessionId) || 0
+            });
+            
+            // Trigger appropriate recovery based on urgency
+            if (shouldTrigger.urgency === 'high') {
+              // Immediate recovery for high urgency issues
+              await this.sessionRecovery.recoverSession(sessionId, `proactive-high-${shouldTrigger.reason}`);
+            } else if (shouldTrigger.urgency === 'medium') {
+              // Schedule recovery for medium urgency issues
+              setTimeout(async () => {
+                const recheck = this.sessionRecovery.shouldTriggerInteractiveRecovery(sessionId);
+                if (recheck.shouldTrigger) {
+                  await this.sessionRecovery.recoverSession(sessionId, `proactive-medium-${shouldTrigger.reason}`);
+                }
+              }, 30000); // Wait 30 seconds before medium priority recovery
+            }
+          }
+          
+          // Update session state for recovery monitoring
+          const promptResult = this.promptDetector.getBuffer(sessionId);
+          if (promptResult) {
+            const hasPrompt = this.promptDetector.detectPrompt(sessionId, promptResult);
+            if (hasPrompt?.detected) {
+              await this.sessionRecovery.updateInteractiveState(sessionId, {
+                lastPromptDetected: new Date(),
+                promptType: hasPrompt.pattern?.name
+              });
+            }
+          }
+        }
+      } catch (error) {
+        this.logger.error('Error in proactive interactive session monitoring:', error);
+      }
+    }, 15000); // Run every 15 seconds
+    
+    // Store interval for cleanup
+    if (!this.resourceMonitor) {
+      this.resourceMonitor = monitoringInterval;
+    }
+    
+    this.logger.info('Started proactive interactive session monitoring');
+  }
+  
+  /**
+   * Enhanced decision logic for recovery vs replacement
+   */
+  private async shouldRecoverOrReplace(sessionId: string, failureContext: {
+    reason: string;
+    attempts: number;
+    duration: number;
+    errorType: string;
+  }): Promise<{
+    decision: 'recover' | 'replace' | 'abandon';
+    strategy?: string;
+    reasoning: string;
+  }> {
+    try {
+      const session = this.sessions.get(sessionId);
+      const interactiveRecovery = this.sessionRecovery.shouldTriggerInteractiveRecovery(sessionId);
+      const recoveryStats = this.sessionRecovery.getInteractiveRecoveryStats();
+      
+      // Factors for decision making
+      const factors = {
+        isSSH: !!session?.sshOptions,
+        hasInteractiveState: interactiveRecovery.shouldTrigger,
+        successRate: recoveryStats.totalInteractiveSessions > 0 ? 
+          (recoveryStats.successfulPromptInterrupts + recoveryStats.successfulPromptResets) / recoveryStats.totalInteractiveSessions : 0,
+        attemptCount: failureContext.attempts,
+        failureDuration: failureContext.duration,
+        errorSeverity: this.categorizeErrorSeverity(failureContext.errorType),
+        resourceCost: this.estimateRecoveryCost(sessionId, failureContext)
+      };
+      
+      // Decision logic based on multiple factors
+      if (factors.attemptCount >= 5) {
+        return {
+          decision: 'abandon',
+          reasoning: 'Too many failed recovery attempts - abandoning session'
+        };
+      }
+      
+      if (factors.hasInteractiveState && factors.successRate > 0.7 && factors.attemptCount < 3) {
+        return {
+          decision: 'recover',
+          strategy: interactiveRecovery.urgency === 'high' ? 'prompt-interrupt' : 'prompt-reset',
+          reasoning: `Interactive recovery has ${(factors.successRate * 100).toFixed(1)}% success rate - worth attempting`
+        };
+      }
+      
+      if (factors.isSSH && factors.errorSeverity === 'network' && factors.attemptCount < 4) {
+        return {
+          decision: 'recover',
+          strategy: 'reconnect',
+          reasoning: 'SSH network issues are often recoverable through reconnection'
+        };
+      }
+      
+      if (factors.resourceCost < 0.3 && factors.attemptCount < 3) { // Low cost recovery
+        return {
+          decision: 'recover',
+          strategy: 'session-refresh',
+          reasoning: 'Low resource cost recovery - attempting refresh'
+        };
+      }
+      
+      if (factors.failureDuration < 30000 && !factors.hasInteractiveState) { // Quick failures without interactive issues
+        return {
+          decision: 'replace',
+          reasoning: 'Quick failure without interactive complexity - replacing is more efficient'
+        };
+      }
+      
+      // Default to recovery for interactive sessions, replacement for others
+      if (factors.hasInteractiveState) {
+        return {
+          decision: 'recover',
+          strategy: 'prompt-reset',
+          reasoning: 'Interactive session detected - prioritizing recovery to preserve state'
+        };
+      } else {
+        return {
+          decision: 'replace',
+          reasoning: 'Non-interactive session - replacement is simpler and more reliable'
+        };
+      }
+      
+    } catch (error) {
+      this.logger.error(`Error in recovery decision logic for session ${sessionId}:`, error);
+      return {
+        decision: 'replace',
+        reasoning: 'Error in decision logic - defaulting to replacement for safety'
+      };
+    }
+  }
+  
+  /**
+   * Categorize error severity for decision making
+   */
+  private categorizeErrorSeverity(errorType: string): 'low' | 'medium' | 'high' | 'network' | 'system' {
+    const lowSeverity = ['timeout', 'prompt', 'buffer-full'];
+    const mediumSeverity = ['command-failed', 'permission', 'resource'];
+    const networkSeverity = ['connection', 'network', 'ssh', 'disconnect'];
+    const systemSeverity = ['memory', 'cpu', 'disk', 'system'];
+    
+    const lowerType = errorType.toLowerCase();
+    
+    if (networkSeverity.some(term => lowerType.includes(term))) return 'network';
+    if (systemSeverity.some(term => lowerType.includes(term))) return 'system';
+    if (lowSeverity.some(term => lowerType.includes(term))) return 'low';
+    if (mediumSeverity.some(term => lowerType.includes(term))) return 'medium';
+    
+    return 'high'; // Default to high severity for unknown errors
+  }
+  
+  /**
+   * Estimate the resource cost of recovery (0-1 scale)
+   */
+  private estimateRecoveryCost(sessionId: string, failureContext: any): number {
+    let cost = 0;
+    
+    const session = this.sessions.get(sessionId);
+    
+    // Base cost factors
+    if (session?.sshOptions) cost += 0.3; // SSH operations are more expensive
+    if (failureContext.attempts > 2) cost += 0.2; // Multiple attempts increase cost
+    if (failureContext.duration > 60000) cost += 0.2; // Long-running issues are costly
+    
+    // Interactive state factors
+    const interactiveState = this.sessionRecovery.shouldTriggerInteractiveRecovery(sessionId);
+    if (interactiveState.shouldTrigger) {
+      cost += interactiveState.urgency === 'high' ? 0.4 : 0.2;
+    }
+    
+    // Resource utilization (simplified)
+    const commandQueue = this.commandQueues.get(sessionId);
+    if (commandQueue?.commands.length > 5) cost += 0.1;
+    
+    return Math.min(cost, 1.0); // Cap at 1.0
+  }
+  
 }
