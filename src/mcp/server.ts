@@ -257,19 +257,20 @@ export class ConsoleAutomationServer {
       },
       {
         name: 'console_execute_command',
-        description: 'Execute a command and wait for completion',
+        description: 'Execute a command in an existing session or create a new one-off session',
         inputSchema: {
           type: 'object',
           properties: {
+            sessionId: { type: 'string', description: 'Optional: Session ID to execute command in' },
             command: { type: 'string', description: 'Command to execute' },
-            args: { type: 'array', items: { type: 'string' }, description: 'Command arguments' },
-            cwd: { type: 'string', description: 'Working directory' },
-            env: { type: 'object', description: 'Environment variables' },
+            args: { type: 'array', items: { type: 'string' }, description: 'Command arguments (for new sessions)' },
+            cwd: { type: 'string', description: 'Working directory (for new sessions)' },
+            env: { type: 'object', description: 'Environment variables (for new sessions)' },
             timeout: { type: 'number', description: 'Execution timeout in milliseconds' },
             consoleType: { 
               type: 'string', 
               enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'auto'],
-              description: 'Type of console to use' 
+              description: 'Type of console to use (for new sessions)' 
             }
           },
           required: ['command']
@@ -372,6 +373,14 @@ export class ConsoleAutomationServer {
   }
 
   private async handleCreateSession(args: SessionOptions) {
+    // Debug logging to see what MCP is receiving
+    this.logger.debug('MCP handleCreateSession received args:', JSON.stringify(args, null, 2));
+    
+    // Check if SSH options are present
+    if (args.consoleType === 'ssh' || args.sshOptions) {
+      this.logger.info('SSH session requested with options:', args.sshOptions);
+    }
+    
     const sessionId = await this.consoleManager.createSession(args);
     const session = this.consoleManager.getSession(sessionId);
     
@@ -519,7 +528,32 @@ export class ConsoleAutomationServer {
     };
   }
 
-  private async handleExecuteCommand(args: { command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeout?: number; consoleType?: any }) {
+  private async handleExecuteCommand(args: { sessionId?: string; command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeout?: number; consoleType?: any }) {
+    // If sessionId is provided, send command to existing session
+    if (args.sessionId) {
+      await this.consoleManager.sendInput(args.sessionId, args.command + '\n');
+      
+      // Wait a bit for command to execute
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get the output
+      const output = await this.consoleManager.getOutput(args.sessionId);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              sessionId: args.sessionId,
+              command: args.command,
+              output: output.map(o => o.data).join('')
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+    
+    // Otherwise create new session for one-off command
     const result = await this.consoleManager.executeCommand(
       args.command,
       args.args,
