@@ -338,6 +338,11 @@ export class ErrorDetector {
           remediation = 'Verify SSH credentials, check network connectivity, and review SSH configuration';
           severity = 'high';
           break;
+        case 'aws-ssm':
+          cause = 'AWS Systems Manager session or configuration issues';
+          remediation = 'Check SSM agent status, IAM permissions, instance connectivity, and AWS credentials';
+          severity = 'high';
+          break;
         default:
           cause = `Multiple ${category} related issues`;
           remediation = 'Review logs and address individual error messages';
@@ -384,6 +389,9 @@ export class ErrorDetector {
             break;
           case 'security':
             suggestions.push(`🔒 Security errors found - review authentication and permissions`);
+            break;
+          case 'aws-ssm':
+            suggestions.push(`☁️ AWS SSM errors detected - check SSM agent, IAM permissions, and connectivity`);
             break;
         }
       }

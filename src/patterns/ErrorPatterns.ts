@@ -701,6 +701,273 @@ export class ErrorPatterns {
   ];
 
   /**
+   * AWS Systems Manager (SSM) Error Patterns
+   */
+  static readonly AWS_SSM_PATTERNS: ExtendedErrorPattern[] = [
+    // SSM Session Errors
+    {
+      pattern: /SessionId ([\w-]+) is not valid/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'Invalid SSM Session ID',
+      severity: 'high',
+      remediation: 'Create a new SSM session or verify session ID',
+      tags: ['aws', 'ssm', 'session', 'invalid-id']
+    },
+    {
+      pattern: /Unable to start session: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Session Start Failed',
+      severity: 'high',
+      remediation: 'Check instance status, SSM agent, and IAM permissions',
+      tags: ['aws', 'ssm', 'session', 'start-failed'],
+      retryable: true
+    },
+    {
+      pattern: /Session ([\w-]+) has been terminated/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Session Terminated',
+      severity: 'medium',
+      remediation: 'Check session timeout settings and reconnect if needed',
+      tags: ['aws', 'ssm', 'session', 'terminated'],
+      retryable: true
+    },
+    {
+      pattern: /Session ([\w-]+) is not in a valid state for this operation/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Session Invalid State',
+      severity: 'high',
+      remediation: 'Verify session status and create new session if needed',
+      tags: ['aws', 'ssm', 'session', 'invalid-state']
+    },
+
+    // SSM Agent Errors
+    {
+      pattern: /SSM agent is not running on instance (i-[\w]+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Agent Not Running',
+      severity: 'critical',
+      remediation: 'Start SSM agent on the target EC2 instance',
+      tags: ['aws', 'ssm', 'agent', 'not-running']
+    },
+    {
+      pattern: /SSM agent version (.+) is not supported/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'Unsupported SSM Agent Version',
+      severity: 'high',
+      remediation: 'Update SSM agent to a supported version',
+      tags: ['aws', 'ssm', 'agent', 'version']
+    },
+    {
+      pattern: /Instance (i-[\w]+) is not managed by SSM/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'Instance Not Managed by SSM',
+      severity: 'critical',
+      remediation: 'Install and configure SSM agent on the instance',
+      tags: ['aws', 'ssm', 'instance', 'not-managed']
+    },
+
+    // IAM and Permission Errors
+    {
+      pattern: /User: (.+) is not authorized to perform: ssm:(.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Permission Denied',
+      severity: 'high',
+      remediation: 'Add required SSM permissions to IAM user/role',
+      tags: ['aws', 'ssm', 'iam', 'permissions']
+    },
+    {
+      pattern: /Access denied for SSM operation: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Access Denied',
+      severity: 'high',
+      remediation: 'Check IAM permissions and resource-based policies',
+      tags: ['aws', 'ssm', 'access-denied']
+    },
+    {
+      pattern: /Instance profile (.+) does not have SSM permissions/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'Instance Profile Missing SSM Permissions',
+      severity: 'critical',
+      remediation: 'Add SSM permissions to the instance profile role',
+      tags: ['aws', 'ssm', 'instance-profile', 'permissions']
+    },
+
+    // Port Forwarding Errors
+    {
+      pattern: /Port (\d+) is already in use for session ([\w-]+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Port Already in Use',
+      severity: 'high',
+      remediation: 'Use a different local port or terminate existing session',
+      tags: ['aws', 'ssm', 'port-forwarding', 'port-in-use']
+    },
+    {
+      pattern: /Unable to establish port forwarding session to (.+):(\d+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Port Forwarding Failed',
+      severity: 'high',
+      remediation: 'Check target port accessibility and security groups',
+      tags: ['aws', 'ssm', 'port-forwarding', 'failed'],
+      retryable: true
+    },
+    {
+      pattern: /Port forwarding session ([\w-]+) failed: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Port Forwarding Session Failed',
+      severity: 'high',
+      remediation: 'Check connectivity and restart port forwarding session',
+      tags: ['aws', 'ssm', 'port-forwarding', 'session-failed'],
+      retryable: true
+    },
+
+    // Document Execution Errors
+    {
+      pattern: /Document (.+) does not exist/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Document Not Found',
+      severity: 'high',
+      remediation: 'Verify document name and check if it exists in the account/region',
+      tags: ['aws', 'ssm', 'document', 'not-found']
+    },
+    {
+      pattern: /Document (.+) execution failed: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Document Execution Failed',
+      severity: 'high',
+      remediation: 'Check document parameters and target instance compatibility',
+      tags: ['aws', 'ssm', 'document', 'execution-failed']
+    },
+    {
+      pattern: /Invalid parameters for document (.+): (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Document Invalid Parameters',
+      severity: 'medium',
+      remediation: 'Verify document parameter requirements and values',
+      tags: ['aws', 'ssm', 'document', 'invalid-parameters']
+    },
+
+    // Connection and Network Errors
+    {
+      pattern: /Unable to connect to SSM service: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Service Connection Failed',
+      severity: 'high',
+      remediation: 'Check AWS credentials, region settings, and network connectivity',
+      tags: ['aws', 'ssm', 'connection', 'service'],
+      retryable: true
+    },
+    {
+      pattern: /WebSocket connection to SSM failed: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM WebSocket Connection Failed',
+      severity: 'high',
+      remediation: 'Check network connectivity and firewall settings',
+      tags: ['aws', 'ssm', 'websocket', 'connection'],
+      retryable: true
+    },
+    {
+      pattern: /SSM endpoint not available in region (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Service Not Available in Region',
+      severity: 'critical',
+      remediation: 'Use a supported AWS region or check service availability',
+      tags: ['aws', 'ssm', 'region', 'endpoint']
+    },
+
+    // Credential and Authentication Errors
+    {
+      pattern: /Invalid AWS credentials for SSM/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'Invalid AWS Credentials',
+      severity: 'critical',
+      remediation: 'Verify AWS access key and secret key are correct',
+      tags: ['aws', 'ssm', 'credentials', 'invalid']
+    },
+    {
+      pattern: /AWS credentials have expired/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'AWS Credentials Expired',
+      severity: 'high',
+      remediation: 'Refresh AWS credentials or assume new role',
+      tags: ['aws', 'ssm', 'credentials', 'expired'],
+      retryable: true
+    },
+    {
+      pattern: /MFA token required for SSM access/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'MFA Token Required',
+      severity: 'medium',
+      remediation: 'Provide MFA token to authenticate with AWS',
+      tags: ['aws', 'ssm', 'mfa', 'token']
+    },
+
+    // Rate Limiting and Throttling
+    {
+      pattern: /Rate exceeded for SSM API: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM API Rate Limit Exceeded',
+      severity: 'medium',
+      remediation: 'Implement exponential backoff and retry logic',
+      tags: ['aws', 'ssm', 'rate-limit', 'throttling'],
+      retryable: true
+    },
+    {
+      pattern: /Throttling exception for SSM: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Service Throttled',
+      severity: 'medium',
+      remediation: 'Reduce request frequency and implement backoff',
+      tags: ['aws', 'ssm', 'throttling'],
+      retryable: true
+    },
+
+    // Generic SSM Errors
+    {
+      pattern: /SSMException: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Service Exception',
+      severity: 'high',
+      remediation: 'Check specific error message and AWS documentation',
+      tags: ['aws', 'ssm', 'exception']
+    },
+    {
+      pattern: /SSM operation (.+) failed: (.+)/,
+      type: 'error',
+      category: 'aws-ssm',
+      description: 'SSM Operation Failed',
+      severity: 'high',
+      remediation: 'Retry operation or check specific error details',
+      tags: ['aws', 'ssm', 'operation', 'failed'],
+      retryable: true
+    }
+  ];
+
+  /**
    * Configuration Error Patterns
    */
   static readonly CONFIGURATION_PATTERNS: ExtendedErrorPattern[] = [
@@ -743,6 +1010,162 @@ export class ErrorPatterns {
   ];
 
   /**
+   * WSL (Windows Subsystem for Linux) Error Patterns
+   */
+  static readonly WSL_PATTERNS: ExtendedErrorPattern[] = [
+    {
+      pattern: /WslRegisterDistribution failed with error: 0x80070003/,
+      type: 'error',
+      description: 'WSL distribution registration failed - file not found',
+      severity: 'high',
+      category: 'wsl-installation',
+      remediation: 'Check file paths and permissions for distribution installation',
+      tags: ['wsl', 'installation', 'registration'],
+      retryable: false
+    },
+    {
+      pattern: /WslRegisterDistribution failed with error: 0x8007019e/,
+      type: 'error',
+      description: 'WSL feature not enabled',
+      severity: 'critical',
+      category: 'wsl-configuration',
+      remediation: 'Enable WSL feature in Windows Features or via PowerShell',
+      tags: ['wsl', 'feature', 'windows'],
+      retryable: false
+    },
+    {
+      pattern: /The Windows Subsystem for Linux optional component is not enabled/,
+      type: 'error',
+      description: 'WSL optional component not enabled',
+      severity: 'critical',
+      category: 'wsl-configuration',
+      remediation: 'Enable WSL in Windows Features',
+      tags: ['wsl', 'windows-features'],
+      retryable: false
+    },
+    {
+      pattern: /Element not found/,
+      type: 'error',
+      description: 'WSL distribution not found',
+      severity: 'medium',
+      category: 'wsl-distribution',
+      remediation: 'Check distribution name and installation status',
+      tags: ['wsl', 'distribution', 'not-found'],
+      retryable: true
+    },
+    {
+      pattern: /The system cannot find the file specified/,
+      type: 'error',
+      description: 'WSL executable or distribution file not found',
+      severity: 'high',
+      category: 'wsl-filesystem',
+      remediation: 'Reinstall WSL or the specific distribution',
+      tags: ['wsl', 'filesystem', 'file-not-found'],
+      retryable: true
+    },
+    {
+      pattern: /A connection with the server could not be established/,
+      type: 'error',
+      description: 'WSL network connectivity issue',
+      severity: 'medium',
+      category: 'wsl-network',
+      remediation: 'Check network configuration and restart WSL',
+      tags: ['wsl', 'network', 'connectivity'],
+      retryable: true
+    },
+    {
+      pattern: /systemd.*failed/i,
+      type: 'error',
+      description: 'Systemd service failure',
+      severity: 'medium',
+      category: 'wsl-systemd',
+      remediation: 'Check systemd configuration and service status',
+      tags: ['wsl', 'systemd', 'service'],
+      retryable: true
+    },
+    {
+      pattern: /mount.*failed/i,
+      type: 'error',
+      description: 'File system mount failure',
+      severity: 'high',
+      category: 'wsl-filesystem',
+      remediation: 'Check mount points and file system integrity',
+      tags: ['wsl', 'filesystem', 'mount'],
+      retryable: true
+    },
+    {
+      pattern: /docker.*not found/i,
+      type: 'error',
+      description: 'Docker not available in WSL',
+      severity: 'low',
+      category: 'wsl-docker',
+      remediation: 'Install Docker in WSL distribution',
+      tags: ['wsl', 'docker', 'not-found'],
+      retryable: false
+    },
+    {
+      pattern: /permission denied.*\/mnt\//i,
+      type: 'error',
+      description: 'Permission denied accessing Windows drives',
+      severity: 'medium',
+      category: 'wsl-permissions',
+      remediation: 'Check WSL mount permissions and Windows file permissions',
+      tags: ['wsl', 'permissions', 'mount'],
+      retryable: false
+    },
+    {
+      pattern: /wsl.*terminated/i,
+      type: 'warning',
+      description: 'WSL distribution terminated unexpectedly',
+      severity: 'medium',
+      category: 'wsl-runtime',
+      remediation: 'Restart WSL distribution and check system resources',
+      tags: ['wsl', 'runtime', 'terminated'],
+      retryable: true
+    },
+    {
+      pattern: /Invalid console output mode/i,
+      type: 'error',
+      description: 'WSL console output mode error',
+      severity: 'low',
+      category: 'wsl-console',
+      remediation: 'Reset WSL terminal configuration',
+      tags: ['wsl', 'console', 'output'],
+      retryable: true
+    },
+    {
+      pattern: /The parameter is incorrect/,
+      type: 'error',
+      description: 'WSL command parameter error',
+      severity: 'medium',
+      category: 'wsl-parameter',
+      remediation: 'Check command syntax and parameters',
+      tags: ['wsl', 'parameter', 'command'],
+      retryable: false
+    },
+    {
+      pattern: /wsl: Argument list too long/i,
+      type: 'error',
+      description: 'WSL command argument list too long',
+      severity: 'low',
+      category: 'wsl-argument',
+      remediation: 'Reduce command arguments or use input files',
+      tags: ['wsl', 'arguments', 'command'],
+      retryable: false
+    },
+    {
+      pattern: /Virtual machine could not be started/i,
+      type: 'error',
+      description: 'WSL2 virtual machine startup failure',
+      severity: 'high',
+      category: 'wsl2-vm',
+      remediation: 'Check Hyper-V settings and system resources',
+      tags: ['wsl2', 'vm', 'startup'],
+      retryable: true
+    }
+  ];
+
+  /**
    * Get all error patterns combined
    */
   static getAllPatterns(): ExtendedErrorPattern[] {
@@ -755,7 +1178,9 @@ export class ErrorPatterns {
       ...this.DATABASE_PATTERNS,
       ...this.PERFORMANCE_PATTERNS,
       ...this.SECURITY_PATTERNS,
-      ...this.CONFIGURATION_PATTERNS
+      ...this.AWS_SSM_PATTERNS,
+      ...this.CONFIGURATION_PATTERNS,
+      ...this.WSL_PATTERNS
     ];
   }
 

@@ -17,7 +17,7 @@ import {
  */
 export class SessionManager extends EventEmitter {
   private sessions: Map<string, SessionState> = new Map();
-  private sessionsByType: Map<'local' | 'ssh', Set<string>> = new Map();
+  private sessionsByType: Map<'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal', Set<string>> = new Map();
   private config: SessionManagerConfig;
   private logger: Logger;
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -69,6 +69,19 @@ export class SessionManager extends EventEmitter {
     // Initialize session type tracking
     this.sessionsByType.set('local', new Set());
     this.sessionsByType.set('ssh', new Set());
+    this.sessionsByType.set('azure', new Set());
+    this.sessionsByType.set('serial', new Set());
+    this.sessionsByType.set('kubernetes', new Set());
+    this.sessionsByType.set('docker', new Set());
+    this.sessionsByType.set('aws-ssm', new Set());
+    this.sessionsByType.set('wsl', new Set());
+    this.sessionsByType.set('sftp', new Set());
+    this.sessionsByType.set('rdp', new Set());
+    this.sessionsByType.set('winrm', new Set());
+    this.sessionsByType.set('vnc', new Set());
+    this.sessionsByType.set('ipc', new Set());
+    this.sessionsByType.set('ipmi', new Set());
+    this.sessionsByType.set('websocket-terminal', new Set());
 
     this.initializePersistence();
     this.startHeartbeat();
@@ -82,7 +95,7 @@ export class SessionManager extends EventEmitter {
   /**
    * Register a new session
    */
-  async registerSession(sessionData: ConsoleSession, type: 'local' | 'ssh' = 'local'): Promise<SessionState> {
+  async registerSession(sessionData: ConsoleSession, type: 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal' = 'local'): Promise<SessionState> {
     if (this.sessions.size >= this.config.maxSessions) {
       throw new Error(`Maximum session limit (${this.config.maxSessions}) reached`);
     }
@@ -281,7 +294,7 @@ export class SessionManager extends EventEmitter {
   /**
    * Get sessions by type
    */
-  getSessionsByType(type: 'local' | 'ssh'): SessionState[] {
+  getSessionsByType(type: 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal'): SessionState[] {
     const sessionIds = this.sessionsByType.get(type) || new Set();
     return Array.from(sessionIds)
       .map(id => this.sessions.get(id)!)

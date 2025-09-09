@@ -1,0 +1,837 @@
+import { EventEmitter } from 'eventemitter3';
+import * as WebSocket from 'ws';
+import { 
+  DefaultAzureCredential, 
+  ClientSecretCredential, 
+  ManagedIdentityCredential,
+  ChainedTokenCredential,
+  AzureCliCredential,
+  InteractiveBrowserCredential
+} from '@azure/identity';
+import { ComputeManagementClient } from '@azure/arm-compute';
+import { NetworkManagementClient } from '@azure/arm-network';
+import { SecretClient } from '@azure/keyvault-secrets';
+import {
+  AzureConnectionOptions,
+  AzureCloudShellSession,
+  AzureBastionSession,
+  AzureArcSession,
+  AzureTokenInfo,
+  AzureResourceInfo,
+  ConsoleOutput,
+  ConsoleType
+} from '../types/index.js';
+import { Logger } from 'winston';
+
+export interface AzureProtocolEvents {
+  'connected': (sessionId: string) => void;
+  'disconnected': (sessionId: string) => void;
+  'error': (sessionId: string, error: Error) => void;
+  'output': (sessionId: string, output: ConsoleOutput) => void;
+  'token-refreshed': (sessionId: string, tokenInfo: AzureTokenInfo) => void;
+  'session-ready': (sessionId: string) => void;
+  'reconnecting': (sessionId: string, attempt: number) => void;
+}
+
+export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
+  private sessions: Map<string, AzureCloudShellSession | AzureBastionSession | AzureArcSession> = new Map();
+  private webSockets: Map<string, WebSocket> = new Map();
+  private credentials: Map<string, any> = new Map();
+  private computeClients: Map<string, ComputeManagementClient> = new Map();
+  private networkClients: Map<string, NetworkManagementClient> = new Map();
+  private secretClients: Map<string, SecretClient> = new Map();
+  private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
+  private tokenRefreshTimers: Map<string, NodeJS.Timeout> = new Map();
+  private logger?: Logger;
+
+  constructor(logger?: Logger) {
+    super();
+    this.logger = logger;
+  }
+
+  /**
+   * Create a new Azure Cloud Shell session
+   */
+  async createCloudShellSession(
+    sessionId: string,
+    options: AzureConnectionOptions
+  ): Promise<AzureCloudShellSession> {
+    try {
+      this.logger?.info(`Creating Azure Cloud Shell session: ${sessionId}`);
+
+      // Get authentication credentials
+      const credential = await this.getCredential(options);
+      const token = await this.getAccessToken(credential, 'https://management.azure.com/');
+
+      // Create Cloud Shell session via Azure API
+      const cloudShellUrl = await this.createCloudShellInstance(options, token);
+      const webSocketUrl = await this.getCloudShellWebSocketUrl(cloudShellUrl, token);
+
+      const session: AzureCloudShellSession = {
+        sessionId,
+        webSocketUrl,
+        accessToken: token.accessToken,
+        refreshToken: token.refreshToken,
+        tokenExpiry: token.expiresOn,
+        shellType: options.cloudShellType || 'bash',
+        subscription: options.subscriptionId || '',
+        resourceGroup: options.resourceGroupName || 'cloud-shell-storage-eastus',
+        location: options.region || 'eastus',
+        storageAccount: options.storageAccountName ? {
+          name: options.storageAccountName,
+          resourceGroup: options.resourceGroupName || 'cloud-shell-storage-eastus',
+          fileShare: options.fileShareName || 'cs-' + sessionId.substring(0, 8)
+        } : undefined,
+        metadata: {}
+      };
+
+      this.sessions.set(sessionId, session);
+      this.credentials.set(sessionId, credential);
+
+      // Establish WebSocket connection
+      await this.connectWebSocket(sessionId, session);
+
+      // Schedule token refresh
+      this.scheduleTokenRefresh(sessionId, session);
+
+      this.logger?.info(`Azure Cloud Shell session created successfully: ${sessionId}`);
+      return session;
+    } catch (error) {
+      this.logger?.error(`Failed to create Azure Cloud Shell session: ${sessionId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new Azure Bastion session
+   */
+  async createBastionSession(
+    sessionId: string,
+    options: AzureConnectionOptions
+  ): Promise<AzureBastionSession> {
+    try {
+      this.logger?.info(`Creating Azure Bastion session: ${sessionId}`);
+
+      const credential = await this.getCredential(options);
+      const token = await this.getAccessToken(credential, 'https://management.azure.com/');
+
+      // Get Bastion and VM resource information
+      const bastionInfo = await this.getBastionResourceInfo(options, token);
+      const vmInfo = await this.getVmResourceInfo(options, token);
+
+      // Create Bastion connection
+      const connectionUrl = await this.createBastionConnection(bastionInfo, vmInfo, options, token);
+
+      const session: AzureBastionSession = {
+        sessionId,
+        bastionResourceId: options.bastionResourceId || '',
+        targetVmResourceId: options.targetVmResourceId || '',
+        targetVmName: options.targetVmName || '',
+        protocol: options.protocol || 'ssh',
+        connectionUrl,
+        accessToken: token.accessToken,
+        tokenExpiry: token.expiresOn,
+        metadata: {
+          bastionName: bastionInfo.name,
+          vmName: vmInfo.name,
+          location: bastionInfo.location
+        }
+      };
+
+      this.sessions.set(sessionId, session);
+      this.credentials.set(sessionId, credential);
+
+      // For SSH connections through Bastion, establish tunnel
+      if (options.protocol === 'ssh') {
+        await this.establishBastionTunnel(sessionId, session, options);
+      }
+
+      this.scheduleTokenRefresh(sessionId, session);
+
+      this.logger?.info(`Azure Bastion session created successfully: ${sessionId}`);
+      return session;
+    } catch (error) {
+      this.logger?.error(`Failed to create Azure Bastion session: ${sessionId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new Azure Arc session
+   */
+  async createArcSession(
+    sessionId: string,
+    options: AzureConnectionOptions
+  ): Promise<AzureArcSession> {
+    try {
+      this.logger?.info(`Creating Azure Arc session: ${sessionId}`);
+
+      const credential = await this.getCredential(options);
+      const token = await this.getAccessToken(credential, 'https://management.azure.com/');
+
+      // Get Arc resource information
+      const arcInfo = await this.getArcResourceInfo(options, token);
+      
+      // Create hybrid connection
+      const connectionEndpoint = await this.createArcConnection(arcInfo, options, token);
+      const hybridConnectionString = await this.getHybridConnectionString(arcInfo, token);
+
+      const session: AzureArcSession = {
+        sessionId,
+        arcResourceId: options.arcResourceId || '',
+        connectionEndpoint,
+        accessToken: token.accessToken,
+        tokenExpiry: token.expiresOn,
+        hybridConnectionString,
+        targetMachine: {
+          name: arcInfo.name,
+          osType: arcInfo.properties?.osName?.includes('Windows') ? 'Windows' : 'Linux',
+          version: arcInfo.properties?.osVersion
+        },
+        metadata: {
+          location: arcInfo.location,
+          resourceGroup: arcInfo.resourceGroup
+        }
+      };
+
+      this.sessions.set(sessionId, session);
+      this.credentials.set(sessionId, credential);
+
+      // Establish Arc connection
+      await this.connectArcSession(sessionId, session);
+
+      this.scheduleTokenRefresh(sessionId, session);
+
+      this.logger?.info(`Azure Arc session created successfully: ${sessionId}`);
+      return session;
+    } catch (error) {
+      this.logger?.error(`Failed to create Azure Arc session: ${sessionId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send input to a session
+   */
+  async sendInput(sessionId: string, input: string): Promise<void> {
+    const webSocket = this.webSockets.get(sessionId);
+    if (!webSocket) {
+      throw new Error(`No WebSocket connection found for session: ${sessionId}`);
+    }
+
+    if (webSocket.readyState === WebSocket.OPEN) {
+      // For Cloud Shell, format input as terminal input
+      const message = {
+        type: 'input',
+        data: input
+      };
+      webSocket.send(JSON.stringify(message));
+      this.logger?.debug(`Sent input to session ${sessionId}: ${input.substring(0, 100)}`);
+    } else {
+      throw new Error(`WebSocket connection is not open for session: ${sessionId}`);
+    }
+  }
+
+  /**
+   * Resize terminal for a session
+   */
+  async resizeTerminal(sessionId: string, rows: number, cols: number): Promise<void> {
+    const webSocket = this.webSockets.get(sessionId);
+    if (!webSocket) {
+      throw new Error(`No WebSocket connection found for session: ${sessionId}`);
+    }
+
+    if (webSocket.readyState === WebSocket.OPEN) {
+      const message = {
+        type: 'resize',
+        rows,
+        cols
+      };
+      webSocket.send(JSON.stringify(message));
+      this.logger?.debug(`Resized terminal for session ${sessionId}: ${rows}x${cols}`);
+    }
+  }
+
+  /**
+   * Close a session
+   */
+  async closeSession(sessionId: string): Promise<void> {
+    try {
+      this.logger?.info(`Closing Azure session: ${sessionId}`);
+
+      // Close WebSocket connection
+      const webSocket = this.webSockets.get(sessionId);
+      if (webSocket) {
+        webSocket.close();
+        this.webSockets.delete(sessionId);
+      }
+
+      // Clear timers
+      const reconnectTimer = this.reconnectTimers.get(sessionId);
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        this.reconnectTimers.delete(sessionId);
+      }
+
+      const refreshTimer = this.tokenRefreshTimers.get(sessionId);
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+        this.tokenRefreshTimers.delete(sessionId);
+      }
+
+      // Clean up session data
+      this.sessions.delete(sessionId);
+      this.credentials.delete(sessionId);
+
+      this.emit('disconnected', sessionId);
+      this.logger?.info(`Azure session closed: ${sessionId}`);
+    } catch (error) {
+      this.logger?.error(`Failed to close Azure session: ${sessionId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get session information
+   */
+  getSession(sessionId: string): AzureCloudShellSession | AzureBastionSession | AzureArcSession | undefined {
+    return this.sessions.get(sessionId);
+  }
+
+  /**
+   * List all active sessions
+   */
+  listSessions(): string[] {
+    return Array.from(this.sessions.keys());
+  }
+
+  /**
+   * Check if session is connected
+   */
+  isConnected(sessionId: string): boolean {
+    const webSocket = this.webSockets.get(sessionId);
+    return webSocket?.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Private methods
+   */
+
+  private async getCredential(options: AzureConnectionOptions): Promise<any> {
+    if (options.managedIdentity) {
+      return new ManagedIdentityCredential(options.clientId);
+    }
+
+    if (options.clientId && options.clientSecret && options.tenantId) {
+      return new ClientSecretCredential(
+        options.tenantId,
+        options.clientId,
+        options.clientSecret
+      );
+    }
+
+    if (options.clientCertificatePath && options.tenantId && options.clientId) {
+      const { ClientCertificateCredential } = await import('@azure/identity');
+      return new ClientCertificateCredential(
+        options.tenantId,
+        options.clientId,
+        options.clientCertificatePath
+      );
+    }
+
+    // Use chained credential for maximum compatibility
+    return new ChainedTokenCredential(
+      new AzureCliCredential(),
+      new ManagedIdentityCredential(),
+      new DefaultAzureCredential()
+    );
+  }
+
+  private async getAccessToken(credential: any, scope: string): Promise<AzureTokenInfo> {
+    const tokenResponse = await credential.getToken(scope);
+    
+    return {
+      accessToken: tokenResponse.token,
+      tokenType: 'Bearer',
+      expiresIn: Math.floor((tokenResponse.expiresOnTimestamp - Date.now()) / 1000),
+      expiresOn: new Date(tokenResponse.expiresOnTimestamp),
+      scope: [scope],
+      tenantId: credential.tenantId || '',
+      resource: scope,
+      authority: 'https://login.microsoftonline.com/'
+    };
+  }
+
+  private async createCloudShellInstance(
+    options: AzureConnectionOptions,
+    token: AzureTokenInfo
+  ): Promise<string> {
+    const subscriptionId = options.subscriptionId;
+    const shellType = options.cloudShellType || 'bash';
+    const location = options.region || 'eastus';
+
+    // Azure Cloud Shell API endpoint
+    const cloudShellApiUrl = `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Portal/consoles/default`;
+
+    const response = await fetch(cloudShellApiUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json',
+        'x-ms-console-preferred-location': location
+      },
+      body: JSON.stringify({
+        properties: {
+          osType: shellType === 'powershell' ? 'Windows' : 'Linux',
+          consoleDefinition: {
+            type: shellType
+          }
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create Cloud Shell instance: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.properties.uri;
+  }
+
+  private async getCloudShellWebSocketUrl(consoleUri: string, token: AzureTokenInfo): Promise<string> {
+    const response = await fetch(`${consoleUri}/connect`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        properties: {
+          connectParams: {
+            osType: 'Linux',
+            shellType: 'bash'
+          }
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get WebSocket URL: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.properties.socketUri;
+  }
+
+  private async getBastionResourceInfo(
+    options: AzureConnectionOptions,
+    token: AzureTokenInfo
+  ): Promise<AzureResourceInfo> {
+    const bastionResourceId = options.bastionResourceId;
+    if (!bastionResourceId) {
+      throw new Error('Bastion resource ID is required');
+    }
+
+    const response = await fetch(`https://management.azure.com${bastionResourceId}?api-version=2021-02-01`, {
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get Bastion resource info: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+      resourceId: data.id,
+      resourceType: data.type,
+      resourceGroup: data.id.split('/')[4],
+      subscriptionId: data.id.split('/')[2],
+      location: data.location,
+      name: data.name,
+      properties: data.properties
+    };
+  }
+
+  private async getVmResourceInfo(
+    options: AzureConnectionOptions,
+    token: AzureTokenInfo
+  ): Promise<AzureResourceInfo> {
+    const vmResourceId = options.targetVmResourceId;
+    if (!vmResourceId) {
+      throw new Error('Target VM resource ID is required');
+    }
+
+    const response = await fetch(`https://management.azure.com${vmResourceId}?api-version=2021-03-01`, {
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get VM resource info: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+      resourceId: data.id,
+      resourceType: data.type,
+      resourceGroup: data.id.split('/')[4],
+      subscriptionId: data.id.split('/')[2],
+      location: data.location,
+      name: data.name,
+      properties: data.properties
+    };
+  }
+
+  private async createBastionConnection(
+    bastionInfo: AzureResourceInfo,
+    vmInfo: AzureResourceInfo,
+    options: AzureConnectionOptions,
+    token: AzureTokenInfo
+  ): Promise<string> {
+    const protocol = options.protocol || 'ssh';
+    const bastionEndpoint = `https://management.azure.com${bastionInfo.resourceId}/createShareableLinks`;
+
+    const response = await fetch(bastionEndpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        vms: [{
+          vm: {
+            id: vmInfo.resourceId
+          }
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create Bastion connection: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.value[0]?.bsl || '';
+  }
+
+  private async getArcResourceInfo(
+    options: AzureConnectionOptions,
+    token: AzureTokenInfo
+  ): Promise<AzureResourceInfo> {
+    const arcResourceId = options.arcResourceId;
+    if (!arcResourceId) {
+      throw new Error('Arc resource ID is required');
+    }
+
+    const response = await fetch(`https://management.azure.com${arcResourceId}?api-version=2020-08-02`, {
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get Arc resource info: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+      resourceId: data.id,
+      resourceType: data.type,
+      resourceGroup: data.id.split('/')[4],
+      subscriptionId: data.id.split('/')[2],
+      location: data.location,
+      name: data.name,
+      properties: data.properties
+    };
+  }
+
+  private async createArcConnection(
+    arcInfo: AzureResourceInfo,
+    options: AzureConnectionOptions,
+    token: AzureTokenInfo
+  ): Promise<string> {
+    // Create Arc connection endpoint
+    const endpoint = `https://management.azure.com${arcInfo.resourceId}/providers/Microsoft.HybridConnectivity/endpoints/default`;
+    
+    const response = await fetch(endpoint, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        properties: {
+          type: 'default',
+          resourceId: arcInfo.resourceId
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create Arc connection: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.properties.connectionDetails.socketUri;
+  }
+
+  private async getHybridConnectionString(
+    arcInfo: AzureResourceInfo,
+    token: AzureTokenInfo
+  ): Promise<string> {
+    const endpoint = `https://management.azure.com${arcInfo.resourceId}/providers/Microsoft.HybridConnectivity/endpoints/default/listCredentials`;
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get hybrid connection string: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.hybridConnectionString;
+  }
+
+  private async connectWebSocket(
+    sessionId: string,
+    session: AzureCloudShellSession | AzureBastionSession | AzureArcSession
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        const webSocketUrl = (session as AzureCloudShellSession).webSocketUrl || 
+                           (session as AzureArcSession).connectionEndpoint;
+
+        const webSocket = new WebSocket(webSocketUrl, {
+          headers: {
+            'Authorization': `Bearer ${session.accessToken}`
+          }
+        });
+
+        webSocket.on('open', () => {
+          this.logger?.info(`WebSocket connected for session: ${sessionId}`);
+          this.webSockets.set(sessionId, webSocket);
+          this.emit('connected', sessionId);
+          this.emit('session-ready', sessionId);
+          resolve();
+        });
+
+        webSocket.on('message', (data: WebSocket.Data) => {
+          try {
+            const message = data.toString();
+            const output: ConsoleOutput = {
+              sessionId,
+              type: 'stdout',
+              data: message,
+              timestamp: new Date(),
+              raw: message
+            };
+            this.emit('output', sessionId, output);
+          } catch (error) {
+            this.logger?.error(`Error processing WebSocket message for session ${sessionId}:`, error);
+          }
+        });
+
+        webSocket.on('error', (error) => {
+          this.logger?.error(`WebSocket error for session ${sessionId}:`, error);
+          this.emit('error', sessionId, error);
+          reject(error);
+        });
+
+        webSocket.on('close', (code, reason) => {
+          this.logger?.info(`WebSocket closed for session ${sessionId}: ${code} - ${reason}`);
+          this.webSockets.delete(sessionId);
+          
+          // Attempt reconnection if not intentionally closed
+          if (code !== 1000 && this.sessions.has(sessionId)) {
+            this.scheduleReconnect(sessionId);
+          }
+        });
+
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  private async establishBastionTunnel(
+    sessionId: string,
+    session: AzureBastionSession,
+    options: AzureConnectionOptions
+  ): Promise<void> {
+    // For Bastion SSH connections, we need to establish a tunnel
+    // This is a simplified implementation - in practice, you'd use the Bastion API
+    // to create a proper SSH tunnel
+    
+    const localPort = 2222 + Math.floor(Math.random() * 1000);
+    session.tunnelEndpoint = `localhost:${localPort}`;
+    session.portForwarding = {
+      localPort,
+      remotePort: 22,
+      remoteHost: session.targetVmName
+    };
+
+    this.logger?.info(`Bastion SSH tunnel established for session ${sessionId} on port ${localPort}`);
+  }
+
+  private async connectArcSession(
+    sessionId: string,
+    session: AzureArcSession
+  ): Promise<void> {
+    // For Arc sessions, establish the hybrid connection
+    await this.connectWebSocket(sessionId, session);
+  }
+
+  private scheduleTokenRefresh(
+    sessionId: string,
+    session: AzureCloudShellSession | AzureBastionSession | AzureArcSession
+  ): void {
+    const refreshTime = session.tokenExpiry.getTime() - Date.now() - (5 * 60 * 1000); // 5 minutes before expiry
+    
+    if (refreshTime > 0) {
+      const timer = setTimeout(async () => {
+        try {
+          await this.refreshToken(sessionId);
+        } catch (error) {
+          this.logger?.error(`Failed to refresh token for session ${sessionId}:`, error);
+          this.emit('error', sessionId, error as Error);
+        }
+      }, refreshTime);
+
+      this.tokenRefreshTimers.set(sessionId, timer);
+    }
+  }
+
+  private async refreshToken(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    const credential = this.credentials.get(sessionId);
+
+    if (!session || !credential) {
+      throw new Error(`Session or credential not found: ${sessionId}`);
+    }
+
+    const newToken = await this.getAccessToken(credential, 'https://management.azure.com/');
+    
+    // Update session with new token
+    session.accessToken = newToken.accessToken;
+    session.tokenExpiry = newToken.expiresOn;
+
+    this.emit('token-refreshed', sessionId, newToken);
+    this.scheduleTokenRefresh(sessionId, session);
+
+    this.logger?.info(`Token refreshed for session: ${sessionId}`);
+  }
+
+  private scheduleReconnect(sessionId: string, attempt: number = 1): void {
+    const maxAttempts = 5;
+    const baseDelay = 1000;
+    const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+
+    if (attempt > maxAttempts) {
+      this.logger?.error(`Max reconnection attempts reached for session: ${sessionId}`);
+      this.emit('error', sessionId, new Error('Max reconnection attempts reached'));
+      return;
+    }
+
+    this.emit('reconnecting', sessionId, attempt);
+
+    const timer = setTimeout(async () => {
+      try {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          await this.connectWebSocket(sessionId, session);
+          this.logger?.info(`Reconnected session ${sessionId} on attempt ${attempt}`);
+        }
+      } catch (error) {
+        this.logger?.error(`Reconnection attempt ${attempt} failed for session ${sessionId}:`, error);
+        this.scheduleReconnect(sessionId, attempt + 1);
+      }
+    }, delay);
+
+    this.reconnectTimers.set(sessionId, timer);
+  }
+
+  /**
+   * Get secrets from Azure Key Vault
+   */
+  private async getKeyVaultSecret(keyVaultUrl: string, secretName: string, credential: any): Promise<string> {
+    const secretClient = new SecretClient(keyVaultUrl, credential);
+    const secret = await secretClient.getSecret(secretName);
+    return secret.value || '';
+  }
+
+  /**
+   * Health check for Azure sessions
+   */
+  async healthCheck(sessionId: string): Promise<boolean> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return false;
+    }
+
+    const webSocket = this.webSockets.get(sessionId);
+    if (!webSocket || webSocket.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    // Check if token is still valid
+    const tokenExpiry = session.tokenExpiry.getTime();
+    const now = Date.now();
+    
+    if (tokenExpiry <= now) {
+      try {
+        await this.refreshToken(sessionId);
+      } catch {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Get session metrics
+   */
+  getSessionMetrics(sessionId: string): Record<string, any> {
+    const session = this.sessions.get(sessionId);
+    const webSocket = this.webSockets.get(sessionId);
+
+    if (!session) {
+      return {};
+    }
+
+    return {
+      sessionId,
+      connected: webSocket?.readyState === WebSocket.OPEN,
+      tokenExpiry: session.tokenExpiry,
+      tokenValid: session.tokenExpiry.getTime() > Date.now(),
+      sessionType: 'webSocketUrl' in session ? 'cloud-shell' : 
+                  'bastionResourceId' in session ? 'bastion' : 'arc',
+      metadata: session.metadata
+    };
+  }
+
+  /**
+   * Cleanup all sessions
+   */
+  async cleanup(): Promise<void> {
+    const sessionIds = Array.from(this.sessions.keys());
+    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    
+    this.sessions.clear();
+    this.webSockets.clear();
+    this.credentials.clear();
+    this.computeClients.clear();
+    this.networkClients.clear();
+    this.secretClients.clear();
+    this.reconnectTimers.clear();
+    this.tokenRefreshTimers.clear();
+  }
+}

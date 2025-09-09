@@ -1,4 +1,4 @@
-export type ConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto' | 'ssh' | 'sftp' | 'scp' | 'azure-shell' | 'azure-bastion' | 'azure-ssh' | 'gcp-shell' | 'gcp-ssh' | 'gcp-oslogin' | 'aws-ssm' | 'ssm-session' | 'ssm-tunnel' | 'serial' | 'com' | 'uart' | 'docker' | 'docker-exec' | 'kubectl' | 'k8s-exec' | 'telnet' | 'wsl' | 'wsl2' | 'rdp' | 'mstsc' | 'vnc' | 'winrm' | 'psremoting' | 'websocket-term' | 'xterm-ws' | 'web-terminal' | 'ipmi' | 'bmc' | 'idrac' | 'named-pipe' | 'unix-socket' | 'ipc' | 'ansible' | 'ansible-ssh' | 'ansible-winrm' | 'ansible-local' | 'lxc' | 'podman' | 'containerd';
+export type ConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto' | 'ssh' | 'sftp' | 'scp' | 'azure-shell' | 'azure-bastion' | 'azure-ssh' | 'gcp-shell' | 'gcp-ssh' | 'gcp-oslogin' | 'aws-ssm' | 'ssm-session' | 'ssm-tunnel' | 'serial' | 'com' | 'uart' | 'docker' | 'docker-exec' | 'kubectl' | 'k8s-exec' | 'telnet' | 'wsl' | 'wsl2' | 'rdp' | 'mstsc' | 'vnc' | 'winrm' | 'psremoting' | 'websocket-term' | 'xterm-ws' | 'web-terminal' | 'ipmi' | 'bmc' | 'idrac' | 'named-pipe' | 'unix-socket' | 'ipc' | 'ansible' | 'ansible-ssh' | 'ansible-winrm' | 'ansible-local';
 
 export interface ConsoleSession {
   id: string;
@@ -23,8 +23,6 @@ export interface ConsoleSession {
   kubernetesState?: KubernetesSessionState;
   winrmOptions?: WinRMConnectionOptions;
   winrmState?: WinRMSessionState;
-  ipmiOptions?: IPMIConnectionOptions;
-  ipmiState?: IPMISessionState;
   awsSSMOptions?: AWSSSMConnectionOptions;
   awsSSMSessionId?: string;
   webSocketTerminalOptions?: WebSocketTerminalConnectionOptions;
@@ -226,13 +224,10 @@ export interface SessionOptions {
   kubernetesOptions?: KubernetesConnectionOptions;
   awsSSMOptions?: AWSSSMConnectionOptions;
   winrmOptions?: WinRMConnectionOptions;
-  ipmiOptions?: IPMIConnectionOptions;
   dockerOptions?: DockerConnectionOptions;
   dockerContainerOptions?: DockerContainerOptions;
   dockerExecOptions?: DockerExecOptions;
   ipcOptions?: IPCConnectionOptions;
-  webSocketTerminalOptions?: WebSocketTerminalConnectionOptions;
-  ansibleOptions?: AnsibleConnectionOptions;
 }
 
 // Connection Pooling Configuration
@@ -373,7 +368,6 @@ export interface RDPConnectionOptions {
 export interface VNCConnectionOptions {
   host: string;
   port?: number; // Default: 5900
-  username?: string;
   password?: string;
   
   // Protocol settings
@@ -697,16 +691,6 @@ export interface VNCRectangle {
   height: number;
   encoding: VNCEncoding;
   data: Buffer;
-}
-
-export interface VNCFramebuffer {
-  width: number;
-  height: number;
-  pixelFormat: any;
-  data: Buffer;
-  lastUpdate: Date;
-  encoding: VNCEncoding[];
-  compressionLevel: number;
 }
 
 export interface VNCFramebufferUpdate {
@@ -1657,7 +1641,7 @@ export interface ConnectionPoolConfig {
 export interface SessionState {
   id: string;
   status: 'initializing' | 'running' | 'paused' | 'stopped' | 'failed' | 'recovering';
-  type: 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal';
+  type: 'local' | 'ssh';
   createdAt: Date;
   lastActivity: Date;
   recoveryAttempts: number;
@@ -2748,76 +2732,6 @@ export interface WinRMConnectionOptions {
   };
 }
 
-// IPMI/BMC Connection Options
-export interface IPMIConnectionOptions {
-  host: string;
-  port?: number; // Default: 623
-  username: string;
-  password: string;
-  
-  // IPMI Version Support
-  ipmiVersion?: '1.5' | '2.0'; // Default: 2.0
-  
-  // Authentication and Privilege Levels
-  privilegeLevel?: 'user' | 'operator' | 'admin'; // Default: admin
-  authenticationType?: 'none' | 'md2' | 'md5' | 'password' | 'oem';
-  
-  // Cipher Suite Selection for IPMI 2.0
-  cipherSuite?: number; // 0-17, Default: 3 (AES-128-CBC, SHA1-HMAC)
-  
-  // Session Settings
-  sessionTimeout?: number; // Default: 30000ms
-  maxRetries?: number; // Default: 3
-  retryDelay?: number; // Default: 1000ms
-  keepAliveInterval?: number; // Default: 10000ms
-  
-  // Interface Type
-  interface?: 'lan' | 'lanplus' | 'serial' | 'open'; // Default: lanplus
-  
-  // Vendor Specific Settings
-  vendor?: 'dell' | 'hp' | 'ibm' | 'supermicro' | 'generic'; // Default: generic
-  
-  // Serial over LAN Settings
-  sol?: {
-    enabled: boolean;
-    payloadType?: number; // Default: 1
-    port?: number; // Default: 623
-    privilege?: string;
-    encryption?: boolean;
-    authentication?: boolean;
-  };
-  
-  // DCMI Settings
-  dcmi?: {
-    enabled: boolean;
-    powerCapping?: boolean;
-    thermalManagement?: boolean;
-    assetTag?: boolean;
-  };
-  
-  // Advanced Settings
-  bridging?: {
-    enabled: boolean;
-    targetChannel?: number;
-    targetAddress?: number;
-    transitChannel?: number;
-    transitAddress?: number;
-  };
-  
-  // Security Settings
-  kg?: string; // BMC Key for enhanced security
-  confidentialityAlgorithm?: 'none' | 'aes-cbc-128';
-  integrityAlgorithm?: 'none' | 'hmac-sha1-96' | 'hmac-md5-128' | 'md5-128';
-  
-  // Protocol Timeouts
-  timeouts?: {
-    connection: number;
-    response: number;
-    session: number;
-    sol: number;
-  };
-}
-
 // IPC Connection Options
 export interface IPCConnectionOptions {
   // Common IPC settings
@@ -3055,10 +2969,10 @@ export interface WinRMSessionState {
   sessionId: string;
   shellId?: string;
   commandId?: string;
-  connectionState?: 'disconnected' | 'connecting' | 'connected' | 'authenticated' | 'ready' | 'executing' | 'error';
-  authenticationType?: 'basic' | 'negotiate' | 'ntlm' | 'kerberos' | 'credssp' | 'certificate';
-  protocolVersion?: string;
-  serverInfo?: {
+  connectionState: 'disconnected' | 'connecting' | 'connected' | 'authenticated' | 'ready' | 'executing' | 'error';
+  authenticationType: 'basic' | 'negotiate' | 'ntlm' | 'kerberos' | 'credssp' | 'certificate';
+  protocolVersion: string;
+  serverInfo: {
     productVersion?: string;
     protocolVersion?: string;
     buildNumber?: string;
@@ -3070,13 +2984,13 @@ export interface WinRMSessionState {
     supportedCompression?: string[];
     supportedEncryption?: string[];
   };
-  clientInfo?: {
+  clientInfo: {
     locale: string;
     dataLocale: string;
     userAgent: string;
     clientVersion: string;
   };
-  sessionConfig?: {
+  sessionConfig: {
     name: string;
     shellUri: string;
     resourceUri: string;
@@ -3085,7 +2999,7 @@ export interface WinRMSessionState {
     inputStreams: string[];
     outputStreams: string[];
   };
-  statistics?: {
+  statistics: {
     connectTime: Date;
     lastActivity: Date;
     commandsExecuted: number;
@@ -3094,25 +3008,6 @@ export interface WinRMSessionState {
     errors: number;
     timeouts: number;
   };
-  // ConsoleManager compatibility properties
-  username?: string;
-  host?: string;
-  port?: number;
-  protocol?: string;
-  authType?: string;
-  connectedAt?: Date;
-  lastActivity?: Date;
-  shells?: Map<any, any>;
-  activeCommands?: Map<any, any>;
-  transferredFiles?: any[];
-  performanceCounters?: {
-    commandsExecuted: number;
-    bytesTransferred: number;
-    averageResponseTime: number;
-    errorCount: number;
-    reconnections: number;
-  };
-  status?: string;
   currentOperation?: {
     operationId: string;
     type: 'command' | 'receive' | 'send' | 'terminate';
@@ -3125,114 +3020,6 @@ export interface WinRMSessionState {
     errorDetails: string;
     faultString?: string;
     faultCode?: string;
-  };
-}
-
-// IPMI Session State
-export interface IPMISessionState {
-  sessionId: string;
-  ipmiSessionId?: number;
-  managedSystemSessionId?: number;
-  connectionState: 'disconnected' | 'connecting' | 'authenticating' | 'session-setup' | 'connected' | 'sol-active' | 'error';
-  ipmiVersion: '1.5' | '2.0';
-  cipherSuite: number;
-  authType: number;
-  privilegeLevel: 'user' | 'operator' | 'admin';
-  
-  // Session Keys (for IPMI 2.0)
-  sik?: Buffer; // Session Integrity Key
-  k1?: Buffer;  // Additional Key Generation Key 1
-  k2?: Buffer;  // Additional Key Generation Key 2
-  kg?: Buffer;  // BMC Key
-  
-  // BMC Device Info
-  deviceInfo?: {
-    deviceId: number;
-    deviceRevision: number;
-    firmwareVersion: string;
-    ipmiVersion: string;
-    manufacturerId: number;
-    productId: number;
-    deviceGuid?: string;
-    vendorName?: string;
-    productName?: string;
-    supportedFunctions: string[];
-  };
-  
-  // Serial over LAN State
-  solState?: {
-    active: boolean;
-    payloadInstance: number;
-    sequenceNumber: number;
-    acknowledgmentNumber: number;
-    characterCount: number;
-    status: number;
-  };
-  
-  // Hardware Monitoring State
-  monitoringState?: {
-    enabled: boolean;
-    sensorCount: number;
-    lastSensorUpdate: Date;
-    hardwareHealth: 'ok' | 'warning' | 'critical';
-    activeSensors: number[];
-  };
-  
-  // Power State
-  powerState?: {
-    current: 'off' | 'on' | 'cycling' | 'unknown';
-    supportedOperations: string[];
-    lastPowerOperation?: Date;
-  };
-  
-  // Virtual Media State
-  virtualMediaState?: {
-    mountedDevices: Array<{
-      deviceId: number;
-      mediaType: string;
-      connected: boolean;
-      writeProtected: boolean;
-      imagePath?: string;
-    }>;
-  };
-  
-  // Connection Statistics
-  statistics: {
-    connectTime: Date;
-    lastActivity: Date;
-    commandsExecuted: number;
-    solCharactersSent: number;
-    solCharactersReceived: number;
-    sensorsRead: number;
-    powerOperations: number;
-    errors: number;
-    timeouts: number;
-    reconnections: number;
-  };
-  
-  // Current Operation
-  currentOperation?: {
-    operationId: string;
-    type: 'command' | 'sensor-read' | 'power-control' | 'sol-data' | 'virtual-media' | 'firmware-update';
-    startTime: Date;
-    timeout: number;
-    retryCount: number;
-  };
-  
-  // Error State
-  errorState?: {
-    lastError: string;
-    ipmiCompletionCode?: number;
-    errorDetails: string;
-    recoveryAttempts: number;
-    lastRecoveryTime?: Date;
-  };
-  
-  // Vendor Specific State
-  vendorState?: {
-    vendor: 'dell' | 'hp' | 'ibm' | 'supermicro' | 'generic';
-    vendorExtensions: Record<string, any>;
-    customCommands?: string[];
   };
 }
 
@@ -3263,9 +3050,6 @@ export interface WinRMCommand {
     stdout?: string;
     stderr?: string;
   };
-  // ConsoleManager compatibility properties (direct access to output)
-  stdout?: string;
-  stderr?: string;
   metadata: {
     executionPolicy?: string;
     runAsUser?: string;
@@ -3940,14 +3724,11 @@ export interface SFTPSessionOptions extends SSHConnectionOptions {
   };
 }
 
-// Type alias for ssh2-sftp-client FileInfoType
-type FileInfoType = "d" | "-" | "l";
-
 export interface SFTPDirectoryOperations {
   create: (path: string, mode?: number, recursive?: boolean) => Promise<void>;
   remove: (path: string, recursive?: boolean) => Promise<void>;
   list: (path: string, detailed?: boolean) => Promise<SFTPDirectoryListing>;
-  exists: (path: string) => Promise<false | FileInfoType>;
+  exists: (path: string) => Promise<boolean>;
   chmod: (path: string, mode: number) => Promise<void>;
   chown: (path: string, uid: number, gid: number) => Promise<void>;
   stat: (path: string) => Promise<SFTPFileInfo>;
@@ -3957,12 +3738,12 @@ export interface SFTPDirectoryOperations {
 }
 
 export interface SFTPFileOperations {
-  upload: (localPath: string, remotePath: string, options?: Partial<SFTPTransferOptions>) => Promise<SFTPTransferProgress>;
-  download: (remotePath: string, localPath: string, options?: Partial<SFTPTransferOptions>) => Promise<SFTPTransferProgress>;
-  copy: (sourcePath: string, destinationPath: string, options?: Partial<SFTPTransferOptions>) => Promise<SFTPTransferProgress>;
+  upload: (localPath: string, remotePath: string, options?: SFTPTransferOptions) => Promise<SFTPTransferProgress>;
+  download: (remotePath: string, localPath: string, options?: SFTPTransferOptions) => Promise<SFTPTransferProgress>;
+  copy: (sourcePath: string, destinationPath: string, options?: SFTPTransferOptions) => Promise<SFTPTransferProgress>;
   move: (sourcePath: string, destinationPath: string) => Promise<void>;
   remove: (path: string) => Promise<void>;
-  exists: (path: string) => Promise<false | FileInfoType>;
+  exists: (path: string) => Promise<boolean>;
   checksum: (path: string, algorithm?: 'md5' | 'sha1' | 'sha256') => Promise<string>;
   compare: (localPath: string, remotePath: string) => Promise<{ identical: boolean; differences: string[] }>;
 }
