@@ -139,9 +139,9 @@ export class HeartbeatMonitor extends EventEmitter {
     this.isRunning = false;
 
     // Clear all timers
-    for (const [sessionId, timer] of this.heartbeatTimers) {
+    this.heartbeatTimers.forEach((timer, sessionId) => {
       clearTimeout(timer);
-    }
+    });
     this.heartbeatTimers.clear();
 
     // Wait for active heartbeats to complete
@@ -267,9 +267,9 @@ export class HeartbeatMonitor extends EventEmitter {
    */
   getAllHeartbeats(): Record<string, SessionHeartbeat> {
     const result: Record<string, SessionHeartbeat> = {};
-    for (const [sessionId, heartbeat] of this.sessionHeartbeats) {
+    this.sessionHeartbeats.forEach((heartbeat, sessionId) => {
       result[sessionId] = { ...heartbeat };
-    }
+    });
     return result;
   }
 

@@ -16,11 +16,28 @@ export class KubernetesDemo {
 
   constructor() {
     this.consoleManager = new ConsoleManager({
-      maxSessions: 10,
-      enableSelfHealing: true,
-      monitoring: {
+      connectionPooling: {
+        maxConnectionsPerHost: 10,
+        connectionIdleTimeout: 300000,
+        keepAliveInterval: 30000,
+        enableHealthChecks: true
+      },
+      sessionManager: {
+        maxSessions: 10,
+        sessionTimeout: 300000,
+        cleanupInterval: 60000,
+        persistenceEnabled: false,
         enableMetrics: true,
-        enableTracing: false
+        enableLogging: true,
+        heartbeatInterval: 30000,
+        recoveryOptions: {
+          enableAutoRecovery: true,
+          maxRecoveryAttempts: 3,
+          recoveryDelay: 5000,
+          backoffMultiplier: 2,
+          persistSessionData: false,
+          healthCheckInterval: 30000
+        }
       }
     });
   }
@@ -51,15 +68,15 @@ export class KubernetesDemo {
       console.log(`Created Kubernetes exec session: ${sessionId}`);
 
       // Set up event listeners
-      this.consoleManager.on('output', (event) => {
-        if (event.sessionId === sessionId) {
-          console.log(`Pod Output: ${event.data.data}`);
+      this.consoleManager.on('output', (output) => {
+        if (output.sessionId === sessionId) {
+          console.log(`Pod Output: ${output.data}`);
         }
       });
 
-      this.consoleManager.on('error', (event) => {
-        if (event.sessionId === sessionId) {
-          console.error(`Pod Error: ${event.data.error}`);
+      this.consoleManager.on('session-error', (error) => {
+        if (error.sessionId === sessionId) {
+          console.error(`Pod Error: ${error.error}`);
         }
       });
 
@@ -74,7 +91,11 @@ export class KubernetesDemo {
       // Get session output
       const output = this.consoleManager.getOutput(sessionId);
       console.log('\n=== Session Output ===');
-      output.forEach(line => console.log(line.data));
+      if (output && output.length > 0) {
+        output.forEach(line => console.log(line.data));
+      } else {
+        console.log('No output captured');
+      }
 
       // Clean up
       await this.consoleManager.stopSession(sessionId);
@@ -144,9 +165,9 @@ export class KubernetesDemo {
       console.log(`Started log streaming session: ${logSessionId}`);
 
       // Set up log event handler
-      this.consoleManager.on('output', (event) => {
-        if (event.sessionId === logSessionId) {
-          console.log(`[LOGS] ${event.data.data}`);
+      this.consoleManager.on('output', (output) => {
+        if (output.sessionId === logSessionId) {
+          console.log(`[LOGS] ${output.data}`);
         }
       });
 
@@ -227,7 +248,7 @@ export class KubernetesDemo {
           sessionIds.push(sessionId);
           console.log(`Created session for context '${context}': ${sessionId}`);
         } catch (error) {
-          console.warn(`Failed to create session for context '${context}':`, error.message);
+          console.warn(`Failed to create session for context '${context}':`, error instanceof Error ? error.message : String(error));
         }
       }
 
@@ -238,8 +259,12 @@ export class KubernetesDemo {
       for (const sessionId of sessionIds) {
         const output = this.consoleManager.getOutput(sessionId);
         const session = this.consoleManager.getSession(sessionId);
-        console.log(`\nResults from context '${session?.kubernetesOptions?.context}':`);
-        output.forEach(line => console.log(`  ${line.data}`));
+        console.log(`\nResults from context '${session?.kubernetesOptions?.context || 'unknown'}':`);
+        if (output && output.length > 0) {
+          output.forEach(line => console.log(`  ${line.data}`));
+        } else {
+          console.log('  No output captured');
+        }
         await this.consoleManager.stopSession(sessionId);
       }
 
@@ -291,7 +316,8 @@ export class KubernetesDemo {
         console.log(`Active Sessions: ${k8sHealth.activeSessions}`);
         console.log('Health Checks:');
         for (const [check, result] of Object.entries(k8sHealth.checks)) {
-          console.log(`  ${check}: ${result.checkStatus} - ${result.message || result.value || 'OK'}`);
+          const resultObj = result as any;
+          console.log(`  ${check}: ${resultObj.checkStatus || 'unknown'} - ${resultObj.message || resultObj.value || 'OK'}`);
         }
       }
 
@@ -305,7 +331,7 @@ export class KubernetesDemo {
             console.log(`Session ${sessionId} health score: ${sessionHealth.healthScore || 'N/A'}`);
           }
         } catch (error) {
-          console.warn('Health check failed:', error.message);
+          console.warn('Health check failed:', error instanceof Error ? error.message : String(error));
         }
       }, 2000);
 
@@ -324,7 +350,7 @@ export class KubernetesDemo {
    * Run all demonstrations
    */
   async runAllDemos(): Promise<void> {
-    console.log('🚀 Starting Kubernetes Console Automation Demos\n');
+    console.log('Starting Kubernetes Console Automation Demos\n');
     
     try {
       await this.demonstrateKubectlExec();
@@ -334,9 +360,9 @@ export class KubernetesDemo {
       await this.demonstrateMultiContext();
       await this.demonstrateHealthMonitoring();
       
-      console.log('\n✅ All Kubernetes demos completed successfully!');
+      console.log('\nAll Kubernetes demos completed successfully!');
     } catch (error) {
-      console.error('❌ Demo suite failed:', error);
+      console.error('Demo suite failed:', error);
     }
   }
 
@@ -346,8 +372,8 @@ export class KubernetesDemo {
   async cleanup(): Promise<void> {
     try {
       // Stop all active sessions
-      const sessions = this.consoleManager.getSessions();
-      for (const session of sessions.values()) {
+      const sessions = this.consoleManager.getAllSessions();
+      for (const session of sessions) {
         await this.consoleManager.stopSession(session.id);
       }
       console.log('Cleanup completed');
@@ -361,7 +387,7 @@ export class KubernetesDemo {
 export default KubernetesDemo;
 
 // If run directly, execute all demos
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module || (typeof __filename !== 'undefined' && process.argv[1] === __filename)) {
   const demo = new KubernetesDemo();
   
   // Handle cleanup on exit

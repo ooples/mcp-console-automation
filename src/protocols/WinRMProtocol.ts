@@ -4,16 +4,76 @@ import * as https from 'https';
 import * as http from 'http';
 import { Logger } from '../utils/logger.js';
 import { 
-  IProtocol, 
   ConsoleSession, 
   SessionOptions, 
   ConsoleOutput,
+  ConsoleType,
   WinRMConnectionOptions,
-  WinRMSessionState,
-  ProtocolCapabilities
+  WinRMSessionState
 } from '../types/index.js';
+import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
+
+interface WinRMSession {
+  id: string;
+  sessionId: string;
+  state: WinRMSessionState;
+  options: WinRMConnectionOptions;
+  activeCommands: Map<string, {
+    command: string;
+    startTime: Date;
+    status: 'running' | 'completed' | 'failed';
+  }>;
+}
 
 export class WinRMProtocol extends EventEmitter implements IProtocol {
+  readonly type: ConsoleType = 'winrm';
+  readonly capabilities: ProtocolCapabilities = {
+    supportsStreaming: true,
+    supportsFileTransfer: true,
+    supportsX11Forwarding: false,
+    supportsPortForwarding: false,
+    supportsAuthentication: true,
+    supportsEncryption: true,
+    supportsCompression: false,
+    supportsMultiplexing: true,
+    supportsKeepAlive: true,
+    supportsReconnection: true,
+    supportsBinaryData: true,
+    supportsCustomEnvironment: true,
+    supportsWorkingDirectory: true,
+    supportsSignals: false,
+    supportsResizing: false,
+    supportsPTY: false,
+    maxConcurrentSessions: 10,
+    defaultTimeout: 30000,
+    supportedEncodings: ['utf-8'],
+    supportedAuthMethods: ['basic', 'negotiate', 'ntlm', 'kerberos'],
+    platformSupport: {
+      windows: true,
+      linux: false,
+      macos: false,
+      freebsd: false
+    }
+  };
+  readonly healthStatus: ProtocolHealthStatus = {
+    isHealthy: true,
+    lastChecked: new Date(),
+    errors: [],
+    warnings: [],
+    metrics: {
+      activeSessions: 0,
+      totalSessions: 0,
+      averageLatency: 0,
+      successRate: 100,
+      uptime: 0
+    },
+    dependencies: {
+      winrm: {
+        available: true,
+        version: 'unknown'
+      }
+    }
+  };
   private logger: Logger;
   private sessions: Map<string, WinRMSession> = new Map();
   private isInitialized = false;
@@ -59,14 +119,13 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
     
     const session: WinRMSession = {
       id: sessionId,
+      sessionId,
       state: {
+        sessionId,
         isConnected: false,
-        host: winrmOptions.host,
-        port: winrmOptions.port || (winrmOptions.useSSL ? 5986 : 5985),
-        username: winrmOptions.username,
-        sessionId: '',
         shellId: '',
-        lastActivity: new Date()
+        lastActivity: new Date(),
+        outputBuffer: []
       },
       options: winrmOptions,
       activeCommands: new Map()
@@ -85,8 +144,11 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
         lastActivity: new Date(),
         executionState: 'idle',
         command: options.command || '',
-        cwd: winrmOptions.workingDirectory || 'C:\\',
+        args: options.args || [],
+        cwd: 'C:\\', // Default working directory for WinRM
+        env: options.environment || {},
         environment: options.environment || {},
+        activeCommands: new Map(),
         winrmOptions
       };
 
@@ -117,37 +179,40 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
 
   private async executeWinRMCommand(args: string[], options: WinRMConnectionOptions): Promise<string> {
     return new Promise((resolve, reject) => {
+      const port = options.port || (options.useSSL ? 5986 : 5985);
       const winrmArgs = [
-        '-r', `http${options.useSSL ? 's' : ''}://${options.host}:${options.port}/wsman`,
+        '-r', `http${options.useSSL ? 's' : ''}://${options.host}:${port}/wsman`,
         '-u', options.username,
-        '-p', options.password,
+        ...(options.password ? ['-p', options.password] : []),
         ...args
       ];
 
-      const process = spawn('winrm', winrmArgs, {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
+      const process = spawn('winrm', winrmArgs);
 
       let stdout = '';
       let stderr = '';
 
-      process.stdout?.on('data', (data) => {
-        stdout += data.toString();
-      });
+      if (process.stdout) {
+        process.stdout.on('data', (data: Buffer) => {
+          stdout += data.toString();
+        });
+      }
 
-      process.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
+      if (process.stderr) {
+        process.stderr.on('data', (data: Buffer) => {
+          stderr += data.toString();
+        });
+      }
 
-      process.on('close', (code) => {
+      process.on('close', (code: number | null) => {
         if (code === 0) {
           resolve(stdout);
         } else {
-          reject(new Error(`WinRM command failed: ${stderr || stdout}`));
+          reject(new Error(`WinRM command failed (exit code: ${code}): ${stderr || stdout}`));
         }
       });
 
-      process.on('error', (error) => {
+      process.on('error', (error: Error) => {
         reject(error);
       });
     });
@@ -175,7 +240,7 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
     return match ? match[1] : '';
   }
 
-  async executeCommand(sessionId: string, command: string): Promise<ConsoleOutput> {
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -202,12 +267,13 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
 
       session.state.lastActivity = new Date();
       session.activeCommands.delete(commandId);
-
-      return {
+      
+      // Store result in session buffer for getOutput to retrieve
+      session.state.outputBuffer.push({
         data: result,
         timestamp: new Date(),
         stream: 'stdout'
-      };
+      });
     } catch (error) {
       session.activeCommands.delete(commandId);
       throw error;
@@ -228,14 +294,21 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
     await this.executeCommand(sessionId, input);
   }
 
-  async getOutput(sessionId: string, since?: Date): Promise<ConsoleOutput[]> {
+  async getOutput(sessionId: string, since?: Date): Promise<string> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    // WinRM doesn't buffer output, it's returned directly from command execution
-    return [];
+    // Return buffered output as string
+    if (session.state.outputBuffer) {
+      const output = session.state.outputBuffer
+        .filter(item => !since || item.timestamp > since)
+        .map(item => item.data)
+        .join('\n');
+      return output;
+    }
+    return '';
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -273,19 +346,41 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
     return session.state.isConnected ? 'running' : 'stopped';
   }
 
-  getCapabilities(): ProtocolCapabilities {
+  async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    const errors: string[] = [];
+    let isHealthy = true;
+
+    // Check if WinRM service is available
+    try {
+      await this.executeWinRMCommand(['get', 'winrm/config'], {
+        host: 'localhost',
+        username: 'test',
+        password: 'test',
+        port: 5985,
+        useSSL: false
+      });
+    } catch (error) {
+      isHealthy = false;
+      errors.push('WinRM service is not accessible');
+    }
+
     return {
-      supportsFileTransfer: true,
-      supportsPortForwarding: false,
-      supportsShell: true,
-      supportsExec: true,
-      supportsTunnel: false,
-      supportsMultiplexing: true,
-      requiresAuth: true,
-      platformSupport: {
-        windows: true,
-        linux: false,
-        macos: false
+      isHealthy,
+      lastChecked: new Date(),
+      errors,
+      warnings: [],
+      metrics: {
+        activeSessions: this.sessions.size,
+        totalSessions: this.sessions.size,
+        averageLatency: 0,
+        successRate: isHealthy ? 100 : 0,
+        uptime: Date.now() - (this.healthStatus.lastChecked?.getTime() || Date.now())
+      },
+      dependencies: {
+        winrm: {
+          available: isHealthy,
+          version: 'unknown'
+        }
       }
     };
   }
@@ -313,7 +408,17 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
       ? `powershell.exe -Command "${script.replace(/"/g, '\\"')}"` 
       : script;
 
-    return this.executeCommand(sessionId, command);
+    await this.executeCommand(sessionId, command);
+    
+    // Return the latest output
+    const output = await this.getOutput(sessionId);
+    return {
+      sessionId,
+      type: 'stdout',
+      data: output,
+      timestamp: new Date(),
+      stream: 'stdout'
+    };
   }
 
   async copyFile(sessionId: string, localPath: string, remotePath: string): Promise<void> {
@@ -333,11 +438,16 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    const result = await this.executeCommand(sessionId, 'systeminfo');
-    return this.parseSystemInfo(result.data);
+    await this.executeCommand(sessionId, 'systeminfo');
+    const output = await this.getOutput(sessionId);
+    return this.parseSystemInfo(output);
   }
 
-  private parseSystemInfo(output: string): any {
+  private parseSystemInfo(output: any): any {
+    if (typeof output !== 'string') {
+      return {};
+    }
+    
     const lines = output.split('\n');
     const info: any = {};
     
@@ -354,17 +464,6 @@ export class WinRMProtocol extends EventEmitter implements IProtocol {
     
     return info;
   }
-}
-
-interface WinRMSession {
-  id: string;
-  state: WinRMSessionState;
-  options: WinRMConnectionOptions;
-  activeCommands: Map<string, {
-    command: string;
-    startTime: Date;
-    status: 'running' | 'completed' | 'failed';
-  }>;
 }
 
 export default WinRMProtocol;

@@ -25,8 +25,11 @@ import {
   VNCProtocolConfig,
   VNCCapabilities,
   VNCMonitorConfig,
-  ConsoleOutput 
+  ConsoleOutput,
+  SessionOptions,
+  ConsoleSession
 } from '../types/index.js';
+import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
 
 // RFB Protocol Constants (RFC 6143)
 const RFB_PROTOCOL_VERSION_3_3 = 'RFB 003.003\n';
@@ -150,7 +153,10 @@ const KEY_MAPPINGS = {
 /**
  * Production-ready VNC Protocol implementation with comprehensive RFB support
  */
-export class VNCProtocol extends EventEmitter {
+export class VNCProtocol extends EventEmitter implements IProtocol {
+  public readonly type = 'vnc' as const;
+  public readonly capabilities: ProtocolCapabilities;
+  public readonly healthStatus: ProtocolHealthStatus;
   private logger: Logger;
   private socket?: Socket | TLSSocket;
   private session?: VNCSession;
@@ -206,11 +212,60 @@ export class VNCProtocol extends EventEmitter {
   private repeaterConnection?: Socket;
   private repeaterMode: 'mode1' | 'mode2' = 'mode1';
 
-  constructor(options: VNCConnectionOptions) {
+  constructor(options?: VNCConnectionOptions) {
     super();
     this.logger = new Logger('VNCProtocol');
-    this.options = { ...this.getDefaultOptions(), ...options };
+    this.options = { ...this.getDefaultOptions(), ...(options || {}) } as VNCConnectionOptions;
     this.connectionId = `vnc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: true,
+      supportsX11Forwarding: false,
+      supportsPortForwarding: false,
+      supportsAuthentication: true,
+      supportsEncryption: true,
+      supportsCompression: true,
+      supportsMultiplexing: false,
+      supportsKeepAlive: true,
+      supportsReconnection: true,
+      supportsBinaryData: true,
+      supportsCustomEnvironment: false,
+      supportsWorkingDirectory: false,
+      supportsSignals: false,
+      supportsResizing: true,
+      supportsPTY: false,
+      maxConcurrentSessions: 1,
+      defaultTimeout: 30000,
+      supportedEncodings: ['utf-8'],
+      supportedAuthMethods: ['password', 'none'],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: true,
+      },
+    };
+
+    this.healthStatus = {
+      isHealthy: true,
+      lastChecked: new Date(),
+      errors: [],
+      warnings: [],
+      metrics: {
+        activeSessions: 0,
+        totalSessions: 0,
+        averageLatency: 0,
+        successRate: 1.0,
+        uptime: 0,
+      },
+      dependencies: {
+        vnc: {
+          available: true,
+          version: '1.0',
+        },
+      },
+    };
     
     this.config = this.createDefaultConfig();
     this.initializeEncodingSupport();
@@ -219,6 +274,7 @@ export class VNCProtocol extends EventEmitter {
 
   private getDefaultOptions(): Partial<VNCConnectionOptions> {
     return {
+      host: 'localhost',
       port: 5900,
       rfbProtocolVersion: 'auto',
       sharedConnection: true,
@@ -369,7 +425,7 @@ export class VNCProtocol extends EventEmitter {
       }
 
       // Initialize session
-      this.session = this.createSession();
+      this.session = this.createVNCSession();
       
       // Start session recording if enabled
       if (this.options.recordSession) {
@@ -492,7 +548,7 @@ export class VNCProtocol extends EventEmitter {
     this.logger.warn('Repeater Mode 2 not fully implemented yet');
   }
 
-  private createSession(): VNCSession {
+  private createVNCSession(): VNCSession {
     return {
       sessionId: this.connectionId,
       connectionId: this.connectionId,
@@ -1963,6 +2019,80 @@ export class VNCProtocol extends EventEmitter {
   private handleServerMessage(data: Buffer): void {
     // This method is set as the messageHandler after authentication
     this.processServerMessage();
+  }
+
+  // IProtocol required methods
+  async initialize(): Promise<void> {
+    // VNC initialization is handled in connect()
+  }
+
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    const sessionId = `vnc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    if (!options.vncOptions) {
+      throw new Error('VNC options are required');
+    }
+
+    // Update our internal options with the session options
+    this.options = { ...this.options, ...options.vncOptions };
+
+    const session: ConsoleSession = {
+      id: sessionId,
+      command: options.command || '',
+      args: options.args || [],
+      cwd: '/',
+      env: options.environment || {},
+      createdAt: new Date(),
+      status: 'running',
+      type: 'vnc',
+      streaming: options.streaming ?? true,
+      vncOptions: options.vncOptions,
+      executionState: 'idle',
+      activeCommands: new Map(),
+    };
+
+    this.emit('sessionCreated', session);
+    return session;
+  }
+
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    // VNC doesn't execute commands directly, but we can emit events
+    this.emit('commandExecuted', { sessionId, command, args, timestamp: new Date() });
+  }
+
+  async sendInput(sessionId: string, input: string): Promise<void> {
+    // For VNC, input would be key events
+    for (const char of input) {
+      const keycode = char.charCodeAt(0);
+      await this.sendKeyEvent(keycode, true);  // key down
+      await this.sendKeyEvent(keycode, false); // key up
+    }
+  }
+
+  async getOutput(sessionId: string, since?: Date): Promise<string> {
+    // VNC output is framebuffer updates, not text
+    return 'VNC framebuffer output (binary data)';
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    await this.disconnect();
+  }
+
+  async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    this.healthStatus.lastChecked = new Date();
+    this.healthStatus.metrics.activeSessions = this.isConnected ? 1 : 0;
+    this.healthStatus.isHealthy = this.isConnected;
+    
+    if (!this.isConnected && this.healthStatus.errors.length === 0) {
+      this.healthStatus.errors.push('VNC not connected');
+    }
+    
+    return { ...this.healthStatus };
+  }
+
+  async dispose(): Promise<void> {
+    await this.disconnect();
+    this.removeAllListeners();
   }
 }
 

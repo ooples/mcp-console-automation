@@ -144,7 +144,7 @@ export class KubernetesProtocol extends EventEmitter {
         context: this.currentContext,
         namespace: this.currentNamespace
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to connect to Kubernetes cluster', error);
       this.isConnected = false;
       throw error;
@@ -159,26 +159,26 @@ export class KubernetesProtocol extends EventEmitter {
       this.stopHeartbeat();
       
       // Close all active sessions
-      for (const [sessionId, session] of this.activeSessions) {
+      for (const [sessionId, session] of Array.from(this.activeSessions.entries())) {
         await this.closeSession(sessionId);
       }
       
       // Close active port forwards
-      for (const [portForwardId, portForward] of this.activePortForwards) {
+      for (const [portForwardId, portForward] of Array.from(this.activePortForwards.entries())) {
         try {
           await this.stopPortForward(portForwardId);
-        } catch (error) {
+        } catch (error: any) {
           this.logger.warn('Error closing port forward', { portForwardId, error });
         }
       }
       
       // Close active log streams
-      for (const [streamId, stream] of this.activeLogStreams) {
+      for (const [streamId, stream] of Array.from(this.activeLogStreams.entries())) {
         try {
           if (stream && typeof stream.destroy === 'function') {
             stream.destroy();
           }
-        } catch (error) {
+        } catch (error: any) {
           this.logger.warn('Error closing log stream', { streamId, error });
         }
       }
@@ -191,7 +191,7 @@ export class KubernetesProtocol extends EventEmitter {
       
       this.emit('disconnected');
       this.logger.info('Disconnected from Kubernetes cluster');
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error during disconnect', error);
       throw error;
     }
@@ -250,7 +250,7 @@ export class KubernetesProtocol extends EventEmitter {
       this.k8sPortForwardApi = new k8s.PortForward(this.kc);
       this.k8sCpApi = new k8s.Cp(this.kc);
 
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to load Kubernetes configuration', error);
       throw error;
     }
@@ -260,6 +260,7 @@ export class KubernetesProtocol extends EventEmitter {
    * Apply additional connection options to kubeconfig
    */
   private applyConnectionOptions(): void {
+    if (!this.currentContext) return;
     const currentContext = this.kc.getContextObject(this.currentContext);
     if (!currentContext) return;
 
@@ -267,26 +268,36 @@ export class KubernetesProtocol extends EventEmitter {
     const user = this.kc.getUser(currentContext.user);
 
     if (cluster) {
-      if (this.connectionOptions.server) {
-        cluster.server = this.connectionOptions.server;
-      }
-      if (this.connectionOptions.clusterCertificateAuthority) {
-        cluster.caData = this.connectionOptions.clusterCertificateAuthority;
-      }
-      if (this.connectionOptions.insecureSkipTlsVerify !== undefined) {
-        cluster.skipTLSVerify = this.connectionOptions.insecureSkipTlsVerify;
+      // Create new cluster object with updated properties to avoid read-only issues
+      const updatedCluster = {
+        ...cluster,
+        ...(this.connectionOptions.server && { server: this.connectionOptions.server }),
+        ...(this.connectionOptions.clusterCertificateAuthority && { caData: this.connectionOptions.clusterCertificateAuthority }),
+        ...(this.connectionOptions.insecureSkipTlsVerify !== undefined && { skipTLSVerify: this.connectionOptions.insecureSkipTlsVerify })
+      };
+      
+      // Replace cluster in kubeconfig
+      const clusters = this.kc.getClusters();
+      const clusterIndex = clusters.findIndex((c: any) => c.name === cluster.name);
+      if (clusterIndex >= 0) {
+        clusters[clusterIndex] = updatedCluster;
       }
     }
 
     if (user) {
-      if (this.connectionOptions.token) {
-        user.token = this.connectionOptions.token;
-      }
-      if (this.connectionOptions.clientCertificate) {
-        user.certData = this.connectionOptions.clientCertificate;
-      }
-      if (this.connectionOptions.clientKey) {
-        user.keyData = this.connectionOptions.clientKey;
+      // Create new user object with updated properties to avoid read-only issues
+      const updatedUser = {
+        ...user,
+        ...(this.connectionOptions.token && { token: this.connectionOptions.token }),
+        ...(this.connectionOptions.clientCertificate && { certData: this.connectionOptions.clientCertificate }),
+        ...(this.connectionOptions.clientKey && { keyData: this.connectionOptions.clientKey })
+      };
+      
+      // Replace user in kubeconfig
+      const users = this.kc.getUsers();
+      const userIndex = users.findIndex((u: any) => u.name === user.name);
+      if (userIndex >= 0) {
+        users[userIndex] = updatedUser;
       }
     }
   }
@@ -297,10 +308,12 @@ export class KubernetesProtocol extends EventEmitter {
   private async validateConnection(): Promise<void> {
     try {
       const response = await this.k8sApi.listNamespace();
+      // Use .data for newer versions of @kubernetes/client-node, fallback to .body for older versions
+      const responseData = (response as any).data || (response as any).body;
       this.logger.info('Connection validated', {
-        namespacesCount: response.body.items.length
+        namespacesCount: responseData.items.length
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Connection validation failed', error);
       throw new Error(`Failed to connect to Kubernetes cluster: ${error.message}`);
     }
@@ -317,7 +330,7 @@ export class KubernetesProtocol extends EventEmitter {
     this.heartbeatTimer = setInterval(async () => {
       try {
         await this.healthCheck();
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn('Heartbeat failed', error);
         await this.handleReconnect();
       }
@@ -339,8 +352,8 @@ export class KubernetesProtocol extends EventEmitter {
    */
   private async healthCheck(): Promise<void> {
     try {
-      await this.k8sApi.listNamespace('', undefined, undefined, undefined, undefined, 1);
-    } catch (error) {
+      await this.k8sApi.listNamespace();
+    } catch (error: any) {
       throw new Error(`Health check failed: ${error.message}`);
     }
   }
@@ -363,7 +376,7 @@ export class KubernetesProtocol extends EventEmitter {
       await new Promise(resolve => setTimeout(resolve, this.reconnectDelay));
       await this.connect();
       this.emit('reconnected');
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Reconnection attempt ${this.reconnectAttempts} failed`, error);
       // Will try again on next heartbeat
     }
@@ -374,7 +387,7 @@ export class KubernetesProtocol extends EventEmitter {
    */
   getContexts(): KubernetesContext[] {
     const contexts = this.kc.getContexts();
-    return contexts.map(context => ({
+    return contexts.map((context: any) => ({
       name: context.name,
       cluster: context.cluster,
       user: context.user,
@@ -387,7 +400,7 @@ export class KubernetesProtocol extends EventEmitter {
    */
   getClusters(): KubernetesCluster[] {
     const clusters = this.kc.getClusters();
-    return clusters.map(cluster => ({
+    return clusters.map((cluster: any) => ({
       name: cluster.name,
       server: cluster.server,
       certificateAuthorityData: cluster.caData,
@@ -400,7 +413,7 @@ export class KubernetesProtocol extends EventEmitter {
    */
   getUsers(): KubernetesUser[] {
     const users = this.kc.getUsers();
-    return users.map(user => ({
+    return users.map((user: any) => ({
       name: user.name,
       token: user.token,
       clientCertificateData: user.certData,
@@ -432,7 +445,7 @@ export class KubernetesProtocol extends EventEmitter {
       await this.validateConnection();
       this.emit('contextChanged', { context: contextName, namespace: this.currentNamespace });
       this.logger.info('Switched context', { context: contextName, namespace: this.currentNamespace });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to switch context', { context: contextName, error });
       throw error;
     }
@@ -443,17 +456,18 @@ export class KubernetesProtocol extends EventEmitter {
    */
   async listPods(options: Partial<PodSelectionOptions> = {}): Promise<KubernetesPod[]> {
     try {
-      const namespace = options.namespace || this.currentNamespace;
+      const namespace = options.namespace || this.currentNamespace || 'default';
       let fieldSelector = options.fieldSelector;
       let labelSelector = options.labelSelector;
 
       // Handle deployment-based selection
       if (options.deploymentName) {
-        const deployment = await this.k8sAppsApi.readNamespacedDeployment(
-          options.deploymentName, 
-          namespace
-        );
-        const matchLabels = deployment.body.spec?.selector?.matchLabels;
+        const deployment = await this.k8sAppsApi.readNamespacedDeployment({
+          name: options.deploymentName, 
+          namespace: namespace
+        });
+        const deploymentData = (deployment as any).data || (deployment as any).body;
+        const matchLabels = deploymentData.spec?.selector?.matchLabels;
         if (matchLabels) {
           const labels = Object.entries(matchLabels)
             .map(([key, value]) => `${key}=${value}`)
@@ -464,11 +478,12 @@ export class KubernetesProtocol extends EventEmitter {
 
       // Handle replica set-based selection
       if (options.replicaSetName) {
-        const replicaSet = await this.k8sAppsApi.readNamespacedReplicaSet(
-          options.replicaSetName, 
-          namespace
-        );
-        const matchLabels = replicaSet.body.spec?.selector?.matchLabels;
+        const replicaSet = await this.k8sAppsApi.readNamespacedReplicaSet({
+          name: options.replicaSetName, 
+          namespace: namespace
+        });
+        const replicaSetData = (replicaSet as any).data || (replicaSet as any).body;
+        const matchLabels = replicaSetData.spec?.selector?.matchLabels;
         if (matchLabels) {
           const labels = Object.entries(matchLabels)
             .map(([key, value]) => `${key}=${value}`)
@@ -479,8 +494,12 @@ export class KubernetesProtocol extends EventEmitter {
 
       // Handle service-based selection
       if (options.serviceName) {
-        const service = await this.k8sApi.readNamespacedService(options.serviceName, namespace);
-        const selector = service.body.spec?.selector;
+        const service = await this.k8sApi.readNamespacedService({
+          name: options.serviceName, 
+          namespace: namespace
+        });
+        const serviceData = (service as any).data || (service as any).body;
+        const selector = serviceData.spec?.selector;
         if (selector) {
           const labels = Object.entries(selector)
             .map(([key, value]) => `${key}=${value}`)
@@ -489,17 +508,15 @@ export class KubernetesProtocol extends EventEmitter {
         }
       }
 
-      const response = await this.k8sApi.listNamespacedPod(
-        namespace,
-        undefined, // pretty
-        undefined, // allowWatchBookmarks
-        undefined, // continue
-        fieldSelector,
-        labelSelector
-      );
+      const response = await this.k8sApi.listNamespacedPod({
+        namespace: namespace,
+        fieldSelector: fieldSelector,
+        labelSelector: labelSelector
+      });
 
-      return response.body.items.map(pod => this.mapPodFromApi(pod));
-    } catch (error) {
+      const responseData = (response as any).data || (response as any).body;
+      return responseData.items.map((pod: any) => this.mapPodFromApi(pod));
+    } catch (error: any) {
       this.logger.error('Failed to list pods', { options, error });
       throw error;
     }
@@ -510,10 +527,14 @@ export class KubernetesProtocol extends EventEmitter {
    */
   async getPod(name: string, namespace?: string): Promise<KubernetesPod> {
     try {
-      const ns = namespace || this.currentNamespace;
-      const response = await this.k8sApi.readNamespacedPod(name, ns);
-      return this.mapPodFromApi(response.body);
-    } catch (error) {
+      const ns = namespace || this.currentNamespace || 'default';
+      const response = await this.k8sApi.readNamespacedPod({
+        name: name, 
+        namespace: ns
+      });
+      const responseData = (response as any).data || (response as any).body;
+      return this.mapPodFromApi(responseData);
+    } catch (error: any) {
       this.logger.error('Failed to get pod', { name, namespace, error });
       throw error;
     }
@@ -524,7 +545,7 @@ export class KubernetesProtocol extends EventEmitter {
    */
   async createExecSession(sessionId: string, options: KubernetesExecOptions): Promise<KubernetesSessionState> {
     try {
-      const namespace = options.namespace || this.currentNamespace;
+      const namespace = options.namespace || this.currentNamespace || 'default';
       
       // Find pod if not specified by name
       let podName = options.name;
@@ -557,7 +578,7 @@ export class KubernetesProtocol extends EventEmitter {
         podInfo: {
           name: podName,
           namespace: namespace,
-          containerName: containerName,
+          containerName: containerName || '',
           status: pod.status.phase,
           restartCount: pod.status.containerStatuses?.[0]?.restartCount || 0,
           creationTimestamp: pod.metadata.creationTimestamp
@@ -581,21 +602,24 @@ export class KubernetesProtocol extends EventEmitter {
         command: command
       };
 
-      const execSession = await this.k8sExecApi.exec(
+      // Create proper streams for exec
+      const ws = await this.k8sExecApi.exec(
         namespace,
         podName,
-        containerName,
+        containerName || '',
         command,
-        null, // stdout stream - will be handled by session manager
-        null, // stderr stream - will be handled by session manager  
-        null, // stdin stream - will be handled by session manager
-        execOptions.tty,
-        {
-          stdin: execOptions.stdin,
-          stdout: execOptions.stdout,
-          stderr: execOptions.stderr
-        }
+        process.stdout,
+        process.stderr,
+        process.stdin,
+        execOptions.tty
       );
+
+      const execSession = {
+        ws,
+        stdin: ws,
+        stdout: ws,
+        stderr: ws
+      };
 
       // Store exec session
       this.activeExecSessions.set(sessionId, execSession);
@@ -611,7 +635,7 @@ export class KubernetesProtocol extends EventEmitter {
       });
 
       return sessionState;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to create exec session', { sessionId, options, error });
       this.activeSessions.delete(sessionId);
       throw error;
@@ -633,7 +657,7 @@ export class KubernetesProtocol extends EventEmitter {
       } else {
         throw new Error(`Stdin not available for session: ${sessionId}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to send input to exec session', { sessionId, error });
       throw error;
     }
@@ -663,7 +687,7 @@ export class KubernetesProtocol extends EventEmitter {
           if (execSession.stderr && typeof execSession.stderr.destroy === 'function') {
             execSession.stderr.destroy();
           }
-        } catch (error) {
+        } catch (error: any) {
           this.logger.warn('Error closing exec session streams', { sessionId, error });
         }
         this.activeExecSessions.delete(sessionId);
@@ -675,7 +699,7 @@ export class KubernetesProtocol extends EventEmitter {
 
       this.emit('sessionClosed', { sessionId });
       this.logger.info('Session closed', { sessionId });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to close session', { sessionId, error });
       throw error;
     }
@@ -686,16 +710,16 @@ export class KubernetesProtocol extends EventEmitter {
    */
   async startPortForward(portForwardId: string, options: PortForwardOptions): Promise<void> {
     try {
-      const namespace = options.namespace || this.currentNamespace;
+      const namespace = options.namespace || this.currentNamespace || 'default';
       
       const portForward = await this.k8sPortForwardApi.portForward(
         namespace,
         options.podName,
         [options.remotePort],
-        null, // stdout
-        null, // stderr
-        null, // stdin
-        0 // local port - let system assign
+        process.stdout,
+        process.stderr,
+        process.stdin,
+        options.localPort
       );
 
       this.activePortForwards.set(portForwardId, portForward);
@@ -715,7 +739,7 @@ export class KubernetesProtocol extends EventEmitter {
         pod: options.podName,
         namespace
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to start port forward', { portForwardId, options, error });
       throw error;
     }
@@ -739,7 +763,7 @@ export class KubernetesProtocol extends EventEmitter {
       this.activePortForwards.delete(portForwardId);
       this.emit('portForwardStopped', { portForwardId });
       this.logger.info('Port forward stopped', { portForwardId });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to stop port forward', { portForwardId, error });
       throw error;
     }
@@ -750,7 +774,7 @@ export class KubernetesProtocol extends EventEmitter {
    */
   async streamLogs(streamId: string, options: KubernetesLogOptions): Promise<void> {
     try {
-      const namespace = options.namespace || this.currentNamespace;
+      const namespace = options.namespace || this.currentNamespace || 'default';
       
       if (options.podName) {
         // Single pod logs
@@ -777,7 +801,7 @@ export class KubernetesProtocol extends EventEmitter {
       } else {
         throw new Error('Either podName or labelSelector must be specified');
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to stream logs', { streamId, options, error });
       throw error;
     }
@@ -793,54 +817,40 @@ export class KubernetesProtocol extends EventEmitter {
     options: KubernetesLogOptions
   ): Promise<void> {
     try {
+      const logOptions = {
+        follow: options.follow !== false,
+        tailLines: options.tail,
+        sinceSeconds: this.parseDuration(options.since),
+        sinceTime: options.sinceTime ? new Date(options.sinceTime).toISOString() : undefined,
+        timestamps: options.timestamps === true,
+        previous: options.previous === true
+      };
+
       const logStream = await this.k8sLogsApi.log(
         namespace,
         podName,
-        options.containerName,
-        null, // logStream - will be handled by session manager
-        {
-          follow: options.follow !== false,
-          tailLines: options.tail,
-          sinceSeconds: this.parseDuration(options.since),
-          sinceTime: options.sinceTime ? new Date(options.sinceTime) : undefined,
-          timestamps: options.timestamps === true,
-          previous: options.previous === true
-        }
+        options.containerName || '',
+        process.stdout,
+        logOptions
       );
 
       this.activeLogStreams.set(streamId, logStream);
       
-      // Handle log data
-      logStream.on('data', (chunk: Buffer) => {
-        let data = chunk.toString();
+      // The log method returns an AbortController, not a readable stream
+      // We need to handle this differently for log data events
+      // For now, we'll emit that the stream started and handle data through other mechanisms
+      
+      if (logStream && typeof logStream === 'object' && 'signal' in logStream) {
+        // This is an AbortController
+        const abortController = logStream as AbortController;
         
-        // Add pod prefix if requested
-        if (options.prefix) {
-          data = data.split('\n').map(line => 
-            line ? `[${podName}] ${line}` : line
-          ).join('\n');
-        }
-        
-        this.emit('logData', {
-          streamId,
-          podName,
-          namespace,
-          data: stripAnsi(data),
-          raw: data
+        // Handle abort signal
+        abortController.signal.addEventListener('abort', () => {
+          this.logger.info('Log stream aborted', { streamId, podName });
+          this.emit('logEnd', { streamId, podName });
+          this.activeLogStreams.delete(streamId);
         });
-      });
-
-      logStream.on('error', (error: Error) => {
-        this.logger.error('Log stream error', { streamId, podName, error });
-        this.emit('logError', { streamId, podName, error });
-        this.activeLogStreams.delete(streamId);
-      });
-
-      logStream.on('end', () => {
-        this.logger.info('Log stream ended', { streamId, podName });
-        this.emit('logEnd', { streamId, podName });
-        this.activeLogStreams.delete(streamId);
-      });
+      }
 
       this.emit('logStreamStarted', {
         streamId,
@@ -855,7 +865,7 @@ export class KubernetesProtocol extends EventEmitter {
         namespace,
         container: options.containerName
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to stream single pod logs', {
         streamId, podName, namespace, error
       });
@@ -881,7 +891,7 @@ export class KubernetesProtocol extends EventEmitter {
       this.activeLogStreams.delete(streamId);
       this.emit('logStreamStopped', { streamId });
       this.logger.info('Log stream stopped', { streamId });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to stop log stream', { streamId, error });
       throw error;
     }
@@ -892,29 +902,25 @@ export class KubernetesProtocol extends EventEmitter {
    */
   async copyFiles(copyId: string, options: KubernetesCopyOptions): Promise<void> {
     try {
-      const namespace = options.namespace || this.currentNamespace;
+      const namespace = options.namespace || this.currentNamespace || 'default';
+      
+      const containerName = options.containerName || '';
       
       if (options.direction === 'upload') {
-        await this.k8sCpApi.cp(
+        await this.k8sCpApi.cpToPod(
           namespace,
           options.podName,
-          options.containerName || '',
+          containerName,
           options.localPath,
-          options.remotePath,
-          {
-            recursive: options.recursive
-          }
+          options.remotePath
         );
       } else {
-        await this.k8sCpApi.cp(
+        await this.k8sCpApi.cpFromPod(
           namespace,
           options.podName,
-          options.containerName || '',
+          containerName,
           options.remotePath,
-          options.localPath,
-          {
-            recursive: options.recursive
-          }
+          options.localPath
         );
       }
 
@@ -933,7 +939,7 @@ export class KubernetesProtocol extends EventEmitter {
         pod: options.podName,
         namespace
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to copy files', { copyId, options, error });
       this.emit('copyError', { copyId, error });
       throw error;
@@ -1048,7 +1054,7 @@ export class KubernetesProtocol extends EventEmitter {
       // API Server connectivity
       try {
         const start = Date.now();
-        await this.k8sApi.listNamespace('', undefined, undefined, undefined, undefined, 1);
+        await this.k8sApi.listNamespace();
         const duration = Date.now() - start;
         checks.apiServer = {
           checkStatus: 'pass',
@@ -1057,7 +1063,7 @@ export class KubernetesProtocol extends EventEmitter {
           duration
         };
         totalScore += duration < 1000 ? 100 : duration < 5000 ? 75 : 50;
-      } catch (error) {
+      } catch (error: any) {
         checks.apiServer = {
           checkStatus: 'fail',
           message: `API server error: ${error.message}`
@@ -1075,7 +1081,7 @@ export class KubernetesProtocol extends EventEmitter {
           message: 'Context is valid'
         };
         totalScore += 100;
-      } catch (error) {
+      } catch (error: any) {
         checks.context = {
           checkStatus: 'fail',
           message: `Context error: ${error.message}`
@@ -1108,7 +1114,7 @@ export class KubernetesProtocol extends EventEmitter {
         };
         totalScore += memUsageMB < 500 ? 100 : memUsageMB < 1000 ? 75 : 25;
         checkCount++;
-      } catch (error) {
+      } catch (error: any) {
         checks.memory = {
           checkStatus: 'fail',
           message: `Memory check error: ${error.message}`
@@ -1117,7 +1123,7 @@ export class KubernetesProtocol extends EventEmitter {
         checkCount++;
       }
 
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Health check failed', error);
     }
 

@@ -506,7 +506,12 @@ export class SFTPProtocol extends EventEmitter {
         reject(error);
       });
 
-      this.sshClient!.connect(this.options);
+      // Convert SFTPSessionOptions to ssh2 ConnectConfig
+      const connectConfig = {
+        ...this.options,
+        debug: this.options.debug ? (info: string) => console.log(`SSH Debug: ${info}`) : undefined
+      };
+      this.sshClient!.connect(connectConfig);
     });
   }
 

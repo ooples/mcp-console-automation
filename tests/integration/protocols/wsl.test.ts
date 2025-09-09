@@ -79,7 +79,7 @@ describe('WSL Protocol Integration Tests', () => {
           metadata: true,
           uid: 1000,
           gid: 1000,
-          umask: 0022
+          umask: 0o022
         }
       },
       distributions: {

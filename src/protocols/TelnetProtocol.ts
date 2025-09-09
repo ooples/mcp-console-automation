@@ -2,18 +2,21 @@ import { EventEmitter } from 'events';
 import { Socket } from 'net';
 import { Logger } from '../utils/logger.js';
 import { 
-  IProtocol, 
   ConsoleSession, 
   SessionOptions, 
   ConsoleOutput,
   TelnetConnectionOptions,
   TelnetSessionState,
   TelnetCommand,
-  TelnetOption,
-  ProtocolCapabilities
+  TelnetOption
 } from '../types/index.js';
+import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
 
 export class TelnetProtocol extends EventEmitter implements IProtocol {
+  public readonly type = 'telnet' as const;
+  public readonly capabilities: ProtocolCapabilities;
+  public readonly healthStatus: ProtocolHealthStatus;
+  
   private logger: Logger;
   private sessions: Map<string, TelnetSession> = new Map();
   private isInitialized = false;
@@ -21,6 +24,55 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
   constructor() {
     super();
     this.logger = new Logger('TelnetProtocol');
+    
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: false,
+      supportsX11Forwarding: false,
+      supportsPortForwarding: false,
+      supportsAuthentication: true,
+      supportsEncryption: false,
+      supportsCompression: false,
+      supportsMultiplexing: false,
+      supportsKeepAlive: true,
+      supportsReconnection: true,
+      supportsBinaryData: false,
+      supportsCustomEnvironment: false,
+      supportsWorkingDirectory: false,
+      supportsSignals: false,
+      supportsResizing: false,
+      supportsPTY: false,
+      maxConcurrentSessions: 5,
+      defaultTimeout: 30000,
+      supportedEncodings: ['utf-8', 'ascii'],
+      supportedAuthMethods: ['password'],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: true,
+      },
+    };
+
+    this.healthStatus = {
+      isHealthy: true,
+      lastChecked: new Date(),
+      errors: [],
+      warnings: [],
+      metrics: {
+        activeSessions: 0,
+        totalSessions: 0,
+        averageLatency: 0,
+        successRate: 1.0,
+        uptime: 0,
+      },
+      dependencies: {
+        telnet: {
+          available: true,
+          version: '1.0',
+        },
+      },
+    };
   }
 
   async initialize(): Promise<void> {
@@ -47,12 +99,20 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
       id: sessionId,
       socket: null,
       state: {
+        sessionId,
+        connectionState: 'disconnected',
         isConnected: false,
         host: telnetOptions.host,
         port: telnetOptions.port || 23,
-        options: new Map(),
+        commandHistory: [],
         commandQueue: [],
-        lastActivity: new Date()
+        lastActivity: new Date(),
+        bufferSize: 4096,
+        encoding: 'utf-8',
+        lineEnding: '\r\n',
+        timeout: 30000,
+        retryCount: 0,
+        options: new Map()
       },
       options: telnetOptions,
       buffer: Buffer.alloc(0)
@@ -71,8 +131,11 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
         lastActivity: new Date(),
         executionState: 'idle',
         command: options.command || '',
+        args: options.args || [],
         cwd: telnetOptions.initialDirectory || '/',
+        env: options.environment || {},
         environment: options.environment || {},
+        activeCommands: new Map(),
         telnetOptions
       };
 
@@ -194,7 +257,7 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
     }
   }
 
-  async executeCommand(sessionId: string, command: string): Promise<ConsoleOutput> {
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -221,12 +284,8 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
 
       // For telnet, we don't wait for specific output, just send the command
       telnetCommand.status = 'completed';
-
-      return {
-        data: `Command sent: ${command}`,
-        timestamp: new Date(),
-        stream: 'stdout'
-      };
+      
+      // IProtocol.executeCommand returns void, output should be retrieved via getOutput
     } catch (error) {
       telnetCommand.status = 'failed';
       throw error;
@@ -247,10 +306,10 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
     session.state.lastActivity = new Date();
   }
 
-  async getOutput(sessionId: string, since?: Date): Promise<ConsoleOutput[]> {
+  async getOutput(sessionId: string, since?: Date): Promise<string> {
     // Telnet protocol doesn't buffer output internally
     // Output is emitted via events and should be captured by the consumer
-    return [];
+    return '';
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -279,21 +338,10 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
     return session.state.isConnected ? 'running' : 'stopped';
   }
 
-  getCapabilities(): ProtocolCapabilities {
-    return {
-      supportsFileTransfer: false,
-      supportsPortForwarding: false,
-      supportsShell: true,
-      supportsExec: true,
-      supportsTunnel: false,
-      supportsMultiplexing: true,
-      requiresAuth: true,
-      platformSupport: {
-        windows: true,
-        linux: true,
-        macos: true
-      }
-    };
+  async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    this.healthStatus.lastChecked = new Date();
+    this.healthStatus.metrics.activeSessions = this.sessions.size;
+    return { ...this.healthStatus };
   }
 
   async dispose(): Promise<void> {

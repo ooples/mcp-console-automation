@@ -19,8 +19,11 @@ import {
   RDPSession,
   RDPCapabilities,
   RDPMonitorConfig,
-  ConsoleOutput
+  ConsoleOutput,
+  SessionOptions,
+  ConsoleSession
 } from '../types/index.js';
+import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
 import { Logger } from '../utils/logger.js';
 
 // Import node-rdpjs-2 dynamically to handle potential missing dependency
@@ -87,12 +90,15 @@ export interface RDPGatewayConfig {
   enableAuth: boolean;
 }
 
-export class RDPProtocol extends EventEmitter {
+export class RDPProtocol extends EventEmitter implements IProtocol {
+  public readonly type = 'rdp' as const;
+  public readonly capabilities: ProtocolCapabilities;
+  public readonly healthStatus: ProtocolHealthStatus;
   private logger: Logger;
   private sessions: Map<string, RDPSession> = new Map();
   private connections: Map<string, any> = new Map(); // RDP connection instances
   private fallbackProcesses: Map<string, ChildProcess> = new Map();
-  private capabilities: RDPCapabilities;
+  private rdpCapabilities: RDPCapabilities;
   private sessionRecordings: Map<string, any> = new Map();
   private clipboardBuffer: Map<string, string> = new Map();
   private fileTransfers: Map<string, FileTransferProgress[]> = new Map();
@@ -101,8 +107,64 @@ export class RDPProtocol extends EventEmitter {
   constructor() {
     super();
     this.logger = new Logger('RDPProtocol');
-    this.capabilities = this.detectCapabilities();
-    this.logger.info('RDP Protocol initialized', { capabilities: this.capabilities });
+    
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: true,
+      supportsX11Forwarding: false,
+      supportsPortForwarding: false,
+      supportsAuthentication: true,
+      supportsEncryption: true,
+      supportsCompression: true,
+      supportsMultiplexing: false,
+      supportsKeepAlive: true,
+      supportsReconnection: true,
+      supportsBinaryData: true,
+      supportsCustomEnvironment: false,
+      supportsWorkingDirectory: false,
+      supportsSignals: false,
+      supportsResizing: true,
+      supportsPTY: false,
+      maxConcurrentSessions: 1,
+      defaultTimeout: 30000,
+      supportedEncodings: ['utf-8'],
+      supportedAuthMethods: ['password', 'certificate'],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: false,
+      },
+    };
+
+    this.healthStatus = {
+      isHealthy: true,
+      lastChecked: new Date(),
+      errors: [],
+      warnings: [],
+      metrics: {
+        activeSessions: 0,
+        totalSessions: 0,
+        averageLatency: 0,
+        successRate: 1.0,
+        uptime: 0,
+      },
+      dependencies: {
+        rdp: {
+          available: rdp !== undefined,
+          version: '1.0',
+        },
+        mstsc: {
+          available: process.platform === 'win32',
+          version: 'system',
+        },
+      },
+    };
+    
+    // Initialize RDP-specific capabilities
+    this.rdpCapabilities = this.detectCapabilities();
+    
+    this.logger.info('RDP Protocol initialized');
   }
 
   /**
@@ -139,7 +201,7 @@ export class RDPProtocol extends EventEmitter {
   /**
    * Create a new RDP session
    */
-  async createSession(sessionId: string, options: RDPConnectionOptions): Promise<RDPSession> {
+  async createRDPSession(sessionId: string, options: RDPConnectionOptions): Promise<RDPSession> {
     try {
       this.logger.info(`Creating RDP session ${sessionId}`, { host: options.host, port: options.port });
 
@@ -835,7 +897,7 @@ export class RDPProtocol extends EventEmitter {
   /**
    * Send input to RDP session
    */
-  async sendInput(sessionId: string, input: string): Promise<void> {
+  async sendRDPInput(sessionId: string, input: string): Promise<void> {
     const connection = this.connections.get(sessionId);
     const fallbackProcess = this.fallbackProcesses.get(sessionId);
 
@@ -946,7 +1008,7 @@ export class RDPProtocol extends EventEmitter {
    * Get system capabilities
    */
   getCapabilities(): RDPCapabilities {
-    return { ...this.capabilities };
+    return { ...this.rdpCapabilities };
   }
 
   /**
@@ -1013,6 +1075,70 @@ export class RDPProtocol extends EventEmitter {
       case 'disabled': return 2;
       default: return 0;
     }
+  }
+
+  // IProtocol required methods
+  async initialize(): Promise<void> {
+    // RDP initialization is handled in connect methods
+  }
+
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    const sessionId = `rdp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    if (!options.rdpOptions) {
+      throw new Error('RDP options are required');
+    }
+
+    // Create the actual RDP session
+    await this.createRDPSession(sessionId, options.rdpOptions);
+
+    const session: ConsoleSession = {
+      id: sessionId,
+      command: options.command || '',
+      args: options.args || [],
+      cwd: '/',
+      env: options.environment || {},
+      createdAt: new Date(),
+      status: 'running',
+      type: 'rdp',
+      streaming: options.streaming ?? true,
+      rdpOptions: options.rdpOptions,
+      executionState: 'idle',
+      activeCommands: new Map(),
+    };
+
+    this.emit('sessionCreated', session);
+    return session;
+  }
+
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    // RDP doesn't execute commands directly, but we can emit events
+    this.emit('commandExecuted', { sessionId, command, args, timestamp: new Date() });
+  }
+
+  async sendInput(sessionId: string, input: string): Promise<void> {
+    await this.sendRDPInput(sessionId, input);
+  }
+
+  async getOutput(sessionId: string, since?: Date): Promise<string> {
+    // RDP output is screen updates, not text
+    return 'RDP screen output (binary data)';
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    await this.disconnectSession(sessionId);
+  }
+
+  async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    this.healthStatus.lastChecked = new Date();
+    this.healthStatus.metrics.activeSessions = this.sessions.size;
+    this.healthStatus.isHealthy = this.healthStatus.errors.length === 0;
+    
+    return { ...this.healthStatus };
+  }
+
+  async dispose(): Promise<void> {
+    await this.destroy();
   }
 
   /**

@@ -1239,9 +1239,9 @@ export class WSLProtocol {
    */
   public async cleanup(): Promise<void> {
     // Stop all health monitoring
-    for (const [sessionId] of this.healthCheckIntervals) {
+    Array.from(this.healthCheckIntervals.keys()).forEach(sessionId => {
       this.stopHealthMonitoring(sessionId);
-    }
+    });
 
     // Clear caches
     this.pathTranslationCache.clear();

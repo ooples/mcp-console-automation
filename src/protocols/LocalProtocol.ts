@@ -104,13 +104,13 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
       throw new Error('Protocol not initialized');
     }
 
-    const sessionId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     
     try {
       const shellInfo = this.getShellInfo();
       const spawnOptions: SpawnOptions = {
         cwd: options.cwd || process.cwd(),
-        env: { ...process.env, ...options.env },
+        env: { ...process.env, ...options.env } as NodeJS.ProcessEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false,
       };
@@ -140,12 +140,15 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
         command: shellInfo.command,
         args: shellInfo.args,
         cwd: options.cwd || process.cwd(),
-        env: { ...process.env, ...options.env },
+        env: Object.fromEntries(
+          Object.entries({ ...process.env, ...options.env }).filter(([_, value]) => typeof value === 'string')
+        ) as Record<string, string>,
         createdAt: new Date(),
-        pid: childProcess.pid,
+        pid: childProcess.pid ?? undefined,
         status: 'running',
         type: this.type,
         streaming: options.streaming ?? false,
+        lastActivity: new Date(),
         executionState: 'idle',
         activeCommands: new Map(),
       };
@@ -169,8 +172,12 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
       const fullCommand = args ? `${command} ${args.join(' ')}` : command;
       const commandWithNewline = fullCommand + '\n';
       
-      session.process.stdin?.write(commandWithNewline);
-      session.lastActivity = new Date();
+      if (session.process.stdin) {
+        session.process.stdin.write(commandWithNewline);
+        session.lastActivity = new Date();
+      } else {
+        throw new Error('Session stdin is not available');
+      }
 
       this.emit('commandExecuted', {
         sessionId,
@@ -191,8 +198,12 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
     }
 
     try {
-      session.process.stdin?.write(input);
-      session.lastActivity = new Date();
+      if (session.process.stdin) {
+        session.process.stdin.write(input);
+        session.lastActivity = new Date();
+      } else {
+        throw new Error('Session stdin is not available');
+      }
 
       this.emit('inputSent', {
         sessionId,
@@ -323,7 +334,7 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(`Shell ${shellInfo.command} not available (exit code: ${code})`));
+          reject(new Error(`Shell ${shellInfo.command} not available (exit code: ${code ?? 'unknown'})`));
         }
       });
 
@@ -377,7 +388,7 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
     });
 
     // Handle process exit
-    session.process.on('close', (code, signal) => {
+    session.process.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
       session.isActive = false;
       this.logger.info(`Local session ${session.id} closed with code: ${code}, signal: ${signal}`);
       

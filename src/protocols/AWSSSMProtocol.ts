@@ -1,13 +1,99 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import WebSocket from 'ws';
+import { WebSocket } from 'ws';
 
-// AWS SDK v3 imports - made optional to handle missing dependencies
+// AWS SDK v3 types and imports - made optional to handle missing dependencies
+interface SSMClientType {
+  send(command: any): Promise<any>;
+}
+
+interface EC2ClientType {
+  send(command: any): Promise<any>;
+}
+
+interface STSClientType {
+  send(command: any): Promise<any>;
+}
+
+interface S3ClientType {
+  send(command: any): Promise<any>;
+}
+
+interface CloudWatchLogsClientType {
+  send(command: any): Promise<any>;
+}
+
+interface StartSessionCommandInput {
+  Target: string;
+  DocumentName?: string;
+  Parameters?: Record<string, string[]>;
+}
+
+interface StartSessionCommandOutput {
+  SessionId?: string;
+  Token?: string;
+  StreamUrl?: string;
+}
+
+interface SendCommandCommandInput {
+  DocumentName: string;
+  Parameters?: Record<string, string[]>;
+  Comment?: string;
+  TimeoutSeconds?: number;
+  MaxConcurrency?: string;
+  MaxErrors?: string;
+  InstanceIds?: string[];
+  Targets?: Array<{
+    key: string;
+    values: string[];
+  }>;
+  OutputS3BucketName?: string;
+  OutputS3KeyPrefix?: string;
+  CloudWatchOutputConfig?: {
+    cloudWatchLogGroupName: string;
+    cloudWatchOutputEnabled: boolean;
+  };
+}
+
+interface LogEvent {
+  timestamp: number;
+  message: string;
+}
+
+type AwsCredentialProvider = () => Promise<{
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+}>;
+
+enum CommandStatus {
+  Success = 'Success',
+  Failed = 'Failed',
+  Cancelled = 'Cancelled',
+  TimedOut = 'TimedOut',
+  InProgress = 'InProgress',
+  Pending = 'Pending'
+}
+
+enum SessionStatus {
+  Connected = 'Connected',
+  Connecting = 'Connecting',
+  Disconnected = 'Disconnected',
+  Failed = 'Failed',
+  Terminated = 'Terminated',
+  Terminating = 'Terminating'
+}
+
+enum SessionState {
+  Active = 'Active',
+  History = 'History'
+}
+
 let SSMClient: any, StartSessionCommand: any, TerminateSessionCommand: any, DescribeSessionsCommand: any, 
     ResumeSessionCommand: any, SendCommandCommand: any, ListCommandInvocationsCommand: any, GetCommandInvocationCommand: any,
     DescribeInstanceInformationCommand: any, GetParametersCommand: any, PutParameterCommand: any, ListDocumentsCommand: any, 
     DescribeDocumentCommand: any, CreateDocumentCommand: any, UpdateDocumentCommand: any, DeleteDocumentCommand: any,
-    SessionStatus: any, SessionState: any, DocumentStatus: any, CommandStatus: any;
+    SessionStatusValues: any, SessionStateValues: any, DocumentStatusValues: any, CommandStatusValues: any;
 
 try {
   const ssmModule = require('@aws-sdk/client-ssm');
@@ -27,10 +113,10 @@ try {
   CreateDocumentCommand = ssmModule.CreateDocumentCommand;
   UpdateDocumentCommand = ssmModule.UpdateDocumentCommand;
   DeleteDocumentCommand = ssmModule.DeleteDocumentCommand;
-  SessionStatus = ssmModule.SessionStatus;
-  SessionState = ssmModule.SessionState;
-  DocumentStatus = ssmModule.DocumentStatus;
-  CommandStatus = ssmModule.CommandStatus;
+  SessionStatusValues = ssmModule.SessionStatus || {};
+  SessionStateValues = ssmModule.SessionState || {};
+  DocumentStatusValues = ssmModule.DocumentStatus || {};
+  CommandStatusValues = ssmModule.CommandStatus || {};
 } catch (error) {
   console.warn('@aws-sdk/client-ssm not available, AWS SSM functionality will be disabled');
 }
@@ -140,11 +226,11 @@ import { ErrorRecovery } from '../core/ErrorRecovery.js';
  * - Session recording and audit capabilities
  */
 export class AWSSSMProtocol extends EventEmitter {
-  private ssmClient: SSMClient;
-  private ec2Client: EC2Client;
-  private stsClient: STSClient;
-  private s3Client?: S3Client;
-  private cloudWatchLogsClient?: CloudWatchLogsClient;
+  private ssmClient!: SSMClientType;
+  private ec2Client!: EC2ClientType;
+  private stsClient!: STSClientType;
+  private s3Client?: S3ClientType;
+  private cloudWatchLogsClient?: CloudWatchLogsClientType;
   
   private logger: Logger;
   private retryManager: RetryManager;
@@ -284,17 +370,42 @@ export class AWSSSMProtocol extends EventEmitter {
       }
     };
 
+    if (!SSMClient) {
+      throw new Error('@aws-sdk/client-ssm is required but not available');
+    }
     this.ssmClient = new SSMClient(clientConfig);
     this.ec2Client = new EC2Client(clientConfig);
     this.stsClient = new STSClient(clientConfig);
     
-    if (this.config.loggingConfig.s3Config) {
+    if (this.config.loggingConfig.s3Config && S3Client) {
       this.s3Client = new S3Client(clientConfig);
     }
     
-    if (this.config.loggingConfig.cloudWatchConfig) {
+    if (this.config.loggingConfig.cloudWatchConfig && CloudWatchLogsClient) {
       this.cloudWatchLogsClient = new CloudWatchLogsClient(clientConfig);
     }
+  }
+
+  /**
+   * Convert environment variables to SSM parameters format
+   */
+  private convertEnvironmentToParameters(env: Record<string, string>): Record<string, string[]> {
+    const parameters: Record<string, string[]> = {};
+    for (const [key, value] of Object.entries(env)) {
+      parameters[key] = [value];
+    }
+    return parameters;
+  }
+
+  /**
+   * Convert SSM parameters to environment variables format
+   */
+  private convertParametersToEnvironment(params: Record<string, string[]>): Record<string, string> {
+    const env: Record<string, string> = {};
+    for (const [key, values] of Object.entries(params)) {
+      env[key] = values[0] || '';
+    }
+    return env;
   }
 
   /**
@@ -391,7 +502,7 @@ export class AWSSSMProtocol extends EventEmitter {
       this.logger.debug(`Health check passed - Account: ${identity.Account}, User: ${identity.Arn}`);
 
       // Check active sessions
-      for (const [sessionId, session] of this.sessions.entries()) {
+      for (const [sessionId, session] of Array.from(this.sessions.entries())) {
         if (session.status === 'Connected' || session.status === 'Connecting') {
           await this.checkSessionHealth(sessionId);
         }
@@ -424,15 +535,15 @@ export class AWSSSMProtocol extends EventEmitter {
   private async checkSessionHealth(sessionId: string): Promise<void> {
     try {
       const response = await this.ssmClient.send(new DescribeSessionsCommand({
-        State: SessionState.Active,
+        State: SessionStateValues.Active || 'Active',
         Filters: [{
           key: 'SessionId', // Use string instead of enum since AWS SDK is optional
           value: sessionId
         }]
       }));
 
-      const sessionInfo = response.Sessions?.find(s => s.SessionId === sessionId);
-      if (!sessionInfo || sessionInfo.Status !== SessionStatus.Connected) {
+      const sessionInfo = response.Sessions?.find((s: any) => s.SessionId === sessionId);
+      if (!sessionInfo || sessionInfo.Status !== (SessionStatusValues.Connected || 'Connected')) {
         await this.handleSessionDisconnect(sessionId, 'Health check failed');
       }
       
@@ -456,7 +567,7 @@ export class AWSSSMProtocol extends EventEmitter {
       this.initializeAWSClients();
       
       // Attempt to reconnect active sessions
-      for (const [sessionId, session] of this.sessions.entries()) {
+      for (const [sessionId, session] of Array.from(this.sessions.entries())) {
         if (session.status === 'Disconnected' || session.status === 'Failed') {
           await this.attemptSessionRecovery(sessionId);
         }
@@ -530,10 +641,10 @@ export class AWSSSMProtocol extends EventEmitter {
       const sessionParams: StartSessionCommandInput = {
         Target: sessionOptions.instanceId,
         DocumentName: sessionOptions.documentName || this.config.sessionConfig.defaultDocumentName,
-        Parameters: {
+        Parameters: this.convertEnvironmentToParameters({
           ...this.config.sessionConfig.defaultEnvironmentVariables,
           ...sessionOptions.environmentVariables
-        }
+        })
       };
 
       // Start the session
@@ -565,7 +676,7 @@ export class AWSSSMProtocol extends EventEmitter {
         maxSessionDuration: this.config.sessionConfig.maxSessionDuration,
         shellProfile: sessionOptions.shellProfile,
         workingDirectory: sessionOptions.workingDirectory,
-        environmentVariables: sessionParams.Parameters || {},
+        environmentVariables: this.convertParametersToEnvironment(sessionParams.Parameters || {}),
         region: this.connectionOptions.region,
         accountId: await this.getAccountId(),
         tags: sessionOptions.tags || {},
@@ -705,8 +816,8 @@ export class AWSSSMProtocol extends EventEmitter {
           commandInput.InstanceIds = targets.map(t => t.id);
         } else {
           commandInput.Targets = targets.map(t => ({
-            Key: t.type === 'tag' ? `tag:${t.name}` : t.type,
-            Values: [t.id]
+            key: t.type === 'tag' ? `tag:${t.name}` : t.type,
+            values: [t.id]
           }));
         }
       } else if (this.connectionOptions.instanceId) {
@@ -721,8 +832,8 @@ export class AWSSSMProtocol extends EventEmitter {
 
       if (this.config.loggingConfig.cloudWatchConfig) {
         commandInput.CloudWatchOutputConfig = {
-          CloudWatchLogGroupName: this.config.loggingConfig.cloudWatchConfig.logGroupName,
-          CloudWatchOutputEnabled: true
+          cloudWatchLogGroupName: this.config.loggingConfig.cloudWatchConfig.logGroupName,
+          cloudWatchOutputEnabled: true
         };
       }
 
@@ -1305,17 +1416,17 @@ export class AWSSSMProtocol extends EventEmitter {
 
         // Update command status based on invocations
         const invocations = response.CommandInvocations;
-        const statuses = invocations.map(inv => inv.Status as CommandStatus);
+        const statuses = invocations.map((inv: any) => inv.Status as keyof typeof CommandStatus);
         
-        if (statuses.every(status => status === CommandStatus.Success)) {
+        if (statuses.every((status: any) => status === CommandStatus.Success)) {
           command.status = 'Success';
-        } else if (statuses.some(status => status === CommandStatus.Failed)) {
+        } else if (statuses.some((status: any) => status === CommandStatus.Failed)) {
           command.status = 'Failed';
-        } else if (statuses.some(status => status === CommandStatus.Cancelled)) {
+        } else if (statuses.some((status: any) => status === CommandStatus.Cancelled)) {
           command.status = 'Cancelled';
-        } else if (statuses.some(status => status === CommandStatus.TimedOut)) {
+        } else if (statuses.some((status: any) => status === CommandStatus.TimedOut)) {
           command.status = 'TimedOut';
-        } else if (statuses.some(status => status === CommandStatus.InProgress)) {
+        } else if (statuses.some((status: any) => status === CommandStatus.InProgress)) {
           command.status = 'InProgress';
         }
 
@@ -1450,13 +1561,13 @@ export class AWSSSMProtocol extends EventEmitter {
       // Terminate all active sessions
       const terminationPromises: Promise<void>[] = [];
       
-      for (const sessionId of this.sessions.keys()) {
+      for (const sessionId of Array.from(this.sessions.keys())) {
         terminationPromises.push(this.terminateSession(sessionId).catch(err => 
           this.logger.error(`Failed to terminate session ${sessionId} during cleanup:`, err)
         ));
       }
 
-      for (const sessionId of this.portForwardingSessions.keys()) {
+      for (const sessionId of Array.from(this.portForwardingSessions.keys())) {
         terminationPromises.push(this.terminateSession(sessionId).catch(err => 
           this.logger.error(`Failed to terminate port forwarding session ${sessionId} during cleanup:`, err)
         ));
@@ -1465,7 +1576,7 @@ export class AWSSSMProtocol extends EventEmitter {
       await Promise.allSettled(terminationPromises);
 
       // Close all WebSocket connections
-      for (const [sessionId, ws] of this.webSockets.entries()) {
+      for (const [sessionId, ws] of Array.from(this.webSockets.entries())) {
         try {
           ws.close();
         } catch (error) {

@@ -469,7 +469,7 @@ export class ErrorRecovery extends EventEmitter {
   }
 
   private findRecoveryStrategy(error: Error): RecoveryStrategy | undefined {
-    for (const strategy of this.recoveryStrategies.values()) {
+    for (const strategy of Array.from(this.recoveryStrategies.values())) {
       if (strategy.applicableErrors(error)) {
         return strategy;
       }

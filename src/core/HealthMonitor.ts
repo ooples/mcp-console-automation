@@ -316,9 +316,9 @@ export class HealthMonitor extends EventEmitter {
     }
 
     // Clear active checks
-    for (const [checkId, timeout] of this.activeChecks) {
+    this.activeChecks.forEach((timeout, checkId) => {
       clearTimeout(timeout);
-    }
+    });
     this.activeChecks.clear();
 
     this.emit('stopped');
@@ -991,7 +991,8 @@ export class HealthMonitor extends EventEmitter {
     const sshResults: SSHHealthResult[] = [];
 
     try {
-      for (const [sessionId, sshHealth] of this.sshSessions) {
+      const sessionEntries = Array.from(this.sshSessions.entries());
+      for (const [sessionId, sshHealth] of sessionEntries) {
         const healthResult = await this.checkSSHSessionHealth(sessionId, sshHealth);
         sshResults.push(healthResult);
 
@@ -2048,11 +2049,11 @@ export class HealthMonitor extends EventEmitter {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 30);
     
-    for (const [historyKey] of this.healthHistory) {
+    this.healthHistory.forEach((history, historyKey) => {
       if (new Date(historyKey.replace('health-', '')) < cutoffDate) {
         this.healthHistory.delete(historyKey);
       }
-    }
+    });
   }
 
   /**
@@ -2079,12 +2080,12 @@ export class HealthMonitor extends EventEmitter {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    for (const [key, checks] of this.healthHistory) {
+    this.healthHistory.forEach((checks, key) => {
       const date = new Date(key.replace('health-', ''));
       if (date >= cutoffDate) {
         result[key] = checks;
       }
-    }
+    });
 
     return result;
   }

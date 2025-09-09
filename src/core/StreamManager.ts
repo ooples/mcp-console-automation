@@ -516,4 +516,31 @@ export class StreamManager extends EventEmitter {
       sequenceCounter: this.sequenceCounter
     };
   }
+
+  /**
+   * Process console output - compatibility method for ConsoleManager
+   */
+  processOutput(output: any): void {
+    if (typeof output === 'string') {
+      this.addChunk(output);
+    } else if (output && typeof output.data === 'string') {
+      this.addChunk(output.data, output.type === 'stderr');
+    }
+  }
+
+  /**
+   * Add error patterns - compatibility method
+   */
+  addPatterns(patterns: any[]): void {
+    // This is a no-op for StreamManager as it doesn't handle patterns
+    // The actual pattern handling is done by ErrorDetector
+  }
+
+  /**
+   * Remove error patterns - compatibility method
+   */
+  removePatterns(patterns: any[]): void {
+    // This is a no-op for StreamManager as it doesn't handle patterns
+    // The actual pattern handling is done by ErrorDetector
+  }
 }

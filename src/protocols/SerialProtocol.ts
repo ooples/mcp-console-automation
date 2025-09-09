@@ -11,15 +11,21 @@ import {
   SerialProtocolProfile, 
   ConsoleSession, 
   ConsoleOutput, 
-  ConsoleEvent 
+  ConsoleEvent,
+  SessionOptions,
+  ConsoleType
 } from '../types/index.js';
+import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
 import { Logger } from '../utils/logger.js';
 
 /**
  * Production-ready Serial/COM port protocol implementation for embedded device communication
  * Supports Arduino, ESP32, and various USB serial adapters (FTDI, CH340, CP2102)
  */
-export class SerialProtocol extends EventEmitter {
+export class SerialProtocol extends EventEmitter implements IProtocol {
+  public readonly type = 'serial' as const;
+  public readonly capabilities: ProtocolCapabilities;
+  public readonly healthStatus: ProtocolHealthStatus;
   private connections: Map<string, SerialConnectionState> = new Map();
   private deviceProfiles: Map<string, SerialProtocolProfile> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
@@ -41,6 +47,56 @@ export class SerialProtocol extends EventEmitter {
   constructor() {
     super();
     this.logger = new Logger('SerialProtocol');
+    
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: false,
+      supportsX11Forwarding: false,
+      supportsPortForwarding: false,
+      supportsAuthentication: false,
+      supportsEncryption: false,
+      supportsCompression: false,
+      supportsMultiplexing: false,
+      supportsKeepAlive: false,
+      supportsReconnection: true,
+      supportsBinaryData: true,
+      supportsCustomEnvironment: false,
+      supportsWorkingDirectory: false,
+      supportsSignals: true,
+      supportsResizing: false,
+      supportsPTY: false,
+      maxConcurrentSessions: 10,
+      defaultTimeout: 30000,
+      supportedEncodings: ['utf-8', 'ascii', 'binary'],
+      supportedAuthMethods: [],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: true,
+      },
+    };
+
+    this.healthStatus = {
+      isHealthy: true,
+      lastChecked: new Date(),
+      errors: [],
+      warnings: [],
+      metrics: {
+        activeSessions: 0,
+        totalSessions: 0,
+        averageLatency: 0,
+        successRate: 1.0,
+        uptime: 0,
+      },
+      dependencies: {
+        serialport: {
+          available: true,
+          version: '12.x',
+        },
+      },
+    };
+    
     this.initializeDeviceProfiles();
     this.startDeviceMonitoring();
   }
@@ -833,6 +889,87 @@ export class SerialProtocol extends EventEmitter {
       clearTimeout(timer);
     });
     this.reconnectTimers.clear();
+  }
+
+  // IProtocol required methods
+  async initialize(): Promise<void> {
+    // Already initialized in constructor
+  }
+
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    const sessionId = `serial-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    if (!options.serialOptions) {
+      throw new Error('Serial options are required');
+    }
+
+    await this.createConnection(sessionId, options.serialOptions);
+
+    const session: ConsoleSession = {
+      id: sessionId,
+      command: options.command || '',
+      args: options.args || [],
+      cwd: '/',
+      env: options.environment || {},
+      createdAt: new Date(),
+      status: 'running',
+      type: 'serial',
+      streaming: options.streaming ?? true,
+      serialOptions: options.serialOptions,
+      executionState: 'idle',
+      activeCommands: new Map(),
+    };
+
+    this.emit('sessionCreated', session);
+    return session;
+  }
+
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const fullCommand = args ? `${command} ${args.join(' ')}` : command;
+    await this.sendData(sessionId, fullCommand + '\n');
+  }
+
+  async sendInput(sessionId: string, input: string): Promise<void> {
+    await this.sendData(sessionId, input);
+  }
+
+  async getOutput(sessionId: string, since?: Date): Promise<string> {
+    const connection = this.connections.get(sessionId);
+    if (!connection) {
+      return '';
+    }
+
+    const outputs = connection.outputBuffer
+      .filter(output => !since || output.timestamp >= since)
+      .map(output => output.data)
+      .join('\n');
+    
+    return outputs;
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    await this.closeConnection(sessionId);
+  }
+
+  async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    this.healthStatus.lastChecked = new Date();
+    this.healthStatus.metrics.activeSessions = this.connections.size;
+    
+    // Check for any connection errors
+    let hasErrors = false;
+    Array.from(this.connections.entries()).forEach(([sessionId, connection]) => {
+      if (!connection.isConnected) {
+        hasErrors = true;
+        this.healthStatus.errors.push(`Connection ${sessionId} is not connected`);
+      }
+    });
+    
+    this.healthStatus.isHealthy = !hasErrors;
+    return { ...this.healthStatus };
+  }
+
+  async dispose(): Promise<void> {
+    await this.cleanup();
   }
 }
 

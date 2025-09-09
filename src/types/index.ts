@@ -1,4 +1,23 @@
-export type ConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto' | 'ssh' | 'sftp' | 'scp' | 'azure-shell' | 'azure-bastion' | 'azure-ssh' | 'gcp-shell' | 'gcp-ssh' | 'gcp-oslogin' | 'aws-ssm' | 'ssm-session' | 'ssm-tunnel' | 'serial' | 'com' | 'uart' | 'docker' | 'docker-exec' | 'kubectl' | 'k8s-exec' | 'telnet' | 'wsl' | 'wsl2' | 'rdp' | 'mstsc' | 'vnc' | 'winrm' | 'psremoting' | 'websocket-term' | 'xterm-ws' | 'web-terminal' | 'ipmi' | 'bmc' | 'idrac' | 'named-pipe' | 'unix-socket' | 'ipc' | 'ansible' | 'ansible-ssh' | 'ansible-winrm' | 'ansible-local' | 'lxc' | 'podman' | 'containerd';
+export type ConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto' | 'ssh' | 'sftp' | 'scp' | 'azure-shell' | 'azure-bastion' | 'azure-ssh' | 'gcp-shell' | 'gcp-ssh' | 'gcp-oslogin' | 'aws-ssm' | 'ssm-session' | 'ssm-tunnel' | 'serial' | 'com' | 'uart' | 'docker' | 'docker-exec' | 'kubectl' | 'k8s-exec' | 'k8s-logs' | 'k8s-port-forward' | 'telnet' | 'wsl' | 'wsl2' | 'rdp' | 'mstsc' | 'vnc' | 'winrm' | 'psremoting' | 'websocket-term' | 'xterm-ws' | 'web-terminal' | 'ipmi' | 'bmc' | 'idrac' | 'named-pipe' | 'unix-socket' | 'ipc' | 'ansible' | 'ansible-ssh' | 'ansible-winrm' | 'ansible-local' | 'lxc' | 'podman' | 'containerd' | 'chef' | 'dbus' | 'dotnet' | 'cassandra' | 'golang' | 'gotty' | 'hyperv' | 'guacamole' | 'ilo' | 'java' | 'jtag' | 'messagequeue' | 'mysql' | 'mongodb' | 'php' | 'powershelldirect' | 'postgresql' | 'psexec' | 'node' | 'puppet' | 'python' | 'qemu' | 'redis' | 'ruby' | 'rust' | 'spice' | 'sqlite' | 'saltstack' | 'terraform' | 'vagrant' | 'vmware' | 'virtualbox' | 'wetty' | 'wmi' | 'xen' | 'x11vnc' | 'ttyd';
+
+// Console Type Categories
+export type LocalConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto';
+export type RemoteConsoleType = 'ssh' | 'sftp' | 'scp' | 'telnet' | 'winrm' | 'psremoting';
+export type CloudConsoleType = 'azure-shell' | 'azure-bastion' | 'azure-ssh' | 'gcp-shell' | 'gcp-ssh' | 'gcp-oslogin' | 'aws-ssm' | 'ssm-session' | 'ssm-tunnel';
+export type ContainerConsoleType = 'docker' | 'docker-exec' | 'kubectl' | 'k8s-exec' | 'lxc' | 'podman' | 'containerd';
+export type VirtualizationConsoleType = 'wsl' | 'wsl2';
+export type HardwareConsoleType = 'serial' | 'com' | 'uart' | 'ipmi' | 'bmc' | 'idrac';
+export type RemoteDesktopType = 'rdp' | 'mstsc' | 'vnc';
+export type NetworkConsoleType = 'websocket-term' | 'xterm-ws' | 'web-terminal';
+export type WindowsRemoteType = 'winrm' | 'psremoting';
+export type IPCConsoleType = 'named-pipe' | 'unix-socket' | 'ipc';
+export type AutomationConsoleType = 'ansible' | 'ansible-ssh' | 'ansible-winrm' | 'ansible-local';
+export type DatabaseConsoleType = 'mysql' | 'postgresql' | 'mongodb' | 'cassandra' | 'redis' | 'sqlite';
+export type ApplicationConsoleType = 'node' | 'python' | 'java' | 'dotnet' | 'golang' | 'php' | 'ruby' | 'rust';
+export type VirtualizationProtocolType = 'hyperv' | 'vmware' | 'virtualbox' | 'qemu' | 'xen';
+export type AutomationToolType = 'chef' | 'puppet' | 'saltstack' | 'terraform' | 'vagrant';
+export type TerminalProtocolType = 'gotty' | 'wetty' | 'ttyd' | 'guacamole' | 'spice' | 'x11vnc';
+export type SystemProtocolType = 'dbus' | 'wmi' | 'messagequeue' | 'jtag' | 'psexec' | 'powershelldirect';
 
 export interface ConsoleSession {
   id: string;
@@ -6,14 +25,17 @@ export interface ConsoleSession {
   args: string[];
   cwd: string;
   env: Record<string, string>;
+  environment?: Record<string, string>; // Alternative environment property
   createdAt: Date;
   pid?: number;
-  status: 'running' | 'stopped' | 'crashed';
+  status: 'running' | 'stopped' | 'crashed' | 'terminated' | 'failed' | 'paused' | 'initializing' | 'recovering' | 'closed';
   exitCode?: number;
   type?: ConsoleType;
   streaming?: boolean;
+  lastActivity?: Date; // Missing property
   sshOptions?: SSHConnectionOptions;
   telnetOptions?: TelnetConnectionOptions;
+  telnetState?: TelnetSessionState;
   azureOptions?: AzureConnectionOptions;
   gcpOptions?: GCPConnectionOptions;
   serialOptions?: SerialConnectionOptions;
@@ -33,6 +55,11 @@ export interface ConsoleSession {
   ipcState?: IPCSessionState;
   ansibleOptions?: AnsibleConnectionOptions;
   ansibleSession?: AnsibleSession;
+  wslOptions?: WSLConnectionOptions; // Missing property
+  dockerOptions?: DockerConnectionOptions;
+  dockerState?: DockerSession;
+  sftpOptions?: SFTPSessionOptions;
+  sessionState?: any; // Generic session state for various connection types
   // Command execution state
   executionState: 'idle' | 'executing' | 'waiting';
   currentCommandId?: string;
@@ -46,6 +73,11 @@ export interface ConsoleOutput {
   data: string;
   timestamp: Date;
   raw?: string;
+  // Stream properties
+  stream?: 'stdout' | 'stderr' | 'stdin';
+  exitCode?: number;
+  stdout?: string;
+  stderr?: string;
   // Command tracking
   commandId?: string;
   isCommandBoundary?: boolean;
@@ -194,7 +226,7 @@ export interface AlertConfig {
 
 export interface ConsoleEvent {
   sessionId: string;
-  type: 'started' | 'stopped' | 'error' | 'input' | 'output' | 'prompt-detected';
+  type: 'started' | 'stopped' | 'error' | 'input' | 'output' | 'prompt-detected' | 'vnc-framebuffer-update' | 'vnc-message' | 'vnc-clipboard-update' | 'terminated';
   timestamp: Date;
   data?: any;
 }
@@ -204,6 +236,7 @@ export interface SessionOptions {
   args?: string[];
   cwd?: string;
   env?: Record<string, string>;
+  environment?: Record<string, string>; // Alternative environment property
   rows?: number;
   cols?: number;
   detectErrors?: boolean;
@@ -233,6 +266,9 @@ export interface SessionOptions {
   ipcOptions?: IPCConnectionOptions;
   webSocketTerminalOptions?: WebSocketTerminalConnectionOptions;
   ansibleOptions?: AnsibleConnectionOptions;
+  // Additional protocol options for completeness
+  sftpOptions?: SFTPSessionOptions;
+  scpOptions?: SCPTransferOptions;
 }
 
 // Connection Pooling Configuration
@@ -262,6 +298,21 @@ export interface SSHConnectionOptions {
   readyTimeout?: number;
   serverAliveInterval?: number;
   serverAliveCountMax?: number;
+  // Additional SSH options for completeness
+  compress?: boolean;
+  debug?: boolean;
+  forceIPv4?: boolean;
+  forceIPv6?: boolean;
+  hostKeyAlgorithms?: string[];
+  kexAlgorithms?: string[];
+  ciphers?: string[];
+  hmacAlgorithms?: string[];
+  localAddress?: string;
+  localPort?: number;
+  proxyJump?: string;
+  tryKeyboard?: boolean;
+  agentForward?: boolean;
+  x11Forward?: boolean;
 }
 
 // RDP Connection Options
@@ -512,6 +563,7 @@ export interface VNCConnectionOptions {
   // Advanced options
   debugLevel?: 'error' | 'warn' | 'info' | 'debug' | 'trace';
   customOptions?: Record<string, any>;
+  encoding?: VNCEncoding[]; // Supported encodings
 }
 
 export type VNCEncoding = 
@@ -1085,6 +1137,20 @@ export interface TelnetConnectionOptions {
   sendTimeout?: number;
   maxBuffer?: number;
   debug?: boolean;
+  // Additional telnet properties for completeness
+  connectTimeout?: number;
+  maxRetries?: number;
+  retryDelay?: number;
+  localAddress?: string;
+  localPort?: number;
+  socketOptions?: {
+    noDelay?: boolean;
+    keepAlive?: boolean;
+    keepAliveInitialDelay?: number;
+  };
+  // Directory settings
+  initialDirectory?: string;
+  workingDirectory?: string;
 }
 
 // Telnet Protocol Command Types
@@ -1097,6 +1163,16 @@ export interface TelnetCommand {
   suppressOutput?: boolean;
   waitForPrompt?: boolean;
   isPrivileged?: boolean;
+  status?: 'pending' | 'executing' | 'completed' | 'failed' | 'timeout'; // Missing property
+  timestamp?: Date; // Missing property
+  startedAt?: Date;
+  completedAt?: Date;
+  result?: {
+    output: string;
+    exitCode?: number;
+    error?: string;
+    duration?: number;
+  };
 }
 
 // Telnet Device Patterns
@@ -1656,7 +1732,7 @@ export interface ConnectionPoolConfig {
 // Session Management Types
 export interface SessionState {
   id: string;
-  status: 'initializing' | 'running' | 'paused' | 'stopped' | 'failed' | 'recovering';
+  status: 'initializing' | 'running' | 'paused' | 'stopped' | 'failed' | 'recovering' | 'terminated';
   type: 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal';
   createdAt: Date;
   lastActivity: Date;
@@ -2648,6 +2724,7 @@ export interface WinRMConnectionOptions {
   
   // SSL/TLS settings
   enableTLS?: boolean;
+  useSSL?: boolean; // Alternative SSL property
   ignoreCertErrors?: boolean;
   verifySSL?: boolean;
   caCertificate?: string;
@@ -2816,6 +2893,11 @@ export interface IPMIConnectionOptions {
     session: number;
     sol: number;
   };
+  
+  // Monitoring Settings
+  sensorPollingInterval?: number; // Default: 30000ms
+  enableEventLog?: boolean; // Default: false
+  eventLogPollingInterval?: number; // Default: 60000ms
 }
 
 // IPC Connection Options
@@ -3051,11 +3133,20 @@ export interface IPCMessage {
   };
 }
 
+export interface WinRMSession {
+  id: string;
+  sessionId: string;
+  state: WinRMSessionState;
+  options: WinRMConnectionOptions;
+  activeCommands: Map<string, { command: string; startTime: Date; status: 'running' | 'completed' | 'failed' }>;
+}
+
 export interface WinRMSessionState {
   sessionId: string;
   shellId?: string;
   commandId?: string;
   connectionState?: 'disconnected' | 'connecting' | 'connected' | 'authenticated' | 'ready' | 'executing' | 'error';
+  isConnected: boolean; // Added for consistency with other session states
   authenticationType?: 'basic' | 'negotiate' | 'ntlm' | 'kerberos' | 'credssp' | 'certificate';
   protocolVersion?: string;
   serverInfo?: {
@@ -3126,6 +3217,23 @@ export interface WinRMSessionState {
     faultString?: string;
     faultCode?: string;
   };
+  outputBuffer?: Array<{
+    data: string;
+    timestamp: Date;
+    stream: 'stdout' | 'stderr';
+  }>;
+}
+
+export interface WinRMProtocol {
+  connect(options: WinRMConnectionOptions): Promise<WinRMSession>;
+  disconnect(session: WinRMSession): Promise<void>;
+  executeCommand(session: WinRMSession, command: string): Promise<{ stdout: string; stderr: string; exitCode: number }>;
+  createShell(session: WinRMSession): Promise<string>;
+  executeInShell(session: WinRMSession, shellId: string, command: string): Promise<string>;
+  closeShell(session: WinRMSession, shellId: string): Promise<void>;
+  isConnected(session: WinRMSession): boolean;
+  getCapabilities(): Promise<WinRMCapabilities>;
+  healthCheck(session: WinRMSession): Promise<WinRMHealthCheck>;
 }
 
 // IPMI Session State
@@ -4252,6 +4360,10 @@ export interface WebSocketTerminalSessionState {
   terminalSize: { cols: number; rows: number };
   currentEncoding: string;
   cursorPosition?: { x: number; y: number };
+  terminalType?: string;
+  encoding?: string;
+  bytesTransferred?: number;
+  supportsReconnection?: boolean;
   
   // WebSocket state
   webSocket?: any; // WebSocket instance
@@ -4783,6 +4895,109 @@ export interface AnsibleProtocolConfig {
   enableVault: boolean;
   enableCollections: boolean;
   enableDryRun: boolean;
+}
+
+// Protocol interfaces re-exports
+export type { IProtocol, ProtocolCapabilities } from '../core/ProtocolFactory.js';
+
+// Telnet Session State Interface (missing definition)
+export interface TelnetSessionState {
+  sessionId: string;
+  connectionState: 'disconnected' | 'connecting' | 'connected' | 'authenticated' | 'ready' | 'executing' | 'error';
+  username?: string;
+  host?: string;
+  port?: number;
+  protocol?: string;
+  authType?: 'password' | 'publickey' | 'none';
+  connectedAt?: Date;
+  lastActivity?: Date;
+  isConnected: boolean;
+  currentCommand?: string;
+  commandHistory: string[];
+  commandQueue?: TelnetCommand[]; // Missing property
+  deviceType?: 'cisco' | 'juniper' | 'huawei' | 'generic';
+  privilegeLevel?: 'user' | 'privileged' | 'config';
+  activeOptions?: TelnetOption[];
+  options?: any; // Placeholder for protocol-specific options
+  bufferSize: number;
+  encoding: string;
+  lineEnding: '\r\n' | '\n' | '\r';
+  timeout: number;
+  retryCount: number;
+  statistics?: {
+    bytesReceived: number;
+    bytesSent: number;
+    commandsExecuted: number;
+    errors: number;
+    reconnections: number;
+    sessionDuration: number;
+  };
+  errorState?: {
+    lastError?: string;
+    errorCode?: number;
+    errorMessage?: string;
+    recoverable: boolean;
+  };
+}
+
+// Missing interfaces for compilation error fixes
+export interface ProtocolHealthStatus {
+  isHealthy: boolean;
+  lastCheck: Date;
+  issues: string[];
+  uptime: number;
+  responseTime: number;
+  errorCount: number;
+  warningCount: number;
+  status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
+}
+export interface OutputCaptureConfig {
+  maxBufferSize?: number;
+  enableLogging?: boolean;
+  logFile?: string;
+  truncateOnOverflow?: boolean;
+  preserveAnsiEscapes?: boolean;
+}
+
+export interface MonitoringConfig {
+  sessionId?: string;
+  enableMetrics?: boolean;
+  enableTracing?: boolean;
+  enableProfiling?: boolean;
+  enableAuditing?: boolean;
+  enableAnomalyDetection?: boolean;
+  customTags?: Record<string, string>;
+  slaConfig?: SLAConfig;
+}
+
+export interface ErrorDetector {
+  processLine(line: string): ParsedError | null;
+  getPatterns(): ErrorPattern[];
+  addPattern(pattern: ErrorPattern): void;
+  removePattern(patternId: string): void;
+  reset(): void;
+}
+
+export interface PromptDetectionResult {
+  isPrompt: boolean;
+  prompt?: string;
+  confidence: number;
+  patternMatched?: string;
+  extractedContext?: Record<string, any>;
+}
+
+// Connection pooling options
+export interface ConnectionPoolingOptions {
+  maxSessions?: number;
+  maxIdleTime?: number;
+  healthCheckInterval?: number;
+  retryAttempts?: number;
+}
+
+// Extended session manager configuration
+export interface ExtendedSessionManagerConfig {
+  maxConcurrentSessions?: number;
+  persistSessions?: boolean;
 }
 
 // Re-export workflow types for easy access

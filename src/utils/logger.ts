@@ -2,6 +2,7 @@ import * as winston from 'winston';
 import * as path from 'path';
 
 export class Logger {
+  private static instance: Logger;
   private logger: winston.Logger;
 
   constructor(context: string) {
@@ -49,5 +50,16 @@ export class Logger {
 
   debug(message: string, meta?: any) {
     this.logger.debug(message, meta);
+  }
+
+  getWinstonLogger(): winston.Logger {
+    return this.logger;
+  }
+
+  static getInstance(context: string = 'default'): Logger {
+    if (!Logger.instance) {
+      Logger.instance = new Logger(context);
+    }
+    return Logger.instance;
   }
 }

@@ -8,12 +8,15 @@
  */
 
 import { ConsoleAutomationServer } from './mcp/server.js';
-import { consoleManager } from './core/ConsoleManager.js';
+import { ConsoleManager } from './core/ConsoleManager.js';
 import { protocolFactory } from './core/ProtocolFactory.js';
 import { Logger } from './utils/logger.js';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { platform } from 'os';
+
+// Create ConsoleManager instance
+const consoleManager = new ConsoleManager();
 
 // Parse command line arguments
 const argv = yargs(hideBin(process.argv))
@@ -352,20 +355,15 @@ async function performSystemHealthCheck(): Promise<void> {
   try {
     logger.info('Performing initial system health check...');
     
-    const healthStatus = await consoleManager.getSystemHealthStatus();
+    const healthStatus = await consoleManager.getHealthStatus();
     
-    logger.info(`System health status: ${healthStatus.overall}`);
-    logger.info(`Active protocols: ${Object.keys(healthStatus.protocols).length}`);
-    logger.info(`Total sessions: ${healthStatus.sessions.total}`);
+    logger.info(`System health status: ${healthStatus.systemHealth ? 'healthy' : 'unknown'}`);
+    logger.info(`Active sessions: ${healthStatus.sessionHealth.size}`);
+    logger.info(`Active connections: ${healthStatus.connectionHealth.size}`);
     
-    if (healthStatus.overall !== 'healthy') {
-      logger.warn('System is not fully healthy:');
-      
-      Object.entries(healthStatus.protocols).forEach(([protocol, status]) => {
-        if (!status.isHealthy) {
-          logger.warn(`  - ${protocol}: ${status.errors.join(', ')}`);
-        }
-      });
+    if (healthStatus.systemHealth && typeof healthStatus.systemHealth === 'object') {
+      logger.info(`System metrics available: ${!!healthStatus.metrics}`);
+      logger.info(`Healing stats: ${JSON.stringify(healthStatus.healingStats)}`);
     }
     
   } catch (error) {
@@ -385,7 +383,7 @@ function setupGracefulShutdown(): void {
       logger.info('Stopping server...');
       
       // Dispose of console manager and all sessions
-      await consoleManager.dispose();
+      await consoleManager.destroy();
       
       logger.info('Graceful shutdown complete');
       process.exit(0);
@@ -406,7 +404,7 @@ function setupGracefulShutdown(): void {
   });
   
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled rejection at:', promise, 'reason:', reason);
+    logger.error('Unhandled rejection', { promise, reason });
     gracefulShutdown('unhandledRejection').catch(() => process.exit(1));
   });
 }
@@ -428,8 +426,7 @@ async function main(): Promise<void> {
     await registerProtocols();
     
     // Initialize console manager
-    logger.info('Initializing console manager...');
-    await consoleManager.initialize();
+    logger.info('Console manager ready...');
     
     // Create and start MCP server
     logger.info('Starting MCP server...');

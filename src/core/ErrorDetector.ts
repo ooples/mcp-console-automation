@@ -557,4 +557,30 @@ export class ErrorDetector {
       return score + severityWeights[error.pattern.severity];
     }, 0);
   }
+
+  /**
+   * Add multiple patterns at once - convenience method
+   */
+  addPatterns(patterns: ExtendedErrorPattern[]): void {
+    patterns.forEach(pattern => this.addPattern(pattern));
+  }
+
+  /**
+   * Remove multiple patterns by regex - convenience method
+   */
+  removePatterns(patterns: RegExp[]): void {
+    patterns.forEach(pattern => this.removePattern(pattern));
+  }
+
+  /**
+   * Process output - alias for detect method to match interface expectations
+   */
+  processOutput(output: any): ParsedError[] {
+    if (typeof output === 'string') {
+      return this.detect(output);
+    } else if (output && typeof output.data === 'string') {
+      return this.detect(output.data);
+    }
+    return [];
+  }
 }

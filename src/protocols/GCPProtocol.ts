@@ -1,11 +1,52 @@
 import { EventEmitter } from 'events';
-import { GoogleAuth, JWT, OAuth2Client, UserRefreshClient } from 'google-auth-library';
-import { Compute, InstancesClient, ZonesClient } from '@google-cloud/compute';
-import { OSLoginServiceClient } from '@google-cloud/os-login';
 import { spawn, ChildProcess } from 'child_process';
-import { createTunnel } from 'tunnel-ssh';
-import WebSocket from 'ws';
-import * as gcpMetadata from 'gcp-metadata';
+import { WebSocket } from 'ws';
+
+// Google Cloud SDK imports - made optional to handle missing dependencies
+let GoogleAuth: any, JWT: any, OAuth2Client: any, UserRefreshClient: any;
+let Compute: any, InstancesClient: any, ZonesClient: any;
+let OSLoginServiceClient: any;
+let createTunnel: any;
+let gcpMetadata: any;
+
+try {
+  const authModule = require('google-auth-library');
+  GoogleAuth = authModule.GoogleAuth;
+  JWT = authModule.JWT;
+  OAuth2Client = authModule.OAuth2Client;
+  UserRefreshClient = authModule.UserRefreshClient;
+} catch (error) {
+  console.warn('google-auth-library not available, GCP authentication functionality will be disabled');
+}
+
+try {
+  const computeModule = require('@google-cloud/compute');
+  Compute = computeModule.Compute;
+  InstancesClient = computeModule.InstancesClient;
+  ZonesClient = computeModule.ZonesClient;
+} catch (error) {
+  console.warn('@google-cloud/compute not available, Compute Engine functionality will be disabled');
+}
+
+try {
+  const osLoginModule = require('@google-cloud/os-login');
+  OSLoginServiceClient = osLoginModule.OSLoginServiceClient;
+} catch (error) {
+  console.warn('@google-cloud/os-login not available, OS Login functionality will be disabled');
+}
+
+try {
+  const tunnelModule = require('tunnel-ssh');
+  createTunnel = tunnelModule.createTunnel;
+} catch (error) {
+  console.warn('tunnel-ssh not available, SSH tunneling functionality will be disabled');
+}
+
+try {
+  gcpMetadata = require('gcp-metadata');
+} catch (error) {
+  console.warn('gcp-metadata not available, metadata service functionality will be disabled');
+}
 import { v4 as uuidv4 } from 'uuid';
 import { 
   GCPConnectionOptions, 
@@ -24,6 +65,24 @@ import {
 } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 
+// Type interfaces for GCP SDK types when not available
+interface GoogleAuthLike {
+  getClient(): Promise<any>;
+  getProjectId(): Promise<string>;
+}
+
+interface InstancesClientLike {
+  get(params: { project: string; zone: string; instance: string }): Promise<[any]>;
+}
+
+interface OSLoginServiceClientLike {
+  importSshPublicKey(params: any): Promise<any>;
+}
+
+interface ZonesClientLike {
+  list(params: { project: string }): Promise<[any[]]>;
+}
+
 /**
  * Google Cloud Platform Protocol Implementation
  * 
@@ -36,10 +95,10 @@ import { Logger } from '../utils/logger.js';
  * - Quota and rate limiting management
  */
 export class GCPProtocol extends EventEmitter {
-  private auth: GoogleAuth;
-  private computeClient: InstancesClient;
-  private osLoginClient: OSLoginServiceClient;
-  private zonesClient: ZonesClient;
+  private auth!: GoogleAuthLike;
+  private computeClient!: InstancesClientLike;
+  private osLoginClient!: OSLoginServiceClientLike;
+  private zonesClient!: ZonesClientLike;
   private logger: Logger;
   
   // Session management
@@ -90,6 +149,10 @@ export class GCPProtocol extends EventEmitter {
    */
   private async initializeClients(): Promise<void> {
     try {
+      if (!GoogleAuth) {
+        throw new Error('google-auth-library is required but not available');
+      }
+
       this.auth = new GoogleAuth({
         scopes: [
           ...this.CLOUD_SHELL_SCOPES,
@@ -98,17 +161,23 @@ export class GCPProtocol extends EventEmitter {
         ]
       });
 
-      this.computeClient = new InstancesClient({
-        auth: this.auth
-      });
+      if (InstancesClient) {
+        this.computeClient = new InstancesClient({
+          auth: this.auth
+        });
+      }
       
-      this.osLoginClient = new OSLoginServiceClient({
-        auth: this.auth
-      });
+      if (OSLoginServiceClient) {
+        this.osLoginClient = new OSLoginServiceClient({
+          auth: this.auth
+        });
+      }
       
-      this.zonesClient = new ZonesClient({
-        auth: this.auth
-      });
+      if (ZonesClient) {
+        this.zonesClient = new ZonesClient({
+          auth: this.auth
+        });
+      }
 
       this.logger.info('GCP clients initialized successfully');
     } catch (error) {
@@ -235,7 +304,7 @@ export class GCPProtocol extends EventEmitter {
           internalIp: instance.networkInterfaces?.[0]?.networkIP,
           externalIp: instance.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP,
           username: osLoginInfo?.username || options.osLoginUser || 'user',
-          sshKeys: instance.metadata?.items?.find(item => item.key === 'ssh-keys')?.value?.split('\n') || []
+          sshKeys: instance.metadata?.items?.find((item: any) => item.key === 'ssh-keys')?.value?.split('\n') || []
         },
         osLogin: osLoginInfo,
         iapTunnel: iapTunnelInfo,
@@ -301,7 +370,7 @@ export class GCPProtocol extends EventEmitter {
           location: clusterLocation,
           network: cluster.network,
           subnetwork: cluster.subnetwork,
-          masterAuthorizedNetworks: cluster.masterAuthorizedNetworksConfig?.cidrBlocks?.map(block => block.cidrBlock) || []
+          masterAuthorizedNetworks: cluster.masterAuthorizedNetworksConfig?.cidrBlocks?.map((block: any) => block.cidrBlock) || []
         },
         metadata: options.metadata
       };
@@ -398,15 +467,15 @@ export class GCPProtocol extends EventEmitter {
   listSessions(): Array<{ sessionId: string; type: string; session: any }> {
     const sessions: Array<{ sessionId: string; type: string; session: any }> = [];
     
-    for (const [sessionId, session] of this.cloudShellSessions) {
+    for (const [sessionId, session] of Array.from(this.cloudShellSessions)) {
       sessions.push({ sessionId, type: 'gcp-shell', session });
     }
     
-    for (const [sessionId, session] of this.computeSessions) {
+    for (const [sessionId, session] of Array.from(this.computeSessions)) {
       sessions.push({ sessionId, type: 'gcp-ssh', session });
     }
     
-    for (const [sessionId, session] of this.gkeSessions) {
+    for (const [sessionId, session] of Array.from(this.gkeSessions)) {
       sessions.push({ sessionId, type: 'gcp-oslogin', session });
     }
     
@@ -415,7 +484,7 @@ export class GCPProtocol extends EventEmitter {
 
   // Private helper methods
 
-  private async getAuthenticatedClient(options: GCPConnectionOptions): Promise<JWT | OAuth2Client | UserRefreshClient> {
+  private async getAuthenticatedClient(options: GCPConnectionOptions): Promise<any> {
     if (options.oauth2Config) {
       return this.createOAuth2Client(options.oauth2Config);
     }
@@ -425,10 +494,14 @@ export class GCPProtocol extends EventEmitter {
     }
     
     // Default to ADC (Application Default Credentials)
-    return this.auth.getClient() as Promise<JWT | OAuth2Client | UserRefreshClient>;
+    return this.auth.getClient();
   }
 
-  private createOAuth2Client(oauth2Config: NonNullable<GCPConnectionOptions['oauth2Config']>): OAuth2Client {
+  private createOAuth2Client(oauth2Config: NonNullable<GCPConnectionOptions['oauth2Config']>): any {
+    if (!OAuth2Client) {
+      throw new Error('OAuth2Client from google-auth-library is required but not available');
+    }
+
     const client = new OAuth2Client({
       clientId: oauth2Config.clientId,
       clientSecret: oauth2Config.clientSecret,
@@ -445,7 +518,11 @@ export class GCPProtocol extends EventEmitter {
     return client;
   }
 
-  private createServiceAccountClient(options: GCPConnectionOptions): JWT {
+  private createServiceAccountClient(options: GCPConnectionOptions): any {
+    if (!JWT) {
+      throw new Error('JWT from google-auth-library is required but not available');
+    }
+
     let credentials;
     
     if (options.keyFile) {
@@ -465,9 +542,9 @@ export class GCPProtocol extends EventEmitter {
     });
   }
 
-  private async getTokenInfo(client: JWT | OAuth2Client | UserRefreshClient): Promise<GCPTokenInfo> {
+  private async getTokenInfo(client: any): Promise<GCPTokenInfo> {
     const accessToken = await client.getAccessToken();
-    const credentials = client.credentials;
+    const credentials = client.credentials || {};
     
     return {
       accessToken: accessToken.token!,
@@ -477,9 +554,9 @@ export class GCPProtocol extends EventEmitter {
       expiresOn: new Date(credentials.expiry_date || Date.now() + 3600000),
       scope: (credentials.scope as string)?.split(' ') || [],
       projectId: await this.getDefaultProjectId(),
-      clientId: (client as OAuth2Client)._clientId,
-      clientEmail: (client as JWT).email,
-      serviceAccount: client instanceof JWT
+      clientId: client._clientId,
+      clientEmail: client.email,
+      serviceAccount: JWT && client instanceof JWT
     };
   }
 
@@ -488,9 +565,13 @@ export class GCPProtocol extends EventEmitter {
       return await this.auth.getProjectId();
     } catch (error) {
       // Fallback to metadata service if available
-      try {
-        return await gcpMetadata.project('project-id');
-      } catch (metadataError) {
+      if (gcpMetadata) {
+        try {
+          return await gcpMetadata.project('project-id');
+        } catch (metadataError) {
+          throw new Error('Unable to determine project ID. Please specify projectId in options.');
+        }
+      } else {
         throw new Error('Unable to determine project ID. Please specify projectId in options.');
       }
     }
@@ -565,6 +646,9 @@ export class GCPProtocol extends EventEmitter {
   }
 
   private async getComputeInstance(projectId: string, zone: string, instanceName: string): Promise<any> {
+    if (!this.computeClient || !InstancesClient) {
+      throw new Error('@google-cloud/compute is required but not available');
+    }
     const [instance] = await this.computeClient.get({
       project: projectId,
       zone: zone,
@@ -795,7 +879,7 @@ export class GCPProtocol extends EventEmitter {
    */
   async cleanup(): Promise<void> {
     // Close all WebSocket connections
-    for (const [sessionId, ws] of this.webSocketConnections) {
+    for (const [sessionId, ws] of Array.from(this.webSocketConnections)) {
       try {
         ws.close();
       } catch (error) {
@@ -804,7 +888,7 @@ export class GCPProtocol extends EventEmitter {
     }
 
     // Kill all SSH processes
-    for (const [sessionId, process] of this.sshConnections) {
+    for (const [sessionId, process] of Array.from(this.sshConnections)) {
       try {
         process.kill();
       } catch (error) {
@@ -813,7 +897,7 @@ export class GCPProtocol extends EventEmitter {
     }
 
     // Close all IAP tunnels
-    for (const [sessionId, tunnel] of this.iapTunnels) {
+    for (const [sessionId, tunnel] of Array.from(this.iapTunnels)) {
       try {
         tunnel.close();
       } catch (error) {

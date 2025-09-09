@@ -1,4 +1,10 @@
-import WebSocket from 'ws';
+import { WebSocket, type Data } from 'ws';
+
+// WebSocket ready states constants
+const WS_CONNECTING = 0;
+const WS_OPEN = 1;
+const WS_CLOSING = 2;
+const WS_CLOSED = 3;
 import { EventEmitter } from 'events';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -231,6 +237,25 @@ export class WebSocketTerminalProtocol extends EventEmitter {
   }
 
   /**
+   * Send input to terminal (alias for sendData for compatibility)
+   */
+  async sendInput(sessionId: string, input: string): Promise<void> {
+    await this.sendData(sessionId, input);
+  }
+
+  /**
+   * Reconnect session
+   */
+  async reconnectSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+    
+    await session.reconnect();
+  }
+
+  /**
    * Resize terminal
    */
   async resizeTerminal(sessionId: string, cols: number, rows: number): Promise<void> {
@@ -347,7 +372,11 @@ export class WebSocketTerminalProtocol extends EventEmitter {
         rows: options.rows || this.config.defaultRows
       },
       currentEncoding: options.encoding || this.config.defaultEncoding,
-      readyState: WebSocket.WebSocket.CLOSED,
+      terminalType: options.terminalType || this.config.defaultTerminalType,
+      encoding: options.encoding || this.config.defaultEncoding,
+      bytesTransferred: 0,
+      supportsReconnection: true,
+      readyState: WS_CLOSED,
       inputBuffer: [],
       outputBuffer: [],
       bufferSize: 0,
@@ -501,7 +530,7 @@ export class WebSocketTerminalProtocol extends EventEmitter {
 class WebSocketTerminalSession extends EventEmitter {
   public readonly sessionId: string;
   private options: WebSocketTerminalConnectionOptions;
-  private state: WebSocketTerminalSessionState;
+  public state: WebSocketTerminalSessionState;
   private config: WebSocketTerminalProtocolConfig;
   private webSocket?: WebSocket;
   private reconnectTimeout?: NodeJS.Timeout;
@@ -570,6 +599,15 @@ class WebSocketTerminalSession extends EventEmitter {
     
     this.state.connectionState = 'disconnected';
     this.emit('disconnected');
+  }
+
+  /**
+   * Reconnect to WebSocket terminal
+   */
+  async reconnect(): Promise<void> {
+    await this.disconnect();
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay before reconnecting
+    await this.connect();
   }
 
   /**
@@ -820,29 +858,29 @@ class WebSocketTerminalSession extends EventEmitter {
         }
         
         // Create WebSocket
-        this.webSocket = new WebSocket.WebSocket(
+        this.webSocket = new WebSocket(
           this.options.url,
           this.options.protocol,
           wsOptions
         );
         
         this.webSocket.on('open', () => {
-          this.state.readyState = WebSocket.WebSocket.OPEN;
+          this.state.readyState = WS_OPEN;
           this.isAuthenticated = this.options.authType === 'none' || !this.options.authType;
           resolve();
         });
         
-        this.webSocket.on('message', (data: WebSocket.Data) => {
+        this.webSocket.on('message', (data: Data) => {
           this.handleMessage(data);
         });
         
         this.webSocket.on('close', (code: number, reason: string) => {
-          this.state.readyState = WebSocket.WebSocket.CLOSED;
+          this.state.readyState = WS_CLOSED;
           this.handleClose(code, reason);
         });
         
         this.webSocket.on('error', (error: Error) => {
-          this.state.readyState = WebSocket.WebSocket.CLOSED;
+          this.state.readyState = WS_CLOSED;
           reject(error);
         });
         
@@ -961,7 +999,7 @@ class WebSocketTerminalSession extends EventEmitter {
   }
 
   private async sendMessage(message: WebSocketTerminalMessage): Promise<void> {
-    if (!this.webSocket || this.webSocket.readyState !== WebSocket.WebSocket.OPEN) {
+    if (!this.webSocket || this.webSocket.readyState !== WS_OPEN) {
       this.messageQueue.push(message);
       return;
     }
@@ -989,7 +1027,7 @@ class WebSocketTerminalSession extends EventEmitter {
     }
   }
 
-  private handleMessage(data: WebSocket.Data): void {
+  private handleMessage(data: Data): void {
     try {
       this.state.statistics.messagesReceived++;
       this.state.statistics.bytesReceived += this.getDataLength(data);
@@ -1120,7 +1158,7 @@ class WebSocketTerminalSession extends EventEmitter {
     this.emit('message_received', message);
   }
 
-  private getDataLength(data: WebSocket.Data): number {
+  private getDataLength(data: Data): number {
     if (typeof data === 'string') {
       return data.length;
     } else if (Buffer.isBuffer(data)) {

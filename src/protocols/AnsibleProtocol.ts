@@ -35,6 +35,7 @@ import {
 
 import { Logger } from '../utils/logger.js';
 import { MonitoringSystem } from '../monitoring/MonitoringSystem.js';
+import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
 
 export interface AnsibleExecutionContext {
   sessionId: string;
@@ -88,7 +89,11 @@ export interface AnsibleGalaxyOptions {
   rolesPath?: string;
 }
 
-export class AnsibleProtocol extends EventEmitter {
+export class AnsibleProtocol extends EventEmitter implements IProtocol {
+  public readonly type: ConsoleType = 'ansible';
+  public readonly capabilities: ProtocolCapabilities;
+  public readonly healthStatus: ProtocolHealthStatus;
+  
   private logger: Logger;
   private monitoring?: MonitoringSystem;
   private sessions: Map<string, AnsibleSession> = new Map();
@@ -97,6 +102,7 @@ export class AnsibleProtocol extends EventEmitter {
   private callbackBuffer: Map<string, AnsibleCallbackEvent[]> = new Map();
   private vaultPasswords: Map<string, string> = new Map();
   private config: AnsibleProtocolConfig;
+  private _healthStatus: ProtocolHealthStatus;
 
   // Default configuration
   private static readonly DEFAULT_CONFIG: AnsibleProtocolConfig = {
@@ -128,6 +134,58 @@ export class AnsibleProtocol extends EventEmitter {
     super();
     this.logger = new Logger('AnsibleProtocol');
     this.config = { ...AnsibleProtocol.DEFAULT_CONFIG, ...config };
+    
+    // Initialize capabilities
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: false,
+      supportsX11Forwarding: false,
+      supportsPortForwarding: false,
+      supportsAuthentication: true,
+      supportsEncryption: true,
+      supportsCompression: false,
+      supportsMultiplexing: true,
+      supportsKeepAlive: true,
+      supportsReconnection: false,
+      supportsBinaryData: false,
+      supportsCustomEnvironment: true,
+      supportsWorkingDirectory: true,
+      supportsSignals: true,
+      supportsResizing: false,
+      supportsPTY: false,
+      maxConcurrentSessions: 50,
+      defaultTimeout: 300000,
+      supportedEncodings: ['utf-8'],
+      supportedAuthMethods: ['ssh-key', 'password'],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: true
+      }
+    };
+    
+    // Initialize health status
+    this._healthStatus = {
+      isHealthy: true,
+      lastChecked: new Date(),
+      errors: [],
+      warnings: [],
+      metrics: {
+        activeSessions: 0,
+        totalSessions: 0,
+        averageLatency: 0,
+        successRate: 100,
+        uptime: 0
+      },
+      dependencies: {
+        ansible: { available: false },
+        python: { available: false }
+      }
+    };
+    
+    this.healthStatus = this._healthStatus;
+    
     this.initializeCallbacks();
   }
 
@@ -143,9 +201,116 @@ export class AnsibleProtocol extends EventEmitter {
   }
 
   /**
-   * Create a new Ansible session
+   * Initialize the protocol
    */
-  public async createSession(options: AnsibleConnectionOptions): Promise<AnsibleSession> {
+  public async initialize(): Promise<void> {
+    try {
+      // Check if ansible is available
+      const ansibleCheck = spawn('ansible', ['--version'], { stdio: 'pipe' });
+      await new Promise<void>((resolve, reject) => {
+        ansibleCheck.on('close', (code) => {
+          if (code === 0) {
+            this._healthStatus.dependencies.ansible = { available: true };
+            resolve();
+          } else {
+            this._healthStatus.dependencies.ansible = { 
+              available: false, 
+              error: 'Ansible not found in PATH' 
+            };
+            reject(new Error('Ansible not available'));
+          }
+        });
+        ansibleCheck.on('error', () => {
+          this._healthStatus.dependencies.ansible = { 
+            available: false, 
+            error: 'Ansible not found' 
+          };
+          reject(new Error('Ansible not available'));
+        });
+      });
+      
+      // Check Python availability
+      const pythonCheck = spawn('python3', ['--version'], { stdio: 'pipe' });
+      await new Promise<void>((resolve) => {
+        pythonCheck.on('close', (code) => {
+          this._healthStatus.dependencies.python = { 
+            available: code === 0 
+          };
+          resolve();
+        });
+        pythonCheck.on('error', () => {
+          this._healthStatus.dependencies.python = { 
+            available: false, 
+            error: 'Python not found' 
+          };
+          resolve();
+        });
+      });
+      
+      this._healthStatus.isHealthy = this._healthStatus.dependencies.ansible.available;
+      this.logger.info('AnsibleProtocol initialized successfully');
+    } catch (error) {
+      this._healthStatus.isHealthy = false;
+      this._healthStatus.errors.push(`Initialization failed: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new console session
+   */
+  public async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    const ansibleOptions = options as AnsibleConnectionOptions;
+    const sessionId = uuidv4();
+    
+    const session: ConsoleSession = {
+      id: sessionId,
+      command: ansibleOptions.playbookPath || ansibleOptions.inventory || 'ansible-playbook',
+      args: [],
+      cwd: process.cwd(),
+      env: process.env as Record<string, string>,
+      createdAt: new Date(),
+      type: 'ansible' as ConsoleType,
+      status: 'initializing',
+      pid: 0,
+      executionState: 'idle',
+      activeCommands: new Map()
+    };
+
+    // Create internal Ansible session for protocol-specific data
+    const ansibleSession: AnsibleSession = {
+      id: sessionId,
+      type: 'playbook',
+      status: 'running',
+      startedAt: new Date(),
+      options: ansibleOptions,
+      results: [],
+      stats: {
+        processed: {},
+        failures: {},
+        ok: {},
+        dark: {},
+        changed: {},
+        skipped: {}
+      },
+      callbacks: this.config.callbackPlugins.map(name => ({
+        name,
+        type: 'stdout' as const,
+        enabled: true
+      }))
+    };
+
+    this.sessions.set(sessionId, ansibleSession);
+    this.callbackBuffer.set(sessionId, []);
+
+    this.logger.info(`Created Ansible session ${sessionId}`);
+    return session;
+  }
+
+  /**
+   * Create a new Ansible session (legacy method)
+   */
+  private async createAnsibleSession(options: AnsibleConnectionOptions): Promise<AnsibleSession> {
     const sessionId = uuidv4();
     const session: AnsibleSession = {
       id: sessionId,
@@ -610,6 +775,85 @@ export class AnsibleProtocol extends EventEmitter {
   }
 
   /**
+   * Execute command in session
+   */
+  public async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    // Parse command as playbook or adhoc command
+    if (command === 'playbook' || command.endsWith('.yml') || command.endsWith('.yaml')) {
+      const playbookOptions: AnsiblePlaybookOptions = {
+        playbook: args?.[0] || command,
+        inventory: args?.[1] || session.options.inventory || 'localhost,',
+        extraVars: args?.[2] ? JSON.parse(args[2]) : undefined
+      };
+      await this.executePlaybook(sessionId, playbookOptions);
+    } else {
+      // Execute as adhoc command
+      await this.executeAdhoc(
+        sessionId,
+        session.options.inventory || 'localhost,',
+        command,
+        args?.join(' ')
+      );
+    }
+  }
+
+  /**
+   * Send input to session
+   */
+  public async sendInput(sessionId: string, input: string): Promise<void> {
+    const process = this.activeProcesses.get(sessionId);
+    if (process && process.stdin) {
+      process.stdin.write(input);
+    }
+  }
+
+  /**
+   * Get output from session
+   */
+  public async getOutput(sessionId: string, since?: Date): Promise<string> {
+    const events = this.callbackBuffer.get(sessionId) || [];
+    
+    let output = '';
+    for (const event of events) {
+      if (!since || event.timestamp >= since) {
+        output += `[${event.timestamp.toISOString()}] ${event.eventType}: ${JSON.stringify(event.result || event)}
+`;
+      }
+    }
+    
+    return output;
+  }
+
+  /**
+   * Close session
+   */
+  public async closeSession(sessionId: string): Promise<void> {
+    await this.cancelSession(sessionId);
+  }
+
+  /**
+   * Get health status
+   */
+  public async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    this._healthStatus.lastChecked = new Date();
+    this._healthStatus.metrics.activeSessions = this.activeProcesses.size;
+    this._healthStatus.metrics.totalSessions = this.sessions.size;
+    return { ...this._healthStatus };
+  }
+
+  /**
+   * Dispose of protocol resources
+   */
+  public async dispose(): Promise<void> {
+    await this.shutdown();
+  }
+
+  /**
    * Get session status and results
    */
   public getSession(sessionId: string): AnsibleSession | undefined {
@@ -627,7 +871,7 @@ export class AnsibleProtocol extends EventEmitter {
    * Clean up completed sessions
    */
   public cleanup(): void {
-    for (const [sessionId, session] of this.sessions) {
+    Array.from(this.sessions.entries()).forEach(([sessionId, session]) => {
       if (session.status === 'completed' || session.status === 'failed' || session.status === 'cancelled') {
         const process = this.activeProcesses.get(sessionId);
         if (process && !process.killed) {
@@ -637,7 +881,7 @@ export class AnsibleProtocol extends EventEmitter {
         this.activeProcesses.delete(sessionId);
         this.callbackBuffer.delete(sessionId);
       }
-    }
+    });
   }
 
   // Private helper methods
@@ -649,25 +893,33 @@ export class AnsibleProtocol extends EventEmitter {
     const context: AnsibleExecutionContext = {
       sessionId,
       workingDirectory: options.playbookPath ? path.dirname(options.playbookPath) : this.config.playbookDir,
-      environment: { ...process.env }
+      environment: Object.fromEntries(
+        Object.entries(process.env).filter(([_, value]) => value !== undefined)
+      ) as Record<string, string>
     };
 
     // Setup Python environment
     if (options.pythonPath || this.config.pythonPath) {
       context.pythonPath = options.pythonPath || this.config.pythonPath;
-      context.environment.PYTHON_PATH = context.pythonPath;
+      if (context.pythonPath) {
+        context.environment.PYTHON_PATH = context.pythonPath;
+      }
     }
 
     if (options.virtualEnv || this.config.virtualEnvPath) {
       context.virtualEnv = options.virtualEnv || this.config.virtualEnvPath;
-      context.environment.VIRTUAL_ENV = context.virtualEnv;
-      context.environment.PATH = `${context.virtualEnv}/bin:${context.environment.PATH}`;
+      if (context.virtualEnv) {
+        context.environment.VIRTUAL_ENV = context.virtualEnv;
+        context.environment.PATH = `${context.virtualEnv}/bin:${context.environment.PATH}`;
+      }
     }
 
     // Setup Ansible configuration
     if (options.ansibleConfig || this.config.configFile) {
       context.configFile = options.ansibleConfig || this.config.configFile;
-      context.environment.ANSIBLE_CONFIG = context.configFile;
+      if (context.configFile) {
+        context.environment.ANSIBLE_CONFIG = context.configFile;
+      }
     }
 
     // Setup inventory
@@ -942,7 +1194,7 @@ export class AnsibleProtocol extends EventEmitter {
     };
 
     // Parse PLAY RECAP section
-    const recapMatch = output.match(/PLAY RECAP \*+(.*?)(?=\n\n|\nTASK|\n$|$)/s);
+    const recapMatch = output.match(/PLAY RECAP \*+([\s\S]*?)(?=\n\n|\nTASK|\n$|$)/);
     if (recapMatch) {
       const recapSection = recapMatch[1];
       const lines = recapSection.split('\n').filter(line => line.trim());
@@ -1091,12 +1343,12 @@ export class AnsibleProtocol extends EventEmitter {
     }
     
     const facts: Record<string, any> = {};
-    for (const [key, value] of this.factCache) {
+    Array.from(this.factCache.entries()).forEach(([key, value]) => {
       if (key.startsWith(`${sessionId}:`)) {
         const hostName = key.substring(`${sessionId}:`.length);
         facts[hostName] = value;
       }
-    }
+    });
     return facts;
   }
 

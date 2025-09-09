@@ -232,7 +232,7 @@ export class ProtocolFactory extends EventEmitter {
 
   private constructor() {
     super();
-    this.logger = Logger.getInstance();
+    this.logger = new Logger('ProtocolFactory');
     this.setupDefaultConfigs();
     this.registerDefaultProtocols();
   }
@@ -260,6 +260,18 @@ export class ProtocolFactory extends EventEmitter {
     };
 
     // Set specific configs for different protocol types
+    const protocolTypes: ConsoleType[] = [
+      'cmd', 'powershell', 'bash', 'ssh', 'telnet', 'docker', 'kubectl',
+      'azure-shell', 'gcp-shell', 'aws-ssm', 'wsl', 'serial', 'rdp', 'vnc',
+      'winrm', 'websocket-term', 'ansible'
+    ];
+
+    // Set default config for all protocol types
+    protocolTypes.forEach(type => {
+      this.protocolConfigs.set(type, { ...defaultConfig });
+    });
+
+    // Override specific configs for different protocol types
     this.protocolConfigs.set('ssh', {
       ...defaultConfig,
       maxSessions: 20,
@@ -531,7 +543,7 @@ export class ProtocolFactory extends EventEmitter {
   public async getOverallHealthStatus(): Promise<Record<string, ProtocolHealthStatus>> {
     const healthStatuses: Record<string, ProtocolHealthStatus> = {};
     
-    for (const [key, protocol] of this.protocolInstances) {
+    for (const [key, protocol] of Array.from(this.protocolInstances.entries())) {
       try {
         healthStatuses[key] = await protocol.getHealthStatus();
       } catch (error) {

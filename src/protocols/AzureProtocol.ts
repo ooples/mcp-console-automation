@@ -1,16 +1,46 @@
 import { EventEmitter } from 'eventemitter3';
-import * as WebSocket from 'ws';
-import { 
-  DefaultAzureCredential, 
-  ClientSecretCredential, 
-  ManagedIdentityCredential,
-  ChainedTokenCredential,
-  AzureCliCredential,
-  InteractiveBrowserCredential
-} from '@azure/identity';
-import { ComputeManagementClient } from '@azure/arm-compute';
-import { NetworkManagementClient } from '@azure/arm-network';
-import { SecretClient } from '@azure/keyvault-secrets';
+import { WebSocket } from 'ws';
+
+// Azure SDK imports - made optional to handle missing dependencies
+let DefaultAzureCredential: any, ClientSecretCredential: any, ManagedIdentityCredential: any,
+    ChainedTokenCredential: any, AzureCliCredential: any, InteractiveBrowserCredential: any,
+    ClientCertificateCredential: any;
+
+try {
+  const identityModule = require('@azure/identity');
+  DefaultAzureCredential = identityModule.DefaultAzureCredential;
+  ClientSecretCredential = identityModule.ClientSecretCredential;
+  ManagedIdentityCredential = identityModule.ManagedIdentityCredential;
+  ChainedTokenCredential = identityModule.ChainedTokenCredential;
+  AzureCliCredential = identityModule.AzureCliCredential;
+  InteractiveBrowserCredential = identityModule.InteractiveBrowserCredential;
+  ClientCertificateCredential = identityModule.ClientCertificateCredential;
+} catch (error) {
+  console.warn('@azure/identity not available, Azure identity functionality will be disabled');
+}
+
+let ComputeManagementClient: any, NetworkManagementClient: any, SecretClient: any;
+
+try {
+  const computeModule = require('@azure/arm-compute');
+  ComputeManagementClient = computeModule.ComputeManagementClient;
+} catch (error) {
+  console.warn('@azure/arm-compute not available, Compute management functionality will be disabled');
+}
+
+try {
+  const networkModule = require('@azure/arm-network');
+  NetworkManagementClient = networkModule.NetworkManagementClient;
+} catch (error) {
+  console.warn('@azure/arm-network not available, Network management functionality will be disabled');
+}
+
+try {
+  const keyVaultModule = require('@azure/keyvault-secrets');
+  SecretClient = keyVaultModule.SecretClient;
+} catch (error) {
+  console.warn('@azure/keyvault-secrets not available, Key Vault functionality will be disabled');
+}
 import {
   AzureConnectionOptions,
   AzureCloudShellSession,
@@ -21,7 +51,70 @@ import {
   ConsoleOutput,
   ConsoleType
 } from '../types/index.js';
-import { Logger } from 'winston';
+import { Logger } from '../utils/logger.js';
+
+// Azure API Response Interfaces
+interface AzureResourceResponse {
+  id: string;
+  type: string;
+  location: string;
+  name: string;
+  properties: any;
+}
+
+interface AzureCloudShellCreateResponse {
+  properties: {
+    uri: string;
+  };
+}
+
+interface AzureCloudShellConnectResponse {
+  properties: {
+    socketUri: string;
+  };
+}
+
+interface AzureBastionConnectionResponse {
+  value: Array<{
+    bsl: string;
+  }>;
+}
+
+interface AzureArcConnectionResponse {
+  properties: {
+    connectionDetails: {
+      socketUri: string;
+    };
+  };
+}
+
+interface AzureHybridConnectionResponse {
+  hybridConnectionString: string;
+}
+
+// Type interfaces for Azure SDK types when not available
+interface AzureCredentialLike {
+  getToken(scope: string | string[]): Promise<{
+    token: string;
+    expiresOnTimestamp: number;
+  }>;
+}
+
+interface ComputeManagementClientLike {
+  virtualMachines: {
+    get(resourceGroupName: string, vmName: string): Promise<any>;
+  };
+}
+
+interface NetworkManagementClientLike {
+  networkInterfaces: {
+    get(resourceGroupName: string, networkInterfaceName: string): Promise<any>;
+  };
+}
+
+interface SecretClientLike {
+  getSecret(secretName: string): Promise<{ value?: string }>;
+}
 
 export interface AzureProtocolEvents {
   'connected': (sessionId: string) => void;
@@ -36,10 +129,10 @@ export interface AzureProtocolEvents {
 export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
   private sessions: Map<string, AzureCloudShellSession | AzureBastionSession | AzureArcSession> = new Map();
   private webSockets: Map<string, WebSocket> = new Map();
-  private credentials: Map<string, any> = new Map();
-  private computeClients: Map<string, ComputeManagementClient> = new Map();
-  private networkClients: Map<string, NetworkManagementClient> = new Map();
-  private secretClients: Map<string, SecretClient> = new Map();
+  private credentials: Map<string, AzureCredentialLike> = new Map();
+  private computeClients: Map<string, ComputeManagementClientLike> = new Map();
+  private networkClients: Map<string, NetworkManagementClientLike> = new Map();
+  private secretClients: Map<string, SecretClientLike> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private tokenRefreshTimers: Map<string, NodeJS.Timeout> = new Map();
   private logger?: Logger;
@@ -317,12 +410,22 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
    * Private methods
    */
 
-  private async getCredential(options: AzureConnectionOptions): Promise<any> {
+  private async getCredential(options: AzureConnectionOptions): Promise<AzureCredentialLike> {
+    if (!DefaultAzureCredential) {
+      throw new Error('@azure/identity package is required but not available');
+    }
+
     if (options.managedIdentity) {
+      if (!ManagedIdentityCredential) {
+        throw new Error('ManagedIdentityCredential not available');
+      }
       return new ManagedIdentityCredential(options.clientId);
     }
 
     if (options.clientId && options.clientSecret && options.tenantId) {
+      if (!ClientSecretCredential) {
+        throw new Error('ClientSecretCredential not available');
+      }
       return new ClientSecretCredential(
         options.tenantId,
         options.clientId,
@@ -331,7 +434,9 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
     }
 
     if (options.clientCertificatePath && options.tenantId && options.clientId) {
-      const { ClientCertificateCredential } = await import('@azure/identity');
+      if (!ClientCertificateCredential) {
+        throw new Error('ClientCertificateCredential not available');
+      }
       return new ClientCertificateCredential(
         options.tenantId,
         options.clientId,
@@ -340,6 +445,11 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
     }
 
     // Use chained credential for maximum compatibility
+    if (!ChainedTokenCredential || !AzureCliCredential || !ManagedIdentityCredential) {
+      // Fallback to DefaultAzureCredential if chained components not available
+      return new DefaultAzureCredential();
+    }
+
     return new ChainedTokenCredential(
       new AzureCliCredential(),
       new ManagedIdentityCredential(),
@@ -347,7 +457,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
     );
   }
 
-  private async getAccessToken(credential: any, scope: string): Promise<AzureTokenInfo> {
+  private async getAccessToken(credential: AzureCredentialLike, scope: string): Promise<AzureTokenInfo> {
     const tokenResponse = await credential.getToken(scope);
     
     return {
@@ -356,7 +466,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       expiresIn: Math.floor((tokenResponse.expiresOnTimestamp - Date.now()) / 1000),
       expiresOn: new Date(tokenResponse.expiresOnTimestamp),
       scope: [scope],
-      tenantId: credential.tenantId || '',
+      tenantId: (credential as any).tenantId || '',
       resource: scope,
       authority: 'https://login.microsoftonline.com/'
     };
@@ -394,7 +504,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       throw new Error(`Failed to create Cloud Shell instance: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as AzureCloudShellCreateResponse;
     return data.properties.uri;
   }
 
@@ -419,7 +529,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       throw new Error(`Failed to get WebSocket URL: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as AzureCloudShellConnectResponse;
     return data.properties.socketUri;
   }
 
@@ -442,7 +552,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       throw new Error(`Failed to get Bastion resource info: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as AzureResourceResponse;
     return {
       resourceId: data.id,
       resourceType: data.type,
@@ -473,7 +583,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       throw new Error(`Failed to get VM resource info: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as AzureResourceResponse;
     return {
       resourceId: data.id,
       resourceType: data.type,
@@ -513,7 +623,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       throw new Error(`Failed to create Bastion connection: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as AzureBastionConnectionResponse;
     return data.value[0]?.bsl || '';
   }
 
@@ -536,7 +646,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       throw new Error(`Failed to get Arc resource info: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as AzureResourceResponse;
     return {
       resourceId: data.id,
       resourceType: data.type,
@@ -574,7 +684,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       throw new Error(`Failed to create Arc connection: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as AzureArcConnectionResponse;
     return data.properties.connectionDetails.socketUri;
   }
 
@@ -596,7 +706,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       throw new Error(`Failed to get hybrid connection string: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as AzureHybridConnectionResponse;
     return data.hybridConnectionString;
   }
 
@@ -623,9 +733,11 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
           resolve();
         });
 
-        webSocket.on('message', (data: WebSocket.Data) => {
+        webSocket.on('message', (data: Buffer | ArrayBuffer | Buffer[]) => {
           try {
-            const message = data.toString();
+            const message = Buffer.isBuffer(data) ? data.toString() : 
+                           data instanceof ArrayBuffer ? Buffer.from(data).toString() :
+                           Buffer.concat(data as Buffer[]).toString();
             const output: ConsoleOutput = {
               sessionId,
               type: 'stdout',
@@ -761,7 +873,10 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
   /**
    * Get secrets from Azure Key Vault
    */
-  private async getKeyVaultSecret(keyVaultUrl: string, secretName: string, credential: any): Promise<string> {
+  private async getKeyVaultSecret(keyVaultUrl: string, secretName: string, credential: AzureCredentialLike): Promise<string> {
+    if (!SecretClient) {
+      throw new Error('@azure/keyvault-secrets package is required but not available');
+    }
     const secretClient = new SecretClient(keyVaultUrl, credential);
     const secret = await secretClient.getSecret(secretName);
     return secret.value || '';

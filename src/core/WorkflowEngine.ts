@@ -799,13 +799,13 @@ export class WorkflowEngine extends EventEmitter {
   cleanup(olderThanHours: number = 24): void {
     const cutoff = Date.now() - (olderThanHours * 60 * 60 * 1000);
     
-    for (const [id, execution] of this.executions.entries()) {
+    Array.from(this.executions.entries()).forEach(([id, execution]) => {
       if (execution.endTime && execution.endTime.getTime() < cutoff) {
         this.executions.delete(id);
         this.taskQueues.delete(id);
         this.stateMachines.delete(id);
       }
-    }
+    });
   }
 
   // Additional private helper methods would go here...
@@ -829,12 +829,12 @@ export class WorkflowEngine extends EventEmitter {
   private getReadyTasks(taskGraph: Map<string, WorkflowTask>, completed: Set<string>): WorkflowTask[] {
     const ready: WorkflowTask[] = [];
     
-    for (const task of taskGraph.values()) {
+    Array.from(taskGraph.values()).forEach(task => {
       const allDependenciesCompleted = task.dependsOn.every(dep => completed.has(dep));
       if (allDependenciesCompleted && !completed.has(task.id)) {
         ready.push(task);
       }
-    }
+    });
     
     return ready;
   }
