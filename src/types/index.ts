@@ -32,6 +32,7 @@ export interface ConsoleSession {
   exitCode?: number;
   type?: ConsoleType;
   streaming?: boolean;
+  timeout?: number; // Configurable timeout in milliseconds
   lastActivity?: Date; // Missing property
   sshOptions?: SSHConnectionOptions;
   telnetOptions?: TelnetConnectionOptions;

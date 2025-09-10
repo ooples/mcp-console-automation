@@ -600,7 +600,7 @@ export class ConsoleAutomationServer {
           args.sessionId,
           args.command,
           args.args,
-          args.timeout || 30000
+          args.timeout || 120000
         );
         
         return {

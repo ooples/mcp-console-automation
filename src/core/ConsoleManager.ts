@@ -426,7 +426,7 @@ export class ConsoleManager extends EventEmitter {
     // Initialize adaptive timeout configuration
     this.adaptiveTimeoutConfig = {
       baseTimeout: 10000,        // 10 seconds base timeout
-      maxTimeout: 60000,         // 60 seconds maximum timeout
+      maxTimeout: 3600000,       // 1 hour maximum timeout (configurable)
       minTimeout: 3000,          // 3 seconds minimum timeout
       latencyMultiplier: 5,      // Multiply measured latency by this factor
       jitterTolerance: 0.3,      // 30% jitter tolerance
@@ -865,7 +865,7 @@ export class ConsoleManager extends EventEmitter {
   /**
    * Execute a command in a session with proper isolation
    */
-  async executeCommandInSession(sessionId: string, command: string, args?: string[], timeout: number = 30000): Promise<{
+  async executeCommandInSession(sessionId: string, command: string, args?: string[], timeout: number = 120000): Promise<{
     commandId: string;
     output: ConsoleOutput[];
     exitCode?: number;
@@ -1507,7 +1507,7 @@ export class ConsoleManager extends EventEmitter {
               env: session.env,
               sshOptions: session.sshOptions,
               streaming: session.streaming,
-              timeout: 30000, // Set default timeout
+              timeout: session.timeout || 120000, // Use session timeout or 2 minute default
               monitoring: {
                 enableMetrics: true,
                 enableTracing: false,
@@ -3591,6 +3591,7 @@ export class ConsoleManager extends EventEmitter {
       status: 'running',
       type: options.consoleType || 'auto',
       streaming: options.streaming || false,
+      timeout: options.timeout, // Pass through the configurable timeout
       sshOptions: options.sshOptions,
       azureOptions: options.azureOptions,
       kubernetesOptions: options.kubernetesOptions,
@@ -7675,7 +7676,7 @@ export class ConsoleManager extends EventEmitter {
     return new Promise((resolve, reject) => {
       const outputs: string[] = [];
       let timeoutHandle: NodeJS.Timeout | null = null;
-      const timeoutMs = options?.timeout || 30000; // Default 30 second timeout
+      const timeoutMs = options?.timeout || 120000; // Default 2 minute timeout (configurable)
       
       const cleanup = () => {
         this.removeListener('console-event', handleEvent);
