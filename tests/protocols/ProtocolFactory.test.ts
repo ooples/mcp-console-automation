@@ -16,7 +16,7 @@ describe('ProtocolFactory', () => {
 
   afterEach(async () => {
     // Mock dispose to avoid errors
-    (factory as any).dispose = jest.fn().mockResolvedValue(undefined);
+    (factory as any).dispose = jest.fn<any>().mockResolvedValue(undefined);
     await (factory as any).dispose();
   });
 
@@ -88,29 +88,29 @@ describe('ProtocolFactory', () => {
             },
             dependencies: {},
           },
-          initialize: jest.fn(),
-          createSession: jest.fn(),
-          executeCommand: jest.fn(),
-          sendInput: jest.fn(),
-          getOutput: jest.fn(),
-          closeSession: jest.fn(),
-          getHealthStatus: jest.fn(),
-          dispose: jest.fn(),
-          on: jest.fn(),
-          off: jest.fn(),
-          emit: jest.fn(),
-          removeAllListeners: jest.fn(),
-          addListener: jest.fn(),
-          once: jest.fn(),
-          removeListener: jest.fn(),
-          setMaxListeners: jest.fn(),
-          getMaxListeners: jest.fn(),
-          listeners: jest.fn(),
-          rawListeners: jest.fn(),
-          listenerCount: jest.fn(),
-          prependListener: jest.fn(),
-          prependOnceListener: jest.fn(),
-          eventNames: jest.fn(),
+          initialize: jest.fn<any>(),
+          createSession: jest.fn<any>(),
+          executeCommand: jest.fn<any>(),
+          sendInput: jest.fn<any>(),
+          getOutput: jest.fn<any>(),
+          closeSession: jest.fn<any>(),
+          getHealthStatus: jest.fn<any>(),
+          dispose: jest.fn<any>(),
+          on: jest.fn<any>(),
+          off: jest.fn<any>(),
+          emit: jest.fn<any>(),
+          removeAllListeners: jest.fn<any>(),
+          addListener: jest.fn<any>(),
+          once: jest.fn<any>(),
+          removeListener: jest.fn<any>(),
+          setMaxListeners: jest.fn<any>(),
+          getMaxListeners: jest.fn<any>(),
+          listeners: jest.fn<any>(),
+          rawListeners: jest.fn<any>(),
+          listenerCount: jest.fn<any>(),
+          prependListener: jest.fn<any>(),
+          prependOnceListener: jest.fn<any>(),
+          eventNames: jest.fn<any>(),
         } as IProtocol),
         customConfig
       );
@@ -158,7 +158,7 @@ describe('ProtocolFactory', () => {
     it('should handle protocol health check failures', async () => {
       // Mock a protocol that throws during health check
       const mockProtocol = {
-        getHealthStatus: jest.fn().mockRejectedValue(new Error('Health check failed')),
+        getHealthStatus: jest.fn<any>().mockRejectedValue(new Error('Health check failed')),
       };
 
       jest.spyOn(factory as any, 'protocolInstances', 'get')

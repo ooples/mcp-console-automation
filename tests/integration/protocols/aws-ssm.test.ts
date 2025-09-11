@@ -26,7 +26,7 @@ jest.mock('@aws-sdk/client-sts');
 jest.mock('@aws-sdk/client-cloudwatch-logs');
 
 const mockSSMClient = {
-  send: jest.fn(),
+  send: jest.fn<any>(),
   config: {
     region: 'us-east-1',
     credentials: {
@@ -37,15 +37,15 @@ const mockSSMClient = {
 };
 
 const mockEC2Client = {
-  send: jest.fn()
+  send: jest.fn<any>()
 };
 
 const mockSTSClient = {
-  send: jest.fn()
+  send: jest.fn<any>()
 };
 
 const mockCloudWatchLogsClient = {
-  send: jest.fn()
+  send: jest.fn<any>()
 };
 
 // Mock WebSocket for Session Manager
@@ -102,30 +102,30 @@ describe('AWSSSMProtocol Integration Tests', () => {
     // Setup AWS SDK mocks
     jest.doMock('@aws-sdk/client-ssm', () => ({
       SSMClient: jest.fn(() => mockSSMClient),
-      StartSessionCommand: jest.fn(),
-      TerminateSessionCommand: jest.fn(),
-      SendCommandCommand: jest.fn(),
-      GetCommandInvocationCommand: jest.fn(),
-      DescribeInstanceInformationCommand: jest.fn(),
-      GetParameterCommand: jest.fn(),
-      PutParameterCommand: jest.fn()
+      StartSessionCommand: jest.fn<any>(),
+      TerminateSessionCommand: jest.fn<any>(),
+      SendCommandCommand: jest.fn<any>(),
+      GetCommandInvocationCommand: jest.fn<any>(),
+      DescribeInstanceInformationCommand: jest.fn<any>(),
+      GetParameterCommand: jest.fn<any>(),
+      PutParameterCommand: jest.fn<any>()
     }));
 
     jest.doMock('@aws-sdk/client-ec2', () => ({
       EC2Client: jest.fn(() => mockEC2Client),
-      DescribeInstancesCommand: jest.fn()
+      DescribeInstancesCommand: jest.fn<any>()
     }));
 
     jest.doMock('@aws-sdk/client-sts', () => ({
       STSClient: jest.fn(() => mockSTSClient),
-      AssumeRoleCommand: jest.fn()
+      AssumeRoleCommand: jest.fn<any>()
     }));
 
     jest.doMock('@aws-sdk/client-cloudwatch-logs', () => ({
       CloudWatchLogsClient: jest.fn(() => mockCloudWatchLogsClient),
-      CreateLogGroupCommand: jest.fn(),
-      CreateLogStreamCommand: jest.fn(),
-      PutLogEventsCommand: jest.fn()
+      CreateLogGroupCommand: jest.fn<any>(),
+      CreateLogStreamCommand: jest.fn<any>(),
+      PutLogEventsCommand: jest.fn<any>()
     }));
 
     // Mock WebSocket for Session Manager

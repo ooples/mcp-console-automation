@@ -17,16 +17,16 @@ describe('LocalProtocol', () => {
     const mockProcess = {
       pid: 1234,
       stdin: {
-        write: jest.fn(),
+        write: jest.fn<any>(),
       },
       stdout: {
-        on: jest.fn(),
+        on: jest.fn<any>(),
       },
       stderr: {
-        on: jest.fn(),
+        on: jest.fn<any>(),
       },
-      on: jest.fn(),
-      kill: jest.fn(),
+      on: jest.fn<any>(),
+      kill: jest.fn<any>(),
       killed: false,
     };
     
@@ -50,7 +50,7 @@ describe('LocalProtocol', () => {
       // Mock successful validation
       mockSpawn.mockImplementationOnce(() => {
         const mockProcess = {
-          on: jest.fn().mockImplementation((event, callback) => {
+          on: jest.fn<any>().mockImplementation((event, callback) => {
             if (event === 'close') {
               setTimeout(() => callback(0), 10);
             }
@@ -67,12 +67,12 @@ describe('LocalProtocol', () => {
       // Mock failed validation
       mockSpawn.mockImplementationOnce(() => {
         const mockProcess = {
-          on: jest.fn().mockImplementation((event, callback) => {
+          on: jest.fn<any>().mockImplementation((event, callback) => {
             if (event === 'error') {
               setTimeout(() => callback(new Error('Command not found')), 10);
             }
           }),
-          kill: jest.fn(),
+          kill: jest.fn<any>(),
         };
         return mockProcess as any;
       });
@@ -337,9 +337,9 @@ describe('LocalProtocol', () => {
 
   describe('Event Handling', () => {
     it('should emit session events', async () => {
-      const sessionCreatedSpy = jest.fn();
-      const outputSpy = jest.fn();
-      const sessionClosedSpy = jest.fn();
+      const sessionCreatedSpy = jest.fn<any>();
+      const outputSpy = jest.fn<any>();
+      const sessionClosedSpy = jest.fn<any>();
 
       protocol.on('sessionCreated', sessionCreatedSpy);
       protocol.on('output', outputSpy);

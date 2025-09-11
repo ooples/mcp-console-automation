@@ -27,7 +27,7 @@ jest.mock('@azure/arm-storage');
 jest.mock('@azure/storage-file-share');
 
 const mockCredential = {
-  getToken: jest.fn().mockResolvedValue({
+  getToken: jest.fn<any>().mockResolvedValue({
     token: 'mock-azure-token',
     expiresOnTimestamp: Date.now() + 3600000
   })
@@ -35,38 +35,38 @@ const mockCredential = {
 
 const mockResourcesClient = {
   resourceGroups: {
-    list: jest.fn(),
-    get: jest.fn(),
-    createOrUpdate: jest.fn(),
-    delete: jest.fn()
+    list: jest.fn<any>(),
+    get: jest.fn<any>(),
+    createOrUpdate: jest.fn<any>(),
+    delete: jest.fn<any>()
   },
   resources: {
-    listByResourceGroup: jest.fn()
+    listByResourceGroup: jest.fn<any>()
   }
 };
 
 const mockComputeClient = {
   virtualMachines: {
-    list: jest.fn(),
-    get: jest.fn(),
-    createOrUpdate: jest.fn(),
-    delete: jest.fn(),
-    powerOff: jest.fn(),
-    start: jest.fn()
+    list: jest.fn<any>(),
+    get: jest.fn<any>(),
+    createOrUpdate: jest.fn<any>(),
+    delete: jest.fn<any>(),
+    powerOff: jest.fn<any>(),
+    start: jest.fn<any>()
   }
 };
 
 const mockStorageClient = {
   storageAccounts: {
-    list: jest.fn(),
-    create: jest.fn()
+    list: jest.fn<any>(),
+    create: jest.fn<any>()
   }
 };
 
 const mockFileShareClient = {
-  getDirectoryClient: jest.fn(),
-  create: jest.fn(),
-  delete: jest.fn()
+  getDirectoryClient: jest.fn<any>(),
+  create: jest.fn<any>(),
+  delete: jest.fn<any>()
 };
 
 // Mock Azure Cloud Shell WebSocket API
@@ -399,9 +399,9 @@ describe('AzureShellProtocol Integration Tests', () => {
       };
 
       mockFileShareClient.getDirectoryClient.mockReturnValue({
-        getFileClient: jest.fn().mockReturnValue({
-          upload: jest.fn().mockResolvedValue({}),
-          download: jest.fn().mockResolvedValue({
+        getFileClient: jest.fn<any>().mockReturnValue({
+          upload: jest.fn<any>().mockResolvedValue({}),
+          download: jest.fn<any>().mockResolvedValue({
             readableStreamBody: 'test content'
           })
         })

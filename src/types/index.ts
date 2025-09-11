@@ -248,6 +248,8 @@ export interface SessionOptions {
   streaming?: boolean;
   maxBuffer?: number;
   monitoring?: MonitoringOptions;
+  profileName?: string; // Name of saved profile to use
+  connectionProfile?: string; // Alternative name for profileName
   sshOptions?: SSHConnectionOptions;
   telnetOptions?: TelnetConnectionOptions;
   connectionPooling?: ConnectionPoolingOptions;

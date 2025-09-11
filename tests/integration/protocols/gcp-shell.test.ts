@@ -27,45 +27,45 @@ jest.mock('@google-cloud/functions');
 jest.mock('@google-cloud/iam');
 
 const mockComputeClient = {
-  getInstances: jest.fn(),
-  insert: jest.fn(),
-  delete: jest.fn(),
-  start: jest.fn(),
-  stop: jest.fn(),
-  getZones: jest.fn()
+  getInstances: jest.fn<any>(),
+  insert: jest.fn<any>(),
+  delete: jest.fn<any>(),
+  start: jest.fn<any>(),
+  stop: jest.fn<any>(),
+  getZones: jest.fn<any>()
 };
 
 const mockStorageClient = {
-  getBuckets: jest.fn(),
-  createBucket: jest.fn(),
-  deleteBucket: jest.fn(),
-  bucket: jest.fn().mockReturnThis(),
-  file: jest.fn().mockReturnThis(),
-  upload: jest.fn(),
-  download: jest.fn(),
-  exists: jest.fn()
+  getBuckets: jest.fn<any>(),
+  createBucket: jest.fn<any>(),
+  deleteBucket: jest.fn<any>(),
+  bucket: jest.fn<any>().mockReturnThis(),
+  file: jest.fn<any>().mockReturnThis(),
+  upload: jest.fn<any>(),
+  download: jest.fn<any>(),
+  exists: jest.fn<any>()
 };
 
 const mockContainerClient = {
-  getClusters: jest.fn(),
-  createCluster: jest.fn(),
-  deleteCluster: jest.fn(),
-  getNodePools: jest.fn()
+  getClusters: jest.fn<any>(),
+  createCluster: jest.fn<any>(),
+  deleteCluster: jest.fn<any>(),
+  getNodePools: jest.fn<any>()
 };
 
 const mockFunctionsClient = {
-  listFunctions: jest.fn(),
-  createFunction: jest.fn(),
-  deleteFunction: jest.fn(),
-  callFunction: jest.fn()
+  listFunctions: jest.fn<any>(),
+  createFunction: jest.fn<any>(),
+  deleteFunction: jest.fn<any>(),
+  callFunction: jest.fn<any>()
 };
 
 const mockIAMClient = {
-  getServiceAccounts: jest.fn(),
-  createServiceAccount: jest.fn(),
-  deleteServiceAccount: jest.fn(),
-  getPolicy: jest.fn(),
-  setPolicy: jest.fn()
+  getServiceAccounts: jest.fn<any>(),
+  createServiceAccount: jest.fn<any>(),
+  deleteServiceAccount: jest.fn<any>(),
+  getPolicy: jest.fn<any>(),
+  setPolicy: jest.fn<any>()
 };
 
 // Mock GCP Cloud Shell WebSocket API

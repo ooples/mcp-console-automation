@@ -69,13 +69,13 @@ describe('ConsoleManager', () => {
         },
         dependencies: {},
       },
-      initialize: jest.fn().mockResolvedValue(undefined),
-      createSession: jest.fn(),
-      executeCommand: jest.fn().mockResolvedValue(undefined),
-      sendInput: jest.fn().mockResolvedValue(undefined),
-      getOutput: jest.fn().mockResolvedValue('test output'),
-      closeSession: jest.fn().mockResolvedValue(undefined),
-      getHealthStatus: jest.fn().mockResolvedValue({
+      initialize: jest.fn<any>().mockResolvedValue(undefined),
+      createSession: jest.fn<any>(),
+      executeCommand: jest.fn<any>().mockResolvedValue(undefined),
+      sendInput: jest.fn<any>().mockResolvedValue(undefined),
+      getOutput: jest.fn<any>().mockResolvedValue('test output'),
+      closeSession: jest.fn<any>().mockResolvedValue(undefined),
+      getHealthStatus: jest.fn<any>().mockResolvedValue({
         isHealthy: true,
         lastChecked: new Date(),
         errors: [],
@@ -89,81 +89,81 @@ describe('ConsoleManager', () => {
         },
         dependencies: {},
       }),
-      dispose: jest.fn().mockResolvedValue(undefined),
-      on: jest.fn(),
-      off: jest.fn(),
-      emit: jest.fn(),
-      removeAllListeners: jest.fn(),
-      addListener: jest.fn(),
-      once: jest.fn(),
-      removeListener: jest.fn(),
-      setMaxListeners: jest.fn(),
-      getMaxListeners: jest.fn(),
-      listeners: jest.fn(),
-      rawListeners: jest.fn(),
-      listenerCount: jest.fn(),
-      prependListener: jest.fn(),
-      prependOnceListener: jest.fn(),
-      eventNames: jest.fn(),
+      dispose: jest.fn<any>().mockResolvedValue(undefined),
+      on: jest.fn<any>(),
+      off: jest.fn<any>(),
+      emit: jest.fn<any>(),
+      removeAllListeners: jest.fn<any>(),
+      addListener: jest.fn<any>(),
+      once: jest.fn<any>(),
+      removeListener: jest.fn<any>(),
+      setMaxListeners: jest.fn<any>(),
+      getMaxListeners: jest.fn<any>(),
+      listeners: jest.fn<any>(),
+      rawListeners: jest.fn<any>(),
+      listenerCount: jest.fn<any>(),
+      prependListener: jest.fn<any>(),
+      prependOnceListener: jest.fn<any>(),
+      eventNames: jest.fn<any>(),
     } as jest.Mocked<IProtocol>;
 
     // Setup mock protocol factory
     mockProtocolFactory = {
-      createProtocol: jest.fn().mockResolvedValue(mockProtocol),
-      getOverallHealthStatus: jest.fn().mockResolvedValue({
+      createProtocol: jest.fn<any>().mockResolvedValue(mockProtocol),
+      getOverallHealthStatus: jest.fn<any>().mockResolvedValue({
         local: mockProtocol.healthStatus,
       }),
-      dispose: jest.fn().mockResolvedValue(undefined),
-      on: jest.fn(),
-      off: jest.fn(),
-      emit: jest.fn(),
-      removeAllListeners: jest.fn(),
+      dispose: jest.fn<any>().mockResolvedValue(undefined),
+      on: jest.fn<any>(),
+      off: jest.fn<any>(),
+      emit: jest.fn<any>(),
+      removeAllListeners: jest.fn<any>(),
     } as any;
 
     // Create instance without singleton pattern since constructor is not private
     consoleManager = new ConsoleManager();
     
     // Mock the ProtocolFactory.getInstance to return our mock
-    (ProtocolFactory.getInstance as jest.Mock).mockReturnValue(mockProtocolFactory);
+    (ProtocolFactory.getInstance as jest.Mock<any>).mockReturnValue(mockProtocolFactory);
     
     // Mock internal components
     (consoleManager as any).protocolFactory = mockProtocolFactory;
     (consoleManager as any).sessionManager = { 
-      initialize: jest.fn().mockResolvedValue(undefined),
-      registerSession: jest.fn().mockResolvedValue(undefined)
+      initialize: jest.fn<any>().mockResolvedValue(undefined),
+      registerSession: jest.fn<any>().mockResolvedValue(undefined)
     };
-    (consoleManager as any).errorDetector = { initialize: jest.fn().mockResolvedValue(undefined) };
-    (consoleManager as any).streamManager = { initialize: jest.fn().mockResolvedValue(undefined) };
-    (consoleManager as any).promptDetector = { initialize: jest.fn().mockResolvedValue(undefined) };
-    (consoleManager as any).connectionPool = { initialize: jest.fn().mockResolvedValue(undefined) };
-    (consoleManager as any).retryManager = { initialize: jest.fn().mockResolvedValue(undefined) };
-    (consoleManager as any).errorRecovery = { initialize: jest.fn().mockResolvedValue(undefined) };
+    (consoleManager as any).errorDetector = { initialize: jest.fn<any>().mockResolvedValue(undefined) };
+    (consoleManager as any).streamManager = { initialize: jest.fn<any>().mockResolvedValue(undefined) };
+    (consoleManager as any).promptDetector = { initialize: jest.fn<any>().mockResolvedValue(undefined) };
+    (consoleManager as any).connectionPool = { initialize: jest.fn<any>().mockResolvedValue(undefined) };
+    (consoleManager as any).retryManager = { initialize: jest.fn<any>().mockResolvedValue(undefined) };
+    (consoleManager as any).errorRecovery = { initialize: jest.fn<any>().mockResolvedValue(undefined) };
     (consoleManager as any).healthMonitor = { 
-      initialize: jest.fn().mockResolvedValue(undefined),
-      start: jest.fn(),
-      stop: jest.fn()
+      initialize: jest.fn<any>().mockResolvedValue(undefined),
+      start: jest.fn<any>(),
+      stop: jest.fn<any>()
     };
-    (consoleManager as any).heartbeatMonitor = { initialize: jest.fn().mockResolvedValue(undefined) };
-    (consoleManager as any).sessionRecovery = { initialize: jest.fn().mockResolvedValue(undefined) };
+    (consoleManager as any).heartbeatMonitor = { initialize: jest.fn<any>().mockResolvedValue(undefined) };
+    (consoleManager as any).sessionRecovery = { initialize: jest.fn<any>().mockResolvedValue(undefined) };
     (consoleManager as any).metricsCollector = { 
-      initialize: jest.fn().mockResolvedValue(undefined),
-      getMetrics: jest.fn().mockResolvedValue({})
+      initialize: jest.fn<any>().mockResolvedValue(undefined),
+      getMetrics: jest.fn<any>().mockResolvedValue({})
     };
-    (consoleManager as any).monitoringSystem = { initialize: jest.fn().mockResolvedValue(undefined) };
+    (consoleManager as any).monitoringSystem = { initialize: jest.fn<any>().mockResolvedValue(undefined) };
     
     // Mock logger and other dependencies
     (consoleManager as any).logger = {
-      info: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn()
+      info: jest.fn<any>(),
+      error: jest.fn<any>(),
+      warn: jest.fn<any>(),
+      debug: jest.fn<any>()
     };
   });
 
   afterEach(async () => {
     // Mock the dispose method to avoid errors
     if (consoleManager) {
-      (consoleManager as any).dispose = jest.fn().mockResolvedValue(undefined);
+      (consoleManager as any).dispose = jest.fn<any>().mockResolvedValue(undefined);
       await (consoleManager as any).dispose();
     }
     jest.clearAllMocks();
@@ -224,7 +224,7 @@ describe('ConsoleManager', () => {
       // Mock protocol detector to return null
       jest.doMock('../../src/core/ProtocolFactory.js', () => ({
         ProtocolDetector: {
-          detectProtocol: jest.fn().mockReturnValue(null),
+          detectProtocol: jest.fn<any>().mockReturnValue(null),
         },
       }));
 

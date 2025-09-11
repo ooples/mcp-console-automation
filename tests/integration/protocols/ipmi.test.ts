@@ -29,10 +29,10 @@ const mockSocket = {
   bind: jest.fn((callback) => callback?.()),
   connect: jest.fn((port, host, callback) => callback?.()),
   send: jest.fn((buffer, offset, length, callback) => callback?.(null)),
-  close: jest.fn(),
-  on: jest.fn(),
-  off: jest.fn(),
-  removeAllListeners: jest.fn()
+  close: jest.fn<any>(),
+  on: jest.fn<any>(),
+  off: jest.fn<any>(),
+  removeAllListeners: jest.fn<any>()
 };
 
 const mockCreateSocket = createSocket as jest.MockedFunction<typeof createSocket>;
@@ -263,7 +263,7 @@ describe('IPMIProtocol Integration Tests', () => {
     });
 
     it('should emit power control events', async () => {
-      const powerControlSpy = jest.fn();
+      const powerControlSpy = jest.fn<any>();
       protocol.on('powerControlComplete', powerControlSpy);
 
       // Mock successful response
@@ -384,7 +384,7 @@ describe('IPMIProtocol Integration Tests', () => {
     });
 
     it('should monitor hardware health continuously', async () => {
-      const monitoringSpy = jest.fn();
+      const monitoringSpy = jest.fn<any>();
       protocol.on('hardwareMonitoring', monitoringSpy);
 
       // Start hardware monitoring (this is done automatically in createSession when DCMI is enabled)
@@ -396,7 +396,7 @@ describe('IPMIProtocol Integration Tests', () => {
     });
 
     it('should detect hardware alerts', async () => {
-      const alertSpy = jest.fn();
+      const alertSpy = jest.fn<any>();
       protocol.on('hardwareAlert', alertSpy);
 
       // Mock critical sensor reading
@@ -477,7 +477,7 @@ describe('IPMIProtocol Integration Tests', () => {
     });
 
     it('should receive output from SOL console', async () => {
-      const outputSpy = jest.fn();
+      const outputSpy = jest.fn<any>();
       protocol.on('output', outputSpy);
 
       // Simulate SOL data received
@@ -499,7 +499,7 @@ describe('IPMIProtocol Integration Tests', () => {
     });
 
     it('should handle SOL session errors', async () => {
-      const errorSpy = jest.fn();
+      const errorSpy = jest.fn<any>();
       protocol.on('error', errorSpy);
 
       // Mock SOL send error
@@ -589,7 +589,7 @@ describe('IPMIProtocol Integration Tests', () => {
     });
 
     it('should start firmware update process', async () => {
-      const updateStartedSpy = jest.fn();
+      const updateStartedSpy = jest.fn<any>();
       protocol.on('firmwareUpdateStarted', updateStartedSpy);
 
       const firmwarePath = '/path/to/firmware.bin';
@@ -615,7 +615,7 @@ describe('IPMIProtocol Integration Tests', () => {
     });
 
     it('should handle firmware update failures', async () => {
-      const updateFailedSpy = jest.fn();
+      const updateFailedSpy = jest.fn<any>();
       protocol.on('firmwareUpdateFailed', updateFailedSpy);
 
       // Mock firmware update that would fail in real implementation

@@ -345,7 +345,7 @@ describe('WSL Protocol Integration Tests', () => {
     }, 5000);
 
     test('should capture command output with streaming', async () => {
-      const outputSpy = jest.fn();
+      const outputSpy = jest.fn<any>();
       wslProtocol.on('output', outputSpy);
 
       await wslProtocol.executeCommand(testSession.id, 'echo "Stream Test"');
@@ -383,7 +383,7 @@ describe('WSL Protocol Integration Tests', () => {
     }, 10000);
 
     test('should monitor resource usage', async () => {
-      const resourceUsageSpy = jest.fn();
+      const resourceUsageSpy = jest.fn<any>();
       wslProtocol.on('resource-usage', resourceUsageSpy);
 
       // Wait for resource monitoring to kick in
@@ -402,7 +402,7 @@ describe('WSL Protocol Integration Tests', () => {
     }, 15000);
 
     test('should perform health checks', async () => {
-      const healthCheckSpy = jest.fn();
+      const healthCheckSpy = jest.fn<any>();
       wslProtocol.on('health-check', healthCheckSpy);
 
       // Wait for health checks to run
@@ -665,7 +665,7 @@ describe('WSL Protocol Integration Tests', () => {
     });
 
     test('should audit command execution', async () => {
-      const auditSpy = jest.fn();
+      const auditSpy = jest.fn<any>();
       wslProtocol.on('command-audit', auditSpy);
 
       const session = await wslProtocol.createSession({
@@ -698,7 +698,7 @@ describe('WSL Protocol Integration Tests', () => {
 
   describe('Error Handling and Resilience', () => {
     test('should handle WSL service restart', async () => {
-      const serviceRestartSpy = jest.fn();
+      const serviceRestartSpy = jest.fn<any>();
       wslProtocol.on('service-restarted', serviceRestartSpy);
 
       // Simulate service restart

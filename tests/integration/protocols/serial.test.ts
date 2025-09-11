@@ -271,7 +271,7 @@ describe('Serial Protocol Integration Tests', () => {
     });
 
     test('should detect framing errors', async () => {
-      const errorSpy = jest.fn();
+      const errorSpy = jest.fn<any>();
       serialProtocol.on('framing-error', errorSpy);
 
       // Simulate framing error by changing baud rate mid-transmission
@@ -285,7 +285,7 @@ describe('Serial Protocol Integration Tests', () => {
 
     test('should detect parity errors', async () => {
       if (testSession.parity !== 'none') {
-        const errorSpy = jest.fn();
+        const errorSpy = jest.fn<any>();
         serialProtocol.on('parity-error', errorSpy);
 
         // Send data that would cause parity errors
@@ -309,7 +309,7 @@ describe('Serial Protocol Integration Tests', () => {
     }, 10000);
 
     test('should handle buffer overflow', async () => {
-      const overflowSpy = jest.fn();
+      const overflowSpy = jest.fn<any>();
       serialProtocol.on('buffer-overflow', overflowSpy);
 
       // Send data larger than buffer size
@@ -392,7 +392,7 @@ describe('Serial Protocol Integration Tests', () => {
     });
 
     test('should collect communication metrics', async () => {
-      const metricsSpy = jest.fn();
+      const metricsSpy = jest.fn<any>();
       serialProtocol.on('metrics-collected', metricsSpy);
 
       // Generate some traffic
@@ -414,7 +414,7 @@ describe('Serial Protocol Integration Tests', () => {
     }, 10000);
 
     test('should monitor connection health', async () => {
-      const healthCheckSpy = jest.fn();
+      const healthCheckSpy = jest.fn<any>();
       serialProtocol.on('health-check', healthCheckSpy);
 
       // Wait for health checks
@@ -540,7 +540,7 @@ describe('Serial Protocol Integration Tests', () => {
     }, 10000);
 
     test('should support break signal', async () => {
-      const breakSpy = jest.fn();
+      const breakSpy = jest.fn<any>();
       serialProtocol.on('break-detected', breakSpy);
 
       await serialProtocol.sendBreak(advancedSession.id, 250); // 250ms break
@@ -585,7 +585,7 @@ describe('Serial Protocol Integration Tests', () => {
         consoleType: 'serial' as const
       });
 
-      const disconnectSpy = jest.fn();
+      const disconnectSpy = jest.fn<any>();
       serialProtocol.on('device-disconnected', disconnectSpy);
 
       // Simulate device disconnection
@@ -610,7 +610,7 @@ describe('Serial Protocol Integration Tests', () => {
         autoReconnect: true
       });
 
-      const reconnectSpy = jest.fn();
+      const reconnectSpy = jest.fn<any>();
       serialProtocol.on('reconnection-attempt', reconnectSpy);
 
       // Simulate disconnection and trigger reconnection

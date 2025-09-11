@@ -175,8 +175,8 @@ describe('Docker Protocol Integration Tests', () => {
     });
 
     test('should attempt reconnection on connection loss', async () => {
-      const connectionErrorSpy = jest.fn();
-      const reconnectedSpy = jest.fn();
+      const connectionErrorSpy = jest.fn<any>();
+      const reconnectedSpy = jest.fn<any>();
       
       dockerProtocol.on('connection-error', connectionErrorSpy);
       dockerProtocol.on('reconnected', reconnectedSpy);
@@ -329,7 +329,7 @@ describe('Docker Protocol Integration Tests', () => {
     }, 10000);
 
     test('should capture command output correctly', async () => {
-      const outputSpy = jest.fn();
+      const outputSpy = jest.fn<any>();
       dockerProtocol.on('output', outputSpy);
 
       await dockerProtocol.executeCommand(testSession.id, 'echo "Test Output"');
@@ -368,7 +368,7 @@ describe('Docker Protocol Integration Tests', () => {
     });
 
     test('should monitor container health status', async () => {
-      const healthCheckSpy = jest.fn();
+      const healthCheckSpy = jest.fn<any>();
       dockerProtocol.on('health-check', healthCheckSpy);
 
       // Wait for health checks to run
@@ -402,7 +402,7 @@ describe('Docker Protocol Integration Tests', () => {
         }
       });
 
-      const healthCheckSpy = jest.fn();
+      const healthCheckSpy = jest.fn<any>();
       dockerProtocol.on('health-check', healthCheckSpy);
 
       // Wait for health checks to fail
@@ -438,8 +438,8 @@ describe('Docker Protocol Integration Tests', () => {
     });
 
     test('should stream container logs in real-time', async () => {
-      const logStreamSpy = jest.fn();
-      const outputSpy = jest.fn();
+      const logStreamSpy = jest.fn<any>();
+      const outputSpy = jest.fn<any>();
       
       dockerProtocol.on('log-stream', logStreamSpy);
       dockerProtocol.on('output', outputSpy);
@@ -501,7 +501,7 @@ describe('Docker Protocol Integration Tests', () => {
     });
 
     test('should collect container performance metrics', async () => {
-      const metricsSpy = jest.fn();
+      const metricsSpy = jest.fn<any>();
       dockerProtocol.on('metrics-collected', metricsSpy);
 
       // Wait for metrics to be collected
@@ -534,7 +534,7 @@ describe('Docker Protocol Integration Tests', () => {
     }, 20000);
 
     test('should track resource usage over time', async () => {
-      const metricsSpy = jest.fn();
+      const metricsSpy = jest.fn<any>();
       dockerProtocol.on('metrics-collected', metricsSpy);
 
       // Wait for multiple metrics collections
@@ -669,7 +669,7 @@ describe('Docker Protocol Integration Tests', () => {
 
   describe('Error Handling and Resilience', () => {
     test('should handle Docker daemon disconnection', async () => {
-      const connectionErrorSpy = jest.fn();
+      const connectionErrorSpy = jest.fn<any>();
       dockerProtocol.on('connection-error', connectionErrorSpy);
 
       // Simulate daemon disconnection
@@ -730,10 +730,10 @@ describe('Docker Protocol Integration Tests', () => {
 
   describe('Event Handling', () => {
     test('should emit proper events during session lifecycle', async () => {
-      const containerCreatedSpy = jest.fn();
-      const containerStartedSpy = jest.fn();
-      const containerStoppedSpy = jest.fn();
-      const containerRemovedSpy = jest.fn();
+      const containerCreatedSpy = jest.fn<any>();
+      const containerStartedSpy = jest.fn<any>();
+      const containerStoppedSpy = jest.fn<any>();
+      const containerRemovedSpy = jest.fn<any>();
 
       dockerProtocol.on('container-created', containerCreatedSpy);
       dockerProtocol.on('container-started', containerStartedSpy);

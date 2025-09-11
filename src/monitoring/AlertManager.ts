@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import nodemailer from 'nodemailer';
+import * as nodemailer from 'nodemailer';
 import axios from 'axios';
 import { Alert, NotificationConfig, NotificationTrigger, Anomaly } from '../types/index.js';
 import { Logger } from '../utils/logger.js';

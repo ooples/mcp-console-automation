@@ -35,6 +35,7 @@ import { IPCProtocol } from '../protocols/IPCProtocol.js';
 import { WebSocketTerminalProtocol } from '../protocols/WebSocketTerminalProtocol.js';
 import { AnsibleProtocol } from '../protocols/AnsibleProtocol.js';
 import { IPMIProtocol } from '../protocols/IPMIProtocol.js';
+import { ConfigManager, ConnectionProfile, ApplicationProfile } from '../config/ConfigManager.js';
 import PQueue from 'p-queue';
 import { platform } from 'os';
 import { readFileSync } from 'fs';
@@ -196,6 +197,7 @@ export class ConsoleManager extends EventEmitter {
   private monitoringSystems: Map<string, MonitoringSystem>;
   private retryAttempts: Map<string, number>;
   private sessionHealthCheckIntervals: Map<string, NodeJS.Timeout>;
+  private configManager: ConfigManager;
   
   // Command execution tracking and buffer isolation
   private commandExecutions: Map<string, CommandExecution>; // commandId -> CommandExecution
@@ -402,6 +404,7 @@ export class ConsoleManager extends EventEmitter {
     this.queue = new PQueue({ concurrency: 10 });
     this.monitoringSystem = new MonitoringSystem();
     this.retryAttempts = new Map();
+    this.configManager = ConfigManager.getInstance();
     
     // Initialize command execution tracking
     this.commandExecutions = new Map();
@@ -3581,43 +3584,46 @@ export class ConsoleManager extends EventEmitter {
   }
 
   private async createSessionInternal(sessionId: string, options: SessionOptions): Promise<string> {
+    // Resolve options from stored profiles if available
+    const resolvedOptions = this.resolveSessionOptions(options);
+    
     const session: ConsoleSession = {
       id: sessionId,
-      command: options.command,
-      args: options.args || [],
-      cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...options.env } as Record<string, string>,
+      command: resolvedOptions.command,
+      args: resolvedOptions.args || [],
+      cwd: resolvedOptions.cwd || process.cwd(),
+      env: { ...process.env, ...resolvedOptions.env } as Record<string, string>,
       createdAt: new Date(),
       status: 'running',
-      type: options.consoleType || 'auto',
-      streaming: options.streaming || false,
-      timeout: options.timeout, // Pass through the configurable timeout
-      sshOptions: options.sshOptions,
-      azureOptions: options.azureOptions,
-      kubernetesOptions: options.kubernetesOptions,
-      winrmOptions: options.winrmOptions,
-      ipcOptions: options.ipcOptions,
-      webSocketTerminalOptions: options.webSocketTerminalOptions,
+      type: resolvedOptions.consoleType || 'auto',
+      streaming: resolvedOptions.streaming || false,
+      timeout: resolvedOptions.timeout, // Pass through the configurable timeout
+      sshOptions: resolvedOptions.sshOptions,
+      azureOptions: resolvedOptions.azureOptions,
+      kubernetesOptions: resolvedOptions.kubernetesOptions,
+      winrmOptions: resolvedOptions.winrmOptions,
+      ipcOptions: resolvedOptions.ipcOptions,
+      webSocketTerminalOptions: resolvedOptions.webSocketTerminalOptions,
       // Initialize command execution state
       executionState: 'idle',
       activeCommands: new Map()
     };
 
     // Check session type
-    const isSSHSession = !!options.sshOptions;
-    const isAzureSession = !!options.azureOptions || ['azure-shell', 'azure-bastion', 'azure-ssh'].includes(options.consoleType || '');
-    const isSerialSession = !!options.serialOptions || ['serial', 'com', 'uart'].includes(options.consoleType || '');
-    const isKubernetesSession = !!options.kubernetesOptions || ['kubectl', 'k8s-exec'].includes(options.consoleType || '');
-    const isDockerSession = !!options.dockerOptions || ['docker', 'docker-exec'].includes(options.consoleType || '');
-    const isAWSSSMSession = !!options.awsSSMOptions || ['aws-ssm', 'ssm-session', 'ssm-tunnel'].includes(options.consoleType || '');
-    const isWSLSession = !!options.wslOptions || ['wsl', 'wsl2'].includes(options.consoleType || '');
-    const isSFTPSession = ['sftp', 'scp'].includes(options.consoleType || '') && !!options.sshOptions;
-    const isRDPSession = !!options.rdpOptions || ['rdp', 'mstsc'].includes(options.consoleType || '');
-    const isWinRMSession = !!options.winrmOptions || ['winrm', 'psremoting'].includes(options.consoleType || '');
-    const isVNCSession = !!options.vncOptions || ['vnc', 'vnc-server'].includes(options.consoleType || '');
-    const isIPCSession = !!options.ipcOptions || ['named-pipe', 'unix-socket', 'ipc'].includes(options.consoleType || '');
-    const isIPMISession = !!options.ipmiOptions || ['ipmi', 'bmc', 'idrac'].includes(options.consoleType || '');
-    const isWebSocketTerminalSession = !!options.webSocketTerminalOptions || ['websocket-term', 'xterm-ws', 'web-terminal'].includes(options.consoleType || '');
+    const isSSHSession = !!resolvedOptions.sshOptions;
+    const isAzureSession = !!resolvedOptions.azureOptions || ['azure-shell', 'azure-bastion', 'azure-ssh'].includes(resolvedOptions.consoleType || '');
+    const isSerialSession = !!resolvedOptions.serialOptions || ['serial', 'com', 'uart'].includes(resolvedOptions.consoleType || '');
+    const isKubernetesSession = !!resolvedOptions.kubernetesOptions || ['kubectl', 'k8s-exec'].includes(resolvedOptions.consoleType || '');
+    const isDockerSession = !!resolvedOptions.dockerOptions || ['docker', 'docker-exec'].includes(resolvedOptions.consoleType || '');
+    const isAWSSSMSession = !!resolvedOptions.awsSSMOptions || ['aws-ssm', 'ssm-session', 'ssm-tunnel'].includes(resolvedOptions.consoleType || '');
+    const isWSLSession = !!resolvedOptions.wslOptions || ['wsl', 'wsl2'].includes(resolvedOptions.consoleType || '');
+    const isSFTPSession = ['sftp', 'scp'].includes(resolvedOptions.consoleType || '') && !!resolvedOptions.sshOptions;
+    const isRDPSession = !!resolvedOptions.rdpOptions || ['rdp', 'mstsc'].includes(resolvedOptions.consoleType || '');
+    const isWinRMSession = !!resolvedOptions.winrmOptions || ['winrm', 'psremoting'].includes(resolvedOptions.consoleType || '');
+    const isVNCSession = !!resolvedOptions.vncOptions || ['vnc', 'vnc-server'].includes(resolvedOptions.consoleType || '');
+    const isIPCSession = !!resolvedOptions.ipcOptions || ['named-pipe', 'unix-socket', 'ipc'].includes(resolvedOptions.consoleType || '');
+    const isIPMISession = !!resolvedOptions.ipmiOptions || ['ipmi', 'bmc', 'idrac'].includes(resolvedOptions.consoleType || '');
+    const isWebSocketTerminalSession = !!resolvedOptions.webSocketTerminalOptions || ['websocket-term', 'xterm-ws', 'web-terminal'].includes(resolvedOptions.consoleType || '');
     let sessionType: 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal';
     
     if (isSSHSession) {
@@ -3654,53 +3660,53 @@ export class ConsoleManager extends EventEmitter {
 
     try {
       // Initialize session command tracking
-      this.initializeSessionCommandTracking(sessionId, options);
+      this.initializeSessionCommandTracking(sessionId, resolvedOptions);
       
       // Register session with SessionManager
       await this.sessionManager.registerSession(session, sessionType);
 
-      if (isSSHSession && options.sshOptions) {
+      if (isSSHSession && resolvedOptions.sshOptions) {
         // Handle SSH session creation through connection pool
-        return await this.createPooledSSHSession(sessionId, session, options);
+        return await this.createPooledSSHSession(sessionId, session, resolvedOptions);
       } else if (isSerialSession) {
         // Handle serial session creation
-        return await this.createSerialSession(sessionId, session, options);
+        return await this.createSerialSession(sessionId, session, resolvedOptions);
       } else if (isKubernetesSession) {
         // Handle Kubernetes session creation
-        return await this.createKubernetesSession(sessionId, session, options);
+        return await this.createKubernetesSession(sessionId, session, resolvedOptions);
       } else if (isDockerSession) {
         // Handle Docker session creation
-        return await this.createDockerSession(sessionId, session, options);
+        return await this.createDockerSession(sessionId, session, resolvedOptions);
       } else if (isAWSSSMSession) {
         // Handle AWS SSM session creation
-        return await this.createAWSSSMSession(sessionId, session, options);
+        return await this.createAWSSSMSession(sessionId, session, resolvedOptions);
       } else if (isWSLSession) {
         // Handle WSL session creation
-        return await this.createWSLSession(sessionId, session, options);
+        return await this.createWSLSession(sessionId, session, resolvedOptions);
       } else if (isSFTPSession) {
         // Handle SFTP/SCP session creation
-        return await this.createSFTPSession(sessionId, session, options);
+        return await this.createSFTPSession(sessionId, session, resolvedOptions);
       } else if (isRDPSession) {
         // Handle RDP session creation
-        return await this.createRDPSession(sessionId, options);
+        return await this.createRDPSession(sessionId, resolvedOptions);
       } else if (isWinRMSession) {
         // Handle WinRM session creation
-        return await this.createWinRMSession(sessionId, options);
+        return await this.createWinRMSession(sessionId, resolvedOptions);
       } else if (isVNCSession) {
         // Handle VNC session creation
-        return await this.createVNCSession(sessionId, session, options);
+        return await this.createVNCSession(sessionId, session, resolvedOptions);
       } else if (isIPCSession) {
         // Handle IPC session creation
-        return await this.createIPCSession(sessionId, session, options);
+        return await this.createIPCSession(sessionId, session, resolvedOptions);
       } else if (isIPMISession) {
         // Handle IPMI/BMC session creation
-        return await this.createIPMISession(sessionId, session, options);
+        return await this.createIPMISession(sessionId, session, resolvedOptions);
       } else if (isWebSocketTerminalSession) {
         // Handle WebSocket Terminal session creation
-        return await this.createWebSocketTerminalSession(sessionId, session, options);
+        return await this.createWebSocketTerminalSession(sessionId, session, resolvedOptions);
       } else {
         // Handle local session creation (existing logic)
-        return await this.createLocalSession(sessionId, session, options);
+        return await this.createLocalSession(sessionId, session, resolvedOptions);
       }
     } catch (error) {
       // Update session manager about the failure
@@ -5833,7 +5839,8 @@ export class ConsoleManager extends EventEmitter {
       } else if (!result.host) {
         // This should be the host or user@host
         if (part.includes('@')) {
-          const [user, host] = part.split('@');
+          const splitParts = part.split('@');
+          const [user, host] = [splitParts[0] || '', splitParts[1] || ''];
           result.user = user;
           result.host = host;
         } else {
@@ -8015,6 +8022,165 @@ export class ConsoleManager extends EventEmitter {
     });
   }
 
+  // Configuration Management Methods
+  
+  /**
+   * Resolve session options from stored profiles
+   */
+  private resolveSessionOptions(options: SessionOptions): SessionOptions {
+    // Check if a profile name was provided
+    const profileName = (options as any).profileName || (options as any).connectionProfile;
+    
+    if (profileName) {
+      const profile = this.configManager.getConnectionProfile(profileName);
+      if (profile) {
+        this.logger.info(`Using connection profile: ${profileName}`);
+        
+        // Merge profile options with provided options
+        switch (profile.type) {
+          case 'ssh':
+            return {
+              ...options,
+              sshOptions: {
+                ...profile.sshOptions,
+                ...options.sshOptions // Allow override from direct options
+              },
+              consoleType: 'ssh'
+            };
+          case 'docker':
+            return {
+              ...options,
+              dockerOptions: {
+                ...profile.dockerOptions,
+                ...options.dockerOptions
+              },
+              consoleType: 'docker'
+            };
+          case 'azure':
+            return {
+              ...options,
+              azureOptions: {
+                ...profile.azureOptions,
+                ...options.azureOptions
+              },
+              consoleType: 'azure-shell'
+            };
+          case 'aws':
+            return {
+              ...options,
+              awsSSMOptions: {
+                ...profile.awsOptions,
+                ...options.awsSSMOptions
+              } as any,
+              consoleType: 'aws-ssm'
+            };
+          case 'gcp':
+            return {
+              ...options,
+              gcpOptions: {
+                ...profile.gcpOptions,
+                ...options.gcpOptions
+              } as any,
+              consoleType: 'gcp-shell'
+            };
+          case 'kubernetes':
+            return {
+              ...options,
+              kubernetesOptions: {
+                ...profile.kubernetesOptions,
+                ...options.kubernetesOptions
+              },
+              consoleType: 'kubectl'
+            };
+          case 'wsl':
+            return {
+              ...options,
+              wslOptions: {
+                ...(options.wslOptions || {})
+              },
+              consoleType: 'wsl'
+            };
+        }
+      } else {
+        this.logger.warn(`Connection profile not found: ${profileName}`);
+      }
+    }
+    
+    // Check if we should use a default profile
+    if (!options.sshOptions && !options.dockerOptions && !options.azureOptions) {
+      const defaultProfile = this.configManager.getConnectionProfile();
+      if (defaultProfile) {
+        this.logger.info(`Using default connection profile: ${defaultProfile.name}`);
+        return this.resolveSessionOptions({ ...options, profileName: defaultProfile.name });
+      }
+    }
+    
+    // Check for application profiles for specific commands
+    if (options.command) {
+      const appType = this.detectApplicationType(options.command);
+      const appProfile = this.configManager.getApplicationProfileByType(appType);
+      
+      if (appProfile) {
+        this.logger.info(`Using application profile: ${appProfile.name}`);
+        return {
+          ...options,
+          command: appProfile.command || options.command,
+          args: [...(appProfile.args || []), ...(options.args || [])],
+          cwd: appProfile.workingDirectory || options.cwd,
+          env: { ...appProfile.environmentVariables, ...options.env }
+        };
+      }
+    }
+    
+    return options;
+  }
+  
+  /**
+   * Detect application type from command
+   */
+  private detectApplicationType(command: string): string {
+    const cmdLower = command.toLowerCase();
+    
+    if (cmdLower.includes('dotnet') || cmdLower.includes('.dll')) {
+      return 'dotnet';
+    } else if (cmdLower.includes('node') || cmdLower.includes('.js')) {
+      return 'node';
+    } else if (cmdLower.includes('python') || cmdLower.includes('.py')) {
+      return 'python';
+    } else if (cmdLower.includes('java') || cmdLower.includes('.jar')) {
+      return 'java';
+    } else if (cmdLower.includes('go') || cmdLower.includes('.go')) {
+      return 'go';
+    } else if (cmdLower.includes('rust') || cmdLower.includes('cargo')) {
+      return 'rust';
+    }
+    
+    return 'custom';
+  }
+  
+  /**
+   * Save a connection profile
+   */
+  saveConnectionProfile(profile: ConnectionProfile): void {
+    this.configManager.addConnectionProfile(profile);
+    this.logger.info(`Connection profile saved: ${profile.name}`);
+  }
+  
+  /**
+   * List available connection profiles
+   */
+  listConnectionProfiles(): ConnectionProfile[] {
+    return this.configManager.listConnectionProfiles();
+  }
+  
+  /**
+   * Save an application profile
+   */
+  saveApplicationProfile(profile: ApplicationProfile): void {
+    this.configManager.addApplicationProfile(profile);
+    this.logger.info(`Application profile saved: ${profile.name}`);
+  }
+  
   // Command Queue Management Methods
   
   /**

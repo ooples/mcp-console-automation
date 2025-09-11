@@ -366,7 +366,7 @@ describe('Kubernetes Protocol Integration Tests', () => {
     }, 5000);
 
     test('should capture command output with streaming', async () => {
-      const outputSpy = jest.fn();
+      const outputSpy = jest.fn<any>();
       k8sProtocol.on('output', outputSpy);
 
       await k8sProtocol.executeCommand(execSession.id, 'echo "Stream Test"');
@@ -464,7 +464,7 @@ describe('Kubernetes Protocol Integration Tests', () => {
     });
 
     test('should collect pod metrics', async () => {
-      const metricsSpy = jest.fn();
+      const metricsSpy = jest.fn<any>();
       k8sProtocol.on('pod-metrics', metricsSpy);
 
       // Wait for metrics collection
@@ -483,7 +483,7 @@ describe('Kubernetes Protocol Integration Tests', () => {
     }, 15000);
 
     test('should collect cluster metrics', async () => {
-      const clusterMetricsSpy = jest.fn();
+      const clusterMetricsSpy = jest.fn<any>();
       k8sProtocol.on('cluster-metrics', clusterMetricsSpy);
 
       // Wait for cluster metrics
@@ -501,7 +501,7 @@ describe('Kubernetes Protocol Integration Tests', () => {
     }, 15000);
 
     test('should perform health checks', async () => {
-      const healthCheckSpy = jest.fn();
+      const healthCheckSpy = jest.fn<any>();
       k8sProtocol.on('health-check', healthCheckSpy);
 
       // Wait for health checks
@@ -556,7 +556,7 @@ describe('Kubernetes Protocol Integration Tests', () => {
     }, 10000);
 
     test('should stream pod logs', async () => {
-      const logSpy = jest.fn();
+      const logSpy = jest.fn<any>();
       k8sProtocol.on('pod-log', logSpy);
 
       // Start log streaming
@@ -783,7 +783,7 @@ describe('Kubernetes Protocol Integration Tests', () => {
     });
 
     test('should audit kubectl operations', async () => {
-      const auditSpy = jest.fn();
+      const auditSpy = jest.fn<any>();
       k8sProtocol.on('kubectl-audit', auditSpy);
 
       await k8sProtocol.listPods('default');
@@ -809,7 +809,7 @@ describe('Kubernetes Protocol Integration Tests', () => {
     });
 
     test('should retry failed operations', async () => {
-      const retrySpy = jest.fn();
+      const retrySpy = jest.fn<any>();
       k8sProtocol.on('operation-retry', retrySpy);
 
       // This should trigger retries due to server behavior

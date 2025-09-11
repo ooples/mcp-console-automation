@@ -109,6 +109,19 @@ export class ConsoleAutomationServer {
           case 'console_stop_monitoring':
             return await this.handleStopMonitoring(args as any);
           
+          // Profile management tools
+          case 'console_save_profile':
+            return await this.handleSaveProfile(args as any);
+          
+          case 'console_list_profiles':
+            return await this.handleListProfiles();
+          
+          case 'console_remove_profile':
+            return await this.handleRemoveProfile(args as any);
+          
+          case 'console_use_profile':
+            return await this.handleUseProfile(args as any);
+          
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }
@@ -409,6 +422,119 @@ export class ConsoleAutomationServer {
             sessionId: { type: 'string', description: 'Session ID' }
           },
           required: ['sessionId']
+        }
+      },
+      {
+        name: 'console_save_profile',
+        description: 'Save a connection or application profile for reuse',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            profileType: { 
+              type: 'string', 
+              enum: ['connection', 'application'],
+              description: 'Type of profile to save' 
+            },
+            name: { type: 'string', description: 'Profile name' },
+            connectionType: { 
+              type: 'string', 
+              enum: ['ssh', 'docker', 'wsl', 'azure', 'aws', 'gcp', 'kubernetes'],
+              description: 'Connection type (for connection profiles)' 
+            },
+            applicationType: {
+              type: 'string',
+              enum: ['node', 'python', 'dotnet', 'java', 'go', 'rust', 'custom'],
+              description: 'Application type (for application profiles)'
+            },
+            sshOptions: {
+              type: 'object',
+              description: 'SSH connection options',
+              properties: {
+                host: { type: 'string' },
+                port: { type: 'number' },
+                username: { type: 'string' },
+                password: { type: 'string' },
+                privateKey: { type: 'string' },
+                privateKeyPath: { type: 'string' },
+                passphrase: { type: 'string' }
+              }
+            },
+            dockerOptions: {
+              type: 'object',
+              properties: {
+                containerName: { type: 'string' },
+                imageName: { type: 'string' }
+              }
+            },
+            command: { type: 'string', description: 'Command for application profile' },
+            args: { type: 'array', items: { type: 'string' }, description: 'Arguments for application profile' },
+            workingDirectory: { type: 'string', description: 'Working directory for application profile' },
+            environmentVariables: { type: 'object', description: 'Environment variables' },
+            dotnetOptions: {
+              type: 'object',
+              description: '.NET specific options',
+              properties: {
+                enabled: { type: 'boolean' },
+                sdkPath: { type: 'string' },
+                defaultFramework: { 
+                  type: 'string',
+                  enum: ['net6.0', 'net7.0', 'net8.0', 'net9.0', 'netcoreapp3.1']
+                },
+                buildConfiguration: { 
+                  type: 'string',
+                  enum: ['Debug', 'Release']
+                },
+                enableHotReload: { type: 'boolean' }
+              }
+            },
+            isDefault: { type: 'boolean', description: 'Set as default profile' }
+          },
+          required: ['profileType', 'name']
+        }
+      },
+      {
+        name: 'console_list_profiles',
+        description: 'List all saved connection and application profiles',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            profileType: { 
+              type: 'string', 
+              enum: ['connection', 'application', 'all'],
+              description: 'Type of profiles to list (default: all)' 
+            }
+          }
+        }
+      },
+      {
+        name: 'console_remove_profile',
+        description: 'Remove a saved profile',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            profileType: { 
+              type: 'string', 
+              enum: ['connection', 'application'],
+              description: 'Type of profile to remove' 
+            },
+            name: { type: 'string', description: 'Profile name to remove' }
+          },
+          required: ['profileType', 'name']
+        }
+      },
+      {
+        name: 'console_use_profile',
+        description: 'Create a session using a saved profile',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            profileName: { type: 'string', description: 'Name of the profile to use' },
+            command: { type: 'string', description: 'Override command (optional)' },
+            args: { type: 'array', items: { type: 'string' }, description: 'Override arguments (optional)' },
+            cwd: { type: 'string', description: 'Override working directory (optional)' },
+            env: { type: 'object', description: 'Additional environment variables (optional)' }
+          },
+          required: ['profileName']
         }
       }
     ];
@@ -969,6 +1095,126 @@ export class ConsoleAutomationServer {
         {
           type: 'text',
           text: `Monitoring stopped for session ${args.sessionId}`
+        } as TextContent
+      ]
+    };
+  }
+
+  private async handleSaveProfile(args: any) {
+    const { profileType, name, ...profileData } = args;
+    
+    if (profileType === 'connection') {
+      const connectionProfile: any = {
+        name,
+        type: args.connectionType,
+        isDefault: args.isDefault || false
+      };
+      
+      // Add connection-specific options based on type
+      if (args.connectionType === 'ssh' && args.sshOptions) {
+        connectionProfile.sshOptions = args.sshOptions;
+      } else if (args.connectionType === 'docker' && args.dockerOptions) {
+        connectionProfile.dockerOptions = args.dockerOptions;
+      }
+      // Add other connection types as needed
+      
+      this.consoleManager.saveConnectionProfile(connectionProfile);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Connection profile '${name}' saved successfully`
+          } as TextContent
+        ]
+      };
+    } else if (profileType === 'application') {
+      const applicationProfile: any = {
+        name,
+        type: args.applicationType || 'custom',
+        command: args.command,
+        args: args.args,
+        workingDirectory: args.workingDirectory,
+        environmentVariables: args.environmentVariables,
+        dotnetOptions: args.dotnetOptions
+      };
+      
+      this.consoleManager.saveApplicationProfile(applicationProfile);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Application profile '${name}' saved successfully`
+          } as TextContent
+        ]
+      };
+    }
+    
+    throw new Error(`Invalid profile type: ${profileType}`);
+  }
+  
+  private async handleListProfiles() {
+    const connectionProfiles = this.consoleManager.listConnectionProfiles();
+    const configManager = (this.consoleManager as any).configManager;
+    const applicationProfiles = configManager.config.applicationProfiles;
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            connectionProfiles,
+            applicationProfiles,
+            defaultProfile: configManager.config.defaultConnectionProfile
+          }, null, 2)
+        } as TextContent
+      ]
+    };
+  }
+  
+  private async handleRemoveProfile(args: { profileType: string; name: string }) {
+    const configManager = (this.consoleManager as any).configManager;
+    
+    if (args.profileType === 'connection') {
+      const removed = configManager.removeConnectionProfile(args.name);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: removed ? `Connection profile '${args.name}' removed` : `Profile '${args.name}' not found`
+          } as TextContent
+        ]
+      };
+    }
+    
+    // For application profiles, we'd need to add a removeApplicationProfile method
+    throw new Error('Removing application profiles not yet implemented');
+  }
+  
+  private async handleUseProfile(args: { profileName: string; command?: string; args?: string[]; cwd?: string; env?: any }) {
+    // Create session with profile
+    const sessionOptions: SessionOptions = {
+      command: args.command || '',
+      args: args.args,
+      cwd: args.cwd,
+      env: args.env,
+      profileName: args.profileName
+    } as any;
+    
+    const sessionId = await this.consoleManager.createSession(sessionOptions);
+    const session = this.consoleManager.getSession(sessionId);
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            sessionId,
+            profileUsed: args.profileName,
+            message: `Session created using profile: ${args.profileName}`,
+            consoleType: session?.type
+          }, null, 2)
         } as TextContent
       ]
     };

@@ -240,7 +240,7 @@ describe('SFTP Protocol Integration Tests', () => {
       const remoteFile = '/tmp/large-remote.bin';
       
       // Mock large file transfer (10MB)
-      const transferSpy = jest.fn();
+      const transferSpy = jest.fn<any>();
       sftpProtocol.on('transfer-progress', transferSpy);
       
       const result = await sftpProtocol.uploadFile(testSession.id, largeFile, remoteFile, {
@@ -381,7 +381,7 @@ describe('SFTP Protocol Integration Tests', () => {
     });
 
     test('should track transfer metrics', async () => {
-      const metricsSpy = jest.fn();
+      const metricsSpy = jest.fn<any>();
       sftpProtocol.on('transfer-metrics', metricsSpy);
       
       // Perform several transfers
@@ -403,7 +403,7 @@ describe('SFTP Protocol Integration Tests', () => {
     }, 15000);
 
     test('should monitor bandwidth usage', async () => {
-      const bandwidthSpy = jest.fn();
+      const bandwidthSpy = jest.fn<any>();
       sftpProtocol.on('bandwidth-usage', bandwidthSpy);
       
       // Simulate bandwidth-intensive transfer
@@ -425,7 +425,7 @@ describe('SFTP Protocol Integration Tests', () => {
     }, 10000);
 
     test('should track connection health', async () => {
-      const healthSpy = jest.fn();
+      const healthSpy = jest.fn<any>();
       sftpProtocol.on('connection-health', healthSpy);
       
       // Wait for health monitoring
@@ -484,7 +484,7 @@ describe('SFTP Protocol Integration Tests', () => {
     });
 
     test('should handle network disconnection', async () => {
-      const disconnectSpy = jest.fn();
+      const disconnectSpy = jest.fn<any>();
       sftpProtocol.on('connection-lost', disconnectSpy);
       
       // Simulate network disconnection
@@ -498,7 +498,7 @@ describe('SFTP Protocol Integration Tests', () => {
     });
 
     test('should retry failed operations', async () => {
-      const retrySpy = jest.fn();
+      const retrySpy = jest.fn<any>();
       sftpProtocol.on('operation-retry', retrySpy);
       
       // Attempt operation that should trigger retries
@@ -534,7 +534,7 @@ describe('SFTP Protocol Integration Tests', () => {
     });
 
     test('should recover from temporary network issues', async () => {
-      const recoverySpy = jest.fn();
+      const recoverySpy = jest.fn<any>();
       sftpProtocol.on('connection-recovered', recoverySpy);
       
       // Simulate temporary disconnection and recovery

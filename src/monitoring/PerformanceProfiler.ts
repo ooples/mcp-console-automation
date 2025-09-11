@@ -589,14 +589,14 @@ export class PerformanceProfiler extends EventEmitter {
     const cutoffTime = new Date(Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000);
     
     // Clean up profile sessions
-    for (const [id, session] of this.profileSessions) {
+    for (const [id, session] of Array.from(this.profileSessions.entries())) {
       if (!session.isActive && session.startTime < cutoffTime) {
         this.profileSessions.delete(id);
       }
     }
 
     // Clean up SLA metrics
-    for (const [sessionId, metrics] of this.slaMetrics) {
+    for (const [sessionId, metrics] of Array.from(this.slaMetrics.entries())) {
       if (metrics.endTime && metrics.endTime < cutoffTime) {
         this.slaMetrics.delete(sessionId);
       }
