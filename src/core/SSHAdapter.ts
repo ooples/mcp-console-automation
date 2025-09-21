@@ -228,6 +228,11 @@ export class SSHAdapter extends EventEmitter {
       args.push('-o', `ConnectTimeout=${Math.floor(options.timeout / 1000)}`);
     }
 
+    // Add keep-alive settings to prevent disconnections
+    args.push('-o', 'ServerAliveInterval=30');  // Send keepalive every 30 seconds
+    args.push('-o', 'ServerAliveCountMax=10');   // Allow up to 10 missed responses before disconnect
+    args.push('-o', 'TCPKeepAlive=yes');         // Enable TCP-level keepalive
+
     // Force pseudo-terminal allocation
     args.push('-tt');
 

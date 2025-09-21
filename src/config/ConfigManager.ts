@@ -139,8 +139,8 @@ export class ConfigManager {
       settings: {
         autoReconnect: true,
         keepAliveInterval: 30000,
-        commandTimeout: 30000,
-        maxRetries: 3,
+        commandTimeout: 120000,  // Increased from 30s to 2 minutes
+        maxRetries: 5,           // Increased from 3 to 5
         logLevel: 'info',
         enableMetrics: true,
         enableHealthChecks: true

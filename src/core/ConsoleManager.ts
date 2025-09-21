@@ -8106,12 +8106,12 @@ export class ConsoleManager extends EventEmitter {
       }
     }
     
-    // Check if we should use a default profile
+    // Don't automatically use default profile - require explicit profile usage
+    // This prevents auto-connection on startup
     if (!options.sshOptions && !options.dockerOptions && !options.azureOptions) {
-      const defaultProfile = this.configManager.getConnectionProfile();
-      if (defaultProfile) {
-        this.logger.info(`Using default connection profile: ${defaultProfile.name}`);
-        return this.resolveSessionOptions({ ...options, profileName: defaultProfile.name });
+      // Only use default profile if explicitly requested via profileName
+      if (!profileName) {
+        this.logger.debug('No connection profile specified, using local session');
       }
     }
     
