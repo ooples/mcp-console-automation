@@ -821,7 +821,7 @@ export class ConsoleManager extends EventEmitter {
     this.sessions.set(commandExecution.sessionId, session);
 
     // Record command metrics for health monitoring
-    if (this.selfHealingEnabled) {
+    if (this.selfHealingEnabled && this.metricsCollector) {
       this.metricsCollector.recordCommandExecution(
         commandExecution.status === 'completed',
         commandExecution.duration || 0,
@@ -7399,7 +7399,11 @@ export class ConsoleManager extends EventEmitter {
   }
 
   getSession(sessionId: string): ConsoleSession | undefined {
-    return this.sessions.get(sessionId);
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      this.logger.warn(`Session ${sessionId} not found. Active sessions: ${Array.from(this.sessions.keys()).join(', ')}`);
+    }
+    return session;
   }
 
   getAllSessions(): ConsoleSession[] {
