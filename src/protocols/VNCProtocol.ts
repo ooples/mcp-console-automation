@@ -1,16 +1,17 @@
-import { EventEmitter } from 'events';
 import { Socket, createConnection } from 'net';
 import { createSecureContext, TLSSocket, connect as tlsConnect } from 'tls';
 import * as crypto from 'crypto';
 import * as zlib from 'zlib';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Logger } from '../utils/logger.js';
-import { 
-  VNCConnectionOptions, 
-  VNCSession, 
-  VNCEncoding, 
-  VNCSecurityType, 
+import { ChildProcess, spawn, SpawnOptionsWithoutStdio } from 'child_process';
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import { SessionState } from '../core/IProtocol.js';
+import {
+  VNCConnectionOptions,
+  VNCSession,
+  VNCEncoding,
+  VNCSecurityType,
   VeNCryptSubType,
   VNCRectangle,
   VNCFramebufferUpdate,
@@ -27,9 +28,10 @@ import {
   VNCMonitorConfig,
   ConsoleOutput,
   SessionOptions,
-  ConsoleSession
+  ConsoleSession,
+  ConsoleType
 } from '../types/index.js';
-import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
+import { ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
 
 // RFB Protocol Constants (RFC 6143)
 const RFB_PROTOCOL_VERSION_3_3 = 'RFB 003.003\n';
@@ -153,16 +155,23 @@ const KEY_MAPPINGS = {
 /**
  * Production-ready VNC Protocol implementation with comprehensive RFB support
  */
-export class VNCProtocol extends EventEmitter implements IProtocol {
-  public readonly type = 'vnc' as const;
+export class VNCProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'vnc';
   public readonly capabilities: ProtocolCapabilities;
   public readonly healthStatus: ProtocolHealthStatus;
-  private logger: Logger;
+
+  // VNC-specific properties
   private socket?: Socket | TLSSocket;
-  private session?: VNCSession;
-  private options: VNCConnectionOptions;
+  private vncSessions: Map<string, VNCSession> = new Map();
+  private defaultOptions: Partial<VNCConnectionOptions>;
   private config: VNCProtocolConfig;
-  private connectionId: string;
+  private vncProcesses: Map<string, ChildProcess> = new Map();
+  private vncViewers: Map<string, { process: ChildProcess; pid: number; port: number }> = new Map();
+
+  // Required properties for VNC protocol functionality
+  public options: Partial<VNCConnectionOptions>;
+  public connectionId: string;
+  public session?: VNCSession;
   
   // Protocol state
   private protocolVersion: string = '';
@@ -213,11 +222,10 @@ export class VNCProtocol extends EventEmitter implements IProtocol {
   private repeaterMode: 'mode1' | 'mode2' = 'mode1';
 
   constructor(options?: VNCConnectionOptions) {
-    super();
-    this.logger = new Logger('VNCProtocol');
-    this.options = { ...this.getDefaultOptions(), ...(options || {}) } as VNCConnectionOptions;
-    this.connectionId = `vnc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+    super('VNCProtocol');
+
+    this.defaultOptions = { ...this.getDefaultOptions(), ...(options || {}) };
+
     this.capabilities = {
       supportsStreaming: true,
       supportsFileTransfer: true,
@@ -235,10 +243,10 @@ export class VNCProtocol extends EventEmitter implements IProtocol {
       supportsSignals: false,
       supportsResizing: true,
       supportsPTY: false,
-      maxConcurrentSessions: 1,
+      maxConcurrentSessions: 10,
       defaultTimeout: 30000,
       supportedEncodings: ['utf-8'],
-      supportedAuthMethods: ['password', 'none'],
+      supportedAuthMethods: ['password', 'none', 'tls', 'vencrypt'],
       platformSupport: {
         windows: true,
         linux: true,
@@ -260,16 +268,22 @@ export class VNCProtocol extends EventEmitter implements IProtocol {
         uptime: 0,
       },
       dependencies: {
-        vnc: {
-          available: true,
-          version: '1.0',
-        },
+        vnc: { available: true, version: '1.0' },
+        vncviewer: { available: true, version: '1.0' },
+        tightvnc: { available: true, version: '1.0' },
+        tigervnc: { available: true, version: '1.0' },
+        realvnc: { available: true, version: '1.0' },
+        ultravnc: { available: true, version: '1.0' }
       },
     };
-    
+
     this.config = this.createDefaultConfig();
     this.initializeEncodingSupport();
     this.initializePerformanceMetrics();
+
+    // Initialize required properties
+    this.options = this.defaultOptions;
+    this.connectionId = this.generateConnectionId();
   }
 
   private getDefaultOptions(): Partial<VNCConnectionOptions> {
@@ -2021,79 +2035,597 @@ export class VNCProtocol extends EventEmitter implements IProtocol {
     this.processServerMessage();
   }
 
-  // IProtocol required methods
+  // BaseProtocol required methods
   async initialize(): Promise<void> {
-    // VNC initialization is handled in connect()
+    if (this.isInitialized) return;
+
+    this.logger.info('Initializing VNC Protocol');
+
+    try {
+      // Check VNC tool availability
+      await this.checkVNCAvailability();
+
+      this.isInitialized = true;
+      this.logger.info('VNC Protocol initialized successfully');
+    } catch (error) {
+      this.logger.error('Failed to initialize VNC Protocol:', error);
+      throw error;
+    }
   }
 
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
-    const sessionId = `vnc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    if (!options.vncOptions) {
-      throw new Error('VNC options are required');
+    if (!this.isInitialized) {
+      await this.initialize();
     }
 
-    // Update our internal options with the session options
-    this.options = { ...this.options, ...options.vncOptions };
+    const sessionId = this.generateSessionId();
+    const vncOptions = { ...this.defaultOptions, ...(options.vncOptions || {}) };
 
-    const session: ConsoleSession = {
-      id: sessionId,
-      command: options.command || '',
-      args: options.args || [],
-      cwd: '/',
-      env: options.environment || {},
-      createdAt: new Date(),
-      status: 'running',
-      type: 'vnc',
-      streaming: options.streaming ?? true,
-      vncOptions: options.vncOptions,
-      executionState: 'idle',
-      activeCommands: new Map(),
+    // Handle different VNC connection modes
+    let command: string;
+    let args: string[];
+
+    if (vncOptions.mode === 'viewer') {
+      // VNC Viewer mode - connect to existing VNC server
+      const viewerResult = this.buildVNCViewerCommand(vncOptions);
+      command = viewerResult.command;
+      args = viewerResult.args;
+    } else if (vncOptions.mode === 'server') {
+      // VNC Server mode - start VNC server
+      const serverResult = this.buildVNCServerCommand(vncOptions);
+      command = serverResult.command;
+      args = serverResult.args;
+    } else {
+      // Direct VNC protocol connection
+      const directResult = this.buildVNCDirectCommand(vncOptions);
+      command = directResult.command;
+      args = directResult.args;
+    }
+
+    const session = await this.createSessionWithTypeDetection(sessionId, {
+      ...options,
+      command,
+      args
+    });
+
+    // Create VNC-specific session tracking
+    const vncSession: VNCSession = {
+      sessionId,
+      connectionId: sessionId,
+      host: vncOptions.host || 'localhost',
+      port: vncOptions.port || 5900,
+      protocolVersion: vncOptions.rfbProtocolVersion || '3.8',
+      securityType: vncOptions.authMethod || 'vencrypt',
+      sharedConnection: vncOptions.sharedConnection || true,
+      viewOnlyMode: vncOptions.viewOnly || false,
+      framebufferInfo: {
+        width: vncOptions.initialWidth || 1024,
+        height: vncOptions.initialHeight || 768,
+        pixelFormat: {
+          bitsPerPixel: vncOptions.pixelFormat?.bitsPerPixel || 32,
+          depth: vncOptions.pixelFormat?.depth || 24,
+          bigEndianFlag: vncOptions.pixelFormat?.bigEndianFlag || false,
+          trueColorFlag: vncOptions.pixelFormat?.trueColorFlag || true,
+          redMax: vncOptions.pixelFormat?.redMax || 255,
+          greenMax: vncOptions.pixelFormat?.greenMax || 255,
+          blueMax: vncOptions.pixelFormat?.blueMax || 255,
+          redShift: vncOptions.pixelFormat?.redShift || 16,
+          greenShift: vncOptions.pixelFormat?.greenShift || 8,
+          blueShift: vncOptions.pixelFormat?.blueShift || 0
+        }
+      },
+      supportedEncodings: vncOptions.supportedEncodings || ['zrle', 'hextile', 'raw'],
+      serverCapabilities: {
+        cursorShapeUpdates: vncOptions.enableCursorShapeUpdates || false,
+        richCursor: vncOptions.enableRichCursor || false,
+        desktopResize: vncOptions.autoResize || false,
+        continuousUpdates: false,
+        fence: false,
+        fileTransfer: vncOptions.enableFileTransfer || false,
+        clipboardTransfer: vncOptions.enableClipboard || false,
+        audio: false
+      },
+      status: 'connecting',
+      connectionTime: new Date(),
+      statistics: {
+        bytesReceived: 0,
+        bytesSent: 0,
+        framebufferUpdates: 0,
+        keyboardEvents: 0,
+        mouseEvents: 0,
+        clipboardTransfers: 0,
+        fileTransfers: 0,
+        avgFrameRate: 0,
+        bandwidth: 0,
+        compression: 1.0,
+        latency: 0
+      },
+      errorCount: 0,
+      warnings: [],
+      monitors: vncOptions.monitors || [],
+      metadata: { mode: vncOptions.mode }
     };
 
-    this.emit('sessionCreated', session);
+    this.vncSessions.set(sessionId, vncSession);
+
+    this.logger.info(`VNC session created: ${sessionId} (${vncOptions.mode || 'direct'})`);
     return session;
   }
 
   async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    // VNC doesn't execute commands directly, but we can emit events
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const vncSession = this.vncSessions.get(sessionId);
+    const process = this.vncProcesses.get(sessionId);
+
+    if (process && !process.killed) {
+      // Send commands to VNC process stdin if available
+      if (process.stdin && process.stdin.writable) {
+        const commandLine = args ? `${command} ${args.join(' ')}` : command;
+        process.stdin.write(`${commandLine}\n`);
+
+        if (vncSession) {
+          vncSession.statistics.keyboardEvents++;
+        }
+      }
+    }
+
     this.emit('commandExecuted', { sessionId, command, args, timestamp: new Date() });
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
-    // For VNC, input would be key events
-    for (const char of input) {
-      const keycode = char.charCodeAt(0);
-      await this.sendKeyEvent(keycode, true);  // key down
-      await this.sendKeyEvent(keycode, false); // key up
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
     }
-  }
 
-  async getOutput(sessionId: string, since?: Date): Promise<string> {
-    // VNC output is framebuffer updates, not text
-    return 'VNC framebuffer output (binary data)';
+    const vncSession = this.vncSessions.get(sessionId);
+    const process = this.vncProcesses.get(sessionId);
+
+    if (process && !process.killed && process.stdin && process.stdin.writable) {
+      process.stdin.write(input);
+
+      if (vncSession) {
+        vncSession.statistics.keyboardEvents++;
+      }
+    }
+
+    // Also handle VNC-specific key events for direct connections
+    if (vncSession?.status === 'connected') {
+      for (const char of input) {
+        const keycode = char.charCodeAt(0);
+        await this.sendKeyEvent(keycode, true);  // key down
+        await this.sendKeyEvent(keycode, false); // key up
+      }
+    }
   }
 
   async closeSession(sessionId: string): Promise<void> {
-    await this.disconnect();
-  }
-
-  async getHealthStatus(): Promise<ProtocolHealthStatus> {
-    this.healthStatus.lastChecked = new Date();
-    this.healthStatus.metrics.activeSessions = this.isConnected ? 1 : 0;
-    this.healthStatus.isHealthy = this.isConnected;
-    
-    if (!this.isConnected && this.healthStatus.errors.length === 0) {
-      this.healthStatus.errors.push('VNC not connected');
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      this.logger.warn(`Attempted to close non-existent session: ${sessionId}`);
+      return;
     }
-    
-    return { ...this.healthStatus };
+
+    try {
+      // Close VNC-specific resources
+      const vncSession = this.vncSessions.get(sessionId);
+      if (vncSession) {
+        vncSession.status = 'disconnected';
+      }
+
+      // Terminate VNC process
+      const process = this.vncProcesses.get(sessionId);
+      if (process && !process.killed) {
+        process.kill('SIGTERM');
+
+        // Force kill after 5 seconds
+        setTimeout(() => {
+          if (!process.killed) {
+            process.kill('SIGKILL');
+          }
+        }, 5000);
+      }
+
+      // Clean up viewer processes
+      const viewer = this.vncViewers.get(sessionId);
+      if (viewer && !viewer.process.killed) {
+        viewer.process.kill('SIGTERM');
+        setTimeout(() => {
+          if (!viewer.process.killed) {
+            viewer.process.kill('SIGKILL');
+          }
+        }, 5000);
+      }
+
+      // Clean up maps
+      this.vncSessions.delete(sessionId);
+      this.vncProcesses.delete(sessionId);
+      this.vncViewers.delete(sessionId);
+      this.sessions.delete(sessionId);
+      this.outputBuffers.delete(sessionId);
+
+      session.status = 'terminated';
+      session.endedAt = new Date();
+
+      this.logger.info(`VNC session closed: ${sessionId}`);
+      this.emit('sessionClosed', sessionId);
+
+    } catch (error) {
+      this.logger.error(`Error closing VNC session ${sessionId}:`, error);
+      throw error;
+    }
   }
 
   async dispose(): Promise<void> {
-    await this.disconnect();
+    this.logger.info('Disposing VNC Protocol');
+
+    // Close all active sessions
+    const sessionIds = Array.from(this.sessions.keys());
+    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+
+    // Disconnect any active VNC connections
+    if (this.socket) {
+      this.socket.destroy();
+      this.socket = undefined;
+    }
+
+    if (this.repeaterConnection) {
+      this.repeaterConnection.destroy();
+      this.repeaterConnection = undefined;
+    }
+
     this.removeAllListeners();
+    this.isInitialized = false;
+
+    this.logger.info('VNC Protocol disposed');
   }
+
+  /**
+   * VNC-specific helper methods for BaseProtocol integration
+   */
+  private generateSessionId(): string {
+    return `vnc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private generateConnectionId(): string {
+    return `vnc-conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private async checkVNCAvailability(): Promise<void> {
+    // Check for VNC tools availability
+    const tools = ['vncviewer', 'tigervnc', 'tightvncviewer', 'realvnc', 'ultravnc'];
+    let availableTools = 0;
+
+    for (const tool of tools) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const process = spawn(tool, ['--version'], { stdio: 'pipe' });
+          process.on('close', (code) => {
+            if (code === 0 || code === 1) { // Some tools return 1 for --version
+              availableTools++;
+              this.healthStatus.dependencies[tool] = { available: true, version: 'detected' };
+            }
+            resolve();
+          });
+          process.on('error', () => resolve()); // Ignore errors, tool not available
+          setTimeout(() => {
+            process.kill();
+            resolve();
+          }, 3000);
+        });
+      } catch {
+        // Tool not available
+      }
+    }
+
+    if (availableTools === 0) {
+      this.logger.warn('No VNC tools detected, some functionality may be limited');
+    } else {
+      this.logger.debug(`Detected ${availableTools} VNC tools`);
+    }
+  }
+
+  private buildVNCViewerCommand(options: Partial<VNCConnectionOptions>): { command: string; args: string[] } {
+    // Determine best VNC viewer
+    const viewers = [
+      { cmd: 'vncviewer', name: 'TigerVNC Viewer' },
+      { cmd: 'tigervnc', name: 'TigerVNC' },
+      { cmd: 'tightvncviewer', name: 'TightVNC Viewer' },
+      { cmd: 'realvnc', name: 'RealVNC Viewer' },
+      { cmd: 'ultravnc', name: 'UltraVNC' }
+    ];
+
+    const command = options.vncViewer || 'vncviewer';
+    const args: string[] = [];
+
+    // Connection target
+    const target = `${options.host || 'localhost'}:${options.port || 5900}`;
+    args.push(target);
+
+    // Common VNC viewer options
+    if (options.viewOnly) {
+      args.push('-ViewOnly');
+    }
+
+    if (options.sharedConnection) {
+      args.push('-Shared');
+    }
+
+    if (options.password) {
+      args.push('-passwd', options.password);
+    }
+
+    if (options.qualityLevel !== undefined) {
+      args.push('-quality', options.qualityLevel.toString());
+    }
+
+    if (options.compressionLevel !== undefined) {
+      args.push('-compresslevel', options.compressionLevel.toString());
+    }
+
+    if (options.enableJPEGCompression) {
+      args.push('-jpeg');
+    }
+
+    if (options.cursorMode) {
+      args.push('-cursor', options.cursorMode);
+    }
+
+    // Full screen mode
+    if (options.fullScreen) {
+      args.push('-fullscreen');
+    }
+
+    // Scaling
+    if (options.scaleFactor) {
+      args.push('-scale', options.scaleFactor.toString());
+    }
+
+    return { command, args };
+  }
+
+  private buildVNCServerCommand(options: Partial<VNCConnectionOptions>): { command: string; args: string[] } {
+    // Determine VNC server to use
+    const servers = ['x11vnc', 'tigervnc', 'tightvncserver', 'vncserver'];
+    const command = options.vncServer || 'x11vnc';
+    const args: string[] = [];
+
+    if (command === 'x11vnc') {
+      // x11vnc server options
+      args.push('-display', options.display || ':0');
+      args.push('-rfbport', (options.port || 5900).toString());
+
+      if (options.password) {
+        args.push('-passwd', options.password);
+      }
+
+      if (options.viewOnly) {
+        args.push('-viewonly');
+      }
+
+      if (options.sharedConnection) {
+        args.push('-shared');
+      }
+
+      if (options.enableFileTransfer) {
+        args.push('-ultrafilexfer');
+      }
+
+      if (options.enableClipboard) {
+        args.push('-clipboard');
+      }
+
+      // Security options
+      if (options.allowInsecure) {
+        args.push('-nopw');
+      }
+
+      // Performance options
+      if (options.compressionLevel !== undefined) {
+        args.push('-compress', options.compressionLevel.toString());
+      }
+
+      // Daemon mode
+      if (options.daemonMode) {
+        args.push('-forever', '-loop');
+      }
+
+    } else if (command.includes('tigervnc') || command === 'vncserver') {
+      // TigerVNC/standard vncserver options
+      if (options.geometry) {
+        args.push('-geometry', options.geometry);
+      } else {
+        args.push('-geometry', '1024x768');
+      }
+
+      if (options.depth) {
+        args.push('-depth', options.depth.toString());
+      }
+
+      if (options.port) {
+        args.push('-rfbport', options.port.toString());
+      }
+
+      // Display number (e.g., :1, :2)
+      const displayNum = options.display || ':1';
+      args.push(displayNum);
+    }
+
+    return { command, args };
+  }
+
+  private buildVNCDirectCommand(options: Partial<VNCConnectionOptions>): { command: string; args: string[] } {
+    // For direct VNC protocol connections, we can use netcat or custom connection tools
+    const command = 'nc'; // netcat for basic TCP connection
+    const args = [
+      options.host || 'localhost',
+      (options.port || 5900).toString()
+    ];
+
+    if (options.timeout) {
+      args.unshift('-w', (options.timeout / 1000).toString());
+    }
+
+    return { command, args };
+  }
+
+  /**
+   * Enhanced createSessionWithTypeDetection wrapper for VNC-specific session creation
+   */
+  protected async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+    const vncOptions = { ...this.defaultOptions, ...(options.vncOptions || {}) };
+
+    let command: string;
+    let args: string[];
+
+    if (vncOptions.mode === 'viewer') {
+      const result = this.buildVNCViewerCommand(vncOptions);
+      command = result.command;
+      args = result.args;
+    } else if (vncOptions.mode === 'server') {
+      const result = this.buildVNCServerCommand(vncOptions);
+      command = result.command;
+      args = result.args;
+    } else {
+      const result = this.buildVNCDirectCommand(vncOptions);
+      command = result.command;
+      args = result.args;
+    }
+
+    const spawnOptions: SpawnOptionsWithoutStdio = {
+      cwd: options.cwd || process.cwd(),
+      env: { ...process.env, ...options.environment },
+      stdio: ['pipe', 'pipe', 'pipe']
+    };
+
+    this.logger.debug(`Starting VNC process: ${command} ${args.join(' ')}`);
+
+    const childProcess = spawn(command, args, spawnOptions);
+    this.vncProcesses.set(sessionId, childProcess);
+
+    // Handle process events
+    childProcess.on('spawn', () => {
+      this.logger.debug(`VNC process spawned for session ${sessionId} (PID: ${childProcess.pid})`);
+    });
+
+    childProcess.on('error', (error) => {
+      this.logger.error(`VNC process error for session ${sessionId}:`, error);
+      this.emit('processError', { sessionId, error });
+    });
+
+    childProcess.on('exit', (code, signal) => {
+      this.logger.debug(`VNC process exited for session ${sessionId}: code=${code}, signal=${signal}`);
+      this.vncProcesses.delete(sessionId);
+
+      const vncSession = this.vncSessions.get(sessionId);
+      if (vncSession) {
+        vncSession.status = 'disconnected';
+      }
+    });
+
+    // Handle stdout/stderr
+    if (childProcess.stdout) {
+      childProcess.stdout.on('data', (data) => {
+        const output: ConsoleOutput = {
+          sessionId,
+          type: 'stdout',
+          data: data.toString(),
+          timestamp: new Date(),
+          stream: 'stdout'
+        };
+
+        const outputBuffer = this.outputBuffers.get(sessionId) || [];
+        outputBuffer.push(output);
+        this.outputBuffers.set(sessionId, outputBuffer);
+
+        this.emit('output', output);
+      });
+    }
+
+    if (childProcess.stderr) {
+      childProcess.stderr.on('data', (data) => {
+        const output: ConsoleOutput = {
+          sessionId,
+          type: 'stderr',
+          data: data.toString(),
+          timestamp: new Date(),
+          stream: 'stderr'
+        };
+
+        const outputBuffer = this.outputBuffers.get(sessionId) || [];
+        outputBuffer.push(output);
+        this.outputBuffers.set(sessionId, outputBuffer);
+
+        this.emit('output', output);
+      });
+    }
+
+    // Create and return ConsoleSession
+    const session: ConsoleSession = {
+      id: sessionId,
+      command,
+      args,
+      cwd: options.cwd || process.cwd(),
+      env: { ...process.env, ...options.environment },
+      createdAt: new Date(),
+      pid: childProcess.pid,
+      status: 'running',
+      type: 'vnc',
+      vncOptions: vncOptions as VNCConnectionOptions,
+      executionState: 'executing',
+      activeCommands: new Map()
+    };
+
+    return session;
+  }
+
+  // Compatibility properties for legacy ProtocolFactory interface
+  public get supportedAuthMethods(): string[] {
+    return this.capabilities.supportedAuthMethods || [];
+  }
+
+  public get maxConcurrentSessions(): number {
+    return this.capabilities.maxConcurrentSessions || 10;
+  }
+
+  public get defaultTimeout(): number {
+    return this.capabilities.defaultTimeout || 30000;
+  }
+
+  public async getOutput(sessionId: string, since?: Date): Promise<ConsoleOutput[]> {
+    const outputs = this.outputBuffers.get(sessionId) || [];
+    const filteredOutputs = since
+      ? outputs.filter(output => output.timestamp > since)
+      : outputs;
+
+    return filteredOutputs;
+  }
+
+  public async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    this.healthStatus.lastChecked = new Date();
+    this.healthStatus.metrics.activeSessions = this.sessions.size;
+    this.healthStatus.isHealthy = this.isInitialized;
+
+    // Check for any failed sessions
+    let hasErrors = false;
+    for (const [sessionId, session] of this.sessions) {
+      if (session.status === 'failed' || session.status === 'crashed') {
+        hasErrors = true;
+        break;
+      }
+    }
+
+    if (hasErrors && !this.healthStatus.errors.includes('Some VNC sessions have errors')) {
+      this.healthStatus.errors.push('Some VNC sessions have errors');
+    }
+
+    return { ...this.healthStatus };
+  }
+
 }
 
 // Export VNC-specific error types

@@ -11,6 +11,8 @@ import { MonitoringSystem } from '../monitoring/MonitoringSystem.js';
 import { PromptDetector, PromptDetectionResult } from './PromptDetector.js';
 import { ConnectionPool } from './ConnectionPool.js';
 import { SessionManager } from './SessionManager.js';
+import { DiagnosticsManager } from './DiagnosticsManager.js';
+import { SessionValidator } from './SessionValidator.js';
 import { RetryManager } from './RetryManager.js';
 import { ErrorRecovery, ErrorContext } from './ErrorRecovery.js';
 import { HealthMonitor } from './HealthMonitor.js';
@@ -18,23 +20,8 @@ import { HeartbeatMonitor } from './HeartbeatMonitor.js';
 import { SessionRecovery } from './SessionRecovery.js';
 import { MetricsCollector } from './MetricsCollector.js';
 import { SSHConnectionKeepAlive } from './SSHConnectionKeepAlive.js';
-import { WSLProtocol } from '../protocols/WSLProtocol.js';
-import { DockerProtocol } from '../protocols/DockerProtocol.js';
-import { AzureProtocol } from '../protocols/AzureProtocol.js';
+import { ProtocolFactory, IProtocol, ProtocolDetector } from './ProtocolFactory.js';
 import { AzureMonitoring } from '../monitoring/AzureMonitoring.js';
-import { TelnetProtocol } from '../protocols/TelnetProtocol.js';
-import { GCPProtocol } from '../protocols/GCPProtocol.js';
-import { KubernetesProtocol } from '../protocols/KubernetesProtocol.js';
-import { SerialProtocol } from '../protocols/SerialProtocol.js';
-import { SFTPProtocol } from '../protocols/SFTPProtocol.js';
-import { AWSSSMProtocol } from '../protocols/AWSSSMProtocol.js';
-import { RDPProtocol } from '../protocols/RDPProtocol.js';
-import { WinRMProtocol } from '../protocols/WinRMProtocol.js';
-import { VNCProtocol } from '../protocols/VNCProtocol.js';
-import { IPCProtocol } from '../protocols/IPCProtocol.js';
-import { WebSocketTerminalProtocol } from '../protocols/WebSocketTerminalProtocol.js';
-import { AnsibleProtocol } from '../protocols/AnsibleProtocol.js';
-import { IPMIProtocol } from '../protocols/IPMIProtocol.js';
 import { ConfigManager, ConnectionProfile, ApplicationProfile } from '../config/ConfigManager.js';
 import PQueue from 'p-queue';
 import { platform } from 'os';
@@ -182,7 +169,7 @@ export class ConsoleManager extends EventEmitter {
   private sshClients: Map<string, SSHClient>;
   private sshChannels: Map<string, ClientChannel>;
   private sshConnectionPool: Map<string, SSHClient>; // Legacy connection pooling for SSH
-  private sftpProtocols: Map<string, SFTPProtocol>; // SFTP protocol instances
+  private sftpProtocols: Map<string, any>; // SFTP protocol instances
   private fileTransferSessions: Map<string, FileTransferSession>; // File transfer session tracking
   private outputBuffers: Map<string, ConsoleOutput[]>;
   private streamManagers: Map<string, StreamManager>;
@@ -214,6 +201,8 @@ export class ConsoleManager extends EventEmitter {
   private connectionPool: ConnectionPool;
   private sessionManager: SessionManager;
   private retryManager: RetryManager;
+  private diagnosticsManager: DiagnosticsManager;
+  private sessionValidator: SessionValidator;
   private errorRecovery: ErrorRecovery;
   
   // Self-healing and health monitoring components
@@ -223,53 +212,38 @@ export class ConsoleManager extends EventEmitter {
   private metricsCollector: MetricsCollector;
   private sshKeepAlive: SSHConnectionKeepAlive;
   
-  // Azure protocol support
-  private azureProtocol: AzureProtocol;
+  // Protocol Factory and unified protocol management
+  private protocolFactory: ProtocolFactory;
+  private protocolInstances: Map<ConsoleType, IProtocol>;
+  private protocolSessions: Map<string, { protocol: IProtocol; type: ConsoleType; protocolSessionId?: string }>;
+  private protocolSessionIdMap: Map<string, string>; // Maps ConsoleManager sessionId to protocol sessionId
+
+  // Azure monitoring support (kept separate as it's not a protocol)
   private azureMonitoring: AzureMonitoring;
-  
-  // Kubernetes protocol support
-  private kubernetesProtocol: KubernetesProtocol;
-  
-  // Docker protocol support
-  private dockerProtocol: DockerProtocol;
-  
-  // Serial protocol support
-  private serialProtocol: SerialProtocol;
-  
-  // WSL protocol support
-  private wslProtocol: WSLProtocol;
-  
-  // AWS SSM protocol support
-  private awsSSMProtocol: AWSSSMProtocol;
-  
-  // RDP protocol support
-  private rdpProtocol: RDPProtocol;
+
+  // Legacy protocol instances (to be fully migrated)
+  private winrmProtocols: Map<string, any>;
+  private vncProtocols: Map<string, any>;
+  private ipcProtocols: Map<string, any>;
+  private ipmiProtocols: Map<string, any>;
+  private kubernetesProtocol?: any;
+  private serialProtocol?: any;
+  private awsSSMProtocol?: any;
+  private azureProtocol?: any;
+  private webSocketTerminalProtocol?: any;
+  private rdpProtocol?: any;
+  private wslProtocol?: any;
+  private ansibleProtocol?: any;
+
+  // Legacy session tracking (to be migrated)
   private rdpSessions: Map<string, RDPSession>;
-  
-  // WinRM protocol support
-  private winrmProtocols: Map<string, WinRMProtocol>;
   private winrmSessions: Map<string, WinRMSessionState>;
-  
-  // VNC protocol support
-  private vncProtocols: Map<string, VNCProtocol>;
   private vncSessions: Map<string, VNCSession>;
   private vncFramebuffers: Map<string, VNCFramebuffer>;
-  
-  // IPC protocol support
-  private ipcProtocols: Map<string, IPCProtocol>;
   private ipcSessions: Map<string, IPCSessionState>;
-  
-  // IPMI/BMC protocol support
-  private ipmiProtocols: Map<string, IPMIProtocol>;
   private ipmiSessions: Map<string, import('../types/index.js').IPMISessionState>;
   private ipmiMonitoringIntervals: Map<string, NodeJS.Timeout | NodeJS.Timeout[]>;
-  
-  // WebSocket Terminal protocol support
-  private webSocketTerminalProtocol: WebSocketTerminalProtocol;
   private webSocketTerminalSessions: Map<string, WebSocketTerminalSessionState>;
-  
-  // Ansible protocol support
-  private ansibleProtocol: AnsibleProtocol;
   private ansibleSessions: Map<string, import('../types/index.js').AnsibleSession>;
   
   // Self-healing state
@@ -380,24 +354,19 @@ export class ConsoleManager extends EventEmitter {
     this.sessionHealthCheckIntervals = new Map();
     this.monitoringSystems = new Map();
     
-    // Initialize WinRM protocol support
+    // Legacy session tracking (to be fully migrated)
     this.winrmProtocols = new Map();
     this.winrmSessions = new Map();
-    
-    // Initialize VNC protocol support
     this.vncProtocols = new Map();
     this.vncSessions = new Map();
-    
-    // Initialize IPC protocol support
     this.ipcProtocols = new Map();
     this.ipcSessions = new Map();
     this.vncFramebuffers = new Map();
-    
-    // Initialize IPMI/BMC protocol support
     this.ipmiProtocols = new Map();
     this.ipmiSessions = new Map();
     this.ipmiMonitoringIntervals = new Map();
-    
+    this.webSocketTerminalSessions = new Map();
+
     this.errorDetector = new ErrorDetector();
     this.promptDetector = new PromptDetector();
     this.logger = new Logger('ConsoleManager');
@@ -458,69 +427,17 @@ export class ConsoleManager extends EventEmitter {
 
     this.sessionManager = new SessionManager(config?.sessionManager);
     
-    // Initialize Docker protocol with default configuration
-    this.dockerProtocol = new DockerProtocol({
-      connection: {
-        // Auto-detect Docker socket/host based on platform
-        socketPath: process.platform === 'win32' ? '\\\\.\\pipe\\docker_engine' : '/var/run/docker.sock'
-      },
-      containerDefaults: {
-        attachStdin: true,
-        attachStdout: true,
-        attachStderr: true,
-        tty: true,
-        openStdin: true,
-        stdinOnce: false,
-        hostConfig: {
-          autoRemove: true
-        }
-      },
-      execDefaults: {
-        attachStdin: true,
-        attachStdout: true,
-        attachStderr: true,
-        tty: true
-      },
-      healthCheck: {
-        enabled: true,
-        interval: 30000,
-        timeout: 5000,
-        retries: 3,
-        startPeriod: 10000
-      },
-      autoCleanup: true,
-      logStreaming: {
-        enabled: true,
-        bufferSize: 8192,
-        maxLines: 1000,
-        timestamps: true
-      },
-      networking: {
-        createNetworks: false,
-        allowPrivileged: false
-      },
-      security: {
-        allowPrivileged: false,
-        allowHostNetwork: false,
-        allowHostPid: false,
-        restrictedCapabilities: ['SYS_ADMIN', 'NET_ADMIN', 'SYS_MODULE']
-      },
-      performance: {
-        connectionPoolSize: 10,
-        requestTimeout: 30000,
-        keepAliveTimeout: 60000,
-        maxConcurrentOperations: 50
-      },
-      monitoring: {
-        enableMetrics: true,
-        enableTracing: false,
-        enableHealthChecks: true,
-        alertOnFailures: true
-      }
+    // Initialize diagnostics and validation
+    this.diagnosticsManager = DiagnosticsManager.getInstance({
+      enableDiagnostics: true,
+      verboseLogging: false,
+      persistDiagnostics: true,
+      diagnosticsPath: './diagnostics',
+      maxEventHistory: 10000,
+      metricsIntervalMs: 30000
     });
     
-    // Setup Docker protocol event handlers
-    this.setupDockerProtocolHandlers();
+    this.sessionValidator = new SessionValidator();
     
     // Initialize session continuity configuration
     this.continuityConfig = {
@@ -542,28 +459,123 @@ export class ConsoleManager extends EventEmitter {
     this.startNetworkPerformanceMonitoring();
     this.initializeSessionContinuity();
     
-    // Initialize Azure protocol support
-    this.azureProtocol = new AzureProtocol(this.logger);
+    // Initialize Protocol Factory
+    this.protocolFactory = ProtocolFactory.getInstance();
+    this.protocolInstances = new Map();
+    this.protocolSessions = new Map();
+    this.protocolSessionIdMap = new Map();
+
+    // Initialize Azure monitoring (not a protocol)
     this.azureMonitoring = new AzureMonitoring(this.logger.getWinstonLogger());
-    this.setupAzureIntegration();
-    
-    // Initialize WSL protocol support
-    this.wslProtocol = WSLProtocol.getInstance();
-    this.setupWSLIntegration();
-    
-    // Initialize RDP protocol support
-    this.rdpProtocol = new RDPProtocol();
-    this.setupRDPIntegration();
-    
-    // Initialize WebSocket Terminal protocol support
-    this.webSocketTerminalProtocol = new WebSocketTerminalProtocol();
-    this.webSocketTerminalSessions = new Map();
-    this.setupWebSocketTerminalIntegration();
-    
-    // Initialize Ansible protocol support
-    this.ansibleProtocol = new AnsibleProtocol();
-    this.ansibleSessions = new Map();
-    this.setupAnsibleIntegration();
+
+    // Setup protocol integrations will be handled on-demand
+  }
+
+  /**
+   * Detect protocol type from session options
+   */
+  private detectProtocolType(options: SessionOptions): ConsoleType {
+    // Check for explicit protocol options - order matters for SSH detection
+    if (options.sshOptions) {
+      // Validate SSH options to ensure they're complete
+      if (!options.sshOptions.host || !options.sshOptions.username) {
+        throw new Error('SSH options must include host and username');
+      }
+      return 'ssh';
+    }
+    if (options.azureOptions) return 'azure-shell';
+    if (options.serialOptions) return 'serial';
+    if (options.kubernetesOptions) return 'kubectl';
+    if (options.dockerOptions) return 'docker';
+    if (options.awsSSMOptions) return 'aws-ssm';
+    if (options.wslOptions) return 'wsl';
+    if (options.rdpOptions) return 'rdp';
+    if (options.winrmOptions) return 'winrm';
+    if (options.vncOptions) return 'vnc';
+    if (options.ipcOptions) return 'ipc';
+    if (options.ipmiOptions) return 'ipmi';
+    if (options.webSocketTerminalOptions) return 'websocket-term';
+    if (options.ansibleOptions) return 'ansible';
+
+    // Enhanced SSH detection from command and context
+    if (options.command) {
+      const command = options.command.toLowerCase();
+
+      // Explicit SSH command detection
+      if (command.includes('ssh') || command.startsWith('ssh ')) {
+        this.logger.info('Detected SSH protocol from command');
+        return 'ssh';
+      }
+
+      // Try to detect from command using ProtocolDetector
+      const detectedType = ProtocolDetector.detectProtocol(options.command);
+      if (detectedType) {
+        return detectedType;
+      }
+    }
+
+    // Default based on platform
+    if (process.platform === 'win32') {
+      return options.command?.toLowerCase().includes('cmd') ? 'cmd' : 'powershell';
+    } else {
+      return 'bash';
+    }
+  }
+
+  /**
+   * Setup protocol event handlers
+   */
+  private setupProtocolEventHandlers(sessionId: string, protocol: IProtocol, type: ConsoleType): void {
+    // Get the protocol's sessionId for this ConsoleManager sessionId
+    const protocolSessionId = this.protocolSessionIdMap.get(sessionId) || sessionId;
+
+    // Handle protocol output
+    protocol.on('output', (output: ConsoleOutput) => {
+      // Check if the output is for this session (using protocol's sessionId)
+      if (output.sessionId === protocolSessionId) {
+        this.handleProtocolOutput(sessionId, output);
+      }
+    });
+
+    // Handle protocol errors
+    protocol.on('error', (error: Error) => {
+      this.logger.error(`Protocol error for session ${sessionId}:`, error);
+      this.handleSessionError(sessionId, error, 'protocol_error');
+    });
+
+    // Handle session completion
+    protocol.on('session-complete', (data: { sessionId: string; exitCode?: number }) => {
+      // Check if completion is for this session (using protocol's sessionId)
+      if (data.sessionId === protocolSessionId) {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          session.status = 'stopped';
+          session.exitCode = data.exitCode;
+        }
+        this.emit('sessionClosed', sessionId);
+      }
+    });
+  }
+
+  /**
+   * Handle protocol output
+   */
+  private handleProtocolOutput(sessionId: string, output: ConsoleOutput): void {
+    // Add to output buffer
+    let buffer = this.outputBuffers.get(sessionId);
+    if (!buffer) {
+      buffer = [];
+      this.outputBuffers.set(sessionId, buffer);
+    }
+    buffer.push(output);
+
+    // Emit output event
+    this.emit('output', {
+      sessionId,
+      data: output.data,
+      timestamp: output.timestamp,
+      type: output.type
+    } as ConsoleOutput);
   }
 
   /**
@@ -1196,6 +1208,12 @@ export class ConsoleManager extends EventEmitter {
    * Setup Docker protocol event handlers
    */
   private setupDockerProtocolHandlers(): void {
+    // Docker protocol handlers are now managed by the protocol instance itself
+    // via the ProtocolFactory. This method is kept for backwards compatibility
+    // but will be removed in the future.
+    return;
+
+    /* Legacy code - to be removed
     this.dockerProtocol.on('container-created', (containerId, session) => {
       this.logger.info(`Docker container created: ${containerId} for session ${session.id}`);
       this.emit('docker-container-created', { containerId, sessionId: session.id });
@@ -1285,6 +1303,7 @@ export class ConsoleManager extends EventEmitter {
     });
 
     this.logger.info('Docker protocol event handlers initialized');
+    */
   }
 
   /**
@@ -3220,7 +3239,7 @@ export class ConsoleManager extends EventEmitter {
             overallScore: kubernetesHealth.overallScore,
             checks: kubernetesHealth.checks,
             context: this.kubernetesProtocol.getCurrentContext(),
-            activeSessions: this.kubernetesProtocol.getActiveSessions().size,
+            activeSessions: this.kubernetesProtocol.getActiveSessions().length,
             timestamp: new Date()
           });
         } catch (error) {
@@ -3566,7 +3585,7 @@ export class ConsoleManager extends EventEmitter {
     // Use retry logic for session creation
     return await this.retryManager.executeWithRetry(
       async () => {
-        return await this.createSessionInternal(sessionId, options);
+        return await this.createSessionInternal(sessionId, options, false);
       },
       {
         sessionId,
@@ -3583,19 +3602,44 @@ export class ConsoleManager extends EventEmitter {
     );
   }
 
-  private async createSessionInternal(sessionId: string, options: SessionOptions): Promise<string> {
+  private async createSessionInternal(sessionId: string, options: SessionOptions, isOneShot: boolean = false): Promise<string> {
+    // Prevent race conditions with session creation lock
+    const sessionLock = `session_create_${sessionId}`;
+
+    // Check if session already exists to prevent duplicate creation
+    if (this.sessions.has(sessionId)) {
+      throw new Error(`Session ${sessionId} already exists`);
+    }
+
+    // Record session creation start
+    this.diagnosticsManager.recordEvent({
+      level: 'info',
+      category: 'session',
+      operation: 'create_session_start',
+      sessionId,
+      message: `Creating ${isOneShot ? 'one-shot' : 'persistent'} session`,
+      data: { options, isOneShot }
+    });
+
     // Resolve options from stored profiles if available
     const resolvedOptions = this.resolveSessionOptions(options);
-    
+
+    // Detect protocol type
+    let protocolType = resolvedOptions.consoleType;
+    if (!protocolType || protocolType === 'auto') {
+      protocolType = this.detectProtocolType(resolvedOptions);
+    }
+
     const session: ConsoleSession = {
       id: sessionId,
+      sessionType: isOneShot ? 'one-shot' : 'persistent',
       command: resolvedOptions.command,
       args: resolvedOptions.args || [],
       cwd: resolvedOptions.cwd || process.cwd(),
       env: { ...process.env, ...resolvedOptions.env } as Record<string, string>,
       createdAt: new Date(),
       status: 'running',
-      type: resolvedOptions.consoleType || 'auto',
+      type: protocolType,
       streaming: resolvedOptions.streaming || false,
       timeout: resolvedOptions.timeout, // Pass through the configurable timeout
       sshOptions: resolvedOptions.sshOptions,
@@ -3609,105 +3653,55 @@ export class ConsoleManager extends EventEmitter {
       activeCommands: new Map()
     };
 
-    // Check session type
-    const isSSHSession = !!resolvedOptions.sshOptions;
-    const isAzureSession = !!resolvedOptions.azureOptions || ['azure-shell', 'azure-bastion', 'azure-ssh'].includes(resolvedOptions.consoleType || '');
-    const isSerialSession = !!resolvedOptions.serialOptions || ['serial', 'com', 'uart'].includes(resolvedOptions.consoleType || '');
-    const isKubernetesSession = !!resolvedOptions.kubernetesOptions || ['kubectl', 'k8s-exec'].includes(resolvedOptions.consoleType || '');
-    const isDockerSession = !!resolvedOptions.dockerOptions || ['docker', 'docker-exec'].includes(resolvedOptions.consoleType || '');
-    const isAWSSSMSession = !!resolvedOptions.awsSSMOptions || ['aws-ssm', 'ssm-session', 'ssm-tunnel'].includes(resolvedOptions.consoleType || '');
-    const isWSLSession = !!resolvedOptions.wslOptions || ['wsl', 'wsl2'].includes(resolvedOptions.consoleType || '');
-    const isSFTPSession = ['sftp', 'scp'].includes(resolvedOptions.consoleType || '') && !!resolvedOptions.sshOptions;
-    const isRDPSession = !!resolvedOptions.rdpOptions || ['rdp', 'mstsc'].includes(resolvedOptions.consoleType || '');
-    const isWinRMSession = !!resolvedOptions.winrmOptions || ['winrm', 'psremoting'].includes(resolvedOptions.consoleType || '');
-    const isVNCSession = !!resolvedOptions.vncOptions || ['vnc', 'vnc-server'].includes(resolvedOptions.consoleType || '');
-    const isIPCSession = !!resolvedOptions.ipcOptions || ['named-pipe', 'unix-socket', 'ipc'].includes(resolvedOptions.consoleType || '');
-    const isIPMISession = !!resolvedOptions.ipmiOptions || ['ipmi', 'bmc', 'idrac'].includes(resolvedOptions.consoleType || '');
-    const isWebSocketTerminalSession = !!resolvedOptions.webSocketTerminalOptions || ['websocket-term', 'xterm-ws', 'web-terminal'].includes(resolvedOptions.consoleType || '');
-    let sessionType: 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal';
-    
-    if (isSSHSession) {
-      sessionType = 'ssh';
-    } else if (isAzureSession) {
-      sessionType = 'azure';
-    } else if (isSerialSession) {
-      sessionType = 'serial';
-    } else if (isKubernetesSession) {
-      sessionType = 'kubernetes';
-    } else if (isDockerSession) {
-      sessionType = 'docker';
-    } else if (isAWSSSMSession) {
-      sessionType = 'aws-ssm';
-    } else if (isWSLSession) {
-      sessionType = 'wsl';
-    } else if (isSFTPSession) {
-      sessionType = 'sftp';
-    } else if (isRDPSession) {
-      sessionType = 'rdp';
-    } else if (isWinRMSession) {
-      sessionType = 'winrm';
-    } else if (isVNCSession) {
-      sessionType = 'vnc';
-    } else if (isIPCSession) {
-      sessionType = 'ipc';
-    } else if (isIPMISession) {
-      sessionType = 'ipmi';
-    } else if (isWebSocketTerminalSession) {
-      sessionType = 'websocket-terminal';
-    } else {
-      sessionType = 'local';
-    }
+    // Store session in initializing state first to prevent race conditions
+    session.status = 'initializing';
+    this.sessions.set(sessionId, session);
 
     try {
       // Initialize session command tracking
       this.initializeSessionCommandTracking(sessionId, resolvedOptions);
-      
-      // Register session with SessionManager
-      await this.sessionManager.registerSession(session, sessionType);
 
-      if (isSSHSession && resolvedOptions.sshOptions) {
-        // Handle SSH session creation through connection pool
-        return await this.createPooledSSHSession(sessionId, session, resolvedOptions);
-      } else if (isSerialSession) {
-        // Handle serial session creation
-        return await this.createSerialSession(sessionId, session, resolvedOptions);
-      } else if (isKubernetesSession) {
-        // Handle Kubernetes session creation
-        return await this.createKubernetesSession(sessionId, session, resolvedOptions);
-      } else if (isDockerSession) {
-        // Handle Docker session creation
-        return await this.createDockerSession(sessionId, session, resolvedOptions);
-      } else if (isAWSSSMSession) {
-        // Handle AWS SSM session creation
-        return await this.createAWSSSMSession(sessionId, session, resolvedOptions);
-      } else if (isWSLSession) {
-        // Handle WSL session creation
-        return await this.createWSLSession(sessionId, session, resolvedOptions);
-      } else if (isSFTPSession) {
-        // Handle SFTP/SCP session creation
-        return await this.createSFTPSession(sessionId, session, resolvedOptions);
-      } else if (isRDPSession) {
-        // Handle RDP session creation
-        return await this.createRDPSession(sessionId, resolvedOptions);
-      } else if (isWinRMSession) {
-        // Handle WinRM session creation
-        return await this.createWinRMSession(sessionId, resolvedOptions);
-      } else if (isVNCSession) {
-        // Handle VNC session creation
-        return await this.createVNCSession(sessionId, session, resolvedOptions);
-      } else if (isIPCSession) {
-        // Handle IPC session creation
-        return await this.createIPCSession(sessionId, session, resolvedOptions);
-      } else if (isIPMISession) {
-        // Handle IPMI/BMC session creation
-        return await this.createIPMISession(sessionId, session, resolvedOptions);
-      } else if (isWebSocketTerminalSession) {
-        // Handle WebSocket Terminal session creation
-        return await this.createWebSocketTerminalSession(sessionId, session, resolvedOptions);
-      } else {
-        // Handle local session creation (existing logic)
-        return await this.createLocalSession(sessionId, session, resolvedOptions);
+      // Register session with SessionManager
+      // Map console types to SessionManager types
+      const sessionManagerType = this.mapToSessionManagerType(protocolType);
+      await this.sessionManager.registerSession(session, sessionManagerType as any);
+
+      // Get or create protocol instance
+      let protocol = this.protocolInstances.get(protocolType);
+      if (!protocol) {
+        protocol = await this.protocolFactory.createProtocol(protocolType);
+        this.protocolInstances.set(protocolType, protocol);
       }
+
+      // Create session using the protocol
+      const protocolSession = await protocol.createSession(resolvedOptions);
+
+      // Store protocol session mapping with protocol's sessionId
+      this.protocolSessions.set(sessionId, { protocol, type: protocolType, protocolSessionId: protocolSession.id });
+      this.protocolSessionIdMap.set(sessionId, protocolSession.id);
+
+      // Setup protocol event handlers
+      this.setupProtocolEventHandlers(sessionId, protocol, protocolType);
+
+      // Mark session as running only after successful initialization
+      session.status = 'running';
+      session.lastActivity = new Date();
+      this.sessions.set(sessionId, session);
+
+      // Record successful session creation
+      this.diagnosticsManager.recordEvent({
+        level: 'info',
+        category: 'session',
+        operation: 'create_session_complete',
+        sessionId,
+        message: `Session created successfully`,
+        data: { protocolType, isOneShot }
+      });
+
+      // Wait for session to be fully ready before returning
+      await this.waitForSessionReady(sessionId, 5000); // 5 second timeout
+
+      return sessionId;
     } catch (error) {
       // Update session manager about the failure
       await this.sessionManager.updateSessionStatus(sessionId, 'failed', {
@@ -3856,11 +3850,14 @@ export class ConsoleManager extends EventEmitter {
     try {
       // Initialize Kubernetes protocol if not already done
       if (!this.kubernetesProtocol) {
+        this.kubernetesProtocol = await this.protocolFactory.createProtocol('kubectl');
+        /* Legacy config - now handled by protocol factory
         this.kubernetesProtocol = new KubernetesProtocol({
           connectionOptions: options.kubernetesOptions,
           logger: this.logger
         });
         await this.kubernetesProtocol.connect();
+        */
       }
 
       // Determine session operation type based on command or console type
@@ -3989,23 +3986,25 @@ export class ConsoleManager extends EventEmitter {
   }
 
   /**
-   * Create Docker session using DockerProtocol
+   * Create Docker session using unified ProtocolFactory
    */
   private async createDockerSession(sessionId: string, session: ConsoleSession, options: SessionOptions): Promise<string> {
     try {
-      let dockerSession;
-      
-      // Determine if this is a docker exec or docker run session
-      if (options.consoleType === 'docker-exec' || (options.dockerOptions && 'containerId' in options.dockerOptions)) {
-        // Create docker exec session
-        dockerSession = await this.dockerProtocol.createExecSession({
-          ...options,
-          containerId: (options.dockerOptions as any)?.containerId
-        });
-      } else {
-        // Create docker run session
-        dockerSession = await this.dockerProtocol.createSession(options);
+      // Docker is now handled by the unified protocol system
+      // Get or create Docker protocol instance
+      const protocolType = options.consoleType === 'docker-exec' ? 'docker' : 'docker';
+      let protocol = this.protocolInstances.get(protocolType);
+
+      if (!protocol) {
+        protocol = await this.protocolFactory.createProtocol(protocolType);
+        this.protocolInstances.set(protocolType, protocol);
       }
+
+      // Register protocol and session for tracking
+      this.protocolSessions.set(sessionId, { protocol, type: protocolType });
+
+      // Create session via the protocol
+      const dockerSession = await protocol.createSession(options);
 
       // Store the Docker session information
       const updatedSession: ConsoleSession = {
@@ -4413,7 +4412,7 @@ export class ConsoleManager extends EventEmitter {
     try {
       // Initialize serial protocol if not already done
       if (!this.serialProtocol) {
-        this.serialProtocol = new SerialProtocol();
+        this.serialProtocol = await this.protocolFactory.createProtocol('serial');
         this.setupSerialProtocolEventHandlers();
       }
 
@@ -4724,7 +4723,7 @@ export class ConsoleManager extends EventEmitter {
           ssmConfig.region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
         }
 
-        this.awsSSMProtocol = new AWSSSMProtocol(ssmConfig);
+        this.awsSSMProtocol = await this.protocolFactory.createProtocol('aws-ssm');
         this.setupAWSSSMProtocolEventHandlers();
       }
 
@@ -5080,7 +5079,7 @@ export class ConsoleManager extends EventEmitter {
       };
 
       // Initialize SFTP protocol
-      const sftpProtocol = new SFTPProtocol(sessionId, sftpOptions);
+      const sftpProtocol = await this.protocolFactory.createProtocol('sftp') as any;
       
       // Setup event handlers
       this.setupSFTPEventHandlers(sessionId, sftpProtocol);
@@ -5533,6 +5532,45 @@ export class ConsoleManager extends EventEmitter {
     this.streamManagers.delete(sessionId);
     this.sshClients.delete(sessionId);
     this.sshChannels.delete(sessionId);
+  }
+
+  /**
+   * Wait for session to be fully ready with timeout
+   */
+  private async waitForSessionReady(sessionId: string, timeoutMs: number = 5000): Promise<void> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeoutMs) {
+      const session = this.sessions.get(sessionId);
+
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found during readiness check`);
+      }
+
+      // Check if session is ready
+      if (session.status === 'running' && session.executionState === 'idle') {
+        // Additional validation using SessionValidator
+        try {
+          const isValid = await this.sessionValidator.validateSessionReady(sessionId, session);
+          if (isValid) {
+            this.logger.debug(`Session ${sessionId} is ready`);
+            return;
+          }
+        } catch (validationError) {
+          this.logger.debug(`Session ${sessionId} validation failed: ${validationError}`);
+        }
+      }
+
+      // If session failed, don't wait any longer
+      if (session.status === 'crashed' || session.status === 'failed') {
+        throw new Error(`Session ${sessionId} failed during initialization`);
+      }
+
+      // Wait a bit before checking again
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    throw new Error(`Session ${sessionId} not ready within ${timeoutMs}ms timeout`);
   }
 
   private setupProcessHandlers(sessionId: string, process: ChildProcess, options: SessionOptions) {
@@ -6866,6 +6904,31 @@ export class ConsoleManager extends EventEmitter {
 
 
   async sendInput(sessionId: string, input: string): Promise<void> {
+    // Validate session exists and is healthy
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      this.diagnosticsManager.recordEvent({
+        level: 'error',
+        category: 'session',
+        operation: 'send_input_validation_failed',
+        sessionId,
+        message: 'Session validation failed: Session not found'
+      });
+      throw new Error(`Session ${sessionId} not found`);
+    }
+    
+    const isSessionReady = await this.sessionValidator.validateSessionReady(sessionId, session);
+    if (!isSessionReady) {
+      this.diagnosticsManager.recordEvent({
+        level: 'error',
+        category: 'session',
+        operation: 'send_input_validation_failed',
+        sessionId,
+        message: 'Session validation failed: Session not ready'
+      });
+      throw new Error(`Session ${sessionId} is not ready`);
+    }
+    
     return await this.retryManager.executeWithRetry(
       async () => {
         // Check session type and handle accordingly
@@ -6874,26 +6937,27 @@ export class ConsoleManager extends EventEmitter {
           throw new Error(`Session ${sessionId} not found`);
         }
 
-        // Handle SSH session
+        // Get protocol for this session
+        const protocolInfo = this.protocolSessions.get(sessionId);
+        if (protocolInfo) {
+          // Additional validation for SSH protocol
+          if (protocolInfo.type === 'ssh' && session.sshOptions) {
+            // Validate SSH session state before sending input
+            if (!session.sshOptions.host || !session.sshOptions.username) {
+              throw new Error(`SSH session ${sessionId} has invalid configuration`);
+            }
+          }
+
+          // Use the protocol's sendInput method with the protocol's sessionId
+          const protocolSessionId = this.protocolSessionIdMap.get(sessionId) || sessionId;
+          return await protocolInfo.protocol.sendInput(protocolSessionId, input);
+        }
+
+        // Fallback for legacy sessions (SSH channels, etc.)
         const sshChannel = this.sshChannels.get(sessionId);
         if (sshChannel) {
           // Use command queue for SSH sessions to prevent command concatenation
           return this.addCommandToQueue(sessionId, input);
-        }
-
-        // Handle serial session
-        if (session.serialOptions && this.serialProtocol) {
-          return this.sendInputToSerial(sessionId, input);
-        }
-
-        // Handle Kubernetes session
-        if (session.kubernetesOptions && this.kubernetesProtocol) {
-          return this.sendInputToKubernetes(sessionId, input);
-        }
-
-        // Handle WSL session
-        if (session.wslOptions && this.wslProtocol) {
-          return this.sendInputToWSL(sessionId, input);
         }
 
         // Handle AWS SSM session
@@ -7034,6 +7098,19 @@ export class ConsoleManager extends EventEmitter {
   }
 
   getOutput(sessionId: string, limit?: number): ConsoleOutput[] {
+    // Validate session exists
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      this.diagnosticsManager.recordEvent({
+        level: 'error',
+        category: 'session',
+        operation: 'get_output_session_not_found',
+        sessionId,
+        message: 'Attempted to get output from non-existent session'
+      });
+      throw new Error(`Session ${sessionId} not found`);
+    }
+    
     const buffer = this.outputBuffers.get(sessionId) || [];
     return limit ? buffer.slice(-limit) : buffer;
   }
@@ -7285,6 +7362,58 @@ export class ConsoleManager extends EventEmitter {
   async stopSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     
+    // Validate session exists
+    if (!session) {
+      this.diagnosticsManager.recordEvent({
+        level: 'error',
+        category: 'session',
+        operation: 'stop_session_not_found',
+        sessionId,
+        message: 'Attempted to stop non-existent session'
+      });
+      throw new Error(`Session ${sessionId} not found`);
+    }
+    
+    // Record session stop
+    this.diagnosticsManager.recordEvent({
+      level: 'info',
+      category: 'session',
+      operation: 'stop_session',
+      sessionId,
+      message: `Stopping ${session.sessionType || 'unknown'} session`,
+      data: { sessionType: session.sessionType }
+    });
+
+    // First try unified protocol system
+    const protocolInfo = this.protocolSessions.get(sessionId);
+    if (protocolInfo) {
+      try {
+        const protocolSessionId = this.protocolSessionIdMap.get(sessionId) || sessionId;
+        await protocolInfo.protocol.closeSession(protocolSessionId);
+        this.protocolSessions.delete(sessionId);
+        this.protocolSessionIdMap.delete(sessionId);
+
+        // Clean up health check interval if exists
+        if (this.sessionHealthCheckIntervals?.has(sessionId)) {
+          clearInterval(this.sessionHealthCheckIntervals.get(sessionId));
+          this.sessionHealthCheckIntervals.delete(sessionId);
+        }
+
+        this.logger.info(`${protocolInfo.type} session ${sessionId} stopped via unified protocol`);
+
+        // Clean up session data
+        this.sessions.delete(sessionId);
+        this.outputBuffers.delete(sessionId);
+        this.streamManagers.delete(sessionId);
+
+        return;
+      } catch (error) {
+        this.logger.error(`Error stopping ${protocolInfo.type} session ${sessionId}:`, error);
+        throw error;
+      }
+    }
+
+    // Legacy fallback for sessions not yet migrated to unified system
     // Handle SSH sessions
     const sshChannel = this.sshChannels.get(sessionId);
     if (sshChannel) {
@@ -7293,44 +7422,7 @@ export class ConsoleManager extends EventEmitter {
       this.sshClients.delete(sessionId);
     }
 
-    // Handle serial sessions
-    if (session?.serialOptions && this.serialProtocol) {
-      try {
-        await this.cleanupSerialSession(sessionId);
-        this.logger.info(`Serial session ${sessionId} stopped and cleaned up`);
-      } catch (error) {
-        this.logger.error(`Error stopping serial session ${sessionId}:`, error);
-      }
-    }
-
-    // Handle Kubernetes sessions
-    if (session?.kubernetesState && this.kubernetesProtocol) {
-      try {
-        await this.kubernetesProtocol.closeSession(sessionId);
-        this.logger.info(`Kubernetes session ${sessionId} stopped and cleaned up`);
-      } catch (error) {
-        this.logger.error(`Error stopping Kubernetes session ${sessionId}:`, error);
-      }
-    }
-
-    // Handle AWS SSM sessions
-    if (session?.awsSSMOptions && session?.awsSSMSessionId && this.awsSSMProtocol) {
-      try {
-        await this.awsSSMProtocol.terminateSession(session.awsSSMSessionId);
-        
-        // Clean up health check interval
-        if (this.sessionHealthCheckIntervals?.has(sessionId)) {
-          clearInterval(this.sessionHealthCheckIntervals.get(sessionId));
-          this.sessionHealthCheckIntervals.delete(sessionId);
-        }
-        
-        this.logger.info(`AWS SSM session ${sessionId} stopped and cleaned up`);
-      } catch (error) {
-        this.logger.error(`Error stopping AWS SSM session ${sessionId}:`, error);
-      }
-    }
-
-    // Handle WinRM sessions
+    // Handle WinRM sessions (legacy)
     if (session?.winrmOptions) {
       try {
         const winrmProtocol = this.winrmProtocols.get(sessionId);
@@ -7410,6 +7502,10 @@ export class ConsoleManager extends EventEmitter {
     return Array.from(this.sessions.values());
   }
 
+  getConfigManager(): ConfigManager {
+    return this.configManager;
+  }
+
   getResourceUsage(): { sessions: number; memoryMB: number; bufferSizes: Record<string, number> } {
     const memoryUsage = process.memoryUsage();
     const bufferSizes: Record<string, number> = {};
@@ -7469,6 +7565,42 @@ export class ConsoleManager extends EventEmitter {
   }
 
   private cleanupSession(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    
+    // Record cleanup start
+    this.diagnosticsManager.recordEvent({
+      level: 'info',
+      category: 'session',
+      operation: 'cleanup_session_start',
+      sessionId,
+      message: `Starting cleanup for ${session?.sessionType || 'unknown'} session`,
+      data: { sessionType: session?.sessionType }
+    });
+    
+    // Safely destroy streams before cleanup
+    const streamManager = this.streamManagers.get(sessionId);
+    if (streamManager) {
+      try {
+        streamManager.end();
+        this.diagnosticsManager.recordEvent({
+          level: 'debug',
+          category: 'session',
+          operation: 'stream_destroyed',
+          sessionId,
+          message: 'Stream manager destroyed successfully'
+        });
+      } catch (error: any) {
+        this.diagnosticsManager.recordEvent({
+          level: 'warn',
+          category: 'session',
+          operation: 'stream_destroy_error',
+          sessionId,
+          message: 'Error destroying stream manager',
+          data: { error: error.message }
+        });
+      }
+    }
+    
     // Create final bookmark before cleanup if persistent data exists
     const persistentData = this.sessionPersistenceData.get(sessionId);
     if (persistentData && this.continuityConfig.enablePersistence) {
@@ -7661,38 +7793,68 @@ export class ConsoleManager extends EventEmitter {
   }
 
   async executeCommand(command: string, args?: string[], options?: Partial<SessionOptions>): Promise<{ output: string; exitCode?: number }> {
-    // Create session with all options including SSH options if provided
+    // Create session with all options
     const sessionOptions: SessionOptions = {
       command,
       args: args || [],
       ...options
     };
 
+    // Detect protocol type if not specified
+    if (!sessionOptions.consoleType) {
+      sessionOptions.consoleType = this.detectProtocolType(sessionOptions);
+    }
+
     // Apply platform-specific command translation for SSH sessions
-    if (options?.consoleType === 'ssh' && options?.sshOptions) {
+    if (sessionOptions.consoleType === 'ssh' && sessionOptions.sshOptions) {
       // For SSH sessions, we might need to translate Windows commands to Unix equivalents
       const translatedCommand = this.translateCommandForSSH(command, args);
       sessionOptions.command = translatedCommand.command;
       sessionOptions.args = translatedCommand.args;
-      
+
       this.logger.debug(`Command translation for SSH session:`, {
         original: { command, args },
         translated: { command: translatedCommand.command, args: translatedCommand.args },
-        sshHost: options.sshOptions.host
+        sshHost: sessionOptions.sshOptions.host
       });
     }
 
-    const sessionId = await this.createSession(sessionOptions);
+    // Create a one-shot session
+    const sessionId = uuidv4();
+    const sessionIdResult = await this.createSessionInternal(sessionId, sessionOptions, true);
+    
+    // Record one-shot session creation
+    this.diagnosticsManager.recordEvent({
+      level: 'info',
+      category: 'session',
+      operation: 'one_shot_session_created',
+      sessionId,
+      message: 'Created one-shot session for command execution',
+      data: { command, args }
+    });
 
     return new Promise((resolve, reject) => {
       const outputs: string[] = [];
       let timeoutHandle: NodeJS.Timeout | null = null;
       const timeoutMs = options?.timeout || 120000; // Default 2 minute timeout (configurable)
       
-      const cleanup = () => {
+      const cleanup = async () => {
         this.removeListener('console-event', handleEvent);
         if (timeoutHandle) {
           clearTimeout(timeoutHandle);
+        }
+        
+        // Always cleanup one-shot sessions
+        const session = this.sessions.get(sessionId);
+        if (session?.sessionType === 'one-shot') {
+          this.diagnosticsManager.recordEvent({
+            level: 'info',
+            category: 'session',
+            operation: 'one_shot_cleanup',
+            sessionId,
+            message: 'Cleaning up one-shot session after command execution'
+          });
+          await this.cleanupSession(sessionId);
         }
       };
       
@@ -7702,11 +7864,17 @@ export class ConsoleManager extends EventEmitter {
         if (event.type === 'output') {
           outputs.push(event.data.data);
         } else if (event.type === 'stopped') {
-          cleanup();
-          this.cleanupSession(sessionId);
-          resolve({
-            output: outputs.join(''),
-            exitCode: event.data.exitCode
+          cleanup().then(() => {
+            resolve({
+              output: outputs.join(''),
+              exitCode: event.data.exitCode
+            });
+          }).catch(err => {
+            this.logger.warn('Cleanup error during session stop:', err);
+            resolve({
+              output: outputs.join(''),
+              exitCode: event.data.exitCode
+            });
           });
         } else if (event.type === 'error') {
           // Only reject on serious errors, not command output errors
@@ -7716,9 +7884,12 @@ export class ConsoleManager extends EventEmitter {
             event.data.error.includes('timeout') ||
             event.data.error.includes('network')
           )) {
-            cleanup();
-            this.cleanupSession(sessionId);
-            reject(new Error(`Session error: ${event.data.error}`));
+            cleanup().then(() => {
+              reject(new Error(`Session error: ${event.data.error}`));
+            }).catch(err => {
+              this.logger.warn('Cleanup error during session error:', err);
+              reject(new Error(`Session error: ${event.data.error}`));
+            });
           }
           // Otherwise, treat errors as part of command output
         }
@@ -7726,9 +7897,20 @@ export class ConsoleManager extends EventEmitter {
 
       // Set up timeout for the command execution
       timeoutHandle = setTimeout(() => {
-        cleanup();
-        this.stopSession(sessionId).then(() => {
-          this.cleanupSession(sessionId);
+        this.diagnosticsManager.recordEvent({
+          level: 'warn',
+          category: 'session',
+          operation: 'one_shot_timeout',
+          sessionId,
+          message: `One-shot session timed out after ${timeoutMs}ms`
+        });
+        
+        cleanup().then(() => {
+          this.stopSession(sessionId).then(() => {
+            reject(new Error(`Command execution timeout after ${timeoutMs}ms`));
+          });
+        }).catch(err => {
+          this.logger.warn('Cleanup error during timeout:', err);
           reject(new Error(`Command execution timeout after ${timeoutMs}ms`));
         });
       }, timeoutMs);
@@ -8270,7 +8452,7 @@ export class ConsoleManager extends EventEmitter {
     try {
       // Initialize serial protocol if not already done
       if (!this.serialProtocol) {
-        this.serialProtocol = new SerialProtocol();
+        this.serialProtocol = await this.protocolFactory.createProtocol('serial');
         this.setupSerialProtocolEventHandlers();
       }
 
@@ -8334,13 +8516,13 @@ export class ConsoleManager extends EventEmitter {
       clearInterval(this.resourceMonitor);
     }
     await this.stopAllSessions();
-    
+
     // Close all SSH connections in the pool
     this.sshConnectionPool.forEach((client, key) => {
       this.logger.info(`Closing SSH connection pool: ${key}`);
       client.destroy();
     });
-    
+
     // Shutdown new production-ready components
     await this.connectionPool.shutdown();
     await this.sessionManager.shutdown();
@@ -9540,7 +9722,7 @@ export class ConsoleManager extends EventEmitter {
       });
 
       // Create WinRM protocol instance
-      const winrmProtocol = new WinRMProtocol();
+      const winrmProtocol = await this.protocolFactory.createProtocol('winrm');
       this.winrmProtocols.set(sessionId, winrmProtocol);
 
       // Create WinRM session
@@ -9635,26 +9817,26 @@ export class ConsoleManager extends EventEmitter {
       });
 
       // Create VNC protocol instance
-      const vncProtocol = new VNCProtocol();
+      const vncProtocol = await this.protocolFactory.createProtocol('vnc');
       this.vncProtocols.set(sessionId, vncProtocol);
 
-      // Connect to VNC server
-      const connectedSession = await vncProtocol.connect();
+      // Create VNC session via the protocol
+      const connectedSession = await vncProtocol.createSession(options);
       
       // Create VNC session state
       const vncSession: VNCSession = {
         sessionId,
-        connectionId: connectedSession.connectionId || sessionId,
+        connectionId: (connectedSession as any).connectionId || sessionId,
         status: 'connected',
         host: options.vncOptions.host,
         port: options.vncOptions.port || 5900,
         protocolVersion: options.vncOptions.rfbProtocolVersion || 'auto',
-        serverName: connectedSession.serverName,
+        serverName: (connectedSession as any).serverName || 'VNC Server',
         securityType: this.mapAuthMethodToVNCSecurityType(options.vncOptions.authMethod) || 'vnc',
         sharedConnection: options.vncOptions.sharedConnection || false,
         viewOnlyMode: options.vncOptions.viewOnly || false,
-        supportedEncodings: connectedSession.supportedEncodings || ['raw'],
-        serverCapabilities: connectedSession.serverCapabilities || {
+        supportedEncodings: (connectedSession as any).supportedEncodings || ['raw'],
+        serverCapabilities: (connectedSession as any).serverCapabilities || {
           cursorShapeUpdates: false,
           richCursor: false,
           desktopResize: false,
@@ -9795,7 +9977,7 @@ export class ConsoleManager extends EventEmitter {
   /**
    * Setup VNC event handlers
    */
-  private setupVNCEventHandlers(sessionId: string, vncProtocol: VNCProtocol): void {
+  private setupVNCEventHandlers(sessionId: string, vncProtocol: any): void {
     // Handle framebuffer updates
     vncProtocol.on('framebuffer-update', (update) => {
       const framebuffer = this.vncFramebuffers.get(sessionId);
@@ -9937,7 +10119,7 @@ export class ConsoleManager extends EventEmitter {
   /**
    * Setup SFTP event handlers
    */
-  private setupSFTPEventHandlers(sessionId: string, sftpProtocol: SFTPProtocol): void {
+  private setupSFTPEventHandlers(sessionId: string, sftpProtocol: any): void {
     sftpProtocol.on('connected', (connectionState) => {
       this.logger.info(`SFTP session ${sessionId} connected`);
       this.emit('sftp-connected', { sessionId, connectionState });
@@ -9988,7 +10170,7 @@ export class ConsoleManager extends EventEmitter {
   /**
    * Get SFTP protocol for session
    */
-  getSFTPProtocol(sessionId: string): SFTPProtocol | undefined {
+  getSFTPProtocol(sessionId: string): any | undefined {
     return this.sftpProtocols.get(sessionId);
   }
 
@@ -10406,7 +10588,7 @@ export class ConsoleManager extends EventEmitter {
       });
 
       // Create IPMI protocol instance  
-      const ipmiProtocol = new IPMIProtocol();
+      const ipmiProtocol = await this.protocolFactory.createProtocol('ipmi');
       this.ipmiProtocols.set(sessionId, ipmiProtocol);
       
       const ipmiSession = await ipmiProtocol.createSession({
@@ -10926,5 +11108,90 @@ export class ConsoleManager extends EventEmitter {
       case 'sasl': return 'sasl';
       default: return 'vnc';
     }
+  }
+
+  private mapToSessionManagerType(consoleType: ConsoleType): 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal' {
+    // Map console types to SessionManager types
+    switch (consoleType) {
+      case 'cmd':
+      case 'powershell':
+      case 'pwsh':
+      case 'bash':
+      case 'zsh':
+      case 'sh':
+      case 'auto':
+        return 'local';
+      case 'ssh':
+      case 'sftp':
+        return 'ssh';
+      case 'azure-shell':
+        return 'azure';
+      case 'serial':
+        return 'serial';
+      case 'kubectl':
+        return 'kubernetes';
+      case 'docker':
+      case 'docker-exec':
+        return 'docker';
+      case 'aws-ssm':
+        return 'aws-ssm';
+      case 'wsl':
+        return 'wsl';
+      case 'rdp':
+        return 'rdp';
+      case 'winrm':
+        return 'winrm';
+      case 'vnc':
+        return 'vnc';
+      case 'ipc':
+        return 'ipc';
+      case 'ipmi':
+        return 'ipmi';
+      case 'websocket-term':
+      case 'wetty':
+      case 'gotty':
+      case 'x11vnc':
+      case 'virtualization':
+      case 'xterm-ws':
+      case 'web-terminal':
+      case 'ttyd':
+        return 'websocket-terminal';
+      default:
+        return 'local'; // Default to local for unknown types
+    }
+  }
+
+  async getSystemHealth(): Promise<{ status: 'healthy' | 'unhealthy' | 'degraded'; issues: string[] }> {
+    const issues: string[] = [];
+
+    // Check for stuck or error sessions
+    const sessions = this.getAllSessions();
+    const errorSessions = sessions.filter(s => s.status === 'failed' || s.status === 'crashed').length;
+    const disconnectedSessions = sessions.filter(s => s.status === 'terminated' || s.status === 'closed').length;
+
+    if (errorSessions > 0) {
+      issues.push(`${errorSessions} session(s) in error state`);
+    }
+
+    if (disconnectedSessions > 0) {
+      issues.push(`${disconnectedSessions} session(s) disconnected`);
+    }
+
+    // Check resource usage
+    const usage = this.getResourceUsage();
+    const memoryUsage = process.memoryUsage();
+    if (memoryUsage.heapUsed / memoryUsage.heapTotal > 0.9) {
+      issues.push('Memory usage above 90%');
+    }
+
+    // Determine overall health status
+    let status: 'healthy' | 'unhealthy' | 'degraded' = 'healthy';
+    if (issues.length > 2 || errorSessions > 2) {
+      status = 'unhealthy';
+    } else if (issues.length > 0) {
+      status = 'degraded';
+    }
+
+    return { status, issues };
   }
 }

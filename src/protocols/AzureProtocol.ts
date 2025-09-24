@@ -1,5 +1,16 @@
-import { EventEmitter } from 'eventemitter3';
 import { WebSocket } from 'ws';
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import {
+  ConsoleSession,
+  SessionOptions,
+  ConsoleType,
+  ConsoleOutput
+} from '../types/index.js';
+import {
+  ProtocolCapabilities,
+  SessionState as BaseSessionState,
+  ErrorContext
+} from '../core/IProtocol.js';
 
 // Azure SDK imports - made optional to handle missing dependencies
 let DefaultAzureCredential: any, ClientSecretCredential: any, ManagedIdentityCredential: any,
@@ -47,11 +58,8 @@ import {
   AzureBastionSession,
   AzureArcSession,
   AzureTokenInfo,
-  AzureResourceInfo,
-  ConsoleOutput,
-  ConsoleType
+  AzureResourceInfo
 } from '../types/index.js';
-import { Logger } from '../utils/logger.js';
 
 // Azure API Response Interfaces
 interface AzureResourceResponse {
@@ -116,18 +124,19 @@ interface SecretClientLike {
   getSecret(secretName: string): Promise<{ value?: string }>;
 }
 
-export interface AzureProtocolEvents {
-  'connected': (sessionId: string) => void;
-  'disconnected': (sessionId: string) => void;
-  'error': (sessionId: string, error: Error) => void;
-  'output': (sessionId: string, output: ConsoleOutput) => void;
-  'token-refreshed': (sessionId: string, tokenInfo: AzureTokenInfo) => void;
-  'session-ready': (sessionId: string) => void;
-  'reconnecting': (sessionId: string, attempt: number) => void;
+// Azure-specific session state interface
+interface AzureSessionState extends BaseSessionState {
+  tokenExpiry?: Date;
+  tokenValid?: boolean;
+  sessionType?: 'cloud-shell' | 'bastion' | 'arc';
+  webSocketConnected?: boolean;
 }
 
-export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
-  private sessions: Map<string, AzureCloudShellSession | AzureBastionSession | AzureArcSession> = new Map();
+export class AzureProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'azure-shell';
+  public readonly capabilities: ProtocolCapabilities;
+
+  private azureSessions: Map<string, AzureCloudShellSession | AzureBastionSession | AzureArcSession> = new Map();
   private webSockets: Map<string, WebSocket> = new Map();
   private credentials: Map<string, AzureCredentialLike> = new Map();
   private computeClients: Map<string, ComputeManagementClientLike> = new Map();
@@ -135,11 +144,221 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
   private secretClients: Map<string, SecretClientLike> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private tokenRefreshTimers: Map<string, NodeJS.Timeout> = new Map();
-  private logger?: Logger;
 
-  constructor(logger?: Logger) {
-    super();
-    this.logger = logger;
+  constructor() {
+    super('azure');
+
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: false,
+      supportsX11Forwarding: false,
+      supportsPortForwarding: true,
+      supportsAuthentication: true,
+      supportsEncryption: true,
+      supportsCompression: false,
+      supportsMultiplexing: false,
+      supportsKeepAlive: true,
+      supportsReconnection: true,
+      supportsBinaryData: false,
+      supportsCustomEnvironment: false,
+      supportsWorkingDirectory: false,
+      supportsSignals: false,
+      supportsResizing: true,
+      supportsPTY: true,
+      maxConcurrentSessions: 50,
+      defaultTimeout: 30000,
+      supportedEncodings: ['utf-8'],
+      supportedAuthMethods: ['oauth', 'service-principal', 'managed-identity'],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: true
+      }
+    };
+  }
+
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
+    try {
+      // Verify Azure SDK availability
+      if (!DefaultAzureCredential) {
+        this.logger.warn('Azure SDK not fully available, some features may be disabled');
+      }
+
+      this.isInitialized = true;
+      this.logger.info('Azure protocol initialized with session management fixes');
+    } catch (error: any) {
+      this.logger.error('Failed to initialize Azure protocol', error);
+      throw error;
+    }
+  }
+
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const sessionId = `azure-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const azureOptions = options as AzureConnectionOptions;
+
+    // Determine Azure service type
+    if (azureOptions.cloudShellType) {
+      const azureSession = await this.createCloudShellSession(sessionId, azureOptions);
+      return await this.createAzureSessionWithDetection(sessionId, options, azureSession);
+    } else if (azureOptions.bastionResourceId) {
+      const azureSession = await this.createBastionSession(sessionId, azureOptions);
+      return await this.createAzureSessionWithDetection(sessionId, options, azureSession);
+    } else if (azureOptions.arcResourceId) {
+      const azureSession = await this.createArcSession(sessionId, azureOptions);
+      return await this.createAzureSessionWithDetection(sessionId, options, azureSession);
+    } else {
+      throw new Error('Azure connection type not specified');
+    }
+  }
+
+
+  getSessionState(sessionId: string): Promise<BaseSessionState> {
+    const azureSession = this.azureSessions.get(sessionId);
+    const session = this.sessions.get(sessionId);
+
+    if (!azureSession || !session) {
+      return Promise.resolve({
+        sessionId,
+        status: 'failed',
+        isOneShot: false,
+        isPersistent: true,
+        createdAt: new Date(),
+        lastActivity: new Date(),
+        metadata: { error: 'Session not found' }
+      });
+    }
+
+    const webSocket = this.webSockets.get(sessionId);
+    const connected = webSocket?.readyState === WebSocket.OPEN;
+
+    const state: BaseSessionState = {
+      sessionId,
+      status: connected ? 'running' : 'stopped',
+      isOneShot: false,
+      isPersistent: true,
+      createdAt: session.createdAt,
+      lastActivity: session.lastActivity || new Date(),
+      metadata: {
+        tokenExpiry: azureSession.tokenExpiry,
+        tokenValid: azureSession.tokenExpiry.getTime() > Date.now(),
+        sessionType: 'webSocketUrl' in azureSession ? 'cloud-shell' :
+                    'bastionResourceId' in azureSession ? 'bastion' : 'arc',
+        webSocketConnected: connected
+      }
+    };
+
+    return Promise.resolve(state);
+  }
+
+  getActiveSessions(): ConsoleSession[] {
+    return Array.from(this.sessions.values());
+  }
+
+  async attemptReconnection(context: ErrorContext): Promise<boolean> {
+    try {
+      const sessionId = context.sessionId;
+      if (!sessionId) {
+        return false;
+      }
+
+      const azureSession = this.azureSessions.get(sessionId);
+      if (!azureSession) {
+        return false;
+      }
+
+      // Close existing WebSocket if present
+      const existingWs = this.webSockets.get(sessionId);
+      if (existingWs) {
+        existingWs.close();
+        this.webSockets.delete(sessionId);
+      }
+
+      // Re-establish WebSocket connection
+      await this.connectWebSocket(sessionId, azureSession);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to reconnect Azure session ${context.sessionId}:`, error);
+      return false;
+    }
+  }
+
+  async dispose(): Promise<void> {
+    await this.cleanup();
+  }
+
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+    await this.sendInput(sessionId, fullCommand + '\n');
+  }
+
+  async doCreateSession(sessionId: string, options: SessionOptions): Promise<ConsoleSession> {
+    return await this.createSession(options);
+  }
+
+  async sendInput(sessionId: string, input: string): Promise<void> {
+    const webSocket = this.webSockets.get(sessionId);
+    if (!webSocket) {
+      throw new Error(`No WebSocket connection found for session: ${sessionId}`);
+    }
+
+    if (webSocket.readyState === WebSocket.OPEN) {
+      const message = {
+        type: 'input',
+        data: input
+      };
+      webSocket.send(JSON.stringify(message));
+      this.logger.debug(`Sent input to session ${sessionId}: ${input.substring(0, 100)}`);
+    } else {
+      throw new Error(`WebSocket connection is not open for session: ${sessionId}`);
+    }
+  }
+
+  /**
+   * Helper method to create session with type detection and BaseProtocol integration
+   */
+  private async createAzureSessionWithDetection(
+    sessionId: string,
+    options: SessionOptions,
+    azureSession: AzureCloudShellSession | AzureBastionSession | AzureArcSession
+  ): Promise<ConsoleSession> {
+    this.azureSessions.set(sessionId, azureSession);
+
+    // Create BaseProtocol session
+    const session: ConsoleSession = {
+      id: sessionId,
+      command: 'azure-session',
+      args: [],
+      cwd: '',
+      env: {},
+      createdAt: new Date(),
+      lastActivity: new Date(),
+      status: 'initializing',
+      type: this.type,
+      executionState: 'idle',
+      activeCommands: new Map()
+    };
+
+    this.sessions.set(sessionId, session);
+
+    // Set up event handlers for Azure-specific events
+    this.setupAzureEventHandlers(sessionId);
+
+    return session;
+  }
+
+  /**
+   * Set up Azure-specific event handlers
+   */
+  private setupAzureEventHandlers(sessionId: string): void {
+    // Set up handlers for token refresh, WebSocket events, etc.
+    // This replaces the EventEmitter pattern with direct callback management
   }
 
   /**
@@ -150,7 +369,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
     options: AzureConnectionOptions
   ): Promise<AzureCloudShellSession> {
     try {
-      this.logger?.info(`Creating Azure Cloud Shell session: ${sessionId}`);
+      this.logger.info(`Creating Azure Cloud Shell session: ${sessionId}`);
 
       // Get authentication credentials
       const credential = await this.getCredential(options);
@@ -178,7 +397,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
         metadata: {}
       };
 
-      this.sessions.set(sessionId, session);
+      this.azureSessions.set(sessionId, session);
       this.credentials.set(sessionId, credential);
 
       // Establish WebSocket connection
@@ -187,10 +406,10 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       // Schedule token refresh
       this.scheduleTokenRefresh(sessionId, session);
 
-      this.logger?.info(`Azure Cloud Shell session created successfully: ${sessionId}`);
+      this.logger.info(`Azure Cloud Shell session created successfully: ${sessionId}`);
       return session;
     } catch (error) {
-      this.logger?.error(`Failed to create Azure Cloud Shell session: ${sessionId}`, error);
+      this.logger.error(`Failed to create Azure Cloud Shell session: ${sessionId}`, error);
       throw error;
     }
   }
@@ -203,7 +422,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
     options: AzureConnectionOptions
   ): Promise<AzureBastionSession> {
     try {
-      this.logger?.info(`Creating Azure Bastion session: ${sessionId}`);
+      this.logger.info(`Creating Azure Bastion session: ${sessionId}`);
 
       const credential = await this.getCredential(options);
       const token = await this.getAccessToken(credential, 'https://management.azure.com/');
@@ -231,7 +450,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
         }
       };
 
-      this.sessions.set(sessionId, session);
+      this.azureSessions.set(sessionId, session);
       this.credentials.set(sessionId, credential);
 
       // For SSH connections through Bastion, establish tunnel
@@ -241,10 +460,10 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
 
       this.scheduleTokenRefresh(sessionId, session);
 
-      this.logger?.info(`Azure Bastion session created successfully: ${sessionId}`);
+      this.logger.info(`Azure Bastion session created successfully: ${sessionId}`);
       return session;
     } catch (error) {
-      this.logger?.error(`Failed to create Azure Bastion session: ${sessionId}`, error);
+      this.logger.error(`Failed to create Azure Bastion session: ${sessionId}`, error);
       throw error;
     }
   }
@@ -257,7 +476,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
     options: AzureConnectionOptions
   ): Promise<AzureArcSession> {
     try {
-      this.logger?.info(`Creating Azure Arc session: ${sessionId}`);
+      this.logger.info(`Creating Azure Arc session: ${sessionId}`);
 
       const credential = await this.getCredential(options);
       const token = await this.getAccessToken(credential, 'https://management.azure.com/');
@@ -287,7 +506,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
         }
       };
 
-      this.sessions.set(sessionId, session);
+      this.azureSessions.set(sessionId, session);
       this.credentials.set(sessionId, credential);
 
       // Establish Arc connection
@@ -295,35 +514,14 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
 
       this.scheduleTokenRefresh(sessionId, session);
 
-      this.logger?.info(`Azure Arc session created successfully: ${sessionId}`);
+      this.logger.info(`Azure Arc session created successfully: ${sessionId}`);
       return session;
     } catch (error) {
-      this.logger?.error(`Failed to create Azure Arc session: ${sessionId}`, error);
+      this.logger.error(`Failed to create Azure Arc session: ${sessionId}`, error);
       throw error;
     }
   }
 
-  /**
-   * Send input to a session
-   */
-  async sendInput(sessionId: string, input: string): Promise<void> {
-    const webSocket = this.webSockets.get(sessionId);
-    if (!webSocket) {
-      throw new Error(`No WebSocket connection found for session: ${sessionId}`);
-    }
-
-    if (webSocket.readyState === WebSocket.OPEN) {
-      // For Cloud Shell, format input as terminal input
-      const message = {
-        type: 'input',
-        data: input
-      };
-      webSocket.send(JSON.stringify(message));
-      this.logger?.debug(`Sent input to session ${sessionId}: ${input.substring(0, 100)}`);
-    } else {
-      throw new Error(`WebSocket connection is not open for session: ${sessionId}`);
-    }
-  }
 
   /**
    * Resize terminal for a session
@@ -341,16 +539,16 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
         cols
       };
       webSocket.send(JSON.stringify(message));
-      this.logger?.debug(`Resized terminal for session ${sessionId}: ${rows}x${cols}`);
+      this.logger.debug(`Resized terminal for session ${sessionId}: ${rows}x${cols}`);
     }
   }
 
   /**
-   * Close a session
+   * Close a session (overrides BaseProtocol)
    */
   async closeSession(sessionId: string): Promise<void> {
     try {
-      this.logger?.info(`Closing Azure session: ${sessionId}`);
+      this.logger.info(`Closing Azure session: ${sessionId}`);
 
       // Close WebSocket connection
       const webSocket = this.webSockets.get(sessionId);
@@ -372,30 +570,32 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
         this.tokenRefreshTimers.delete(sessionId);
       }
 
-      // Clean up session data
-      this.sessions.delete(sessionId);
+      // Clean up Azure session data
+      this.azureSessions.delete(sessionId);
       this.credentials.delete(sessionId);
 
-      this.emit('disconnected', sessionId);
-      this.logger?.info(`Azure session closed: ${sessionId}`);
+      // Remove from base session map
+      this.sessions.delete(sessionId);
+
+      this.logger.info(`Azure session closed: ${sessionId}`);
     } catch (error) {
-      this.logger?.error(`Failed to close Azure session: ${sessionId}`, error);
+      this.logger.error(`Failed to close Azure session: ${sessionId}`, error);
       throw error;
     }
   }
 
   /**
-   * Get session information
+   * Get Azure session information
    */
-  getSession(sessionId: string): AzureCloudShellSession | AzureBastionSession | AzureArcSession | undefined {
-    return this.sessions.get(sessionId);
+  getAzureSession(sessionId: string): AzureCloudShellSession | AzureBastionSession | AzureArcSession | undefined {
+    return this.azureSessions.get(sessionId);
   }
 
   /**
-   * List all active sessions
+   * List all active Azure sessions
    */
-  listSessions(): string[] {
-    return Array.from(this.sessions.keys());
+  listAzureSessions(): string[] {
+    return Array.from(this.azureSessions.keys());
   }
 
   /**
@@ -726,16 +926,15 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
         });
 
         webSocket.on('open', () => {
-          this.logger?.info(`WebSocket connected for session: ${sessionId}`);
+          this.logger.info(`WebSocket connected for session: ${sessionId}`);
           this.webSockets.set(sessionId, webSocket);
           this.emit('connected', sessionId);
-          this.emit('session-ready', sessionId);
           resolve();
         });
 
         webSocket.on('message', (data: Buffer | ArrayBuffer | Buffer[]) => {
           try {
-            const message = Buffer.isBuffer(data) ? data.toString() : 
+            const message = Buffer.isBuffer(data) ? data.toString() :
                            data instanceof ArrayBuffer ? Buffer.from(data).toString() :
                            Buffer.concat(data as Buffer[]).toString();
             const output: ConsoleOutput = {
@@ -745,24 +944,24 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
               timestamp: new Date(),
               raw: message
             };
-            this.emit('output', sessionId, output);
+            this.addToOutputBuffer(sessionId, output);
           } catch (error) {
-            this.logger?.error(`Error processing WebSocket message for session ${sessionId}:`, error);
+            this.logger.error(`Error processing WebSocket message for session ${sessionId}:`, error);
           }
         });
 
         webSocket.on('error', (error) => {
-          this.logger?.error(`WebSocket error for session ${sessionId}:`, error);
-          this.emit('error', sessionId, error);
+          this.logger.error(`WebSocket error for session ${sessionId}:`, error);
+          this.emit('error', { sessionId, error });
           reject(error);
         });
 
         webSocket.on('close', (code, reason) => {
-          this.logger?.info(`WebSocket closed for session ${sessionId}: ${code} - ${reason}`);
+          this.logger.info(`WebSocket closed for session ${sessionId}: ${code} - ${reason}`);
           this.webSockets.delete(sessionId);
-          
+
           // Attempt reconnection if not intentionally closed
-          if (code !== 1000 && this.sessions.has(sessionId)) {
+          if (code !== 1000 && this.azureSessions.has(sessionId)) {
             this.scheduleReconnect(sessionId);
           }
         });
@@ -790,7 +989,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       remoteHost: session.targetVmName
     };
 
-    this.logger?.info(`Bastion SSH tunnel established for session ${sessionId} on port ${localPort}`);
+    this.logger.info(`Bastion SSH tunnel established for session ${sessionId} on port ${localPort}`);
   }
 
   private async connectArcSession(
@@ -822,7 +1021,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
   }
 
   private async refreshToken(sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
+    const session = this.azureSessions.get(sessionId);
     const credential = this.credentials.get(sessionId);
 
     if (!session || !credential) {
@@ -835,10 +1034,15 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
     session.accessToken = newToken.accessToken;
     session.tokenExpiry = newToken.expiresOn;
 
-    this.emit('token-refreshed', sessionId, newToken);
+    // Update session activity in BaseProtocol
+    const baseSession = this.sessions.get(sessionId);
+    if (baseSession) {
+      baseSession.lastActivity = new Date();
+    }
+
     this.scheduleTokenRefresh(sessionId, session);
 
-    this.logger?.info(`Token refreshed for session: ${sessionId}`);
+    this.logger.info(`Token refreshed for session: ${sessionId}`);
   }
 
   private scheduleReconnect(sessionId: string, attempt: number = 1): void {
@@ -847,22 +1051,22 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
     const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
 
     if (attempt > maxAttempts) {
-      this.logger?.error(`Max reconnection attempts reached for session: ${sessionId}`);
-      this.emit('error', sessionId, new Error('Max reconnection attempts reached'));
+      this.logger.error(`Max reconnection attempts reached for session: ${sessionId}`);
+      this.emit('error', { sessionId, error: new Error('Max reconnection attempts reached') });
       return;
     }
 
-    this.emit('reconnecting', sessionId, attempt);
+    this.logger.info(`Attempting reconnection for session ${sessionId}, attempt ${attempt}`);
 
     const timer = setTimeout(async () => {
       try {
-        const session = this.sessions.get(sessionId);
+        const session = this.azureSessions.get(sessionId);
         if (session) {
           await this.connectWebSocket(sessionId, session);
-          this.logger?.info(`Reconnected session ${sessionId} on attempt ${attempt}`);
+          this.logger.info(`Reconnected session ${sessionId} on attempt ${attempt}`);
         }
       } catch (error) {
-        this.logger?.error(`Reconnection attempt ${attempt} failed for session ${sessionId}:`, error);
+        this.logger.error(`Reconnection attempt ${attempt} failed for session ${sessionId}:`, error);
         this.scheduleReconnect(sessionId, attempt + 1);
       }
     }, delay);
@@ -886,7 +1090,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
    * Health check for Azure sessions
    */
   async healthCheck(sessionId: string): Promise<boolean> {
-    const session = this.sessions.get(sessionId);
+    const session = this.azureSessions.get(sessionId);
     if (!session) {
       return false;
     }
@@ -899,7 +1103,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
     // Check if token is still valid
     const tokenExpiry = session.tokenExpiry.getTime();
     const now = Date.now();
-    
+
     if (tokenExpiry <= now) {
       try {
         await this.refreshToken(sessionId);
@@ -915,7 +1119,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
    * Get session metrics
    */
   getSessionMetrics(sessionId: string): Record<string, any> {
-    const session = this.sessions.get(sessionId);
+    const session = this.azureSessions.get(sessionId);
     const webSocket = this.webSockets.get(sessionId);
 
     if (!session) {
@@ -927,7 +1131,7 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
       connected: webSocket?.readyState === WebSocket.OPEN,
       tokenExpiry: session.tokenExpiry,
       tokenValid: session.tokenExpiry.getTime() > Date.now(),
-      sessionType: 'webSocketUrl' in session ? 'cloud-shell' : 
+      sessionType: 'webSocketUrl' in session ? 'cloud-shell' :
                   'bastionResourceId' in session ? 'bastion' : 'arc',
       metadata: session.metadata
     };
@@ -937,10 +1141,10 @@ export class AzureProtocol extends EventEmitter<AzureProtocolEvents> {
    * Cleanup all sessions
    */
   async cleanup(): Promise<void> {
-    const sessionIds = Array.from(this.sessions.keys());
+    const sessionIds = Array.from(this.azureSessions.keys());
     await Promise.all(sessionIds.map(id => this.closeSession(id)));
-    
-    this.sessions.clear();
+
+    this.azureSessions.clear();
     this.webSockets.clear();
     this.credentials.clear();
     this.computeClients.clear();

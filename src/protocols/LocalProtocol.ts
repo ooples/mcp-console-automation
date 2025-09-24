@@ -1,7 +1,6 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { EventEmitter } from 'events';
 import { platform } from 'os';
-import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
+import { BaseProtocol } from '../core/BaseProtocol.js';
 import {
   ConsoleType,
   ConsoleSession,
@@ -9,26 +8,48 @@ import {
   SessionOptions,
   CommandExecution
 } from '../types/index.js';
-import { Logger } from '../utils/logger.js';
+import {
+  ProtocolCapabilities,
+  SessionState,
+  ErrorContext,
+  ProtocolHealthStatus,
+  ErrorRecoveryResult,
+  ResourceUsage
+} from '../core/IProtocol.js';
 
 /**
  * Local Protocol implementation for native shell access
  * Supports cmd, powershell, bash, zsh, and other local shells
  */
-export class LocalProtocol extends EventEmitter implements IProtocol {
+export class LocalProtocol extends BaseProtocol {
   public readonly type: ConsoleType;
   public readonly capabilities: ProtocolCapabilities;
-  public readonly healthStatus: ProtocolHealthStatus;
 
-  private logger: Logger;
-  private sessions: Map<string, LocalSession> = new Map();
-  private isInitialized: boolean = false;
+  private localSessions: Map<string, LocalSession> = new Map();
+
+  // Compatibility property for old ProtocolFactory interface
+  public get healthStatus(): ProtocolHealthStatus {
+    // Return a default health status, real status should be obtained via getHealthStatus()
+    return {
+      isHealthy: this.isInitialized,
+      lastChecked: new Date(),
+      errors: [],
+      warnings: [],
+      metrics: {
+        activeSessions: this.sessions.size,
+        totalSessions: this.sessions.size,
+        averageLatency: 0,
+        successRate: 100,
+        uptime: 0
+      },
+      dependencies: {}
+    };
+  }
 
   constructor(type: ConsoleType) {
-    super();
+    super('local');
     this.type = type;
-    this.logger = new Logger('LocalProtocol');
-    
+
     this.capabilities = {
       supportsStreaming: true,
       supportsFileTransfer: false,
@@ -57,25 +78,6 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
         freebsd: true,
       },
     };
-
-    this.healthStatus = {
-      isHealthy: true,
-      lastChecked: new Date(),
-      errors: [],
-      warnings: [],
-      metrics: {
-        activeSessions: 0,
-        totalSessions: 0,
-        averageLatency: 0,
-        successRate: 1.0,
-        uptime: 0,
-      },
-      dependencies: {
-        shell: {
-          available: false,
-        },
-      },
-    };
   }
 
   async initialize(): Promise<void> {
@@ -86,26 +88,30 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
     try {
       // Validate shell availability
       await this.validateShellAvailability();
-      
-      this.healthStatus.dependencies.shell.available = true;
-      this.healthStatus.isHealthy = true;
+
       this.isInitialized = true;
-      
       this.logger.info(`Local protocol initialized for shell: ${this.type}`);
     } catch (error) {
-      this.healthStatus.isHealthy = false;
-      this.healthStatus.errors.push(`Failed to initialize: ${error}`);
+      this.logger.error(`Failed to initialize Local protocol: ${error}`);
       throw error;
     }
   }
 
+  async dispose(): Promise<void> {
+    await this.cleanup();
+  }
+
+
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    const sessionId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    return await this.createSessionWithTypeDetection(sessionId, options);
+  }
+
+  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
     if (!this.isInitialized) {
-      throw new Error('Protocol not initialized');
+      await this.initialize();
     }
 
-    const sessionId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    
     try {
       const shellInfo = this.getShellInfo();
       const spawnOptions: SpawnOptions = {
@@ -117,7 +123,7 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
 
       const childProcess = spawn(shellInfo.command, shellInfo.args, spawnOptions);
 
-      const session: LocalSession = {
+      const localSession: LocalSession = {
         id: sessionId,
         type: this.type,
         process: childProcess,
@@ -129,11 +135,9 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
       };
 
       // Setup process event handlers
-      this.setupProcessHandlers(session);
+      this.setupProcessHandlers(localSession);
 
-      this.sessions.set(sessionId, session);
-      this.healthStatus.metrics.activeSessions++;
-      this.healthStatus.metrics.totalSessions++;
+      this.localSessions.set(sessionId, localSession);
 
       const consoleSession: ConsoleSession = {
         id: sessionId,
@@ -153,7 +157,11 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
         activeCommands: new Map(),
       };
 
-      this.emit('sessionCreated', consoleSession);
+      this.sessions.set(sessionId, consoleSession);
+
+      this.logger.info(`Local session ${sessionId} created for shell: ${this.type}`);
+      this.emit('session-created', { sessionId, type: this.type, session: consoleSession });
+
       return consoleSession;
 
     } catch (error) {
@@ -163,28 +171,31 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
   }
 
   async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const localSession = this.localSessions.get(sessionId);
     const session = this.sessions.get(sessionId);
-    if (!session || !session.isActive) {
+
+    if (!localSession || !localSession.isActive || !session) {
       throw new Error(`Session ${sessionId} not found or inactive`);
     }
 
     try {
       const fullCommand = args ? `${command} ${args.join(' ')}` : command;
       const commandWithNewline = fullCommand + '\n';
-      
-      if (session.process.stdin) {
-        session.process.stdin.write(commandWithNewline);
+
+      if (localSession.process.stdin) {
+        localSession.process.stdin.write(commandWithNewline);
+        localSession.lastActivity = new Date();
         session.lastActivity = new Date();
       } else {
         throw new Error('Session stdin is not available');
       }
 
-      this.emit('commandExecuted', {
+      this.emit('command-executed', {
         sessionId,
         command: fullCommand,
         timestamp: new Date(),
       });
-      
+
     } catch (error) {
       this.logger.error(`Failed to execute command in session ${sessionId}: ${error}`);
       throw error;
@@ -192,69 +203,166 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
+    const localSession = this.localSessions.get(sessionId);
     const session = this.sessions.get(sessionId);
-    if (!session || !session.isActive) {
+
+    if (!localSession || !localSession.isActive || !session) {
       throw new Error(`Session ${sessionId} not found or inactive`);
     }
 
     try {
-      if (session.process.stdin) {
-        session.process.stdin.write(input);
+      if (localSession.process.stdin) {
+        localSession.process.stdin.write(input);
+        localSession.lastActivity = new Date();
         session.lastActivity = new Date();
       } else {
         throw new Error('Session stdin is not available');
       }
 
-      this.emit('inputSent', {
+      this.emit('input-sent', {
         sessionId,
         input,
         timestamp: new Date(),
       });
-      
+
     } catch (error) {
       this.logger.error(`Failed to send input to session ${sessionId}: ${error}`);
       throw error;
     }
   }
 
-  async getOutput(sessionId: string, since?: Date): Promise<string> {
+  // Override getOutput to satisfy old ProtocolFactory interface (returns string)
+  // while still providing BaseProtocol functionality
+  async getOutput(sessionId: string, since?: Date): Promise<any> {
+    const outputs = await super.getOutput(sessionId, since);
+
+    // Check if caller expects string (old interface) or ConsoleOutput[] (new interface)
+    // For now, always return string for compatibility with ProtocolFactory
+    return outputs.map(output => output.data).join('');
+  }
+
+  // Separate method for getting structured output
+  async getOutputArray(sessionId: string, since?: Date): Promise<ConsoleOutput[]> {
+    return await super.getOutput(sessionId, since);
+  }
+
+  // Missing IProtocol methods that BaseProtocol may not implement
+  getAllSessions(): ConsoleSession[] {
+    return Array.from(this.sessions.values());
+  }
+
+  getActiveSessions(): ConsoleSession[] {
+    return Array.from(this.sessions.values()).filter(session =>
+      session.status === 'running'
+    );
+  }
+
+  getSessionCount(): number {
+    return this.sessions.size;
+  }
+
+  async getSessionState(sessionId: string): Promise<SessionState> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    // For local protocols, we return the accumulated output buffer
-    // In a production implementation, you'd want to track timestamps
-    // and filter based on the 'since' parameter
-    return session.outputBuffer + session.errorBuffer;
+    return {
+      sessionId,
+      status: session.status,
+      isOneShot: false, // Local sessions are persistent by default
+      isPersistent: true,
+      createdAt: session.createdAt,
+      lastActivity: session.lastActivity,
+      pid: session.pid,
+      metadata: {}
+    };
+  }
+
+  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
+    this.logger.error(`Error in session ${context.sessionId}: ${error.message}`);
+
+    return {
+      recovered: false,
+      strategy: 'none',
+      attempts: 0,
+      duration: 0,
+      error: error.message
+    };
+  }
+
+  async recoverSession(sessionId: string): Promise<boolean> {
+    // Simple recovery - just check if session exists and is active
+    const localSession = this.localSessions.get(sessionId);
+    return localSession?.isActive || false;
+  }
+
+  getResourceUsage(): ResourceUsage {
+    const memUsage = process.memoryUsage();
+    const cpuUsage = process.cpuUsage();
+
+    return {
+      memory: {
+        used: memUsage.heapUsed,
+        available: memUsage.heapTotal,
+        peak: memUsage.heapTotal
+      },
+      cpu: {
+        usage: cpuUsage.user + cpuUsage.system,
+        load: [0, 0, 0] // Default load averages
+      },
+      network: {
+        bytesIn: 0,
+        bytesOut: 0,
+        connectionsActive: this.localSessions.size
+      },
+      storage: {
+        bytesRead: 0,
+        bytesWritten: 0
+      },
+      sessions: {
+        active: this.sessions.size,
+        total: this.sessions.size,
+        peak: this.sessions.size
+      }
+    };
   }
 
   async closeSession(sessionId: string): Promise<void> {
+    const localSession = this.localSessions.get(sessionId);
     const session = this.sessions.get(sessionId);
-    if (!session) {
+
+    if (!localSession && !session) {
       return; // Session doesn't exist, nothing to close
     }
 
     try {
-      session.isActive = false;
-      
-      if (session.process && !session.process.killed) {
-        // Try graceful shutdown first
-        session.process.kill('SIGTERM');
-        
-        // Force kill after timeout
-        setTimeout(() => {
-          if (session.process && !session.process.killed) {
-            session.process.kill('SIGKILL');
-          }
-        }, 5000);
+      if (localSession) {
+        localSession.isActive = false;
+
+        if (localSession.process && !localSession.process.killed) {
+          // Try graceful shutdown first
+          localSession.process.kill('SIGTERM');
+
+          // Force kill after timeout
+          setTimeout(() => {
+            if (localSession.process && !localSession.process.killed) {
+              localSession.process.kill('SIGKILL');
+            }
+          }, 5000);
+        }
+
+        this.localSessions.delete(sessionId);
       }
 
-      this.sessions.delete(sessionId);
-      this.healthStatus.metrics.activeSessions = Math.max(0, this.healthStatus.metrics.activeSessions - 1);
+      if (session) {
+        this.sessions.delete(sessionId);
+      }
 
-      this.emit('sessionClosed', sessionId);
-      
+      // Session count is managed by BaseProtocol
+
+      this.emit('session-closed', sessionId);
+
     } catch (error) {
       this.logger.error(`Failed to close session ${sessionId}: ${error}`);
       throw error;
@@ -262,33 +370,38 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
   }
 
   async getHealthStatus(): Promise<ProtocolHealthStatus> {
-    // Update current metrics
-    this.healthStatus.lastChecked = new Date();
-    this.healthStatus.metrics.activeSessions = this.sessions.size;
-    
-    // Check shell availability
+    const baseStatus = await super.getHealthStatus();
+
+    // Add shell-specific health checks
     try {
       await this.validateShellAvailability();
-      this.healthStatus.dependencies.shell.available = true;
-      this.healthStatus.isHealthy = true;
-      this.healthStatus.errors = [];
+      return {
+        ...baseStatus,
+        dependencies: {
+          shell: { available: true }
+        }
+      };
     } catch (error) {
-      this.healthStatus.dependencies.shell.available = false;
-      this.healthStatus.isHealthy = false;
-      this.healthStatus.errors = [`Shell not available: ${error}`];
+      return {
+        ...baseStatus,
+        isHealthy: false,
+        errors: [...baseStatus.errors, `Shell not available: ${error}`],
+        dependencies: {
+          shell: { available: false }
+        }
+      };
     }
-
-    return { ...this.healthStatus };
   }
 
-  async dispose(): Promise<void> {
+  async cleanup(): Promise<void> {
     this.logger.info(`Disposing local protocol: ${this.type}`);
-    
+
     // Close all active sessions
     const sessionIds = Array.from(this.sessions.keys());
     await Promise.all(sessionIds.map(id => this.closeSession(id)));
 
     this.sessions.clear();
+    this.localSessions.clear();
     this.removeAllListeners();
     this.isInitialized = false;
   }
@@ -367,6 +480,8 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
         raw: text,
       };
 
+      // Add to BaseProtocol's output buffer
+      this.addToOutputBuffer(session.id, output);
       this.emit('output', output);
     });
 
@@ -384,6 +499,8 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
         raw: text,
       };
 
+      // Add to BaseProtocol's output buffer
+      this.addToOutputBuffer(session.id, output);
       this.emit('output', output);
     });
 
@@ -391,10 +508,11 @@ export class LocalProtocol extends EventEmitter implements IProtocol {
     session.process.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
       session.isActive = false;
       this.logger.info(`Local session ${session.id} closed with code: ${code}, signal: ${signal}`);
-      
-      this.emit('sessionClosed', session.id);
+
+      this.emit('session-closed', session.id);
       this.sessions.delete(session.id);
-      this.healthStatus.metrics.activeSessions = Math.max(0, this.healthStatus.metrics.activeSessions - 1);
+      this.localSessions.delete(session.id);
+      // Session count is managed by BaseProtocol
     });
 
     // Handle process errors

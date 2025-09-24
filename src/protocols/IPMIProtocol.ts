@@ -1,16 +1,17 @@
 import { createSocket, Socket } from 'dgram';
-import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash, randomBytes, createCipher, createDecipher } from 'crypto';
-import { 
-  ConsoleSession, 
-  ConsoleOutput, 
+import { ChildProcess, spawn } from 'child_process';
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import {
+  ConsoleSession,
+  ConsoleOutput,
   ConsoleEvent,
   ConsoleType,
   SessionOptions
 } from '../types/index.js';
-import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
-import { Logger } from '../utils/logger.js';
+import { SessionState } from '../core/IProtocol.js';
+import { ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
 
 // IPMI Connection Options Interface
 export interface IPMIConnectionOptions {
@@ -205,9 +206,9 @@ export interface HardwareMonitoringData {
 
 /**
  * Production-ready IPMI/BMC Protocol Implementation
- * 
+ *
  * Features:
- * - Full IPMI 2.0 protocol support with RMCP+ 
+ * - Full IPMI 2.0 protocol support with RMCP+
  * - Serial over LAN (SOL) console
  * - Comprehensive sensor monitoring
  * - Power management operations
@@ -217,14 +218,16 @@ export interface HardwareMonitoringData {
  * - Firmware update capabilities
  * - Hardware monitoring and alerting
  */
-export class IPMIProtocol extends EventEmitter implements IProtocol {
-  public readonly type = 'ipmi' as const;
+export class IPMIProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'ipmi';
   public readonly capabilities: ProtocolCapabilities;
   public readonly healthStatus: ProtocolHealthStatus;
+
+  // IPMI-specific properties
   private connections: Map<string, IPMIConnectionState> = new Map();
-  private sessions: Map<string, IPMISessionState> = new Map();
+  private ipmiSessions: Map<string, IPMISessionState> = new Map();
   private sequenceCounter: number = 1;
-  private logger: Logger;
+  private ipmiProcesses: Map<string, ChildProcess> = new Map();
   
   // IPMI Constants
   private static readonly IPMI_PORT = 623;
@@ -312,8 +315,7 @@ export class IPMIProtocol extends EventEmitter implements IProtocol {
   };
 
   constructor() {
-    super();
-    this.logger = new Logger('IPMIProtocol');
+    super('IPMIProtocol');
     
     this.capabilities = {
       supportsStreaming: true,
@@ -619,7 +621,8 @@ export class IPMIProtocol extends EventEmitter implements IProtocol {
       const requestId = this.sequenceCounter++;
       
       // Build IPMI packet
-      const packet = this.buildIPMIPacket(message, session);
+      const ipmiSession = this.ipmiSessions.get(sessionId);
+      const packet = this.buildIPMIPacket(message, ipmiSession);
       
       // Setup response handler
       const timeout = setTimeout(() => {
@@ -911,7 +914,8 @@ export class IPMIProtocol extends EventEmitter implements IProtocol {
 
       // Close IPMI session
       const session = this.sessions.get(sessionId);
-      if (session?.isActive) {
+      const ipmiSession = this.ipmiSessions.get(sessionId);
+      if (session && (session.status === 'running' || ipmiSession?.isActive)) {
         await this.sendCloseSessionCommand(sessionId);
       }
 
@@ -1121,10 +1125,12 @@ export class IPMIProtocol extends EventEmitter implements IProtocol {
   private generateSessionKeys(sessionId: string, options: IPMIConnectionOptions): void {
     // Generate session integrity and confidentiality keys
     const session = this.sessions.get(sessionId);
-    if (session) {
-      session.sik = randomBytes(20); // SHA-1 based
-      session.k1 = randomBytes(20);
-      session.k2 = randomBytes(20);
+    const ipmiSession = this.ipmiSessions.get(sessionId);
+    if (session && ipmiSession) {
+      ipmiSession.sik = randomBytes(20); // SHA-1 based
+      ipmiSession.k1 = randomBytes(20);
+      ipmiSession.k2 = randomBytes(20);
+      // Session keys are stored in ipmiSession only, not in the ConsoleSession
     }
   }
 
@@ -1246,20 +1252,242 @@ export class IPMIProtocol extends EventEmitter implements IProtocol {
 
   private async sendCloseSessionCommand(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
-    if (!session) return;
+    const ipmiSession = this.ipmiSessions.get(sessionId);
+    if (!session || !ipmiSession) return;
 
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_APPLICATION,
       cmd: IPMIProtocol.CMD_CLOSE_SESSION,
       data: Buffer.from([
-        session.sessionId & 0xFF,
-        (session.sessionId >> 8) & 0xFF,
-        (session.sessionId >> 16) & 0xFF,
-        (session.sessionId >> 24) & 0xFF
+        ipmiSession.sessionId & 0xFF,
+        (ipmiSession.sessionId >> 8) & 0xFF,
+        (ipmiSession.sessionId >> 16) & 0xFF,
+        (ipmiSession.sessionId >> 24) & 0xFF
       ])
     };
-    
+
     await this.sendIPMICommand(sessionId, command);
+  }
+
+  /**
+   * IPMI-specific helper methods for BaseProtocol integration
+   */
+  private generateSessionId(): string {
+    return `ipmi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private async checkIPMIToolAvailability(): Promise<void> {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const process = spawn('ipmitool', ['-V'], { stdio: 'pipe' });
+        process.on('close', (code) => {
+          if (code === 0) {
+            this.healthStatus.dependencies.ipmitool = { available: true, version: 'detected' };
+            resolve();
+          } else {
+            reject(new Error('ipmitool not available'));
+          }
+        });
+        process.on('error', () => reject(new Error('ipmitool not found')));
+        setTimeout(() => {
+          process.kill();
+          reject(new Error('ipmitool check timeout'));
+        }, 3000);
+      });
+    } catch (error) {
+      this.logger.warn('ipmitool not available, some functionality may be limited');
+    }
+  }
+
+  private buildIPMIToolCommand(options: IPMIConnectionOptions): string[] {
+    const args: string[] = [];
+
+    // Host connection
+    args.push('-H', options.host);
+
+    // Port if not default
+    if (options.port && options.port !== 623) {
+      args.push('-p', options.port.toString());
+    }
+
+    // Username
+    args.push('-U', options.username);
+
+    // Password
+    args.push('-P', options.password);
+
+    // Interface type
+    args.push('-I', options.interface || 'lanplus');
+
+    // Privilege level
+    if (options.privilegeLevel) {
+      args.push('-L', options.privilegeLevel.toUpperCase());
+    }
+
+    // Cipher suite for IPMI 2.0
+    if (options.cipherSuite !== undefined) {
+      args.push('-C', options.cipherSuite.toString());
+    }
+
+    // BMC key for enhanced security
+    if (options.kg) {
+      args.push('-k', options.kg);
+    }
+
+    // Retry options
+    if (options.maxRetries) {
+      args.push('-R', options.maxRetries.toString());
+    }
+
+    // Timeout
+    if (options.sessionTimeout) {
+      args.push('-N', (options.sessionTimeout / 1000).toString());
+    }
+
+    return args;
+  }
+
+  /**
+   * Enhanced createSessionWithTypeDetection wrapper for IPMI-specific session creation
+   */
+  protected async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+    const ipmiOptions = options.ipmiOptions || {
+      host: options.sshOptions?.host || options.wmiHost || 'localhost',
+      username: options.sshOptions?.username || options.wmiUsername || 'admin',
+      password: options.sshOptions?.password || options.wmiPassword || '',
+      interface: 'lanplus'
+    } as IPMIConnectionOptions;
+
+    const command = 'ipmitool';
+    const args = this.buildIPMIToolCommand(ipmiOptions);
+
+    // Add SOL activate command if enabled
+    if (ipmiOptions.sol?.enabled) {
+      args.push('sol', 'activate');
+    } else {
+      // Default to shell for interactive session
+      args.push('shell');
+    }
+
+    const spawnOptions: import('child_process').SpawnOptions = {
+      cwd: options.cwd || process.cwd(),
+      env: { ...process.env, ...options.environment } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe']
+    };
+
+    this.logger.debug(`Starting IPMI process: ${command} ${args.join(' ')}`);
+
+    const childProcess = spawn(command, args, spawnOptions);
+    this.ipmiProcesses.set(sessionId, childProcess);
+
+    // Handle process events
+    childProcess.on('spawn', () => {
+      this.logger.debug(`IPMI process spawned for session ${sessionId} (PID: ${childProcess.pid})`);
+    });
+
+    childProcess.on('error', (error) => {
+      this.logger.error(`IPMI process error for session ${sessionId}:`, error);
+      this.emit('processError', { sessionId, error });
+    });
+
+    childProcess.on('exit', (code, signal) => {
+      this.logger.debug(`IPMI process exited for session ${sessionId}: code=${code}, signal=${signal}`);
+      this.ipmiProcesses.delete(sessionId);
+    });
+
+    // Handle stdout/stderr
+    if (childProcess.stdout) {
+      (childProcess.stdout as import('stream').Readable).on('data', (data: Buffer) => {
+        const output: ConsoleOutput = {
+          sessionId,
+          data: data.toString(),
+          timestamp: new Date(),
+          stream: 'stdout',
+          type: 'stdout' as const
+        };
+
+        const outputBuffer = this.outputBuffers.get(sessionId) || [];
+        outputBuffer.push(output);
+        this.outputBuffers.set(sessionId, outputBuffer);
+
+        this.emit('output', output);
+      });
+    }
+
+    if (childProcess.stderr) {
+      (childProcess.stderr as import('stream').Readable).on('data', (data: Buffer) => {
+        const output: ConsoleOutput = {
+          sessionId,
+          data: data.toString(),
+          timestamp: new Date(),
+          stream: 'stderr',
+          type: 'stderr' as const
+        };
+
+        const outputBuffer = this.outputBuffers.get(sessionId) || [];
+        outputBuffer.push(output);
+        this.outputBuffers.set(sessionId, outputBuffer);
+
+        this.emit('output', output);
+      });
+    }
+
+    // Create and return the ConsoleSession
+    const consoleSession: ConsoleSession = {
+      id: sessionId,
+      command: command,
+      args: args,
+      cwd: options.cwd || process.cwd(),
+      env: Object.fromEntries(
+        Object.entries({ ...process.env, ...options.environment }).filter(([_, value]) => typeof value === 'string')
+      ) as Record<string, string>,
+      createdAt: new Date(),
+      pid: childProcess.pid ?? undefined,
+      status: 'running',
+      type: this.type,
+      streaming: options.streaming ?? false,
+      lastActivity: new Date(),
+      executionState: 'idle',
+      activeCommands: new Map(),
+      ipmiOptions: ipmiOptions
+    };
+
+    this.sessions.set(sessionId, consoleSession);
+
+    this.logger.info(`IPMI session ${sessionId} created successfully`);
+    this.emit('session-created', { sessionId, type: this.type, session: consoleSession });
+
+    return consoleSession;
+  }
+
+  // Compatibility properties for legacy ProtocolFactory interface
+  public get supportedAuthMethods(): string[] {
+    return this.capabilities.supportedAuthMethods || [];
+  }
+
+  public get maxConcurrentSessions(): number {
+    return this.capabilities.maxConcurrentSessions || 5;
+  }
+
+  public get defaultTimeout(): number {
+    return this.capabilities.defaultTimeout || 30000;
+  }
+
+  public async getOutput(sessionId: string, since?: Date): Promise<ConsoleOutput[]> {
+    const outputs = this.outputBuffers.get(sessionId) || [];
+    const filteredOutputs = since
+      ? outputs.filter(output => output.timestamp > since)
+      : outputs;
+
+    return filteredOutputs;
+  }
+
+  public async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    this.healthStatus.lastChecked = new Date();
+    this.healthStatus.metrics.activeSessions = this.sessions.size;
+    this.healthStatus.isHealthy = this.isInitialized;
+
+    return { ...this.healthStatus };
   }
 
   // Vendor-specific implementations (simplified placeholders)
@@ -1311,55 +1539,151 @@ export class IPMIProtocol extends EventEmitter implements IProtocol {
     return true;
   }
 
-  // IProtocol required methods
+  // BaseProtocol required methods
   async initialize(): Promise<void> {
-    // IPMI initialization is handled in createSession
+    if (this.isInitialized) return;
+
+    this.logger.info('Initializing IPMI Protocol');
+
+    try {
+      // Check for ipmitool availability
+      await this.checkIPMIToolAvailability();
+
+      this.isInitialized = true;
+      this.logger.info('IPMI Protocol initialized successfully');
+    } catch (error) {
+      this.logger.error('Failed to initialize IPMI Protocol:', error);
+      throw error;
+    }
   }
 
-  // Override createSession to match IProtocol signature
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
-    const sessionId = `ipmi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    if (!options.ipmiOptions) {
-      throw new Error('IPMI options are required');
+    if (!this.isInitialized) {
+      await this.initialize();
     }
 
-    // Call the existing createIPMISession method with the sessionId and options
-    const legacySession = await this.createIPMISession(sessionId, options.ipmiOptions);
-    
-    return legacySession;
+    const sessionId = this.generateSessionId();
+
+    if (!options.ipmiOptions) {
+      // Use ipmitool with basic options if IPMI options not provided
+      const command = 'ipmitool';
+      const args = this.buildIPMIToolCommand({
+        host: options.sshOptions?.host || options.wmiHost || 'localhost',
+        username: options.sshOptions?.username || options.wmiUsername || 'admin',
+        password: options.sshOptions?.password || options.wmiPassword || '',
+        interface: 'lanplus'
+      } as IPMIConnectionOptions);
+
+      return await this.createSessionWithTypeDetection(sessionId, {
+        ...options,
+        command,
+        args
+      });
+    }
+
+    // Call the existing createIPMISession method for complex IPMI operations
+    const session = await this.createIPMISession(sessionId, options.ipmiOptions);
+
+    // Store session in BaseProtocol's session map
+    this.sessions.set(sessionId, session);
+
+    return session;
   }
 
   async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    // IPMI commands are handled through specific methods
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const process = this.ipmiProcesses.get(sessionId);
+
+    if (process && !process.killed) {
+      // Send commands to IPMI process stdin if available
+      if (process.stdin && process.stdin.writable) {
+        const commandLine = args ? `${command} ${args.join(' ')}` : command;
+        process.stdin.write(`${commandLine}\n`);
+      }
+    }
+
+    // IPMI commands are also handled through specific methods
     this.emit('commandExecuted', { sessionId, command, args, timestamp: new Date() });
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
-    await this.sendSOLInput(sessionId, input);
-  }
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
 
-  async getOutput(sessionId: string, since?: Date): Promise<string> {
+    // Try to send via SOL if active
     const connection = this.connections.get(sessionId);
-    return connection?.outputBuffer || '';
+    if (connection?.solSession?.active) {
+      await this.sendSOLInput(sessionId, input);
+    }
+
+    // Also send to process stdin if available
+    const process = this.ipmiProcesses.get(sessionId);
+    if (process && !process.killed && process.stdin && process.stdin.writable) {
+      process.stdin.write(input);
+    }
   }
 
   async closeSession(sessionId: string): Promise<void> {
-    await this.closeIPMISession(sessionId);
-  }
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      this.logger.warn(`Attempted to close non-existent session: ${sessionId}`);
+      return;
+    }
 
-  async getHealthStatus(): Promise<ProtocolHealthStatus> {
-    this.healthStatus.lastChecked = new Date();
-    this.healthStatus.metrics.activeSessions = this.connections.size;
-    this.healthStatus.isHealthy = this.healthStatus.errors.length === 0;
-    
-    return { ...this.healthStatus };
+    try {
+      // Close IPMI-specific resources
+      await this.closeIPMISession(sessionId);
+
+      // Terminate IPMI process
+      const process = this.ipmiProcesses.get(sessionId);
+      if (process && !process.killed) {
+        process.kill('SIGTERM');
+
+        // Force kill after 5 seconds
+        setTimeout(() => {
+          if (!process.killed) {
+            process.kill('SIGKILL');
+          }
+        }, 5000);
+      }
+
+      // Clean up maps
+      this.ipmiProcesses.delete(sessionId);
+      this.sessions.delete(sessionId);
+      this.outputBuffers.delete(sessionId);
+
+      session.status = 'terminated';
+
+      this.logger.info(`IPMI session closed: ${sessionId}`);
+      this.emit('sessionClosed', sessionId);
+
+    } catch (error) {
+      this.logger.error(`Error closing IPMI session ${sessionId}:`, error);
+      throw error;
+    }
   }
 
   async dispose(): Promise<void> {
-    const sessionIds = Array.from(this.connections.keys());
+    this.logger.info('Disposing IPMI Protocol');
+
+    // Close all active sessions
+    const sessionIds = Array.from(this.sessions.keys());
     await Promise.all(sessionIds.map(id => this.closeSession(id)));
+
+    // Close all IPMI connections
+    const connectionIds = Array.from(this.connections.keys());
+    await Promise.all(connectionIds.map(id => this.closeIPMISession(id)));
+
     this.removeAllListeners();
+    this.isInitialized = false;
+
+    this.logger.info('IPMI Protocol disposed');
   }
 }
 

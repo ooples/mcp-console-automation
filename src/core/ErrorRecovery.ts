@@ -48,6 +48,11 @@ export class ErrorRecovery extends EventEmitter {
   private static readonly ERROR_PATTERNS = {
     transient: [
       /timeout/i,
+      /connection reset/i,
+      /network unreachable/i,
+      /temporary failure/i,
+      /resource temporarily unavailable/i,
+      /server temporarily unavailable/i,
       /temporary/i,
       /try again/i,
       /busy/i,
@@ -70,7 +75,12 @@ export class ErrorRecovery extends EventEmitter {
       /access denied/i,
       /unauthorized/i,
       /invalid credentials/i,
-      /login failed/i
+      /login failed/i,
+      /password.*incorrect/i,
+      /password.*wrong/i,
+      /invalid.*password/i,
+      /bad.*password/i,
+      /authentication.*timeout/i
     ],
     network: [
       /connection refused/i,
@@ -160,40 +170,57 @@ export class ErrorRecovery extends EventEmitter {
     // SSH connection recovery strategy
     this.recoveryStrategies.set('ssh', {
       name: 'SSH Recovery',
-      applicableErrors: (error) => 
+      applicableErrors: (error) =>
         error.message.toLowerCase().includes('ssh') ||
         error.message.toLowerCase().includes('connection refused') ||
-        error.message.toLowerCase().includes('host unreachable'),
-      maxRecoveryAttempts: 2,
-      cooldownMs: 15000,
+        error.message.toLowerCase().includes('host unreachable') ||
+        error.message.toLowerCase().includes('authentication failed') ||
+        error.message.toLowerCase().includes('connection timeout'),
+      maxRecoveryAttempts: 3,
+      cooldownMs: 10000,
       actions: [
         {
-          name: 'recreate_ssh_connection',
-          description: 'Create new SSH connection',
+          name: 'retry_ssh_connection',
+          description: 'Retry SSH connection with same credentials',
           execute: async (context) => {
-            // Implementation would recreate SSH connection
-            return true; // Placeholder
+            this.logger.info(`Retrying SSH connection for session ${context.sessionId}`);
+            // Signal to retry with existing credentials
+            this.emit('retry-connection', { sessionId: context.sessionId, method: 'same_credentials' });
+            return true;
           },
-          userGuidance: 'Recreating SSH connection with fresh credentials'
+          userGuidance: 'Retrying SSH connection with existing credentials'
         },
         {
-          name: 'check_ssh_service',
-          description: 'Verify SSH service is running',
+          name: 'recreate_ssh_connection',
+          description: 'Create new SSH connection with fresh authentication',
           execute: async (context) => {
-            // Implementation would check SSH service
-            return true; // Placeholder
+            this.logger.info(`Recreating SSH connection for session ${context.sessionId}`);
+            // Signal to recreate connection
+            this.emit('recreate-connection', { sessionId: context.sessionId, method: 'fresh_auth' });
+            return true;
           },
-          userGuidance: 'Please ensure SSH service is running on the target host'
+          userGuidance: 'Recreating SSH connection with fresh authentication'
+        },
+        {
+          name: 'check_ssh_connectivity',
+          description: 'Verify SSH service availability and network connectivity',
+          execute: async (context) => {
+            this.logger.info(`Checking SSH connectivity for session ${context.sessionId}`);
+            // Signal to perform connectivity checks
+            this.emit('connectivity-check', { sessionId: context.sessionId });
+            return true;
+          },
+          userGuidance: 'Checking SSH service availability and network connectivity'
         }
       ],
       fallbackAction: {
-        name: 'local_mode',
-        description: 'Fall back to local execution mode',
+        name: 'ssh_degraded_mode',
+        description: 'Switch to SSH degraded mode with increased timeouts',
         execute: async (context) => {
-          this.enableDegradedMode(context.sessionId, 'ssh', ['local_only']);
+          this.enableDegradedMode(context.sessionId, 'ssh', ['increase_timeout', 'reduce_keepalive', 'simple_commands_only']);
           return true;
         },
-        userGuidance: 'SSH unavailable. Operating in local-only mode.'
+        userGuidance: 'SSH operating in degraded mode with increased timeouts and reduced features.'
       }
     });
 

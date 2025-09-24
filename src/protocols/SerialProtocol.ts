@@ -2,34 +2,32 @@ import { SerialPort, SerialPortOpenOptions } from 'serialport';
 import { AutoDetectTypes } from '@serialport/bindings-cpp';
 import { ReadlineParser } from '@serialport/parser-readline';
 import { ByteLengthParser } from '@serialport/parser-byte-length';
-import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import stripAnsi from 'strip-ansi';
-import { 
-  SerialConnectionOptions, 
-  SerialDeviceInfo, 
-  SerialProtocolProfile, 
-  ConsoleSession, 
-  ConsoleOutput, 
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import { ProtocolCapabilities, SessionState, ProtocolHealthStatus } from '../core/IProtocol.js';
+import {
+  SerialConnectionOptions,
+  SerialDeviceInfo,
+  SerialProtocolProfile,
+  ConsoleSession,
+  ConsoleOutput,
   ConsoleEvent,
   SessionOptions,
   ConsoleType
 } from '../types/index.js';
-import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
-import { Logger } from '../utils/logger.js';
 
 /**
  * Production-ready Serial/COM port protocol implementation for embedded device communication
  * Supports Arduino, ESP32, and various USB serial adapters (FTDI, CH340, CP2102)
+ * Now extends BaseProtocol with session management fixes
  */
-export class SerialProtocol extends EventEmitter implements IProtocol {
-  public readonly type = 'serial' as const;
+export class SerialProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'serial';
   public readonly capabilities: ProtocolCapabilities;
-  public readonly healthStatus: ProtocolHealthStatus;
   private connections: Map<string, SerialConnectionState> = new Map();
   private deviceProfiles: Map<string, SerialProtocolProfile> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
-  private logger: Logger;
   
   private static readonly DEFAULT_BAUD_RATES = [
     110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 
@@ -45,8 +43,7 @@ export class SerialProtocol extends EventEmitter implements IProtocol {
   };
 
   constructor() {
-    super();
-    this.logger = new Logger('SerialProtocol');
+    super('SerialProtocol');
     
     this.capabilities = {
       supportsStreaming: true,
@@ -77,25 +74,7 @@ export class SerialProtocol extends EventEmitter implements IProtocol {
       },
     };
 
-    this.healthStatus = {
-      isHealthy: true,
-      lastChecked: new Date(),
-      errors: [],
-      warnings: [],
-      metrics: {
-        activeSessions: 0,
-        totalSessions: 0,
-        averageLatency: 0,
-        successRate: 1.0,
-        uptime: 0,
-      },
-      dependencies: {
-        serialport: {
-          available: true,
-          version: '12.x',
-        },
-      },
-    };
+    // Health status will be managed by getHealthStatus() method
     
     this.initializeDeviceProfiles();
     this.startDeviceMonitoring();
@@ -635,8 +614,8 @@ export class SerialProtocol extends EventEmitter implements IProtocol {
 
     connectionState.outputBuffer.push(output);
 
-    // Emit raw data event
-    this.emit('data', output);
+    // Add to BaseProtocol output buffer for session management
+    this.addToOutputBuffer(sessionId, output);
   }
 
   /**
@@ -893,83 +872,138 @@ export class SerialProtocol extends EventEmitter implements IProtocol {
 
   // IProtocol required methods
   async initialize(): Promise<void> {
-    // Already initialized in constructor
+    if (this.isInitialized) return;
+
+    this.logger.info('Initializing Serial protocol with session management fixes');
+    this.isInitialized = true;
   }
 
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
-    const sessionId = `serial-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const sessionId = `serial-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+    // Use session management fixes from BaseProtocol
+    return await this.createSessionWithTypeDetection(sessionId, options);
+  }
+
+  protected async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!options.serialOptions) {
       throw new Error('Serial options are required');
     }
 
-    await this.createConnection(sessionId, options.serialOptions);
+    try {
+      // For persistent sessions, connect immediately
+      // For one-shot sessions, connect on command execution
+      if (!sessionState.isOneShot) {
+        await this.createConnection(sessionId, options.serialOptions);
+      }
 
-    const session: ConsoleSession = {
-      id: sessionId,
-      command: options.command || '',
-      args: options.args || [],
-      cwd: '/',
-      env: options.environment || {},
-      createdAt: new Date(),
-      status: 'running',
-      type: 'serial',
-      streaming: options.streaming ?? true,
-      serialOptions: options.serialOptions,
-      executionState: 'idle',
-      activeCommands: new Map(),
-    };
+      const session: ConsoleSession = {
+        id: sessionId,
+        command: options.command || '',
+        args: options.args || [],
+        cwd: '/',
+        env: options.env || {},
+        createdAt: new Date(),
+        status: sessionState.isOneShot ? 'initializing' : 'running',
+        type: this.type,
+        streaming: options.streaming ?? true,
+        serialOptions: options.serialOptions,
+        executionState: 'idle',
+        activeCommands: new Map(),
+      };
 
-    this.emit('sessionCreated', session);
-    return session;
+      this.sessions.set(sessionId, session);
+      this.outputBuffers.set(sessionId, []);
+
+      this.logger.info(`Serial session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
+      return session;
+
+    } catch (error) {
+      this.logger.error(`Failed to create Serial session: ${error}`);
+      throw error;
+    }
   }
 
   async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const sessionState = await this.getSessionState(sessionId);
+
+    // For one-shot sessions, connect first if not already connected
+    if (sessionState.isOneShot) {
+      const connection = this.connections.get(sessionId);
+      if (!connection || !connection.isConnected) {
+        const session = this.sessions.get(sessionId);
+        if (session?.serialOptions) {
+          await this.createConnection(sessionId, session.serialOptions);
+        }
+      }
+    }
+
     const fullCommand = args ? `${command} ${args.join(' ')}` : command;
     await this.sendData(sessionId, fullCommand + '\n');
+
+    // For one-shot sessions, mark as complete after command is sent
+    if (sessionState.isOneShot) {
+      setTimeout(() => {
+        this.markSessionComplete(sessionId, 0);
+      }, 1000); // Give time for output to be captured
+    }
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
     await this.sendData(sessionId, input);
   }
 
-  async getOutput(sessionId: string, since?: Date): Promise<string> {
-    const connection = this.connections.get(sessionId);
-    if (!connection) {
-      return '';
-    }
-
-    const outputs = connection.outputBuffer
-      .filter(output => !since || output.timestamp >= since)
-      .map(output => output.data)
-      .join('\n');
-    
-    return outputs;
-  }
-
   async closeSession(sessionId: string): Promise<void> {
     await this.closeConnection(sessionId);
+
+    // Remove from base class tracking
+    this.sessions.delete(sessionId);
+    this.outputBuffers.delete(sessionId);
   }
 
   async getHealthStatus(): Promise<ProtocolHealthStatus> {
-    this.healthStatus.lastChecked = new Date();
-    this.healthStatus.metrics.activeSessions = this.connections.size;
-    
+    const now = new Date();
+    const errors: string[] = [];
+
     // Check for any connection errors
-    let hasErrors = false;
     Array.from(this.connections.entries()).forEach(([sessionId, connection]) => {
       if (!connection.isConnected) {
-        hasErrors = true;
-        this.healthStatus.errors.push(`Connection ${sessionId} is not connected`);
+        errors.push(`Connection ${sessionId} is not connected`);
       }
     });
-    
-    this.healthStatus.isHealthy = !hasErrors;
-    return { ...this.healthStatus };
+
+    return {
+      isHealthy: errors.length === 0,
+      lastChecked: now,
+      errors,
+      warnings: [],
+      metrics: {
+        activeSessions: this.connections.size,
+        totalSessions: this.connections.size,
+        averageLatency: 0,
+        successRate: errors.length === 0 ? 1.0 : 0.5,
+        uptime: Date.now() - (this.isInitialized ? 0 : Date.now())
+      },
+      dependencies: {
+        serialport: {
+          available: true,
+          version: '12.x'
+        }
+      }
+    };
   }
 
   async dispose(): Promise<void> {
     await this.cleanup();
+    await super.cleanup();
   }
 }
 
