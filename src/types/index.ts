@@ -235,7 +235,7 @@ export interface AlertConfig {
 
 export interface ConsoleEvent {
   sessionId: string;
-  type: 'started' | 'stopped' | 'error' | 'input' | 'output' | 'prompt-detected' | 'vnc-framebuffer-update' | 'vnc-message' | 'vnc-clipboard-update' | 'terminated';
+  type: 'started' | 'stopped' | 'error' | 'input' | 'output' | 'prompt-detected' | 'vnc-framebuffer-update' | 'vnc-message' | 'vnc-clipboard-update' | 'terminated' | 'session-closed';
   timestamp: Date;
   data?: any;
 }
@@ -296,6 +296,8 @@ export interface SessionOptions {
   // Additional protocol options for completeness
   sftpOptions?: SFTPSessionOptions;
   scpOptions?: SCPTransferOptions;
+  // One-shot command flag
+  isOneShot?: boolean;
 }
 
 // Connection Pooling Configuration

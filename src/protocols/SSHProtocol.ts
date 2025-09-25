@@ -128,21 +128,15 @@ export class SSHProtocol extends BaseProtocol {
       // Store adapter after handlers are guaranteed to be set up
       this.sessionAdapters.set(sessionId, adapter);
 
-      // Connect the adapter (for persistent sessions)
-      // For one-shot sessions, we'll connect when executing the command
-      debugLog(`BEFORE connect check: isOneShot=${sessionState.isOneShot}`);
-      if (!sessionState.isOneShot) {
-        debugLog('>>> CALLING adapter.connect() for persistent session <<<');
-        debugLog(`SSH Options: ${JSON.stringify({
-          host: sshOptions.host,
-          hasPassword: !!sshOptions.password,
-          hasPrivateKey: !!sshOptions.privateKey
-        })}`);
-        await adapter.connect(sshOptions);
-        debugLog('>>> adapter.connect() COMPLETED <<<');
-      } else {
-        debugLog('SKIPPING adapter.connect() - session is one-shot');
-      }
+      // SSH always needs connection, regardless of one-shot or persistent
+      debugLog(`CONNECTING for ${sessionState.isOneShot ? 'one-shot' : 'persistent'} session`);
+      debugLog(`SSH Options: ${JSON.stringify({
+        host: sshOptions.host,
+        hasPassword: !!sshOptions.password,
+        hasPrivateKey: !!sshOptions.privateKey
+      })}`);
+      await adapter.connect(sshOptions);
+      debugLog('>>> adapter.connect() COMPLETED <<<');
 
       const session: ConsoleSession = {
         id: sessionId,

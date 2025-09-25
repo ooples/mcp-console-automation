@@ -877,6 +877,14 @@ export class ConsoleAutomationServer {
           ]
         };
       } catch (error: any) {
+        // Check if it's a timeout error and provide helpful guidance
+        let errorMessage = error.message;
+        let suggestion = '';
+        
+        if (error.message.includes('timeout') || error.message.includes('timed out')) {
+          suggestion = '\n\nTip: This command timed out. For long-running commands, use console_create_session to create a persistent session, then use console_send_input and console_wait_for_output instead of console_execute_command. This allows better control over long-running processes.';
+        }
+        
         return {
           content: [
             {
@@ -884,7 +892,7 @@ export class ConsoleAutomationServer {
               text: JSON.stringify({
                 sessionId: args.sessionId,
                 command: args.command,
-                error: error.message,
+                error: errorMessage + suggestion,
                 timestamp: new Date().toISOString()
               }, null, 2)
             } as TextContent
@@ -914,17 +922,33 @@ export class ConsoleAutomationServer {
       detectedType: detectedConsoleType
     });
     
-    const result = await this.consoleManager.executeCommand(
-      args.command,
-      args.args,
-      {
-        cwd: args.cwd,
-        env: args.env,
-        timeout: args.timeout,
-        consoleType: detectedConsoleType,
-        sshOptions: finalSSHOptions
+    let result;
+    try {
+      result = await this.consoleManager.executeCommand(
+        args.command,
+        args.args,
+        {
+          cwd: args.cwd,
+          env: args.env,
+          timeout: args.timeout || 120000,
+          consoleType: detectedConsoleType,
+          sshOptions: finalSSHOptions
+        }
+      );
+    } catch (error: any) {
+      // Check if it's a timeout error and provide helpful guidance
+      let errorMessage = error.message;
+      let suggestion = '';
+      
+      if (error.message.includes('timeout') || error.message.includes('timed out')) {
+        suggestion = '\n\nTip: This command timed out. For long-running commands, use console_create_session to create a persistent session, then use console_send_input and console_wait_for_output instead of console_execute_command. This allows better control over long-running processes.';
       }
-    );
+      
+      throw new McpError(
+        ErrorCode.InternalError,
+        errorMessage + suggestion
+      );
+    }
     return {
       content: [
         {

@@ -555,6 +555,28 @@ export class ConsoleManager extends EventEmitter {
         this.emit('sessionClosed', sessionId);
       }
     });
+
+    // Handle session closed (LocalProtocol emits this)
+    protocol.on('session-closed', (data: { sessionId: string; exitCode?: number }) => {
+      // Check if completion is for this session (using protocol's sessionId)
+      if (data.sessionId === protocolSessionId) {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          session.status = 'stopped';
+          session.exitCode = data.exitCode;
+        }
+
+        console.error(`[MAPPING-FIX] Protocol session ${protocolSessionId} closed, emitting console-event for ConsoleManager session ${sessionId}`);
+
+        // Emit console-event that our Promise is waiting for
+        this.emit('console-event', {
+          sessionId: sessionId, // Use ConsoleManager sessionId, not protocol sessionId
+          type: 'stopped',
+          timestamp: new Date(),
+          data: { exitCode: data.exitCode }
+        });
+      }
+    });
   }
 
   /**
@@ -569,13 +591,22 @@ export class ConsoleManager extends EventEmitter {
     }
     buffer.push(output);
 
-    // Emit output event
+    // Emit output event (legacy)
     this.emit('output', {
       sessionId,
       data: output.data,
       timestamp: output.timestamp,
       type: output.type
     } as ConsoleOutput);
+
+    // Also emit console-event that executeCommand Promise is waiting for
+    console.error(`[MAPPING-FIX] Emitting console-event output for session ${sessionId}, data length: ${output.data?.length || 0}`);
+    this.emit('console-event', {
+      sessionId: sessionId, // Use ConsoleManager sessionId
+      type: 'output',
+      timestamp: new Date(),
+      data: { data: output.data }
+    });
   }
 
   /**
@@ -887,6 +918,13 @@ export class ConsoleManager extends EventEmitter {
     duration: number;
     status: 'completed' | 'failed' | 'timeout';
   }> {
+    console.error(`[DEBUG-HANG] executeCommandInSession called with:`, JSON.stringify({
+      sessionId,
+      command,
+      args,
+      timeout
+    }, null, 2));
+
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -3624,6 +3662,9 @@ export class ConsoleManager extends EventEmitter {
     // Resolve options from stored profiles if available
     const resolvedOptions = this.resolveSessionOptions(options);
 
+    // Add the isOneShot flag to resolved options for protocol use
+    resolvedOptions.isOneShot = isOneShot;
+
     // Detect protocol type
     let protocolType = resolvedOptions.consoleType;
     if (!protocolType || protocolType === 'auto') {
@@ -3674,6 +3715,7 @@ export class ConsoleManager extends EventEmitter {
       }
 
       // Create session using the protocol
+      console.error(`[EVENT-FIX] About to call protocol.createSession with resolvedOptions.isOneShot = ${resolvedOptions.isOneShot}`);
       const protocolSession = await protocol.createSession(resolvedOptions);
 
       // Store protocol session mapping with protocol's sessionId
@@ -3698,8 +3740,9 @@ export class ConsoleManager extends EventEmitter {
         data: { protocolType, isOneShot }
       });
 
-      // Wait for session to be fully ready before returning
-      await this.waitForSessionReady(sessionId, 5000); // 5 second timeout
+      // REMOVED: waitForSessionReady() as SSH sessions never reach 'idle' state
+      // This was causing executeCommand to hang indefinitely
+      // await this.waitForSessionReady(sessionId, 5000); // 5 second timeout
 
       return sessionId;
     } catch (error) {
@@ -7793,10 +7836,20 @@ export class ConsoleManager extends EventEmitter {
   }
 
   async executeCommand(command: string, args?: string[], options?: Partial<SessionOptions>): Promise<{ output: string; exitCode?: number }> {
+    console.error(`[EVENT-FIX] ConsoleManager.executeCommand called with:`, JSON.stringify({
+      command,
+      args,
+      options: {
+        ...options,
+        sshOptions: options?.sshOptions ? { host: options.sshOptions.host, username: options.sshOptions.username } : undefined
+      }
+    }, null, 2));
+
     // Create session with all options
     const sessionOptions: SessionOptions = {
       command,
       args: args || [],
+      isOneShot: true, // Explicitly mark as one-shot
       ...options
     };
 
@@ -7807,7 +7860,6 @@ export class ConsoleManager extends EventEmitter {
 
     // Apply platform-specific command translation for SSH sessions
     if (sessionOptions.consoleType === 'ssh' && sessionOptions.sshOptions) {
-      // For SSH sessions, we might need to translate Windows commands to Unix equivalents
       const translatedCommand = this.translateCommandForSSH(command, args);
       sessionOptions.command = translatedCommand.command;
       sessionOptions.args = translatedCommand.args;
@@ -7821,102 +7873,140 @@ export class ConsoleManager extends EventEmitter {
 
     // Create a one-shot session
     const sessionId = uuidv4();
-    const sessionIdResult = await this.createSessionInternal(sessionId, sessionOptions, true);
-    
-    // Record one-shot session creation
-    this.diagnosticsManager.recordEvent({
-      level: 'info',
-      category: 'session',
-      operation: 'one_shot_session_created',
-      sessionId,
-      message: 'Created one-shot session for command execution',
-      data: { command, args }
-    });
+    console.error(`[EVENT-FIX] About to call createSessionInternal with sessionId: ${sessionId}`);
 
-    return new Promise((resolve, reject) => {
-      const outputs: string[] = [];
-      let timeoutHandle: NodeJS.Timeout | null = null;
-      const timeoutMs = options?.timeout || 120000; // Default 2 minute timeout (configurable)
-      
-      const cleanup = async () => {
-        this.removeListener('console-event', handleEvent);
-        if (timeoutHandle) {
-          clearTimeout(timeoutHandle);
-        }
-        
-        // Always cleanup one-shot sessions
-        const session = this.sessions.get(sessionId);
-        if (session?.sessionType === 'one-shot') {
+    try {
+      const sessionIdResult = await this.createSessionInternal(sessionId, sessionOptions, true);
+      console.error(`[EVENT-FIX] createSessionInternal completed, sessionIdResult:`, sessionIdResult);
+
+      // Record one-shot session creation
+      this.diagnosticsManager.recordEvent({
+        level: 'info',
+        category: 'session',
+        operation: 'one_shot_session_created',
+        sessionId,
+        message: 'Created one-shot session for command execution',
+        data: { command, args }
+      });
+
+      // CRITICAL FIX: Actually send the command to the session after creating it
+      const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+      console.error(`[EVENT-FIX] About to send command to session: "${fullCommand}"`);
+
+      await this.sendInput(sessionId, fullCommand + '\n');
+      console.error(`[EVENT-FIX] Command sent successfully to session ${sessionId}`);
+
+      console.error(`[EVENT-FIX] Creating Promise for command execution, sessionId: ${sessionId}`);
+      return new Promise((resolve, reject) => {
+        console.error(`[EVENT-FIX] Inside Promise executor, setting up event handlers`);
+        const outputs: string[] = [];
+        let timeoutHandle: NodeJS.Timeout | null = null;
+        const timeoutMs = options?.timeout || 120000; // 2 minute timeout for production (reverted from regression)
+        console.error(`[EVENT-FIX] Timeout set to: ${timeoutMs}ms`);
+
+        const cleanup = async () => {
+          this.removeListener('console-event', handleEvent);
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
+
+          // Always cleanup one-shot sessions
+          const session = this.sessions.get(sessionId);
+          if (session?.sessionType === 'one-shot') {
+            this.diagnosticsManager.recordEvent({
+              level: 'info',
+              category: 'session',
+              operation: 'one_shot_cleanup',
+              sessionId,
+              message: 'Cleaning up one-shot session after command execution'
+            });
+            await this.cleanupSession(sessionId);
+          }
+        };
+
+        const handleEvent = (event: ConsoleEvent) => {
+          console.error(`[EVENT-FIX] handleEvent received event:`, JSON.stringify({
+            type: event.type,
+            sessionId: event.sessionId,
+            targetSessionId: sessionId,
+            matches: event.sessionId === sessionId,
+            hasData: !!event.data
+          }, null, 2));
+
+          if (event.sessionId !== sessionId) return;
+
+          console.error(`[EVENT-FIX] Processing event for our session, type: ${event.type}`);
+
+          if (event.type === 'output') {
+            outputs.push(event.data.data);
+            console.error(`[EVENT-FIX] Added output, total length: ${outputs.join('').length}`);
+          } else if (event.type === 'stopped' || event.type === 'terminated' || event.type === 'session-closed') {
+            console.error(`[EVENT-FIX] Session completion event received: ${event.type}`);
+            cleanup().then(() => {
+              resolve({
+                output: outputs.join(''),
+                exitCode: event.data?.exitCode || 0
+              });
+            }).catch(err => {
+              this.logger.warn('Cleanup error during session stop:', err);
+              resolve({
+                output: outputs.join(''),
+                exitCode: event.data?.exitCode || 0
+              });
+            });
+          } else if (event.type === 'error') {
+            console.error(`[EVENT-FIX] Error event received:`, event.data);
+            // Only reject on serious errors, not command output errors
+            if (event.data.error && (
+              event.data.error.includes('connection') ||
+              event.data.error.includes('authentication') ||
+              event.data.error.includes('timeout') ||
+              event.data.error.includes('network')
+            )) {
+              cleanup().then(() => {
+                reject(new Error(`Session error: ${event.data.error}`));
+              }).catch(err => {
+                this.logger.warn('Cleanup error during session error:', err);
+                reject(new Error(`Session error: ${event.data.error}`));
+              });
+            }
+            // Otherwise, treat errors as part of command output and continue
+          }
+        };
+
+        // Set up timeout for the command execution
+        console.error(`[EVENT-FIX] Setting up timeout handler for ${timeoutMs}ms`);
+        timeoutHandle = setTimeout(() => {
+          console.error(`[EVENT-FIX] TIMEOUT TRIGGERED! Command execution timed out after ${timeoutMs}ms, sessionId: ${sessionId}`);
           this.diagnosticsManager.recordEvent({
-            level: 'info',
+            level: 'warn',
             category: 'session',
-            operation: 'one_shot_cleanup',
+            operation: 'one_shot_timeout',
             sessionId,
-            message: 'Cleaning up one-shot session after command execution'
+            message: `One-shot session timed out after ${timeoutMs}ms`
           });
-          await this.cleanupSession(sessionId);
-        }
-      };
-      
-      const handleEvent = (event: ConsoleEvent) => {
-        if (event.sessionId !== sessionId) return;
-        
-        if (event.type === 'output') {
-          outputs.push(event.data.data);
-        } else if (event.type === 'stopped') {
+
           cleanup().then(() => {
+            // Return whatever output we have collected so far
             resolve({
-              output: outputs.join(''),
-              exitCode: event.data.exitCode
+              output: outputs.join('') + '\n[Command timed out]',
+              exitCode: 124 // Standard timeout exit code
             });
           }).catch(err => {
-            this.logger.warn('Cleanup error during session stop:', err);
-            resolve({
-              output: outputs.join(''),
-              exitCode: event.data.exitCode
-            });
-          });
-        } else if (event.type === 'error') {
-          // Only reject on serious errors, not command output errors
-          if (event.data.error && (
-            event.data.error.includes('connection') ||
-            event.data.error.includes('authentication') ||
-            event.data.error.includes('timeout') ||
-            event.data.error.includes('network')
-          )) {
-            cleanup().then(() => {
-              reject(new Error(`Session error: ${event.data.error}`));
-            }).catch(err => {
-              this.logger.warn('Cleanup error during session error:', err);
-              reject(new Error(`Session error: ${event.data.error}`));
-            });
-          }
-          // Otherwise, treat errors as part of command output
-        }
-      };
-
-      // Set up timeout for the command execution
-      timeoutHandle = setTimeout(() => {
-        this.diagnosticsManager.recordEvent({
-          level: 'warn',
-          category: 'session',
-          operation: 'one_shot_timeout',
-          sessionId,
-          message: `One-shot session timed out after ${timeoutMs}ms`
-        });
-        
-        cleanup().then(() => {
-          this.stopSession(sessionId).then(() => {
+            this.logger.warn('Cleanup error during timeout:', err);
             reject(new Error(`Command execution timeout after ${timeoutMs}ms`));
           });
-        }).catch(err => {
-          this.logger.warn('Cleanup error during timeout:', err);
-          reject(new Error(`Command execution timeout after ${timeoutMs}ms`));
-        });
-      }, timeoutMs);
+        }, timeoutMs);
 
-      this.on('console-event', handleEvent);
-    });
+        console.error(`[EVENT-FIX] Registering event listener for 'console-event' on sessionId: ${sessionId}`);
+        this.on('console-event', handleEvent);
+        console.error(`[EVENT-FIX] Event listener registered, Promise setup complete`);
+      });
+
+    } catch (error) {
+      console.error(`[EVENT-FIX] Failed to create session or send command:`, error);
+      throw new Error(`Failed to execute command: ${error}`);
+    }
   }
 
   /**
@@ -9391,6 +9481,46 @@ export class ConsoleManager extends EventEmitter {
       await this.azureProtocol.resizeTerminal(sessionId, rows, cols);
     } catch (error) {
       this.logger.error(`Failed to resize Azure session ${sessionId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resize any session terminal (general method)
+   */
+  async resizeSession(sessionId: string, cols: number, rows: number): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    try {
+      // Try to get the protocol instance for this session
+      const protocolSession = this.protocolSessions.get(sessionId);
+      if (protocolSession && protocolSession.protocol) {
+        // Check if the protocol supports resizing
+        if ('resizeSession' in protocolSession.protocol) {
+          await (protocolSession.protocol as any).resizeSession(sessionId, cols, rows);
+        } else {
+          this.logger.warn(`Resize not supported for protocol type: ${protocolSession.type}`);
+        }
+      } else {
+        // Fallback for specific protocols
+        switch (session.type) {
+          case 'wsl':
+            if (this.wslProtocol && 'resizeTerminal' in this.wslProtocol) {
+              await this.wslProtocol.resizeTerminal(sessionId, cols, rows);
+            }
+            break;
+          default:
+            this.logger.warn(`Resize not supported for session type: ${session.type}`);
+            break;
+        }
+      }
+
+      this.logger.debug(`Session ${sessionId} resized to ${cols}x${rows}`);
+    } catch (error) {
+      this.logger.error(`Failed to resize session ${sessionId}:`, error);
       throw error;
     }
   }

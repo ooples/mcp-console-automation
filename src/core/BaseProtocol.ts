@@ -54,9 +54,20 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
    * This is the core fix for "stream destroyed" errors
    */
   protected isOneShotCommand(options: SessionOptions): boolean {
+    // First check if isOneShot is explicitly set in options
+    if (options.isOneShot !== undefined) {
+      const result = options.isOneShot;
+      try {
+        console.error(`[SSH-DEBUG] BaseProtocol.isOneShotCommand: using explicit isOneShot flag = ${result}`);
+      } catch (e) {
+        // Ignore debug errors
+      }
+      return result;
+    }
+
     const command = options.command?.toLowerCase() || '';
     const args = options.args || [];
-    
+
     // DEBUG: Log what we're checking
     try {
       // Use dynamic import for debugging
