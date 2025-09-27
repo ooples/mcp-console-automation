@@ -26,6 +26,7 @@ import { SSHConnectionKeepAlive } from './SSHConnectionKeepAlive.js';
 import { ProtocolFactory, IProtocol, ProtocolDetector } from './ProtocolFactory.js';
 import { AzureMonitoring } from '../monitoring/AzureMonitoring.js';
 import { ConfigManager, ConnectionProfile, ApplicationProfile } from '../config/ConfigManager.js';
+import { DockerProtocol } from '../protocols/DockerProtocol.js';
 // JobManager functionality integrated into SessionManager
 import PQueue from 'p-queue';
 import { platform } from 'os';
@@ -206,6 +207,7 @@ export class ConsoleManager extends EventEmitter {
   // New production-ready connection pooling and session management
   private connectionPool: ConnectionPool;
   private sessionManager: SessionManager;
+  private dockerProtocol: DockerProtocol;
   private retryManager: RetryManager;
   private diagnosticsManager: DiagnosticsManager;
   private sessionValidator: SessionValidator;

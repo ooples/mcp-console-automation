@@ -938,7 +938,6 @@ export class ConsoleAutomationServer {
       }
       debugLog('[DEBUG] Throwing new McpError');
       throw new McpError(ErrorCode.InternalError, `Session creation failed: ${error.message}`);
->>>>>>> origin/master
     }
   }
 
@@ -2360,40 +2359,6 @@ export class ConsoleAutomationServer {
     }
   }
 
-  private async gracefulShutdown() {
-    debugLog('[SHUTDOWN] Starting graceful shutdown');
-    this.logger.info('Starting graceful shutdown...');
-
-    try {
-      // Destroy SSH Bridge first
-      await this.sshBridge.destroy();
-      debugLog('[SHUTDOWN] SSH Bridge destroyed');
-
-      // Then ConsoleManager
-      await this.consoleManager.destroy();
-      debugLog('[SHUTDOWN] ConsoleManager destroyed');
-
-      // Finally SessionManager
-      this.sessionManager.destroy();
-      debugLog('[SHUTDOWN] SessionManager destroyed');
-
-      debugLog('[SHUTDOWN] Graceful shutdown complete');
-    } catch (error: any) {
-      debugLog('[SHUTDOWN ERROR]', error);
-      this.logger.error('Error during graceful shutdown:', error);
-=======
-      debugLog('[DEBUG] Error in handleUseProfile:', error);
-      debugLog('[DEBUG] Error stack:', error.stack);
-
-      // Re-throw as McpError for proper error handling
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to use profile ${args.profileName}: ${error.message}`
-      );
->>>>>>> origin/master
-    }
-  }
-
   private setupCleanup() {
     process.on('SIGINT', async () => {
       this.logger.info('Received SIGINT, shutting down...');
@@ -2420,61 +2385,6 @@ export class ConsoleAutomationServer {
       this.logger.error(`Unhandled rejection: ${reason}`);
       debugLog('[UNHANDLED REJECTION]', reason);
     });
-  }
-
-  /**
-   * Setup STDIO protection to prevent SSH and subprocess output from corrupting MCP transport
-   */
-  private setupStdioProtection() {
-    // Save original stdout/stderr write methods
-    const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-    const originalStderrWrite = process.stderr.write.bind(process.stderr);
-
-    // Override stdout.write to filter out non-MCP content
-    process.stdout.write = function(chunk: any, encoding?: any, callback?: any): boolean {
-      // Convert chunk to string for inspection
-      const str = chunk?.toString ? chunk.toString() : String(chunk);
-
-      // Only allow JSON-RPC messages through stdout
-      // MCP messages are JSON objects with jsonrpc field
-      if (str.includes('"jsonrpc"') || str.includes('Content-Length:')) {
-        // This looks like an MCP message, let it through
-        return originalStdoutWrite(chunk, encoding, callback);
-      }
-
-      // Block all non-MCP stdout (like SSH output, debug messages)
-      // Log to file instead
-      debugLog('[STDIO-BLOCKED] Stdout:', str);
-
-      // Call callback if provided to prevent blocking
-      if (typeof encoding === 'function') {
-        encoding();
-      } else if (typeof callback === 'function') {
-        callback();
-      }
-
-      return true; // Pretend write succeeded
-    };
-
-    // Override stderr.write to redirect all errors to file
-    process.stderr.write = function(chunk: any, encoding?: any, callback?: any): boolean {
-      // Convert chunk to string for logging
-      const str = chunk?.toString ? chunk.toString() : String(chunk);
-
-      // Never write errors to stderr in MCP mode - log to file instead
-      debugLog('[STDERR-REDIRECTED]:', str);
-
-      // Call callback if provided
-      if (typeof encoding === 'function') {
-        encoding();
-      } else if (typeof callback === 'function') {
-        callback();
-      }
-
-      return true; // Pretend write succeeded
-    };
-
-    debugLog('[DEBUG] STDIO protection enabled - stdout/stderr isolated from MCP transport');
   }
 
   private setupErrorIsolation() {
@@ -2530,7 +2440,6 @@ export class ConsoleAutomationServer {
       this.logger.warn('Unhandled rejection isolated:', reason);
       this.handleRecoverableError(new Error(String(reason)));
       // Prevent default termination behavior
->>>>>>> origin/master
     });
 
     // Ensure error isolation is maintained
@@ -2670,6 +2579,7 @@ export class ConsoleAutomationServer {
     }
 
     this.isShuttingDown = true;
+    debugLog('[SHUTDOWN] Starting graceful shutdown');
     this.logger.info('Initiating graceful shutdown...');
 
     try {
@@ -2680,8 +2590,21 @@ export class ConsoleAutomationServer {
         this.healthCheckInterval = undefined;
       }
 
+      // Destroy SSH Bridge first
+      await this.sshBridge.destroy();
+      debugLog('[SHUTDOWN] SSH Bridge destroyed');
+
+      // Then ConsoleManager
       await this.consoleManager.destroy();
-    } catch (error) {
+      debugLog('[SHUTDOWN] ConsoleManager destroyed');
+
+      // Finally SessionManager
+      this.sessionManager.destroy();
+      debugLog('[SHUTDOWN] SessionManager destroyed');
+
+      debugLog('[SHUTDOWN] Graceful shutdown complete');
+    } catch (error: any) {
+      debugLog('[SHUTDOWN ERROR]', error);
       this.logger.error('Error during shutdown:', error);
     }
 
