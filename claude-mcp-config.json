@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "console-automation": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "C:\\Users\\yolan\\source\\repos\\mcp-console-automation\\src\\mcp\\persistent-server.ts"
+      ],
+      "env": {
+        "LOG_LEVEL": "info",
+        "NODE_ENV": "production"
+      },
+      "persistent": true,
+      "keepAlive": true,
+      "reconnectOnDisconnect": true,
+      "maxReconnectAttempts": 10
+    }
+  }
+}

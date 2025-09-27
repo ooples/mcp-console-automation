@@ -1,0 +1,125 @@
+{
+  "summary": {
+    "total": 10,
+    "passed": 9,
+    "failed": 1,
+    "passRate": "90.0%",
+    "totalDuration": "35974ms"
+  },
+  "results": [
+    {
+      "name": "One-shot PowerShell Command",
+      "passed": true,
+      "duration": 892
+    },
+    {
+      "name": "One-shot CMD Command",
+      "passed": true,
+      "duration": 531
+    },
+    {
+      "name": "Persistent PowerShell Session",
+      "passed": true,
+      "duration": 4811
+    },
+    {
+      "name": "Persistent CMD Session",
+      "passed": true,
+      "duration": 4549
+    },
+    {
+      "name": "Session Limit Management",
+      "passed": false,
+      "error": "Expected 10 completed sessions, got 12",
+      "duration": 4995
+    },
+    {
+      "name": "Wait for Output Pattern",
+      "passed": true,
+      "duration": 3894
+    },
+    {
+      "name": "Execute Command Helper",
+      "passed": true,
+      "duration": 4814
+    },
+    {
+      "name": "Stream Validation",
+      "passed": true,
+      "duration": 1298
+    },
+    {
+      "name": "Concurrent Sessions",
+      "passed": true,
+      "duration": 7817
+    },
+    {
+      "name": "Error Handling",
+      "passed": true,
+      "duration": 2373
+    }
+  ],
+  "diagnostics": {
+    "reportId": "report-1758552624274-k2nt48nfi",
+    "generatedAt": "2025-09-22T14:50:24.274Z",
+    "systemInfo": {
+      "version": "1.0.0",
+      "uptime": 41.2321253,
+      "platform": "win32",
+      "nodeVersion": "v22.15.0",
+      "totalSessions": 0,
+      "activeSessions": 0,
+      "failedSessions": 0,
+      "systemResources": {
+        "cpuUsage": 0.296,
+        "memoryUsage": 7.819953918457031,
+        "memoryLimit": 8.80078125,
+        "outputBufferSize": 0,
+        "commandQueueSize": 0,
+        "activeHandlers": 0
+      },
+      "configuration": {
+        "enableDiagnostics": true,
+        "verboseLogging": true,
+        "persistDiagnostics": true,
+        "diagnosticsPath": "./test-diagnostics",
+        "maxEventHistory": 10000
+      }
+    },
+    "sessions": [],
+    "recentEvents": [],
+    "alerts": [],
+    "recommendations": [
+      "Success rate below 95% - investigate failing operations",
+      "High memory usage detected - consider increasing memory limit or cleaning up sessions"
+    ],
+    "performanceSummary": {
+      "avgResponseTime": 0,
+      "maxResponseTime": 0,
+      "minResponseTime": 1.7976931348623157e+308,
+      "totalOperations": 0,
+      "failedOperations": 0,
+      "successRate": 0,
+      "throughput": 0,
+      "latencyP50": 0,
+      "latencyP95": 0,
+      "latencyP99": 0
+    },
+    "errorSummary": {
+      "totalErrors": 0,
+      "errorsByType": {},
+      "errorsBySession": {},
+      "topErrors": [],
+      "errorTrend": "stable"
+    }
+  },
+  "sessionStats": {
+    "totalSessions": 30,
+    "runningSessions": 1,
+    "stoppedSessions": 11,
+    "crashedSessions": 0,
+    "completedSessions": 18,
+    "activeSessions": 1
+  },
+  "timestamp": "2025-09-22T14:50:24.276Z"
+}

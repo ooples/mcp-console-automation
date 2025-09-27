@@ -1,0 +1,54 @@
+{
+  "reportId": "report-1758552624274-k2nt48nfi",
+  "generatedAt": "2025-09-22T14:50:24.274Z",
+  "systemInfo": {
+    "version": "1.0.0",
+    "uptime": 41.2321253,
+    "platform": "win32",
+    "nodeVersion": "v22.15.0",
+    "totalSessions": 0,
+    "activeSessions": 0,
+    "failedSessions": 0,
+    "systemResources": {
+      "cpuUsage": 0.296,
+      "memoryUsage": 7.819953918457031,
+      "memoryLimit": 8.80078125,
+      "outputBufferSize": 0,
+      "commandQueueSize": 0,
+      "activeHandlers": 0
+    },
+    "configuration": {
+      "enableDiagnostics": true,
+      "verboseLogging": true,
+      "persistDiagnostics": true,
+      "diagnosticsPath": "./test-diagnostics",
+      "maxEventHistory": 10000
+    }
+  },
+  "sessions": [],
+  "recentEvents": [],
+  "alerts": [],
+  "recommendations": [
+    "Success rate below 95% - investigate failing operations",
+    "High memory usage detected - consider increasing memory limit or cleaning up sessions"
+  ],
+  "performanceSummary": {
+    "avgResponseTime": 0,
+    "maxResponseTime": 0,
+    "minResponseTime": 1.7976931348623157e+308,
+    "totalOperations": 0,
+    "failedOperations": 0,
+    "successRate": 0,
+    "throughput": 0,
+    "latencyP50": 0,
+    "latencyP95": 0,
+    "latencyP99": 0
+  },
+  "errorSummary": {
+    "totalErrors": 0,
+    "errorsByType": {},
+    "errorsBySession": {},
+    "topErrors": [],
+    "errorTrend": "stable"
+  }
+}
