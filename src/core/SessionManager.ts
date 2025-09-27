@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
+import { spawn, ChildProcess } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
 import {
@@ -8,7 +9,11 @@ import {
   SessionManagerConfig,
   SessionManagerStats,
   SessionRecoveryOptions,
-  ConsoleSession
+  ConsoleSession,
+  BackgroundJob,
+  BackgroundJobOptions,
+  BackgroundJobResult,
+  JobMetrics
 } from '../types/index.js';
 
 /**
@@ -23,6 +28,14 @@ export class SessionManager extends EventEmitter {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private cleanupInterval: NodeJS.Timeout | null = null;
   private persistenceTimer: NodeJS.Timeout | null = null;
+
+  // Background job management
+  private backgroundJobs: Map<string, BackgroundJob> = new Map();
+  private jobQueue: BackgroundJob[] = [];
+  private activeJobs: Set<string> = new Set();
+  private maxConcurrentJobs = 5;
+  private outputSequenceCounter = 0;
+
   private metrics: {
     sessionsCreated: number;
     sessionsDestroyed: number;
@@ -31,6 +44,9 @@ export class SessionManager extends EventEmitter {
     failedRecoveries: number;
     heartbeatChecks: number;
     cleanupOperations: number;
+    jobsExecuted: number;
+    jobsSuccessful: number;
+    jobsFailed: number;
   };
 
   constructor(config: Partial<SessionManagerConfig> = {}) {
@@ -63,7 +79,10 @@ export class SessionManager extends EventEmitter {
       successfulRecoveries: 0,
       failedRecoveries: 0,
       heartbeatChecks: 0,
-      cleanupOperations: 0
+      cleanupOperations: 0,
+      jobsExecuted: 0,
+      jobsSuccessful: 0,
+      jobsFailed: 0
     };
 
     // Initialize session type tracking
@@ -342,7 +361,7 @@ export class SessionManager extends EventEmitter {
   /**
    * Get detailed metrics
    */
-  getMetrics() {
+  getDetailedMetrics() {
     return {
       ...this.metrics,
       stats: this.getStats(),
@@ -659,5 +678,262 @@ export class SessionManager extends EventEmitter {
     await this.persistSessions();
 
     this.removeAllListeners();
+  }
+
+  // Background Job Management Methods
+  async executeBackgroundJob(options: BackgroundJobOptions): Promise<string> {
+    const jobId = uuidv4();
+    const job: BackgroundJob = {
+      id: jobId,
+      command: options.command,
+      sessionId: options.sessionId,
+      args: options.args || [],
+      cwd: options.cwd,
+      env: options.env,
+      timeout: options.timeout || 30000,
+      priority: options.priority || 5,
+      status: 'pending',
+      createdAt: new Date(),
+      output: [],
+      progress: { current: 0, total: 100, message: 'Initializing...' }
+    };
+
+    this.backgroundJobs.set(jobId, job);
+    this.jobQueue.push(job);
+    this.processJobQueue();
+
+    this.logger.info(`Background job ${jobId} queued`);
+    return jobId;
+  }
+
+  getJobStatus(jobId: string): BackgroundJob | null {
+    return this.backgroundJobs.get(jobId) || null;
+  }
+
+  getAllJobs(): BackgroundJob[] {
+    return Array.from(this.backgroundJobs.values());
+  }
+
+  cancelJob(jobId: string): boolean {
+    const job = this.backgroundJobs.get(jobId);
+    if (!job) return false;
+
+    if (job.process) {
+      job.process.kill();
+    }
+
+    job.status = 'cancelled';
+    job.finishedAt = new Date();
+    this.activeJobs.delete(jobId);
+
+    this.emit('jobCancelled', job);
+    return true;
+  }
+
+  private async processJobQueue(): Promise<void> {
+    if (this.activeJobs.size >= this.maxConcurrentJobs) {
+      return;
+    }
+
+    // Sort by priority (higher first)
+    this.jobQueue.sort((a, b) => (b.priority || 5) - (a.priority || 5));
+
+    const job = this.jobQueue.shift();
+    if (!job) return;
+
+    this.activeJobs.add(job.id);
+    job.status = 'running';
+    job.startedAt = new Date();
+
+    try {
+      await this.runJob(job);
+      this.metrics.jobsSuccessful++;
+    } catch (error) {
+      job.error = error instanceof Error ? error.message : String(error);
+      job.status = 'failed';
+      this.metrics.jobsFailed++;
+      this.logger.error(`Job ${job.id} failed:`, error);
+    } finally {
+      this.activeJobs.delete(job.id);
+      this.metrics.jobsExecuted++;
+      job.finishedAt = new Date();
+
+      // Continue processing queue
+      if (this.jobQueue.length > 0) {
+        setImmediate(() => this.processJobQueue());
+      }
+    }
+  }
+
+  private async runJob(job: BackgroundJob): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const childProcess = spawn(job.command, job.args || [], {
+        cwd: job.cwd,
+        env: { ...process.env, ...job.env },
+        shell: true
+      });
+
+      job.process = childProcess;
+
+      let output = '';
+
+      childProcess.stdout?.on('data', (data) => {
+        const text = data.toString();
+        output += text;
+        job.output.push({
+          type: 'stdout',
+          data: text,
+          timestamp: new Date(),
+          sequence: ++this.outputSequenceCounter
+        });
+        this.emit('jobOutput', { jobId: job.id, output: text, type: 'stdout' });
+      });
+
+      childProcess.stderr?.on('data', (data) => {
+        const text = data.toString();
+        output += text;
+        job.output.push({
+          type: 'stderr',
+          data: text,
+          timestamp: new Date(),
+          sequence: ++this.outputSequenceCounter
+        });
+        this.emit('jobOutput', { jobId: job.id, output: text, type: 'stderr' });
+      });
+
+      childProcess.on('close', (code) => {
+        job.exitCode = code;
+        job.status = code === 0 ? 'completed' : 'failed';
+        job.result = {
+          jobId: job.id,
+          status: job.status,
+          output,
+          exitCode: code
+        };
+
+        this.emit('jobCompleted', job);
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Process exited with code ${code}`));
+        }
+      });
+
+      childProcess.on('error', (error) => {
+        job.status = 'failed';
+        job.error = error.message;
+        this.emit('jobError', { jobId: job.id, error });
+        reject(error);
+      });
+
+      // Handle timeout
+      if (job.timeout > 0) {
+        setTimeout(() => {
+          if (job.status === 'running') {
+            childProcess.kill();
+            job.status = 'failed';
+            job.error = 'Timeout';
+            reject(new Error('Job timeout'));
+          }
+        }, job.timeout);
+      }
+    });
+  }
+
+  getJobMetrics(): JobMetrics {
+    const jobs = Array.from(this.backgroundJobs.values());
+    const completedJobs = jobs.filter(j => j.status === 'completed');
+    const totalExecutionTime = completedJobs.reduce((sum, job) => {
+      if (job.startedAt && job.finishedAt) {
+        return sum + (job.finishedAt.getTime() - job.startedAt.getTime());
+      }
+      return sum;
+    }, 0);
+
+    const jobsByStatus: Record<string, number> = {};
+    const jobsBySession: Record<string, number> = {};
+
+    jobs.forEach(job => {
+      jobsByStatus[job.status] = (jobsByStatus[job.status] || 0) + 1;
+      if (job.sessionId) {
+        jobsBySession[job.sessionId] = (jobsBySession[job.sessionId] || 0) + 1;
+      }
+    });
+
+    return {
+      totalJobs: this.backgroundJobs.size,
+      runningJobs: this.activeJobs.size,
+      completedJobs: completedJobs.length,
+      failedJobs: jobs.filter(j => j.status === 'failed').length,
+      averageExecutionTime: completedJobs.length > 0 ? totalExecutionTime / completedJobs.length : 0,
+      queueSize: this.jobQueue.length,
+      jobsByStatus,
+      jobsBySession
+    };
+  }
+
+  getJobOutput(jobId: string, latest?: boolean): any {
+    const job = this.backgroundJobs.get(jobId);
+    if (!job) return null;
+
+    if (latest && job.output.length > 0) {
+      return job.output[job.output.length - 1];
+    }
+    return job.output;
+  }
+
+  getJobProgress(jobId: string): any {
+    const job = this.backgroundJobs.get(jobId);
+    return job?.progress || null;
+  }
+
+  getJobResult(jobId: string): BackgroundJobResult | null {
+    const job = this.backgroundJobs.get(jobId);
+    return job?.result || null;
+  }
+
+  listJobs(sessionId?: string): BackgroundJob[] {
+    const jobs = Array.from(this.backgroundJobs.values());
+    if (sessionId) {
+      return jobs.filter(job => job.sessionId === sessionId);
+    }
+    return jobs;
+  }
+
+  cleanupCompletedJobs(olderThan?: Date): number {
+    const cutoff = olderThan || new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+    let cleanedCount = 0;
+
+    const entries = Array.from(this.backgroundJobs.entries());
+    for (const [jobId, job] of entries) {
+      if ((job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') &&
+          job.finishedAt && job.finishedAt < cutoff) {
+        this.backgroundJobs.delete(jobId);
+        cleanedCount++;
+      }
+    }
+
+    return cleanedCount;
+  }
+
+  getMetrics(): any {
+    return {
+      ...this.metrics,
+      jobs: this.getJobMetrics()
+    };
+  }
+
+  destroy(): void {
+    // Cancel all running jobs
+    const jobs = Array.from(this.backgroundJobs.values());
+    for (const job of jobs) {
+      if (job.status === 'running' && job.process) {
+        job.process.kill();
+      }
+    }
+
+    this.backgroundJobs.clear();
+    this.jobQueue.length = 0;
+    this.activeJobs.clear();
   }
 }

@@ -6,9 +6,17 @@ export interface StreamChunk {
   isError: boolean;
   sequenceId: number;
   size: number;
+  filtered?: boolean;
 }
 
 export interface StreamBuffer {
+  chunks: StreamChunk[];
+  totalSize: number;
+  oldestTimestamp: Date;
+  newestTimestamp: Date;
+}
+
+export interface OutputBufferItem {
   data: string;
   timestamp: Date;
   flushed: boolean;
@@ -25,6 +33,54 @@ export interface OutputCaptureConfig {
   chunkCombinationTimeout: number;
 }
 
+export interface StreamingConfig {
+  bufferSize: number;           // Default 1024 bytes (1KB chunks)
+  maxBufferSize: number;        // Maximum buffer size before forced flush
+  maxMemoryUsage: number;       // Maximum memory usage in bytes
+  flushInterval: number;        // Auto-flush interval in ms
+  enableFiltering: boolean;     // Enable server-side filtering
+  enableCompression: boolean;   // Enable data compression
+  retentionPolicy: 'rolling' | 'time-based' | 'none';
+  retentionSize: number;        // Number of chunks to retain
+  retentionTime: number;        // Time in ms to retain chunks
+}
+
+export interface StreamFilter {
+  regex?: RegExp;
+  include?: string[];
+  exclude?: string[];
+  severity?: 'error' | 'warn' | 'info' | 'debug';
+  customFilter?: (chunk: StreamChunk) => boolean;
+}
+
+export interface StreamStats {
+  totalChunks: number;
+  totalBytes: number;
+  filteredChunks: number;
+  filteredBytes: number;
+  memoryUsage: number;
+  compressionRatio?: number;
+  averageChunkSize: number;
+  bufferUtilization: number;
+  droppedChunks: number;
+}
+
+export interface StreamRequest {
+  sessionId: string;
+  since?: string | Date;
+  limit?: number;
+  filter?: StreamFilter;
+  format?: 'raw' | 'compressed' | 'filtered';
+}
+
+export interface StreamResponse {
+  sessionId: string;
+  chunks: StreamChunk[];
+  hasMore: boolean;
+  nextCursor?: string;
+  stats?: StreamStats;
+}
+
 export class StreamManager extends EventEmitter {
   private chunks: StreamChunk[];
   private subscribers: Set<(chunk: StreamChunk) => void>;
@@ -32,22 +88,39 @@ export class StreamManager extends EventEmitter {
   private isEnded: boolean;
   private maxChunks: number = 1000;
   private sequenceCounter: number = 0;
-  
+
   // Enhanced buffering system
-  private outputBuffer: StreamBuffer[];
+  private outputBuffer: OutputBufferItem[];
   private pendingBuffer: string = '';
   private bufferFlushTimer: NodeJS.Timeout | null = null;
   private chunkCombinationTimer: NodeJS.Timeout | null = null;
   private config: OutputCaptureConfig;
-  
+
   // Output polling mechanism
   private pollingTimer: NodeJS.Timeout | null = null;
   private lastOutputTime: Date = new Date();
   private outputListeners: Map<string, (data: string) => void> = new Map();
 
+  // Enhanced streaming capabilities
+  private streamingConfig: StreamingConfig;
+  private streamBuffers: Map<string, StreamBuffer> = new Map();
+  private activeFilters: Set<StreamFilter> = new Set();
+  private compressionEnabled: boolean = false;
+  private stats: StreamStats = {
+    totalChunks: 0,
+    totalBytes: 0,
+    filteredChunks: 0,
+    filteredBytes: 0,
+    memoryUsage: 0,
+    averageChunkSize: 0,
+    bufferUtilization: 0,
+    droppedChunks: 0
+  };
+
   constructor(
     private sessionId: string,
-    config?: Partial<OutputCaptureConfig>
+    config?: Partial<OutputCaptureConfig>,
+    streamingConfig?: Partial<StreamingConfig>
   ) {
     super();
     this.chunks = [];
@@ -66,6 +139,20 @@ export class StreamManager extends EventEmitter {
       immediateFlush: true,
       chunkCombinationTimeout: 20, // 20ms to combine rapid chunks
       ...config
+    };
+
+    // Enhanced streaming configuration
+    this.streamingConfig = {
+      bufferSize: 1024,
+      maxBufferSize: 10 * 1024 * 1024, // 10MB
+      maxMemoryUsage: 50 * 1024 * 1024, // 50MB
+      flushInterval: 100,
+      enableFiltering: false,
+      enableCompression: false,
+      retentionPolicy: 'rolling',
+      retentionSize: 1000,
+      retentionTime: 24 * 60 * 60 * 1000, // 24 hours
+      ...streamingConfig
     };
     
     this.initializeBuffering();
@@ -542,5 +629,130 @@ export class StreamManager extends EventEmitter {
   removePatterns(patterns: any[]): void {
     // This is a no-op for StreamManager as it doesn't handle patterns
     // The actual pattern handling is done by ErrorDetector
+  }
+
+  // Enhanced streaming methods
+  addFilter(filter: StreamFilter): void {
+    this.activeFilters.add(filter);
+  }
+
+  removeFilter(filter: StreamFilter): void {
+    this.activeFilters.delete(filter);
+  }
+
+  clearFilters(): void {
+    this.activeFilters.clear();
+  }
+
+  private applyFilters(chunk: StreamChunk): boolean {
+    for (const filter of this.activeFilters) {
+      if (filter.customFilter && !filter.customFilter(chunk)) {
+        chunk.filtered = true;
+        return false;
+      }
+
+      if (filter.regex && !filter.regex.test(chunk.data)) {
+        chunk.filtered = true;
+        return false;
+      }
+
+      if (filter.include && filter.include.length > 0) {
+        const matchesInclude = filter.include.some(pattern =>
+          chunk.data.toLowerCase().includes(pattern.toLowerCase())
+        );
+        if (!matchesInclude) {
+          chunk.filtered = true;
+          return false;
+        }
+      }
+
+      if (filter.exclude && filter.exclude.length > 0) {
+        const matchesExclude = filter.exclude.some(pattern =>
+          chunk.data.toLowerCase().includes(pattern.toLowerCase())
+        );
+        if (matchesExclude) {
+          chunk.filtered = true;
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  getStreamStats(): StreamStats {
+    this.stats.memoryUsage = this.chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+    this.stats.averageChunkSize = this.stats.totalChunks > 0 ?
+      this.stats.totalBytes / this.stats.totalChunks : 0;
+    this.stats.bufferUtilization = (this.chunks.length / this.maxChunks) * 100;
+
+    return { ...this.stats };
+  }
+
+  createStreamBuffer(streamId: string): void {
+    this.streamBuffers.set(streamId, {
+      chunks: [],
+      totalSize: 0,
+      oldestTimestamp: new Date(),
+      newestTimestamp: new Date()
+    });
+  }
+
+  getStreamBuffer(streamId: string): StreamBuffer | null {
+    return this.streamBuffers.get(streamId) || null;
+  }
+
+  clearStreamBuffer(streamId: string): void {
+    this.streamBuffers.delete(streamId);
+  }
+
+  getFilteredChunks(since?: Date): StreamChunk[] {
+    let filteredChunks = this.chunks.filter(chunk => !chunk.filtered);
+
+    if (since) {
+      const sinceTime = since instanceof Date ? since.getTime() : since;
+      filteredChunks = filteredChunks.filter(chunk => {
+        const chunkTime = chunk.timestamp instanceof Date ?
+          chunk.timestamp.getTime() : chunk.timestamp;
+        return chunkTime > sinceTime;
+      });
+    }
+
+    return filteredChunks;
+  }
+
+  enableCompression(): void {
+    this.compressionEnabled = true;
+  }
+
+  disableCompression(): void {
+    this.compressionEnabled = false;
+  }
+
+  private compressData(data: string): string {
+    if (!this.compressionEnabled) return data;
+
+    // Production-ready compression would use zlib/gzip
+    // For now, implement intelligent filtering instead:
+    // - Remove ANSI escape sequences for color codes
+    // - Remove excessive repeating patterns
+    // - Preserve important structural information
+
+    let compressed = data
+      // Remove ANSI escape sequences (color codes, cursor movements)
+      .replace(/\x1b\[[0-9;]*m/g, '')
+      .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+      // Remove carriage returns that just overwrite
+      .replace(/\r+/g, '\r')
+      // Reduce excessive newlines but preserve structure
+      .replace(/\n{4,}/g, '\n\n\n')
+      // Remove trailing whitespace on lines
+      .replace(/[ \t]+$/gm, '');
+
+    // Calculate compression ratio for stats
+    const originalSize = data.length;
+    const compressedSize = compressed.length;
+    this.stats.compressionRatio = compressedSize / originalSize;
+
+    return compressed;
   }
 }
