@@ -15,6 +15,7 @@ import { SessionOptions, ConsoleSession, BackgroundJobOptions } from '../types/i
 import { Logger } from '../utils/logger.js';
 import { SSHBridge } from './SSHBridge.js';
 import * as fs from 'fs';
+import { config as mcpConfig } from '../config/mcp-config.js';
 
 const DEBUG_LOG_FILE = 'C:\\Users\\yolan\\source\\repos\\mcp-console-automation\\mcp-debug.log';
 function debugLog(...args: any[]) {
@@ -1155,12 +1156,16 @@ export class ConsoleAutomationServer {
   }
 
   private async handleCleanupSessions(args: { force?: boolean; olderThan?: number; inactive?: boolean }) {
-    const sessions = this.consoleManager.getAllSessions();
+    // Get sessions from both ConsoleManager and SSH Bridge
+    const consoleSessions = this.consoleManager.getAllSessions();
+    const sshSessions = this.sshBridge.listSessions();
+    const allSessions = [...consoleSessions, ...sshSessions];
+    
     let cleanedCount = 0;
     const errors: string[] = [];
     const cleaned: string[] = [];
 
-    for (const session of sessions) {
+    for (const session of allSessions) {
       try {
         let shouldClean = false;
 
@@ -1184,7 +1189,15 @@ export class ConsoleAutomationServer {
 
         if (shouldClean) {
           try {
-            await this.consoleManager.stopSession(session.id);
+            // Check if this is an SSH session
+            const isSSH = session.type === 'ssh' || this.sshBridge.getSessionInfo(session.id);
+            
+            if (isSSH) {
+              await this.sshBridge.stopSession(session.id);
+            } else {
+              await this.consoleManager.stopSession(session.id);
+            }
+            
             cleaned.push(session.id);
             cleanedCount++;
           } catch (error: any) {
@@ -1203,9 +1216,9 @@ export class ConsoleAutomationServer {
           text: JSON.stringify({
             success: true,
             message: `Cleaned up ${cleanedCount} sessions`,
-            totalSessions: sessions.length,
+            totalSessions: allSessions.length,
             cleanedSessions: cleaned,
-            remainingSessions: sessions.length - cleanedCount,
+            remainingSessions: allSessions.length - cleanedCount,
             errors: errors.length > 0 ? errors : undefined,
             timestamp: new Date().toISOString()
           }, null, 2)

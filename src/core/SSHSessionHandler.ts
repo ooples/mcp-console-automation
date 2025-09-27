@@ -33,6 +33,7 @@ export interface SSHSession {
   lastActivity: Date;
   outputBuffer: string[];
   commandHistory: string[];
+  lastReadIndex: number; // Track the last read position to return only new output
 }
 
 export class SSHSessionHandler extends EventEmitter {
@@ -88,7 +89,8 @@ export class SSHSessionHandler extends EventEmitter {
         created: new Date(),
         lastActivity: new Date(),
         outputBuffer: [],
-        commandHistory: []
+        commandHistory: [],
+        lastReadIndex: 0
       };
       
       // Setup event handlers
@@ -372,9 +374,27 @@ export class SSHSessionHandler extends EventEmitter {
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
+
     if (lines && lines > 0) {
-      return session.outputBuffer.slice(-lines);
+      // For limited lines, return last N lines and update read index
+      const result = session.outputBuffer.slice(-lines);
+      session.lastReadIndex = session.outputBuffer.length;
+      return result;
+    }
+
+    // Return only new output since last read
+    const newOutput = session.outputBuffer.slice(session.lastReadIndex);
+    session.lastReadIndex = session.outputBuffer.length;
+    return newOutput;
+  }
+
+  /**
+   * Get full output history from the session (for debugging)
+   */
+  getFullOutput(sessionId: string): string[] {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
     }
     return [...session.outputBuffer];
   }

@@ -6,7 +6,10 @@ import { Client as SSHClient, ClientChannel, ConnectConfig } from 'ssh2';
 import { ConsoleSession, ConsoleOutput, ConsoleEvent, SessionOptions, ConsoleType, ConnectionPoolingOptions, SSHConnectionOptions, TelnetConnectionOptions, ExtendedErrorPattern, CommandExecution, AzureConnectionOptions, SerialConnectionOptions, WSLConnectionOptions, WSLSession, SFTPSessionOptions, FileTransferSession, SFTPTransferOptions, AWSSSMConnectionOptions, RDPConnectionOptions, RDPSession, WinRMConnectionOptions, WinRMSessionState, VNCConnectionOptions, VNCSession, VNCFramebuffer, VNCSecurityType, WebSocketTerminalConnectionOptions, WebSocketTerminalSessionState, IPCSessionState, IPMISessionState, AnsibleConnectionOptions, IPCConnectionOptions, IPMIConnectionOptions } from '../types/index.js';
 import { ErrorDetector } from './ErrorDetector.js';
 import { Logger } from '../utils/logger.js';
+import { config as mcpConfig } from '../config/mcp-config.js';
 import { StreamManager } from './StreamManager.js';
+import { OutputFilterEngine, FilterOptions, FilterResult } from './OutputFilterEngine.js';
+import { OutputPaginationManager, PaginationRequest, PaginationResponse, PaginationOptions } from './OutputPaginationManager.js';
 import { MonitoringSystem } from '../monitoring/MonitoringSystem.js';
 import { PromptDetector, PromptDetectionResult } from './PromptDetector.js';
 import { ConnectionPool } from './ConnectionPool.js';
@@ -36,6 +39,7 @@ import { WebSocketTerminalProtocol } from '../protocols/WebSocketTerminalProtoco
 import { AnsibleProtocol } from '../protocols/AnsibleProtocol.js';
 import { IPMIProtocol } from '../protocols/IPMIProtocol.js';
 import { ConfigManager, ConnectionProfile, ApplicationProfile } from '../config/ConfigManager.js';
+// JobManager functionality integrated into SessionManager
 import PQueue from 'p-queue';
 import { platform } from 'os';
 import { readFileSync } from 'fs';
@@ -185,13 +189,15 @@ export class ConsoleManager extends EventEmitter {
   private sftpProtocols: Map<string, SFTPProtocol>; // SFTP protocol instances
   private fileTransferSessions: Map<string, FileTransferSession>; // File transfer session tracking
   private outputBuffers: Map<string, ConsoleOutput[]>;
+  private paginationManager: OutputPaginationManager;
   private streamManagers: Map<string, StreamManager>;
   private errorDetector: ErrorDetector;
+  private outputFilterEngine: OutputFilterEngine;
   private promptDetector: PromptDetector;
   private logger: Logger;
   private queue: PQueue;
   private maxBufferSize: number = 10000;
-  private maxSessions: number = 50;
+  private maxSessions: number = mcpConfig.maxSessions;
   private resourceMonitor: NodeJS.Timeout | null = null;
   private monitoringSystem: MonitoringSystem;
   private monitoringSystems: Map<string, MonitoringSystem>;
@@ -399,6 +405,14 @@ export class ConsoleManager extends EventEmitter {
     this.ipmiMonitoringIntervals = new Map();
     
     this.errorDetector = new ErrorDetector();
+    this.outputFilterEngine = new OutputFilterEngine();
+    this.paginationManager = new OutputPaginationManager({
+      defaultPageSize: 1000,
+      maxPageSize: 10000,
+      minPageSize: 100,
+      enableContinuationTokens: true,
+      maxBufferSize: 100000
+    });
     this.promptDetector = new PromptDetector();
     this.logger = new Logger('ConsoleManager');
     this.queue = new PQueue({ concurrency: 10 });
@@ -457,7 +471,7 @@ export class ConsoleManager extends EventEmitter {
     });
 
     this.sessionManager = new SessionManager(config?.sessionManager);
-    
+
     // Initialize Docker protocol with default configuration
     this.dockerProtocol = new DockerProtocol({
       connection: {
@@ -1254,6 +1268,8 @@ export class ConsoleManager extends EventEmitter {
       // Add to buffer
       const buffer = this.outputBuffers.get(session.id) || [];
       buffer.push(consoleOutput);
+      // Also add to pagination manager for large output handling
+      this.paginationManager.addOutputs(session.id, [consoleOutput]);
       
       // Keep buffer size under control
       if (buffer.length > this.maxBufferSize) {
@@ -4293,9 +4309,9 @@ export class ConsoleManager extends EventEmitter {
    */
   private handleKubernetesSessionClosed(sessionId: string): void {
     const session = this.sessions.get(sessionId);
+    // Remove session from the map after stopping
     if (session) {
-      session.status = 'stopped';
-      this.sessions.set(sessionId, session);
+      this.sessions.delete(sessionId);
     }
 
     this.emitEvent({
@@ -4367,9 +4383,9 @@ export class ConsoleManager extends EventEmitter {
    */
   private handleKubernetesLogEnd(sessionId: string): void {
     const session = this.sessions.get(sessionId);
+    // Remove session from the map when log stream ends
     if (session) {
-      session.status = 'stopped';
-      this.sessions.set(sessionId, session);
+      this.sessions.delete(sessionId);
     }
 
     this.emitEvent({
@@ -4387,9 +4403,9 @@ export class ConsoleManager extends EventEmitter {
    */
   private handleKubernetesPortForwardStopped(sessionId: string): void {
     const session = this.sessions.get(sessionId);
+    // Remove session from the map when port forward stops
     if (session) {
-      session.status = 'stopped';
-      this.sessions.set(sessionId, session);
+      this.sessions.delete(sessionId);
     }
 
     this.emitEvent({
@@ -4695,6 +4711,8 @@ export class ConsoleManager extends EventEmitter {
       // Clean up buffers and managers
       this.outputBuffers.delete(sessionId);
       this.streamManagers.delete(sessionId);
+    // Cleanup pagination manager for this session
+    this.paginationManager.removeSession(sessionId);
       this.monitoringSystems.delete(sessionId);
       
       // Error patterns are global and don't need session-specific cleanup
@@ -4886,6 +4904,8 @@ export class ConsoleManager extends EventEmitter {
       const outputs = this.outputBuffers.get(session.id) || [];
       outputs.push(consoleOutput);
       this.outputBuffers.set(session.id, outputs);
+      // Also add to pagination manager for large output handling
+      this.paginationManager.addOutputs(session.id, [consoleOutput]);
 
       // Emit output event
       this.emit('output', consoleOutput);
@@ -4909,8 +4929,8 @@ export class ConsoleManager extends EventEmitter {
   private handleSSMSessionTermination(ssmSessionId: string): void {
     const session = Array.from(this.sessions.values()).find(s => s.awsSSMSessionId === ssmSessionId);
     if (session) {
-      session.status = 'stopped';
-      this.sessions.set(session.id, session);
+      // Remove session from the map on SSM termination
+      this.sessions.delete(session.id);
 
       this.emit('console-event', {
         sessionId: session.id,
@@ -5440,8 +5460,8 @@ export class ConsoleManager extends EventEmitter {
     stream.on('close', () => {
       const session = this.sessions.get(sessionId);
       if (session) {
-        session.status = 'stopped';
-        this.sessions.set(sessionId, session);
+        // Remove session from the map on stream close
+        this.sessions.delete(sessionId);
       }
 
       if (streamManager) {
@@ -5531,6 +5551,8 @@ export class ConsoleManager extends EventEmitter {
     this.processes.delete(sessionId);
     this.outputBuffers.delete(sessionId);
     this.streamManagers.delete(sessionId);
+    // Cleanup pagination manager for this session
+    this.paginationManager.removeSession(sessionId);
     this.sshClients.delete(sessionId);
     this.sshChannels.delete(sessionId);
   }
@@ -5720,9 +5742,9 @@ export class ConsoleManager extends EventEmitter {
     process.on('exit', (code: number | null, signal: string | null) => {
       const session = this.sessions.get(sessionId);
       if (session) {
-        session.status = 'stopped';
+        // Remove session from the map on process exit
         session.exitCode = code ?? undefined;
-        this.sessions.set(sessionId, session);
+        this.sessions.delete(sessionId);
       }
 
       if (streamManager) {
@@ -6393,8 +6415,8 @@ export class ConsoleManager extends EventEmitter {
     channel.on('close', () => {
       const session = this.sessions.get(sessionId);
       if (session) {
-        session.status = 'stopped';
-        this.sessions.set(sessionId, session);
+        // Remove session from the map on channel close
+        this.sessions.delete(sessionId);
       }
 
       if (streamManager) {
@@ -7037,6 +7059,65 @@ export class ConsoleManager extends EventEmitter {
     const buffer = this.outputBuffers.get(sessionId) || [];
     return limit ? buffer.slice(-limit) : buffer;
   }
+n  /**
+   * Get paginated output with continuation token support
+   * @param request - Pagination request parameters
+   * @returns Paginated response with metadata
+   */
+  getPaginatedOutput(request: PaginationRequest): PaginationResponse {
+    return this.paginationManager.getPaginatedOutput(request);
+  }
+
+  /**
+   * Get paginated output (backward compatible overload)
+   * @param sessionId - Session ID
+   * @param offset - Starting offset (default: 0)
+   * @param limit - Number of lines per page (default: 1000)
+   * @param continuationToken - Optional continuation token for next page
+   * @returns Paginated response with metadata
+   */
+  getPaginatedOutputCompat(
+    sessionId: string,
+    offset?: number,
+    limit?: number,
+    continuationToken?: string
+  ): PaginationResponse {
+    return this.paginationManager.getPaginatedOutput({
+      sessionId,
+      offset,
+      limit,
+      continuationToken
+    });
+  }
+
+  /**
+   * Get output with server-side filtering and search capabilities
+   */
+  async getOutputFiltered(sessionId: string, filterOptions: FilterOptions = {}): Promise<FilterResult> {
+    // Force immediate flush to ensure we have the latest output
+    const streamManager = this.streamManagers.get(sessionId);
+    if (streamManager) {
+      streamManager.forceFlush();
+      // Small delay to ensure all buffers are processed
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // Get the raw output
+    const buffer = this.outputBuffers.get(sessionId) || [];
+
+    // Apply server-side filtering
+    const result = await this.outputFilterEngine.filter(buffer, filterOptions);
+
+    // Log filter operation for monitoring
+    this.logger.debug(`Filter operation completed for session ${sessionId}`, {
+      totalLines: result.metadata.totalLines,
+      filteredLines: result.metadata.filteredLines,
+      processingTimeMs: result.metadata.processingTimeMs,
+      filterOptions: JSON.stringify(filterOptions)
+    });
+
+    return result;
+  }
 
   getLastOutput(sessionId: string, lines: number = 10): string {
     // Force flush before getting output to ensure freshness
@@ -7377,6 +7458,8 @@ export class ConsoleManager extends EventEmitter {
     if (streamManager) {
       streamManager.end();
       this.streamManagers.delete(sessionId);
+    // Cleanup pagination manager for this session
+    this.paginationManager.removeSession(sessionId);
     }
 
     // Clear command queue for this session
@@ -7501,6 +7584,8 @@ export class ConsoleManager extends EventEmitter {
     this.sshChannels.delete(sessionId);
     this.outputBuffers.delete(sessionId);
     this.streamManagers.delete(sessionId);
+    // Cleanup pagination manager for this session
+    this.paginationManager.removeSession(sessionId);
     this.sessionCommandQueue.delete(sessionId);
     this.outputSequenceCounters.delete(sessionId);
     this.promptPatterns.delete(sessionId);
@@ -8344,7 +8429,8 @@ export class ConsoleManager extends EventEmitter {
     // Shutdown new production-ready components
     await this.connectionPool.shutdown();
     await this.sessionManager.shutdown();
-    
+    await this.sessionManager.destroy();
+
     await this.monitoringSystem.destroy();
     
     // Clean up retry and error recovery systems
@@ -10926,5 +11012,73 @@ export class ConsoleManager extends EventEmitter {
       case 'sasl': return 'sasl';
       default: return 'vnc';
     }
+  }
+
+  // ========================================================================================
+  // Background Job Management Integration
+  // ========================================================================================
+
+  /**
+   * Get the SessionManager instance for background job operations
+   */
+  public getSessionManager(): SessionManager {
+    return this.sessionManager;
+  }
+
+  /**
+   * Start a background job with the specified command and options
+   */
+  public async startBackgroundJob(
+    command: string,
+    args: string[] = [],
+    options: import('../types/index.js').BackgroundJobOptions = { command: '', args: [] }
+  ): Promise<string> {
+    const sessionId = options.sessionId || 'default';
+    const jobOptions = { ...options, command, args };
+    const result = await this.sessionManager.executeBackgroundJob(jobOptions);
+    return result;
+  }
+
+  /**
+   * Get the status of a background job
+   */
+  public async getBackgroundJobStatus(jobId: string): Promise<import('../types/index.js').BackgroundJob | null> {
+    return this.sessionManager.getJobStatus(jobId);
+  }
+
+  /**
+   * Get the output of a background job
+   */
+  public async getBackgroundJobOutput(jobId: string, latest: boolean = false): Promise<import('../types/index.js').BackgroundJobOutput[]> {
+    return this.sessionManager.getJobOutput(jobId);
+  }
+
+  /**
+   * Cancel a background job
+   */
+  public async cancelBackgroundJob(jobId: string): Promise<void> {
+    this.sessionManager.cancelJob(jobId);
+  }
+
+  /**
+   * List all background jobs with optional filtering
+   */
+  public async listBackgroundJobs(sessionId?: string): Promise<import('../types/index.js').BackgroundJob[]> {
+    return this.sessionManager.listJobs(sessionId);
+  }
+
+  /**
+   * Get metrics for background job operations
+   */
+  public getBackgroundJobMetrics(): import('../types/index.js').JobMetrics {
+    return this.sessionManager.getJobMetrics();
+  }
+
+  /**
+   * Clean up completed background jobs older than specified time
+   */
+  public async cleanupBackgroundJobs(olderThan?: number): Promise<number> {
+    const cutoffDate = olderThan ? new Date(Date.now() - olderThan) : undefined;
+    return this.sessionManager.cleanupCompletedJobs(cutoffDate);
   }
 }
