@@ -5050,5 +5050,197 @@ export interface ExtendedSessionManagerConfig {
   persistSessions?: boolean;
 }
 
+// Background Job Execution System Types
+export interface BackgroundJob {
+  id: string;
+  sessionId?: string;
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  options?: Partial<SessionOptions>;
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout';
+  createdAt: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+  finishedAt?: Date;
+  timeout?: number;
+  exitCode?: number;
+  error?: string;
+  output: BackgroundJobOutput[];
+  result?: BackgroundJobResult;
+  process?: any; // ChildProcess reference
+  metadata?: Record<string, any>;
+  progress?: BackgroundJobProgress;
+  parentJobId?: string; // For job hierarchies
+  priority?: number; // Job priority (1-10, 10 highest)
+}
+
+export interface BackgroundJobOutput {
+  type: 'stdout' | 'stderr';
+  data: string;
+  timestamp: Date;
+  sequence: number;
+  commandId?: string;
+}
+
+export interface BackgroundJobProgress {
+  current?: number;
+  total?: number;
+  message?: string;
+  percentage?: number;
+  currentStep?: string;
+  totalSteps?: number;
+  completedSteps?: number;
+  estimatedTimeRemaining?: number;
+  customData?: Record<string, any>;
+}
+
+export interface BackgroundJobResult {
+  jobId: string;
+  status: BackgroundJob['status'];
+  exitCode?: number;
+  output: string;
+  error?: string;
+  duration?: number;
+  outputLines?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface BackgroundJobOptions {
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  sessionId?: string;
+  timeout?: number;
+  priority?: number;
+  background?: boolean;
+  outputBufferSize?: number;
+  captureOutput?: boolean;
+  autoCleanup?: boolean;
+  cleanupAfter?: number; // Time in milliseconds to keep job data after completion
+  progressCallback?: (progress: BackgroundJobProgress) => void;
+  metadata?: Record<string, any>;
+  maxConcurrentJobs?: number;
+}
+
+export interface JobManager {
+  startBackgroundJob(sessionId: string, command: string, args?: string[], options?: BackgroundJobOptions): Promise<{ jobId: string }>;
+  getJobStatus(jobId: string): Promise<BackgroundJob>;
+  getJobOutput(jobId: string, latest?: boolean): Promise<BackgroundJobOutput[]>;
+  cancelJob(jobId: string): Promise<void>;
+  listJobs(sessionId?: string): Promise<BackgroundJob[]>;
+  cleanupCompletedJobs(olderThan?: number): Promise<number>;
+  getJobProgress(jobId: string): Promise<BackgroundJobProgress | null>;
+  getJobResult(jobId: string): Promise<BackgroundJobResult>;
+}
+
+export interface JobExecutionContext {
+  jobId: string;
+  sessionId: string;
+  command: string;
+  args?: string[];
+  options?: BackgroundJobOptions;
+  startTime: Date;
+  outputBuffer: BackgroundJobOutput[];
+  progressUpdater: (progress: BackgroundJobProgress) => void;
+  statusUpdater: (status: BackgroundJob['status']) => void;
+  childProcess?: any;
+  timeoutHandle?: NodeJS.Timeout;
+}
+
+export interface JobMetrics {
+  totalJobs: number;
+  runningJobs: number;
+  completedJobs: number;
+  failedJobs: number;
+  averageExecutionTime: number;
+  queueSize: number;
+  jobsByStatus: Record<string, number>;
+  jobsBySession: Record<string, number>;
+  systemResourceUsage?: {
+    cpu: number;
+    memory: number;
+    activeProcesses: number;
+  };
+}
+
+export interface JobQueueConfig {
+  maxConcurrentJobs: number;
+  maxQueueSize: number;
+  jobTimeout: number;
+  cleanupInterval: number;
+  retainCompletedJobs: number; // Time in milliseconds
+  priorityLevels: number;
+  enableJobMetrics: boolean;
+}
+
+export interface JobEvent {
+  jobId: string;
+  type: 'created' | 'started' | 'progress' | 'output' | 'completed' | 'failed' | 'cancelled' | 'timeout';
+  timestamp: Date;
+  data?: any;
+  sessionId?: string;
+}
+
+export interface JobEventListener {
+  onJobEvent(event: JobEvent): void;
+}
+
+// Concurrency and queue management types
+export interface JobQueue {
+  enqueue(job: BackgroundJob): Promise<void>;
+  dequeue(): Promise<BackgroundJob | null>;
+  peek(): BackgroundJob | null;
+  size(): number;
+  isEmpty(): boolean;
+  clear(): void;
+  getJobsByPriority(): BackgroundJob[];
+  getJobsBySession(sessionId: string): BackgroundJob[];
+}
+
+export interface ConcurrencyManager {
+  canStartJob(sessionId: string): boolean;
+  jobStarted(sessionId: string, jobId: string): void;
+  jobCompleted(sessionId: string, jobId: string): void;
+  getRunningJobCount(sessionId?: string): number;
+  getMaxConcurrency(): number;
+  setMaxConcurrency(max: number): void;
+}
+
+// Background job status polling types
+export interface JobStatusResponse {
+  jobId: string;
+  status: BackgroundJob['status'];
+  progress?: BackgroundJobProgress;
+  startedAt?: Date;
+  completedAt?: Date;
+  exitCode?: number;
+  error?: string;
+  outputPreview?: string; // Last few lines of output
+}
+
+export interface JobOutputResponse {
+  jobId: string;
+  output: BackgroundJobOutput[];
+  totalLines: number;
+  hasMore: boolean;
+  nextSequence?: number;
+}
+
+export interface BatchJobOperation {
+  operation: 'start' | 'cancel' | 'status' | 'output';
+  jobIds: string[];
+  options?: any;
+}
+
+export interface BatchJobResult {
+  jobId: string;
+  success: boolean;
+  result?: any;
+  error?: string;
+}
+
 // Re-export workflow types for easy access
 export * from './workflow.js';

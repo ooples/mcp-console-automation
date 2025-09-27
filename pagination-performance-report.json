@@ -1,0 +1,64 @@
+{
+  "timestamp": "2025-09-25T14:32:15.237Z",
+  "summary": {
+    "testDescription": "MCP Console Automation Pagination Performance Analysis",
+    "implementation": "Automatic output pagination with continuation tokens",
+    "testEnvironment": {
+      "nodeVersion": "v22.15.0",
+      "platform": "win32",
+      "arch": "x64"
+    }
+  },
+  "keyFindings": {
+    "averageSpeedImprovement": 20,
+    "averageMemoryImprovement": 106.64,
+    "averageRandomAccessImprovement": 21.75,
+    "scalability": "Linear O(1) per page vs O(n) full processing",
+    "continuationTokens": "Stateless, secure, 1-hour expiration by default",
+    "backwardCompatibility": "100% - existing APIs unchanged"
+  },
+  "detailedResults": [
+    {
+      "size": 10000,
+      "singlePageSpeedImprovement": 2,
+      "singlePageMemoryImprovement": 10.11,
+      "randomAccessImprovement": 4,
+      "sequentialProcessingImprovement": 3,
+      "legacySinglePageTime": 2,
+      "paginatedSinglePageTime": 1
+    },
+    {
+      "size": 50000,
+      "singlePageSpeedImprovement": 10,
+      "singlePageMemoryImprovement": 51.5,
+      "randomAccessImprovement": 10,
+      "sequentialProcessingImprovement": 15,
+      "legacySinglePageTime": 10,
+      "paginatedSinglePageTime": 1
+    },
+    {
+      "size": 100000,
+      "singlePageSpeedImprovement": 16,
+      "singlePageMemoryImprovement": 103.28,
+      "randomAccessImprovement": 21,
+      "sequentialProcessingImprovement": 21,
+      "legacySinglePageTime": 16,
+      "paginatedSinglePageTime": 0
+    },
+    {
+      "size": 250000,
+      "singlePageSpeedImprovement": 52,
+      "singlePageMemoryImprovement": 261.67,
+      "randomAccessImprovement": 52,
+      "sequentialProcessingImprovement": 32.5,
+      "legacySinglePageTime": 52,
+      "paginatedSinglePageTime": 0
+    }
+  ],
+  "recommendations": {
+    "defaultPageSize": "1000 lines for balanced performance/memory",
+    "maxPageSize": "10000 lines to prevent memory issues",
+    "continuationTokenUse": "Recommended for multi-page navigation",
+    "migrationPriority": "High for applications processing >50k lines"
+  }
+}

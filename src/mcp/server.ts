@@ -10,11 +10,14 @@ import {
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
 import { ConsoleManager } from '../core/ConsoleManager.js';
-import { SessionOptions } from '../types/index.js';
+import { SessionManager } from '../core/SessionManager.js';
+import { SessionOptions, ConsoleSession, BackgroundJobOptions } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
+import { SSHBridge } from './SSHBridge.js';
 import { fileURLToPath } from 'url';
 import * as path from 'path';
 import * as fs from 'fs';
+import { config as mcpConfig } from '../config/mcp-config.js';
 
 // Debug logging to file
 const DEBUG_LOG_FILE = 'C:\\Users\\yolan\\source\\repos\\mcp-console-automation\\mcp-debug.log';
@@ -35,7 +38,10 @@ interface ErrorClassification {
 export class ConsoleAutomationServer {
   private server: Server;
   private consoleManager: ConsoleManager;
+  private sessionManager: SessionManager;
+  private sshBridge: SSHBridge;
   private logger: Logger;
+  private sessionRecoveryMap: Map<string, any> = new Map();
   private keepAliveInterval?: NodeJS.Timeout;
   private healthCheckInterval?: NodeJS.Timeout;
   private connectionState: 'connected' | 'disconnected' | 'reconnecting' = 'disconnected';
@@ -44,14 +50,18 @@ export class ConsoleAutomationServer {
   private reconnectDelay = 1000;
   private transport?: StdioServerTransport;
   private isShuttingDown = false;
-  private sessionRecoveryMap = new Map<string, any>();
   private errorCount = 0;
   private lastErrorTime = 0;
 
   constructor() {
     this.logger = new Logger('MCPServer');
     this.consoleManager = new ConsoleManager();
-    
+    this.sessionManager = new SessionManager();
+    this.sshBridge = new SSHBridge();
+
+    this.logger.info('Production-ready SSH handler initialized');
+    debugLog('[INIT] MCP Server initializing with SSH Bridge support');
+
     this.server = new Server(
       {
         name: 'console-automation',
@@ -66,6 +76,7 @@ export class ConsoleAutomationServer {
 
     this.setupHandlers();
     this.setupCleanup();
+    this.setupStdioProtection();
     this.setupPersistence();
     this.setupErrorIsolation();
   }
@@ -121,7 +132,10 @@ export class ConsoleAutomationServer {
           
           case 'console_list_sessions':
             return await this.handleListSessions();
-          
+
+          case 'console_cleanup_sessions':
+            return await this.handleCleanupSessions(args as any);
+
           case 'console_execute_command':
             return await this.handleExecuteCommand(args as any);
           
@@ -171,7 +185,35 @@ export class ConsoleAutomationServer {
           
           case 'console_use_profile':
             return await this.handleUseProfile(args as any);
-          
+
+          // Background job execution tools
+          case 'console_execute_async':
+            return await this.handleExecuteAsync(args as any);
+
+          case 'console_get_job_status':
+            return await this.handleGetJobStatus(args as any);
+
+          case 'console_get_job_output':
+            return await this.handleGetJobOutput(args as any);
+
+          case 'console_cancel_job':
+            return await this.handleCancelJob(args as any);
+
+          case 'console_list_jobs':
+            return await this.handleListJobs(args as any);
+
+          case 'console_get_job_progress':
+            return await this.handleGetJobProgress(args as any);
+
+          case 'console_get_job_result':
+            return await this.handleGetJobResult(args as any);
+
+          case 'console_get_job_metrics':
+            return await this.handleGetJobMetrics();
+
+          case 'console_cleanup_jobs':
+            return await this.handleCleanupJobs(args as any);
+
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }
@@ -296,12 +338,48 @@ export class ConsoleAutomationServer {
       },
       {
         name: 'console_get_output',
-        description: 'Get output from a console session',
+        description: 'Get output from a console session with server-side filtering, pagination, and search capabilities',
         inputSchema: {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
-            limit: { type: 'number', description: 'Maximum number of output lines to return' }
+            limit: { type: 'number', description: 'Maximum number of output lines to return' },
+            grep: { type: 'string', description: 'Regex pattern for server-side filtering' },
+            grepIgnoreCase: { type: 'boolean', description: 'Case-insensitive grep matching' },
+            grepInvert: { type: 'boolean', description: 'Invert grep matching (exclude matches)' },
+            tail: { type: 'number', description: 'Return last N lines' },
+            head: { type: 'number', description: 'Return first N lines' },
+            lineRange: {
+              type: 'array',
+              items: { type: 'number' },
+              minItems: 2,
+              maxItems: 2,
+              description: '[start, end] line numbers (1-indexed)'
+            },
+            since: { type: 'string', description: 'Filter by timestamp - ISO string or relative (5m, 1h, 2d)' },
+            until: { type: 'string', description: 'Filter until timestamp - ISO string or relative' },
+            multiPattern: {
+              type: 'object',
+              description: 'Multi-pattern search with complex logic',
+              properties: {
+                patterns: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Array of regex patterns'
+                },
+                logic: {
+                  type: 'string',
+                  enum: ['AND', 'OR'],
+                  description: 'Logic for combining patterns'
+                },
+                ignoreCase: { type: 'boolean', description: 'Case-insensitive matching' }
+              },
+              required: ['patterns', 'logic']
+            },
+            maxLines: { type: 'number', description: 'Maximum lines to process (performance limit)' },
+            offset: { type: 'number', description: 'Starting offset for pagination (default: 0)' },
+            continuationToken: { type: 'string', description: 'Token for retrieving next page of results' },
+            streamingMode: { type: 'boolean', description: 'Use streaming mode for large outputs' }
           },
           required: ['sessionId']
         }
@@ -348,6 +426,29 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {}
+        }
+      },
+      {
+        name: 'console_cleanup_sessions',
+        description: 'Clean up inactive or stuck sessions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            force: {
+              type: 'boolean',
+              description: 'Force cleanup all sessions (default: false)',
+              default: false
+            },
+            olderThan: {
+              type: 'number',
+              description: 'Clean up sessions older than this many milliseconds'
+            },
+            inactive: {
+              type: 'boolean',
+              description: 'Clean up only inactive sessions (default: true)',
+              default: true
+            }
+          }
         }
       },
       {
@@ -612,6 +713,118 @@ export class ConsoleAutomationServer {
           },
           required: ['profileName']
         }
+      },
+
+      // Background Job Execution Tools
+      {
+        name: 'console_execute_async',
+        description: 'Execute a command in background (async mode)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID to execute command in' },
+            command: { type: 'string', description: 'Command to execute' },
+            args: { type: 'array', items: { type: 'string' }, description: 'Command arguments' },
+            background: { type: 'boolean', description: 'Execute in background mode (default: true)', default: true },
+            timeout: { type: 'number', description: 'Execution timeout in milliseconds' },
+            priority: { type: 'number', description: 'Job priority (1-10, 10 highest)', minimum: 1, maximum: 10 },
+            captureOutput: { type: 'boolean', description: 'Capture command output', default: true },
+            metadata: { type: 'object', description: 'Additional metadata for the job' }
+          },
+          required: ['sessionId', 'command']
+        }
+      },
+
+      {
+        name: 'console_get_job_status',
+        description: 'Get the status of a background job',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            jobId: { type: 'string', description: 'Job ID to check status for' }
+          },
+          required: ['jobId']
+        }
+      },
+
+      {
+        name: 'console_get_job_output',
+        description: 'Get output from a background job',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            jobId: { type: 'string', description: 'Job ID to get output from' },
+            latest: { type: 'boolean', description: 'Get only the latest output (last 100 lines)', default: false }
+          },
+          required: ['jobId']
+        }
+      },
+
+      {
+        name: 'console_cancel_job',
+        description: 'Cancel a running background job',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            jobId: { type: 'string', description: 'Job ID to cancel' }
+          },
+          required: ['jobId']
+        }
+      },
+
+      {
+        name: 'console_list_jobs',
+        description: 'List background jobs for a session or all sessions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Optional session ID to filter jobs by' }
+          }
+        }
+      },
+
+      {
+        name: 'console_get_job_progress',
+        description: 'Get progress information for a background job',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            jobId: { type: 'string', description: 'Job ID to get progress for' }
+          },
+          required: ['jobId']
+        }
+      },
+
+      {
+        name: 'console_get_job_result',
+        description: 'Get the complete result of a background job',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            jobId: { type: 'string', description: 'Job ID to get result for' }
+          },
+          required: ['jobId']
+        }
+      },
+
+      {
+        name: 'console_get_job_metrics',
+        description: 'Get metrics and statistics about background job execution',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+
+      {
+        name: 'console_cleanup_jobs',
+        description: 'Clean up completed background jobs',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            olderThan: { type: 'number', description: 'Clean up jobs older than this many milliseconds' }
+          }
+        }
       }
     ];
   }
@@ -621,27 +834,66 @@ export class ConsoleAutomationServer {
     debugLog('[DEBUG] Args:', args);
     debugLog('[DEBUG] Current error count:', this.errorCount);
     debugLog('[DEBUG] Connection state:', this.connectionState);
+    this.logger.debug('MCP handleCreateSession received args:', JSON.stringify(args, null, 2));
 
     try {
-      // Validate required parameters
+      // Check if SSH options are present - use new SSH bridge for SSH sessions
+      if (args.consoleType === 'ssh' || args.sshOptions) {
+        this.logger.info('Using production SSH handler for SSH session');
+        debugLog('[SSH] Creating SSH session via SSHBridge');
+
+        const sessionId = await this.sshBridge.createSession(args);
+
+        // Store for recovery if needed
+        this.sessionRecoveryMap.set(sessionId, {
+          type: 'ssh',
+          options: args
+        });
+
+        debugLog('[SSH] Session created successfully:', sessionId);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                sessionId,
+                message: `SSH session created`,
+                consoleType: 'ssh',
+                streaming: false
+              }, null, 2)
+            } as TextContent
+          ]
+        };
+      }
+
+      // Use ConsoleManager for non-SSH sessions
+      // Validate required parameters for non-SSH sessions
       if (!args.command) {
         debugLog('[DEBUG] Missing command parameter');
         throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
       }
 
+      debugLog('[DEBUG] Creating non-SSH session via ConsoleManager');
       debugLog('[DEBUG] Calling consoleManager.createSession...');
+
       const sessionId = await this.consoleManager.createSession(args);
       debugLog('[DEBUG] Session created with ID:', sessionId);
       const session = this.consoleManager.getSession(sessionId);
 
-      // Store session options for potential recovery
+      // Store for recovery if needed
       if (sessionId) {
-        this.sessionRecoveryMap.set(sessionId, args);
+        this.sessionRecoveryMap.set(sessionId, {
+          type: 'console',
+          options: args
+        });
       }
 
       if (!session) {
         throw new McpError(ErrorCode.InternalError, 'Failed to retrieve created session');
       }
+
+      debugLog('[DEBUG] Session created successfully:', sessionId);
 
       return {
         content: [
@@ -650,15 +902,16 @@ export class ConsoleAutomationServer {
             text: JSON.stringify({
               sessionId,
               message: `Session created for command: ${args.command}`,
-              pid: session.pid,
-              consoleType: session.type,
-              streaming: session.streaming || false
+              pid: session?.pid,
+              consoleType: session?.type,
+              streaming: session?.streaming || false
             }, null, 2)
           } as TextContent
         ]
       };
     } catch (error: any) {
       debugLog('[DEBUG] === ERROR in handleCreateSession ===');
+      debugLog('[ERROR] Session creation failed:', error);
       debugLog('[DEBUG] Error message:', error.message);
       debugLog('[DEBUG] Error type:', error.constructor.name);
       debugLog('[DEBUG] Error code:', (error as any).code);
@@ -689,7 +942,19 @@ export class ConsoleAutomationServer {
   }
 
   private async handleSendInput(args: { sessionId: string; input: string }) {
-    await this.consoleManager.sendInput(args.sessionId, args.input);
+    this.logger.info(`handleSendInput called for session: ${args.sessionId}, input length: ${args.input.length}`);
+
+    // Check if this is an SSH session
+    const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
+
+    if (sshInfo) {
+      this.logger.info(`Session ${args.sessionId} is SSH - routing through SSH bridge`);
+      await this.sshBridge.sendInput(args.sessionId, args.input);
+    } else {
+      this.logger.info(`Session ${args.sessionId} is not SSH - using ConsoleManager`);
+      await this.consoleManager.sendInput(args.sessionId, args.input);
+    }
+
     return {
       content: [
         {
@@ -701,7 +966,19 @@ export class ConsoleAutomationServer {
   }
 
   private async handleSendKey(args: { sessionId: string; key: string }) {
-    await this.consoleManager.sendKey(args.sessionId, args.key);
+    this.logger.info(`handleSendKey called for session: ${args.sessionId}, key: ${args.key}`);
+
+    // Check if this is an SSH session
+    const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
+
+    if (sshInfo) {
+      this.logger.info(`Session ${args.sessionId} is SSH - routing through SSH bridge for key: ${args.key}`);
+      await this.sshBridge.sendKey(args.sessionId, args.key);
+    } else {
+      this.logger.info(`Session ${args.sessionId} is not SSH - using ConsoleManager for key: ${args.key}`);
+      await this.consoleManager.sendKey(args.sessionId, args.key);
+    }
+
     return {
       content: [
         {
@@ -712,37 +989,123 @@ export class ConsoleAutomationServer {
     };
   }
 
-  private async handleGetOutput(args: { sessionId: string; limit?: number }) {
-    // Force immediate flush of any pending buffers before getting output
-    const streamManager = this.consoleManager.getStream(args.sessionId);
-    if (streamManager) {
-      streamManager.forceFlush();
-      // Wait a small amount to allow any async processing
-      await new Promise(resolve => setTimeout(resolve, 10));
+  private async handleGetOutput(args: any) {
+    const { sessionId, limit, offset, continuationToken, ...filterOptions } = args;
+
+    // Check if this is an SSH session
+    const sshInfo = this.sshBridge.getSessionInfo(sessionId);
+    if (sshInfo) {
+      const output = this.sshBridge.getOutput(sessionId, limit);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: output
+          } as TextContent
+        ]
+      };
     }
-    
-    const output = this.consoleManager.getOutput(args.sessionId, args.limit);
-    const text = output.map(o => o.data).join('');
-    
-    // Include buffer statistics for debugging
-    const bufferStats = streamManager ? streamManager.getBufferStats() : null;
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: text || 'No output available'
-        } as TextContent
-      ],
-      ...(bufferStats && { 
-        meta: { 
-          bufferStats,
-          outputLength: text.length,
-          chunkCount: output.length,
+
+    // Check if any filtering options are provided
+    const hasFilterOptions = Object.keys(filterOptions).length > 0;
+
+    if (hasFilterOptions) {
+      // Use the new filtered output method
+      const filterResult = await this.consoleManager.getOutputFiltered(sessionId, {
+        ...filterOptions,
+        ...(limit && { maxLines: limit }) // Convert legacy limit to maxLines
+      });
+
+      const text = filterResult.output.map(o => o.data).join('');
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: text || 'No output matches filter criteria'
+          } as TextContent
+        ],
+        meta: {
+          filtering: {
+            applied: true,
+            totalLines: filterResult.metadata.totalLines,
+            filteredLines: filterResult.metadata.filteredLines,
+            processingTimeMs: filterResult.metadata.processingTimeMs,
+            memoryUsageBytes: filterResult.metadata.memoryUsageBytes,
+            truncated: filterResult.metadata.truncated,
+            filterStats: filterResult.metadata.filterStats
+          },
           timestamp: new Date().toISOString()
-        } 
-      })
-    };
+        }
+      };
+    } else {
+      // Check for pagination parameters
+      const hasPaginationParams = offset !== undefined || continuationToken !== undefined;
+
+      if (hasPaginationParams) {
+        // Use new pagination system
+        const paginatedResult = this.consoleManager.getPaginatedOutputCompat(
+          sessionId,
+          offset,
+          limit,
+          continuationToken
+        );
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: paginatedResult.output || 'No output available'
+            } as TextContent
+          ],
+          meta: {
+            pagination: {
+              hasMore: paginatedResult.hasMore,
+              nextToken: paginatedResult.nextToken,
+              totalLines: paginatedResult.totalLines,
+              currentOffset: paginatedResult.currentOffset,
+              pageSize: paginatedResult.pageSize,
+              returnedLines: paginatedResult.data.length
+            },
+            outputLength: paginatedResult.output.length,
+            chunkCount: paginatedResult.data.length,
+            timestamp: paginatedResult.timestamp
+          }
+        };
+      } else {
+        // Use legacy method for backward compatibility
+        // Force immediate flush of any pending buffers before getting output
+        const streamManager = this.consoleManager.getStream(sessionId);
+        if (streamManager) {
+          streamManager.forceFlush();
+          // Wait a small amount to allow any async processing
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+
+        const output = this.consoleManager.getOutput(sessionId, limit);
+        const text = output.map(o => o.data).join('');
+
+        // Include buffer statistics for debugging
+        const bufferStats = streamManager ? streamManager.getBufferStats() : null;
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: text || 'No output available'
+            } as TextContent
+          ],
+          ...(bufferStats && {
+            meta: {
+              bufferStats,
+              outputLength: text.length,
+              chunkCount: output.length,
+              timestamp: new Date().toISOString()
+            }
+          })
+        };
+      }
+    }
   }
 
   private async handleGetStream(args: { sessionId: string; since?: string }) {
@@ -786,6 +1149,46 @@ export class ConsoleAutomationServer {
 
   private async handleWaitForOutput(args: { sessionId: string; pattern: string; timeout?: number }) {
     try {
+      // Check if this is an SSH session
+      const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
+
+      if (sshInfo) {
+        // For SSH sessions, get the current output and check for pattern
+        const output = this.sshBridge.getOutput(args.sessionId);
+        const regex = new RegExp(args.pattern);
+
+        if (regex.test(output)) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  output: output,
+                  matched: true,
+                  pattern: args.pattern
+                }, null, 2)
+              } as TextContent
+            ]
+          };
+        } else {
+          // Pattern not found in current output
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  output: output,
+                  matched: false,
+                  pattern: args.pattern,
+                  message: 'Pattern not found in output'
+                }, null, 2)
+              } as TextContent
+            ]
+          };
+        }
+      }
+
+      // Use ConsoleManager for non-SSH sessions
       const output = await this.consoleManager.waitForOutput(
         args.sessionId,
         args.pattern,
@@ -807,7 +1210,15 @@ export class ConsoleAutomationServer {
   }
 
   private async handleStopSession(args: { sessionId: string }) {
-    await this.consoleManager.stopSession(args.sessionId);
+    // Check if this is an SSH session
+    const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
+    if (sshInfo) {
+      await this.sshBridge.stopSession(args.sessionId);
+    } else {
+      await this.consoleManager.stopSession(args.sessionId);
+    }
+
+    // Clear recovery map entry
     this.sessionRecoveryMap.delete(args.sessionId);
     return {
       content: [
@@ -820,12 +1231,18 @@ export class ConsoleAutomationServer {
   }
 
   private async handleListSessions() {
-    const sessions = this.consoleManager.getAllSessions();
+    // Get sessions from both ConsoleManager and SSH Bridge
+    const consoleSessions = this.consoleManager.getAllSessions();
+    const sshSessions = this.sshBridge.listSessions();
+
+    // Combine sessions
+    const allSessions = [...consoleSessions, ...sshSessions];
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(sessions.map(s => ({
+          text: JSON.stringify(allSessions.map(s => ({
             id: s.id,
             command: s.command,
             status: s.status,
@@ -839,10 +1256,110 @@ export class ConsoleAutomationServer {
     };
   }
 
+  private async handleCleanupSessions(args: { force?: boolean; olderThan?: number; inactive?: boolean }) {
+    // Get sessions from both ConsoleManager and SSH Bridge
+    const consoleSessions = this.consoleManager.getAllSessions();
+    const sshSessions = this.sshBridge.listSessions();
+    const allSessions = [...consoleSessions, ...sshSessions];
+    
+    let cleanedCount = 0;
+    const errors: string[] = [];
+    const cleaned: string[] = [];
+
+    for (const session of allSessions) {
+      try {
+        let shouldClean = false;
+
+        // Force cleanup all sessions
+        if (args.force) {
+          shouldClean = true;
+        }
+        // Cleanup old sessions
+        else if (args.olderThan) {
+          const age = Date.now() - new Date(session.createdAt).getTime();
+          if (age > args.olderThan) {
+            shouldClean = true;
+          }
+        }
+        // Cleanup inactive sessions (default behavior)
+        else if (args.inactive !== false) {
+          if (session.status !== 'running') {
+            shouldClean = true;
+          }
+        }
+
+        if (shouldClean) {
+          try {
+            // Check if this is an SSH session
+            const isSSH = session.type === 'ssh' || this.sshBridge.getSessionInfo(session.id);
+            
+            if (isSSH) {
+              await this.sshBridge.stopSession(session.id);
+            } else {
+              await this.consoleManager.stopSession(session.id);
+            }
+            
+            cleaned.push(session.id);
+            cleanedCount++;
+          } catch (error: any) {
+            errors.push(`Failed to clean session ${session.id}: ${error.message}`);
+          }
+        }
+      } catch (error: any) {
+        errors.push(`Error processing session ${session.id}: ${error.message}`);
+      }
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            message: `Cleaned up ${cleanedCount} sessions`,
+            totalSessions: allSessions.length,
+            cleanedSessions: cleaned,
+            remainingSessions: allSessions.length - cleanedCount,
+            errors: errors.length > 0 ? errors : undefined,
+            timestamp: new Date().toISOString()
+          }, null, 2)
+        } as TextContent
+      ]
+    };
+  }
+
   private async handleExecuteCommand(args: { sessionId?: string; command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeout?: number; consoleType?: any; sshOptions?: any }) {
-    // If sessionId is provided, execute command in existing session with proper isolation
+    // If sessionId is provided, execute command in existing session
     if (args.sessionId) {
       try {
+        // Check if this is an SSH session
+        const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
+        if (sshInfo) {
+          // Execute command in SSH session
+          await this.sshBridge.executeCommand(args.sessionId, args.command, args.args);
+
+          // Get output after a short delay to allow command to execute
+          await new Promise(resolve => setTimeout(resolve, 100));
+          const output = this.sshBridge.getOutput(args.sessionId);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  sessionId: args.sessionId,
+                  command: args.command,
+                  args: args.args,
+                  output: output,
+                  status: 'completed',
+                  executedAt: new Date().toISOString()
+                }, null, 2)
+              } as TextContent
+            ]
+          };
+        }
+
+        // Use ConsoleManager for non-SSH sessions
         const result = await this.consoleManager.executeCommandInSession(
           args.sessionId,
           args.command,
@@ -979,7 +1496,7 @@ export class ConsoleAutomationServer {
       if (process.platform === 'win32') {
         return 'bash';
       } else {
-        return 'bash'; // Default to bash on Unix systems
+        return 'sh';
       }
     }
     
@@ -1024,7 +1541,14 @@ export class ConsoleAutomationServer {
     } else if (args.text) {
       textToAnalyze = args.text;
     } else {
-      throw new McpError(ErrorCode.InvalidParams, 'Either sessionId or text must be provided');
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ error: 'Either sessionId or text must be provided' }, null, 2)
+          } as TextContent
+        ]
+      };
     }
 
     const errors = errorDetector.detect(textToAnalyze);
@@ -1071,8 +1595,31 @@ export class ConsoleAutomationServer {
   }
 
   private async handleGetSessionState(args: { sessionId: string }) {
+    // Check if this is an SSH session
+    const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
+
+    if (sshInfo) {
+      // Return SSH session state
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              sessionId: args.sessionId,
+              executionState: 'idle',
+              activeCommands: 0,
+              commandHistory: [],
+              status: sshInfo.status || 'running',
+              type: 'ssh'
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+
+    // Use ConsoleManager for non-SSH sessions
     const state = this.consoleManager.getSessionExecutionState(args.sessionId);
-    
+
     if (!state) {
       return {
         content: [
@@ -1338,10 +1885,12 @@ export class ConsoleAutomationServer {
   }
   
   private async handleUseProfile(args: { profileName: string; command?: string; args?: string[]; cwd?: string; env?: any }) {
-    try {
-      console.error('[URGENT] handleUseProfile called with:', args);
-      debugLog('[DEBUG] handleUseProfile called with:', args);
+    console.error('[URGENT] handleUseProfile called with:', args);
+    this.logger.info(`handleUseProfile called with profile: ${args.profileName}`);
+    debugLog('[PROFILE] Using profile:', args.profileName);
+    debugLog('[DEBUG] handleUseProfile called with:', args);
 
+    try {
       // Load and validate the profile BEFORE creating the session
       const profile = this.consoleManager.getConfigManager().getConnectionProfile(args.profileName);
       debugLog('[DEBUG] Profile loaded:', profile);
@@ -1379,120 +1928,463 @@ export class ConsoleAutomationServer {
 
       debugLog('[DEBUG] Profile validation passed, proceeding with session creation');
 
-      // Create session with profile
-      const sessionOptions: SessionOptions = {
-        command: args.command || '',
-        args: args.args,
-        cwd: args.cwd,
-        env: args.env,
-        profileName: args.profileName
-      } as any;
+      // Check if this is an SSH profile - route through SSH Bridge
+      if (profile && profile.type === 'ssh') {
+        this.logger.info(`Profile ${args.profileName} is SSH type - routing through SSH bridge`);
+        debugLog('[PROFILE] SSH profile detected, using SSHBridge');
 
-      debugLog('[DEBUG] Creating session with options:', sessionOptions);
+        // Use SSH bridge for SSH profiles
+        const sessionOptions = {
+          command: args.command || '',
+          args: args.args,
+          cwd: args.cwd,
+          env: args.env,
+          profileName: args.profileName,
+          consoleType: 'ssh' as const,
+          sshOptions: profile.sshOptions
+        };
 
-      const sessionId = await this.consoleManager.createSession(sessionOptions);
-      const session = this.consoleManager.getSession(sessionId);
+        const sessionId = await this.sshBridge.createSession(sessionOptions);
 
-      debugLog('[DEBUG] Session created successfully:', sessionId);
-
-      // Store for recovery if needed
-      if (sessionId) {
+        // Store for recovery if needed
         this.sessionRecoveryMap.set(sessionId, {
           profileName: args.profileName,
-          type: 'profile'
-        } as any);
+          type: 'ssh'
+        });
+
+        debugLog('[PROFILE] SSH session created:', sessionId);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                sessionId,
+                profileUsed: args.profileName,
+                message: `Session created using profile: ${args.profileName}`,
+                consoleType: 'ssh'
+              }, null, 2)
+            } as TextContent
+          ]
+        };
+      } else {
+        this.logger.info(`Profile ${args.profileName} is not SSH - using ConsoleManager`);
+        debugLog('[PROFILE] Non-SSH profile, using ConsoleManager');
+
+        // Use regular console manager for non-SSH profiles
+        const sessionOptions: SessionOptions = {
+          command: args.command || '',
+          args: args.args,
+          cwd: args.cwd,
+          env: args.env,
+          profileName: args.profileName
+        } as any;
+
+        debugLog('[DEBUG] Creating session with options:', sessionOptions);
+
+        const sessionId = await this.consoleManager.createSession(sessionOptions);
+        const session = this.consoleManager.getSession(sessionId);
+
+        debugLog('[DEBUG] Session created successfully:', sessionId);
+
+        // Store for recovery if needed
+        if (sessionId) {
+          this.sessionRecoveryMap.set(sessionId, {
+            profileName: args.profileName,
+            type: 'profile'
+          } as any);
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                sessionId,
+                profileUsed: args.profileName,
+                message: `Session created using profile: ${args.profileName}`,
+                consoleType: session?.type
+              }, null, 2)
+            } as TextContent
+          ]
+        };
       }
+    } catch (error: any) {
+      debugLog('[ERROR] Profile usage failed:', error);
+      throw error;
+    }
+  }
+
+  // Background Job Handler Methods
+
+  private async handleExecuteAsync(args: {
+    sessionId: string;
+    command: string;
+    args?: string[];
+    background?: boolean;
+    timeout?: number;
+    priority?: number;
+    captureOutput?: boolean;
+    metadata?: any;
+  }) {
+    try {
+      const result = await this.sessionManager.executeBackgroundJob({
+        sessionId: args.sessionId,
+        command: args.command,
+        args: args.args,
+        timeout: args.timeout,
+        priority: args.priority
+      });
 
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
-              sessionId,
-              profileUsed: args.profileName,
-              message: `Session created using profile: ${args.profileName}`,
-              consoleType: session?.type
+              success: true,
+              jobId: result,
+              message: `Background job started: ${args.command}`,
+              sessionId: args.sessionId
             }, null, 2)
           } as TextContent
         ]
       };
     } catch (error: any) {
-      debugLog('[DEBUG] Error in handleUseProfile:', error);
-      debugLog('[DEBUG] Error stack:', error.stack);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              command: args.command,
+              sessionId: args.sessionId
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+  }
 
-      // Re-throw as McpError for proper error handling
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to use profile ${args.profileName}: ${error.message}`
-      );
+  private async handleGetJobStatus(args: { jobId: string }) {
+    try {
+      const job = this.sessionManager.getJobStatus(args.jobId);
+
+      const response = {
+        jobId: job.id,
+        status: job.status,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt,
+        exitCode: job.exitCode,
+        error: job.error,
+        command: job.command,
+        args: job.args,
+        sessionId: job.sessionId,
+        progress: job.progress,
+        duration: job.startedAt && job.completedAt
+          ? job.completedAt.getTime() - job.startedAt.getTime()
+          : undefined,
+        outputLines: job.output.length
+      };
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(response, null, 2)
+          } as TextContent
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              jobId: args.jobId
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+  }
+
+  private async handleGetJobOutput(args: { jobId: string; latest?: boolean }) {
+    try {
+      const output = await this.sessionManager.getJobOutput(args.jobId, args.latest);
+
+      const response = {
+        jobId: args.jobId,
+        output: output.map(o => ({
+          type: o.type,
+          data: o.data,
+          timestamp: o.timestamp,
+          sequence: o.sequence
+        })),
+        totalLines: output.length,
+        latest: args.latest || false
+      };
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(response, null, 2)
+          } as TextContent
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              jobId: args.jobId
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+  }
+
+  private async handleCancelJob(args: { jobId: string }) {
+    try {
+      await this.sessionManager.cancelJob(args.jobId);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: `Job cancelled: ${args.jobId}`,
+              jobId: args.jobId
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              jobId: args.jobId
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+  }
+
+  private async handleListJobs(args: { sessionId?: string }) {
+    try {
+      const jobs = await this.sessionManager.listJobs(args.sessionId);
+
+      const jobSummaries = jobs.map(job => ({
+        jobId: job.id,
+        sessionId: job.sessionId,
+        command: job.command,
+        status: job.status,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt,
+        exitCode: job.exitCode,
+        priority: job.priority,
+        duration: job.startedAt && job.completedAt
+          ? job.completedAt.getTime() - job.startedAt.getTime()
+          : undefined,
+        outputLines: job.output.length,
+        hasError: !!job.error
+      }));
+
+      const response = {
+        jobs: jobSummaries,
+        totalJobs: jobSummaries.length,
+        sessionId: args.sessionId || 'all sessions',
+        timestamp: new Date().toISOString()
+      };
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(response, null, 2)
+          } as TextContent
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              sessionId: args.sessionId
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+  }
+
+  private async handleGetJobProgress(args: { jobId: string }) {
+    try {
+      const progress = await this.sessionManager.getJobProgress(args.jobId);
+
+      const response = {
+        jobId: args.jobId,
+        progress: progress || { message: 'No progress information available' },
+        timestamp: new Date().toISOString()
+      };
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(response, null, 2)
+          } as TextContent
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              jobId: args.jobId
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+  }
+
+  private async handleGetJobResult(args: { jobId: string }) {
+    try {
+      const result = await this.sessionManager.getJobResult(args.jobId);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2)
+          } as TextContent
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+              jobId: args.jobId
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+  }
+
+  private async handleGetJobMetrics() {
+    try {
+      const metrics = this.sessionManager.getMetrics();
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              metrics,
+              timestamp: new Date().toISOString()
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    }
+  }
+
+  private async handleCleanupJobs(args: { olderThan?: number }) {
+    try {
+      const cutoffDate = args.olderThan ? new Date(Date.now() - args.olderThan) : undefined;
+      const cleanedCount = await this.sessionManager.cleanupCompletedJobs(cutoffDate);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: `Cleaned up ${cleanedCount} completed jobs`,
+              cleanedCount,
+              timestamp: new Date().toISOString()
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message
+            }, null, 2)
+          } as TextContent
+        ]
+      };
     }
   }
 
   private setupCleanup() {
     process.on('SIGINT', async () => {
-      this.logger.info('Shutting down...');
+      this.logger.info('Received SIGINT, shutting down...');
+      debugLog('[SIGNAL] SIGINT received');
       await this.gracefulShutdown();
+      process.exit(0);
     });
 
     process.on('SIGTERM', async () => {
-      this.logger.info('Shutting down...');
+      this.logger.info('Received SIGTERM, shutting down...');
+      debugLog('[SIGNAL] SIGTERM received');
       await this.gracefulShutdown();
+      process.exit(0);
     });
-  }
 
-  /**
-   * Setup STDIO protection to prevent SSH and subprocess output from corrupting MCP transport
-   */
-  private setupStdioProtection() {
-    // Save original stdout/stderr write methods
-    const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-    const originalStderrWrite = process.stderr.write.bind(process.stderr);
+    process.on('uncaughtException', async (error) => {
+      this.logger.error('Uncaught exception:', error);
+      debugLog('[UNCAUGHT EXCEPTION]', error);
+      await this.gracefulShutdown();
+      process.exit(1);
+    });
 
-    // Override stdout.write to filter out non-MCP content
-    process.stdout.write = function(chunk: any, encoding?: any, callback?: any): boolean {
-      // Convert chunk to string for inspection
-      const str = chunk?.toString ? chunk.toString() : String(chunk);
-
-      // Only allow JSON-RPC messages through stdout
-      // MCP messages are JSON objects with jsonrpc field
-      if (str.includes('"jsonrpc"') || str.includes('Content-Length:')) {
-        // This looks like an MCP message, let it through
-        return originalStdoutWrite(chunk, encoding, callback);
-      }
-
-      // Block all non-MCP stdout (like SSH output, debug messages)
-      // Log to file instead
-      debugLog('[STDIO-BLOCKED] Stdout:', str);
-
-      // Call callback if provided to prevent blocking
-      if (typeof encoding === 'function') {
-        encoding();
-      } else if (typeof callback === 'function') {
-        callback();
-      }
-
-      return true; // Pretend write succeeded
-    };
-
-    // Override stderr.write to redirect all errors to file
-    process.stderr.write = function(chunk: any, encoding?: any, callback?: any): boolean {
-      // Convert chunk to string for logging
-      const str = chunk?.toString ? chunk.toString() : String(chunk);
-
-      // Never write errors to stderr in MCP mode - log to file instead
-      debugLog('[STDERR-REDIRECTED]:', str);
-
-      // Call callback if provided
-      if (typeof encoding === 'function') {
-        encoding();
-      } else if (typeof callback === 'function') {
-        callback();
-      }
-
-      return true; // Pretend write succeeded
-    };
-
-    debugLog('[DEBUG] STDIO protection enabled - stdout/stderr isolated from MCP transport');
+    process.on('unhandledRejection', (reason) => {
+      this.logger.error(`Unhandled rejection: ${reason}`);
+      debugLog('[UNHANDLED REJECTION]', reason);
+    });
   }
 
   private setupErrorIsolation() {
@@ -1687,6 +2579,7 @@ export class ConsoleAutomationServer {
     }
 
     this.isShuttingDown = true;
+    debugLog('[SHUTDOWN] Starting graceful shutdown');
     this.logger.info('Initiating graceful shutdown...');
 
     try {
@@ -1697,8 +2590,21 @@ export class ConsoleAutomationServer {
         this.healthCheckInterval = undefined;
       }
 
+      // Destroy SSH Bridge first
+      await this.sshBridge.destroy();
+      debugLog('[SHUTDOWN] SSH Bridge destroyed');
+
+      // Then ConsoleManager
       await this.consoleManager.destroy();
-    } catch (error) {
+      debugLog('[SHUTDOWN] ConsoleManager destroyed');
+
+      // Finally SessionManager
+      this.sessionManager.destroy();
+      debugLog('[SHUTDOWN] SessionManager destroyed');
+
+      debugLog('[SHUTDOWN] Graceful shutdown complete');
+    } catch (error: any) {
+      debugLog('[SHUTDOWN ERROR]', error);
       this.logger.error('Error during shutdown:', error);
     }
 
@@ -1830,6 +2736,39 @@ export class ConsoleAutomationServer {
       this.logger.error(`Failed to recover session ${sessionId}:`, error);
     }
     return null;
+  }
+
+  private setupStdioProtection() {
+    debugLog('[INIT] Setting up STDIO protection');
+
+    // Save original stdout/stderr write methods
+    const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+    const originalStderrWrite = process.stderr.write.bind(process.stderr);
+
+    // Override stdout.write to filter out non-MCP content
+    process.stdout.write = function(chunk: any, encoding?: any, callback?: any): boolean {
+      // Convert chunk to string for inspection
+      const str = chunk?.toString ? chunk.toString() : String(chunk);
+
+      // Only allow JSON-RPC messages through stdout
+      // MCP protocol uses JSON-RPC 2.0 format
+      if (str.trim().startsWith('{') && (str.includes('"jsonrpc":"2.0"') || str.includes('"method"') || str.includes('"result"'))) {
+        return originalStdoutWrite(chunk, encoding, callback);
+      }
+
+      // Redirect non-MCP content to debug log
+      debugLog('[STDOUT-FILTERED]', str);
+      return true;
+    } as any;
+
+    // Keep stderr as-is but log it for debugging
+    process.stderr.write = function(chunk: any, encoding?: any, callback?: any): boolean {
+      const str = chunk?.toString ? chunk.toString() : String(chunk);
+      debugLog('[STDERR]', str);
+      return originalStderrWrite(chunk, encoding, callback);
+    } as any;
+
+    debugLog('[INIT] STDIO protection enabled');
   }
 
   async start() {

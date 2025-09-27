@@ -1,0 +1,40 @@
+{
+  "timestamp": "2025-09-25T14:30:53.375Z",
+  "results": [
+    {
+      "name": "Basic Pagination Logic",
+      "status": "passed",
+      "duration": 7
+    },
+    {
+      "name": "Continuation Token Simulation",
+      "status": "passed",
+      "duration": 0
+    },
+    {
+      "name": "Large Dataset Performance",
+      "status": "passed",
+      "duration": 83
+    },
+    {
+      "name": "Memory Usage Estimation",
+      "status": "passed",
+      "duration": 27
+    },
+    {
+      "name": "Boundary Conditions",
+      "status": "passed",
+      "duration": 0
+    },
+    {
+      "name": "API Response Structure",
+      "status": "passed",
+      "duration": 1
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0
+  }
+}
