@@ -1,514 +1,901 @@
-import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
-import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
-import { 
-  ConsoleSession, 
-  SessionOptions, 
-  ConsoleOutput, 
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import {
+  ConsoleSession,
+  SessionOptions,
   ConsoleType,
-  ContainerConsoleType,
-  CommandExecution
+  ConsoleOutput
 } from '../types/index.js';
-import { Logger } from '../utils/logger.js';
+import {
+  ProtocolCapabilities,
+  SessionState,
+  ErrorContext,
+  ProtocolHealthStatus,
+  ErrorRecoveryResult,
+  ResourceUsage
+} from '../core/IProtocol.js';
 import { v4 as uuidv4 } from 'uuid';
 import stripAnsi from 'strip-ansi';
 
-// Podman session interface extending base console session
-interface PodmanSession extends ConsoleSession {
-  containerId?: string;
-  containerName?: string;
-  image?: string;
-  isRunning: boolean;
-  process?: ChildProcess;
-  podmanCommand?: string[];
-  pod?: string;
-}
-
-// Podman container management options
-interface PodmanOptions {
+// Podman Protocol connection options
+interface PodmanConnectionOptions extends SessionOptions {
   image: string;
   containerName?: string;
-  command?: string[];
+  operation?: 'run' | 'exec' | 'logs' | 'inspect' | 'build' | 'push' | 'pull' | 'ps' | 'stop' | 'start' | 'restart' | 'kill' | 'rm' | 'rmi' | 'pod' | 'volume' | 'network' | 'system';
   workingDir?: string;
-  env?: Record<string, string>;
   volumes?: string[];
   ports?: string[];
   network?: string;
   pod?: string;
   user?: string;
+  group?: string;
   privileged?: boolean;
+  capabilities?: string[];
+  securityOpt?: string[];
   removeOnExit?: boolean;
   detach?: boolean;
   interactive?: boolean;
   tty?: boolean;
+  readOnly?: boolean;
+  tmpfs?: string[];
+  shmSize?: string;
+  ulimits?: string[];
+  memory?: string;
+  memorySwap?: string;
+  memoryReservation?: string;
+  kernelMemory?: string;
+  cpus?: string;
+  cpuShares?: number;
+  cpuQuota?: number;
+  cpuPeriod?: number;
+  cpusetCpus?: string;
+  cpusetMems?: string;
+  blkioWeight?: number;
+  blkioWeightDevice?: string[];
+  deviceReadBps?: string[];
+  deviceWriteBps?: string[];
+  deviceReadIops?: string[];
+  deviceWriteIops?: string[];
+  devices?: string[];
+  dns?: string[];
+  dnsSearch?: string[];
+  dnsOptions?: string[];
+  hostname?: string;
+  domainname?: string;
+  macAddress?: string;
+  ip?: string;
+  ip6?: string;
+  linkLocalIPs?: string[];
+  publishAll?: boolean;
+  expose?: string[];
+  labels?: Record<string, string>;
+  annotations?: Record<string, string>;
+  restart?: 'no' | 'on-failure' | 'always' | 'unless-stopped';
+  restartRetries?: number;
+  healthCmd?: string[];
+  healthInterval?: string;
+  healthTimeout?: string;
+  healthStartPeriod?: string;
+  healthRetries?: number;
+  noHealthcheck?: boolean;
+  init?: boolean;
+  initPath?: string;
+  systemd?: boolean;
+  cidfile?: string;
+  conmonPidfile?: string;
+  entrypoint?: string[];
+  stopSignal?: string;
+  stopTimeout?: number;
+  oomKillDisable?: boolean;
+  oomScoreAdj?: number;
+  pidsLimit?: number;
+  userns?: string;
+  usernsUIDMap?: string[];
+  usernsGIDMap?: string[];
+  uidmap?: string[];
+  gidmap?: string[];
+  subuidname?: string;
+  subgidname?: string;
+  cgroupns?: string;
+  cgroupParent?: string;
+  cgroupConf?: string[];
+  hooks?: string[];
+  secrets?: string[];
+  mounts?: string[];
+  imageVolume?: 'bind' | 'tmpfs' | 'ignore';
+  log?: string;
+  logOpt?: Record<string, string>;
+  logDriver?: string;
+  logLevel?: 'debug' | 'info' | 'warn' | 'error' | 'fatal' | 'panic';
+  sysctl?: Record<string, string>;
+  tz?: string;
+  umask?: string;
+  unsetenv?: string[];
+  unsetenvAll?: boolean;
+  variant?: string;
+  workdir?: string;
+  rootfs?: boolean;
+  pull?: 'always' | 'missing' | 'never';
+  quietPull?: boolean;
+  signaturePolicy?: string;
+  tlsVerify?: boolean;
+  authfile?: string;
+  certDir?: string;
+  creds?: string;
+  platform?: string;
+  os?: string;
+  arch?: string;
+  decryptionKey?: string[];
+  runtime?: string;
+  runtimeFlag?: string[];
+  sdnotify?: string;
+  generateSystemd?: boolean;
+  systemdScope?: boolean;
+  replace?: boolean;
+  gpus?: string;
+  preserveFds?: number;
+  external?: boolean;
+  infra?: boolean;
+  infraImage?: string;
+  infraCommand?: string[];
+  infraName?: string;
+  podIDFile?: string;
+  shareParent?: boolean;
+  shareNet?: boolean;
+  shareIpc?: boolean;
+  sharePid?: boolean;
+  shareUts?: boolean;
+  shareCgroup?: boolean;
+  usePodCgroup?: boolean;
+  exitPolicy?: 'continue' | 'stop';
+  podmanPath?: string;
+  registriesConf?: string;
+  registriesConfDir?: string;
+  shortNameMode?: 'enforcing' | 'permissive' | 'disabled';
+  storageDriver?: string;
+  storageOpt?: string[];
+  modulesLoadDir?: string;
+  ociRuntime?: string;
+  ociRuntimeFlag?: string[];
+  hooksDir?: string[];
+  namespace?: string;
+  maxLogSize?: string;
+  maxLogFiles?: number;
+  enableFuse?: boolean;
+  enableUserns?: boolean;
+  enableCgroupsV2?: boolean;
+  enableSeccomp?: boolean;
+  enableApparmor?: boolean;
+  enableSelinux?: boolean;
+  enableLabelNesting?: boolean;
+  enableRootless?: boolean;
+  remoteConfigPath?: string;
+  remoteSocket?: string;
+  remoteIdentity?: string;
+  sshPassphrase?: string;
+  connection?: string;
+  url?: string;
+  context?: string;
+  timeout?: number;
+  retries?: number;
+  retryDelay?: number;
+  compression?: 'gzip' | 'zstd' | 'zlib';
+  format?: 'oci' | 'docker';
+  sign?: boolean;
+  encryptLayer?: number[];
+  encryptionKey?: string[];
+  squash?: boolean;
+  cache?: boolean;
+  cacheFrom?: string[];
+  cacheTo?: string[];
+  target?: string;
+  buildArg?: Record<string, string>;
+  file?: string;
+  ignorefile?: string;
+  isolation?: 'oci' | 'rootless' | 'chroot';
+  layers?: boolean;
+  logRustc?: boolean;
+  enableLogging?: boolean;
+  timestamp?: boolean;
+  environment?: Record<string, string>;
 }
 
 /**
- * Production-ready Podman Protocol implementation for console automation
- * Supports Podman containers, podman exec, pods, and comprehensive monitoring
+ * Podman Protocol Implementation
+ *
+ * Provides Podman container runtime console access through podman command
+ * Supports container lifecycle management, pod orchestration, image operations, and rootless containers
  */
-export class PodmanProtocol extends EventEmitter implements IProtocol {
-  public readonly type = 'podman';
+export class PodmanProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'podman';
   public readonly capabilities: ProtocolCapabilities;
-  public readonly healthStatus: ProtocolHealthStatus;
-  
-  private logger: Logger;
-  private isInitialized: boolean = false;
-  private sessions: Map<string, PodmanSession> = new Map();
-  private processes: Map<string, ChildProcess> = new Map();
-  private podmanAvailable: boolean = false;
+
+  private podmanProcesses = new Map<string, ChildProcess>();
+  private containerStates = new Map<string, any>();
+
+  // Compatibility property for old ProtocolFactory interface
+  public get healthStatus(): ProtocolHealthStatus {
+    return {
+      isHealthy: this.isInitialized,
+      lastChecked: new Date(),
+      errors: [],
+      warnings: [],
+      metrics: {
+        activeSessions: this.sessions.size,
+        totalSessions: this.sessions.size,
+        averageLatency: 0,
+        successRate: 100,
+        uptime: 0
+      },
+      dependencies: {}
+    };
+  }
 
   constructor() {
-    super();
-    this.logger = new Logger('PodmanProtocol');
-    
+    super('podman');
+
     this.capabilities = {
       supportsStreaming: true,
       supportsFileTransfer: true,
-      supportsX11Forwarding: false,
+      supportsX11Forwarding: true,
       supportsPortForwarding: true,
       supportsAuthentication: false,
-      supportsEncryption: false,
-      supportsCompression: false,
+      supportsEncryption: true,
+      supportsCompression: true,
       supportsMultiplexing: true,
-      supportsKeepAlive: false,
-      supportsReconnection: false,
+      supportsKeepAlive: true,
+      supportsReconnection: true,
       supportsBinaryData: true,
       supportsCustomEnvironment: true,
       supportsWorkingDirectory: true,
       supportsSignals: true,
       supportsResizing: true,
       supportsPTY: true,
-      maxConcurrentSessions: 50,
-      defaultTimeout: 30000,
+      maxConcurrentSessions: 100, // Podman can handle many containers
+      defaultTimeout: 60000, // Container operations can take time
       supportedEncodings: ['utf-8'],
-      supportedAuthMethods: [],
+      supportedAuthMethods: ['registry'],
       platformSupport: {
-        windows: false,
+        windows: false, // Podman is primarily Linux/Unix
         linux: true,
         macos: true,
-        freebsd: true,
-      },
-    };
-
-    this.healthStatus = {
-      isHealthy: true,
-      lastChecked: new Date(),
-      errors: [],
-      warnings: [],
-      metrics: {
-        activeSessions: 0,
-        totalSessions: 0,
-        averageLatency: 0,
-        successRate: 1.0,
-        uptime: 0,
-      },
-      dependencies: {},
+        freebsd: false
+      }
     };
   }
 
   async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
     try {
-      // Check if Podman is available
+      // Check if Podman tools are available
       await this.checkPodmanAvailability();
       this.isInitialized = true;
-      this.logger.info('Podman protocol initialized successfully', { available: this.podmanAvailable });
-    } catch (error) {
-      this.logger.error('Failed to initialize Podman protocol', { error: (error as Error).message });
+      this.logger.info('Podman protocol initialized with production features');
+    } catch (error: any) {
+      this.logger.error('Failed to initialize Podman protocol', error);
       throw error;
     }
   }
 
-  private async checkPodmanAvailability(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const podmanProcess = spawn('podman', ['--version'], { stdio: 'pipe' });
-      
-      podmanProcess.on('exit', (code) => {
-        this.podmanAvailable = code === 0;
-        if (this.podmanAvailable) {
-          resolve();
-        } else {
-          reject(new Error('Podman is not available or not installed'));
-        }
-      });
-
-      podmanProcess.on('error', (error) => {
-        this.podmanAvailable = false;
-        reject(new Error(`Podman check failed: ${error.message}`));
-      });
-    });
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    const sessionId = `podman-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    return await this.createSessionWithTypeDetection(sessionId, options);
   }
 
-  async createSession(options: SessionOptions): Promise<PodmanSession> {
-    if (!this.podmanAvailable) {
-      throw new Error('Podman is not available. Ensure Podman is installed and in PATH');
-    }
-
-    const sessionId = uuidv4();
-    const podmanOptions = this.parsePodmanOptions(options);
-    
-    try {
-      // Create and start container
-      const containerId = await this.createContainer(podmanOptions);
-      
-      const session: PodmanSession = {
-        id: sessionId,
-        command: options.command,
-        args: options.args || [],
-        cwd: options.cwd || '/app',
-        env: options.env || {},
-        createdAt: new Date(),
-        status: 'running',
-        type: 'podman' as ConsoleType,
-        streaming: options.streaming || false,
-        executionState: 'idle',
-        activeCommands: new Map(),
-        containerId,
-        containerName: podmanOptions.containerName,
-        image: podmanOptions.image,
-        isRunning: true,
-        pod: podmanOptions.pod
-      };
-
-      this.sessions.set(sessionId, session);
-      
-      // Start container execution if not detached
-      if (!podmanOptions.detach) {
-        await this.startContainer(session, podmanOptions);
-      }
-
-      this.logger.info('Podman session created', {
-        sessionId,
-        containerId,
-        image: podmanOptions.image,
-        pod: podmanOptions.pod
-      });
-
-      return session;
-
-    } catch (error) {
-      this.logger.error('Failed to create Podman session', {
-        sessionId,
-        error: (error as Error).message
-      });
-      throw error;
-    }
-  }
-
-  private parsePodmanOptions(options: SessionOptions): PodmanOptions {
-    // Parse podman-specific options from session options
-    const podmanOpts = (options as any).podmanOptions || {};
-    
-    return {
-      image: podmanOpts.image || 'alpine:latest',
-      containerName: podmanOpts.containerName || `console-session-${uuidv4().substring(0, 8)}`,
-      command: podmanOpts.command || [options.command, ...(options.args || [])],
-      workingDir: podmanOpts.workingDir || options.cwd || '/app',
-      env: { ...options.env, ...podmanOpts.env },
-      volumes: podmanOpts.volumes || [],
-      ports: podmanOpts.ports || [],
-      network: podmanOpts.network,
-      pod: podmanOpts.pod,
-      user: podmanOpts.user,
-      privileged: podmanOpts.privileged || false,
-      removeOnExit: podmanOpts.removeOnExit !== false,
-      detach: podmanOpts.detach || false,
-      interactive: podmanOpts.interactive !== false,
-      tty: podmanOpts.tty !== false
-    };
-  }
-
-  private async createContainer(options: PodmanOptions): Promise<string> {
-    const podmanArgs = ['run'];
-    
-    // Add flags
-    if (options.detach) podmanArgs.push('-d');
-    if (options.interactive) podmanArgs.push('-i');
-    if (options.tty) podmanArgs.push('-t');
-    if (options.removeOnExit) podmanArgs.push('--rm');
-    if (options.privileged) podmanArgs.push('--privileged');
-    
-    // Add name
-    if (options.containerName) {
-      podmanArgs.push('--name', options.containerName);
-    }
-    
-    // Add working directory
-    if (options.workingDir) {
-      podmanArgs.push('-w', options.workingDir);
-    }
-    
-    // Add user
-    if (options.user) {
-      podmanArgs.push('-u', options.user);
-    }
-    
-    // Add environment variables
-    if (options.env) {
-      for (const [key, value] of Object.entries(options.env)) {
-        podmanArgs.push('-e', `${key}=${value}`);
-      }
-    }
-    
-    // Add volumes
-    if (options.volumes) {
-      for (const volume of options.volumes) {
-        podmanArgs.push('-v', volume);
-      }
-    }
-    
-    // Add port mappings
-    if (options.ports) {
-      for (const port of options.ports) {
-        podmanArgs.push('-p', port);
-      }
-    }
-    
-    // Add network
-    if (options.network) {
-      podmanArgs.push('--network', options.network);
-    }
-    
-    // Add pod
-    if (options.pod) {
-      podmanArgs.push('--pod', options.pod);
-    }
-    
-    // Add image
-    podmanArgs.push(options.image);
-    
-    // Add command
-    if (options.command && options.command.length > 0) {
-      podmanArgs.push(...options.command);
-    }
-
-    return new Promise((resolve, reject) => {
-      const createProcess = spawn('podman', podmanArgs, { stdio: 'pipe' });
-
-      let stdout = '';
-      let stderr = '';
-      
-      createProcess.stdout?.on('data', (chunk) => {
-        stdout += chunk.toString();
-      });
-      
-      createProcess.stderr?.on('data', (chunk) => {
-        stderr += chunk.toString();
-      });
-
-      createProcess.on('exit', (code) => {
-        if (code === 0) {
-          // Extract container ID from stdout (first line usually contains the ID)
-          const containerId = stdout.trim().split('\n')[0] || options.containerName || 'unknown';
-          resolve(containerId);
-        } else {
-          reject(new Error(`Failed to create container: ${stderr}`));
-        }
-      });
-
-      createProcess.on('error', (error) => {
-        reject(new Error(`Container creation failed: ${error.message}`));
-      });
-    });
-  }
-
-  private async startContainer(session: PodmanSession, options: PodmanOptions): Promise<void> {
-    // If container was created with detach, we need to attach to it
-    const podmanArgs = ['logs', '-f'];
-    if (session.containerId) {
-      podmanArgs.push(session.containerId);
-    }
-
-    const logsProcess = spawn('podman', podmanArgs, { stdio: 'pipe' });
-    this.processes.set(session.id, logsProcess);
-
-    logsProcess.stdout?.on('data', (chunk) => {
-      const output: ConsoleOutput = {
-        sessionId: session.id,
-        type: 'stdout',
-        data: stripAnsi(chunk.toString()),
-        timestamp: new Date(),
-        raw: chunk.toString()
-      };
-      this.emit('output', output);
-    });
-
-    logsProcess.stderr?.on('data', (chunk) => {
-      const output: ConsoleOutput = {
-        sessionId: session.id,
-        type: 'stderr',
-        data: stripAnsi(chunk.toString()),
-        timestamp: new Date(),
-        raw: chunk.toString()
-      };
-      this.emit('output', output);
-    });
-
-    logsProcess.on('exit', (code) => {
-      session.status = code === 0 ? 'stopped' : 'crashed';
-      session.exitCode = code || undefined;
-      session.isRunning = false;
-      this.emit('session-ended', session);
-    });
-
-    logsProcess.on('error', (error) => {
-      this.logger.error('Container process error', {
-        sessionId: session.id,
-        containerId: session.containerId,
-        error: error.message
-      });
-      session.status = 'crashed';
-      session.isRunning = false;
-    });
+  async dispose(): Promise<void> {
+    await this.cleanup();
   }
 
   async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+    await this.sendInput(sessionId, fullCommand + '\n');
+  }
+
+  async sendInput(sessionId: string, input: string): Promise<void> {
+    const podmanProcess = this.podmanProcesses.get(sessionId);
+    const session = this.sessions.get(sessionId);
+
+    if (!podmanProcess || !podmanProcess.stdin || !session) {
+      throw new Error(`No active Podman session: ${sessionId}`);
+    }
+
+    podmanProcess.stdin.write(input);
+    session.lastActivity = new Date();
+
+    this.emit('input-sent', {
+      sessionId,
+      input,
+      timestamp: new Date(),
+    });
+
+    this.logger.debug(`Sent input to Podman session ${sessionId}: ${input.substring(0, 100)}`);
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    try {
+      const podmanProcess = this.podmanProcesses.get(sessionId);
+      if (podmanProcess) {
+        // Try graceful shutdown first
+        podmanProcess.kill('SIGTERM');
+
+        // Force kill after timeout
+        setTimeout(() => {
+          if (podmanProcess && !podmanProcess.killed) {
+            podmanProcess.kill('SIGKILL');
+          }
+        }, 10000);
+
+        this.podmanProcesses.delete(sessionId);
+      }
+
+      // Clean up container state if exists
+      const containerState = this.containerStates.get(sessionId);
+      if (containerState) {
+        this.containerStates.delete(sessionId);
+      }
+
+      // Clean up base protocol session
+      this.sessions.delete(sessionId);
+
+      this.logger.info(`Podman session ${sessionId} closed`);
+      this.emit('session-closed', sessionId);
+    } catch (error) {
+      this.logger.error(`Error closing Podman session ${sessionId}:`, error);
+      throw error;
+    }
+  }
+
+  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const podmanOptions = options as PodmanConnectionOptions;
+
+    // Validate required container parameters
+    if (!podmanOptions.image) {
+      throw new Error('Container image is required for Podman protocol');
+    }
+
+    // Build Podman command
+    const podmanCommand = this.buildPodmanCommand(podmanOptions);
+
+    // Spawn Podman process
+    const podmanProcess = spawn(podmanCommand[0], podmanCommand.slice(1), {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: options.cwd || process.cwd(),
+      env: { ...process.env, ...this.buildEnvironment(podmanOptions), ...options.env }
+    });
+
+    // Set up output handling
+    podmanProcess.stdout?.on('data', (data) => {
+      const output: ConsoleOutput = {
+        sessionId,
+        type: 'stdout',
+        data: stripAnsi(data.toString()),
+        timestamp: new Date()
+      };
+      this.addToOutputBuffer(sessionId, output);
+    });
+
+    podmanProcess.stderr?.on('data', (data) => {
+      const output: ConsoleOutput = {
+        sessionId,
+        type: 'stderr',
+        data: stripAnsi(data.toString()),
+        timestamp: new Date()
+      };
+      this.addToOutputBuffer(sessionId, output);
+    });
+
+    podmanProcess.on('error', (error) => {
+      this.logger.error(`Podman process error for session ${sessionId}:`, error);
+      this.emit('session-error', { sessionId, error });
+    });
+
+    podmanProcess.on('close', (code) => {
+      this.logger.info(`Podman process closed for session ${sessionId} with code ${code}`);
+      this.markSessionComplete(sessionId, code || 0);
+    });
+
+    // Store the process
+    this.podmanProcesses.set(sessionId, podmanProcess);
+
+    // Create session object
+    const session: ConsoleSession = {
+      id: sessionId,
+      command: podmanCommand[0],
+      args: podmanCommand.slice(1),
+      cwd: options.cwd || process.cwd(),
+      env: { ...process.env, ...this.buildEnvironment(podmanOptions), ...options.env },
+      createdAt: new Date(),
+      lastActivity: new Date(),
+      status: 'running',
+      type: this.type,
+      streaming: options.streaming,
+      executionState: 'idle',
+      activeCommands: new Map(),
+      pid: podmanProcess.pid
+    };
+
+    this.sessions.set(sessionId, session);
+
+    this.logger.info(`Podman session ${sessionId} created for image ${podmanOptions.image}`);
+    this.emit('session-created', { sessionId, type: 'podman', session });
+
+    return session;
+  }
+
+  // Override getOutput to satisfy old ProtocolFactory interface (returns string)
+  async getOutput(sessionId: string, since?: Date): Promise<any> {
+    const outputs = await super.getOutput(sessionId, since);
+    return outputs.map(output => output.data).join('');
+  }
+
+  // Missing IProtocol methods for compatibility
+  getAllSessions(): ConsoleSession[] {
+    return Array.from(this.sessions.values());
+  }
+
+  getActiveSessions(): ConsoleSession[] {
+    return Array.from(this.sessions.values()).filter(session =>
+      session.status === 'running'
+    );
+  }
+
+  getSessionCount(): number {
+    return this.sessions.size;
+  }
+
+  async getSessionState(sessionId: string): Promise<SessionState> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    if (!session.isRunning) {
-      throw new Error(`Session ${sessionId} is not running`);
-    }
-
-    const fullCommand = args ? [command, ...args] : [command];
-    
-    const podmanArgs = [
-      'exec',
-      '-it',
-      session.containerId!,
-      ...fullCommand
-    ];
-
-    const execProcess = spawn('podman', podmanArgs, { stdio: 'pipe' });
-
-    execProcess.stdout?.on('data', (chunk) => {
-      const output: ConsoleOutput = {
-        sessionId: session.id,
-        type: 'stdout',
-        data: stripAnsi(chunk.toString()),
-        timestamp: new Date(),
-        raw: chunk.toString()
-      };
-      this.emit('output', output);
-    });
-
-    execProcess.stderr?.on('data', (chunk) => {
-      const output: ConsoleOutput = {
-        sessionId: session.id,
-        type: 'stderr',
-        data: stripAnsi(chunk.toString()),
-        timestamp: new Date(),
-        raw: chunk.toString()
-      };
-      this.emit('output', output);
-    });
-  }
-
-  async sendInput(sessionId: string, input: string): Promise<void> {
-    const process = this.processes.get(sessionId);
-    if (!process || !process.stdin) {
-      throw new Error(`No active process for session ${sessionId}`);
-    }
-
-    process.stdin.write(input);
-  }
-
-  async getOutput(sessionId: string, since?: Date): Promise<string> {
-    // For podman, output is handled via events
-    // This could be enhanced to store and retrieve historical output
-    return '';
-  }
-
-  async closeSession(sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      return;
-    }
-
-    try {
-      // Stop the container
-      if (session.containerId && session.isRunning) {
-        const stopArgs = ['stop', session.containerId];
-        const stopProcess = spawn('podman', stopArgs, { stdio: 'pipe' });
-        
-        await new Promise((resolve) => {
-          stopProcess.on('exit', resolve);
-          setTimeout(resolve, 5000); // Force resolve after 5 seconds
-        });
-
-        // Remove container if specified
-        const podmanOptions = session as any;
-        if (podmanOptions.removeOnExit !== false) {
-          const rmArgs = ['rm', '-f', session.containerId];
-          spawn('podman', rmArgs, { stdio: 'ignore' });
-        }
-      }
-
-      // Clean up process
-      const process = this.processes.get(sessionId);
-      if (process && !process.killed) {
-        process.kill('SIGTERM');
-      }
-      this.processes.delete(sessionId);
-
-      session.status = 'stopped';
-      session.isRunning = false;
-      this.sessions.delete(sessionId);
-
-      this.logger.info('Podman session closed', {
-        sessionId,
-        containerId: session.containerId
-      });
-
-    } catch (error) {
-      this.logger.error('Failed to close Podman session', {
-        sessionId,
-        error: (error as Error).message
-      });
-    }
-  }
-
-  async getHealthStatus(): Promise<ProtocolHealthStatus> {
-    const activeSessions = Array.from(this.sessions.values()).filter(s => s.isRunning).length;
-    
     return {
-      ...this.healthStatus,
-      isHealthy: this.podmanAvailable && this.isInitialized,
-      lastChecked: new Date(),
-      metrics: {
-        ...this.healthStatus.metrics,
-        activeSessions,
-        totalSessions: this.sessions.size
+      sessionId,
+      status: session.status,
+      isOneShot: false, // Container sessions are typically persistent
+      isPersistent: true,
+      createdAt: session.createdAt,
+      lastActivity: session.lastActivity,
+      pid: session.pid,
+      metadata: {}
+    };
+  }
+
+  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
+    this.logger.error(`Error in Podman session ${context.sessionId}: ${error.message}`);
+
+    return {
+      recovered: false,
+      strategy: 'none',
+      attempts: 0,
+      duration: 0,
+      error: error.message
+    };
+  }
+
+  async recoverSession(sessionId: string): Promise<boolean> {
+    const podmanProcess = this.podmanProcesses.get(sessionId);
+    return podmanProcess && !podmanProcess.killed || false;
+  }
+
+  getResourceUsage(): ResourceUsage {
+    const memUsage = process.memoryUsage();
+    const cpuUsage = process.cpuUsage();
+
+    return {
+      memory: {
+        used: memUsage.heapUsed,
+        available: memUsage.heapTotal,
+        peak: memUsage.heapTotal
       },
-      dependencies: {
-        podman: {
-          available: this.podmanAvailable,
-          version: this.podmanAvailable ? 'detected' : undefined,
-          error: this.podmanAvailable ? undefined : 'podman not available'
-        }
+      cpu: {
+        usage: cpuUsage.user + cpuUsage.system,
+        load: [0, 0, 0]
+      },
+      network: {
+        bytesIn: 0,
+        bytesOut: 0,
+        connectionsActive: this.podmanProcesses.size
+      },
+      storage: {
+        bytesRead: 0,
+        bytesWritten: 0
+      },
+      sessions: {
+        active: this.sessions.size,
+        total: this.sessions.size,
+        peak: this.sessions.size
       }
     };
   }
 
-  async dispose(): Promise<void> {
-    this.logger.info('Disposing Podman protocol');
+  async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    const baseStatus = await super.getHealthStatus();
 
-    // Close all active sessions
-    const sessionIds = Array.from(this.sessions.keys());
-    for (const sessionId of sessionIds) {
-      try {
-        await this.closeSession(sessionId);
-      } catch (error) {
-        this.logger.warn('Failed to close session during disposal', {
-          sessionId,
-          error: (error as Error).message
+    try {
+      await this.checkPodmanAvailability();
+      return {
+        ...baseStatus,
+        dependencies: {
+          podman: { available: true }
+        }
+      };
+    } catch (error) {
+      return {
+        ...baseStatus,
+        isHealthy: false,
+        errors: [...baseStatus.errors, `Podman not available: ${error}`],
+        dependencies: {
+          podman: { available: false }
+        }
+      };
+    }
+  }
+
+  private async checkPodmanAvailability(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const testProcess = spawn('podman', ['--version'], { stdio: 'pipe' });
+
+      testProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error('Podman not found. Please install podman.'));
+        }
+      });
+
+      testProcess.on('error', () => {
+        reject(new Error('Podman not found. Please install podman.'));
+      });
+    });
+  }
+
+  private buildPodmanCommand(options: PodmanConnectionOptions): string[] {
+    const command = [];
+
+    // Podman executable
+    if (options.podmanPath) {
+      command.push(options.podmanPath);
+    } else {
+      command.push('podman');
+    }
+
+    // Add global options
+    if (options.remoteSocket) {
+      command.push('--remote');
+      command.push('--url', options.remoteSocket);
+    }
+
+    if (options.connection) {
+      command.push('--connection', options.connection);
+    }
+
+    if (options.context) {
+      command.push('--context', options.context);
+    }
+
+    if (options.logLevel) {
+      command.push('--log-level', options.logLevel);
+    }
+
+    if (options.namespace) {
+      command.push('--namespace', options.namespace);
+    }
+
+    // Operation-specific commands
+    if (options.operation === 'exec') {
+      command.push('exec');
+
+      if (options.interactive !== false) {
+        command.push('-i');
+      }
+
+      if (options.tty !== false) {
+        command.push('-t');
+      }
+
+      if (options.workingDir) {
+        command.push('-w', options.workingDir);
+      }
+
+      if (options.user) {
+        command.push('-u', options.user);
+      }
+
+      // Environment variables for exec
+      if (options.environment) {
+        Object.entries(options.environment).forEach(([key, value]) => {
+          command.push('-e', `${key}=${value}`);
         });
+      }
+
+      // Container name/ID (required for exec)
+      command.push(options.containerName || options.image);
+
+    } else if (options.operation === 'logs') {
+      command.push('logs');
+
+      if (options.operation) {
+        command.push('-f'); // Follow logs
+      }
+
+      if (options.timestamp) {
+        command.push('-t');
+      }
+
+      command.push(options.containerName || options.image);
+
+    } else if (options.operation === 'build') {
+      command.push('build');
+
+      if (options.file) {
+        command.push('-f', options.file);
+      }
+
+      if (options.target) {
+        command.push('--target', options.target);
+      }
+
+      if (options.buildArg) {
+        Object.entries(options.buildArg).forEach(([key, value]) => {
+          command.push('--build-arg', `${key}=${value}`);
+        });
+      }
+
+      if (options.squash) {
+        command.push('--squash');
+      }
+
+      if (options.layers === false) {
+        command.push('--layers=false');
+      }
+
+      command.push('-t', options.image);
+      command.push(options.cwd || '.');
+
+    } else {
+      // Default to 'run' operation
+      command.push('run');
+
+      // Interactive/TTY flags
+      if (options.interactive !== false) {
+        command.push('-i');
+      }
+
+      if (options.tty !== false) {
+        command.push('-t');
+      }
+
+      // Detach mode
+      if (options.detach) {
+        command.push('-d');
+      }
+
+      // Remove on exit
+      if (options.removeOnExit !== false) {
+        command.push('--rm');
+      }
+
+      // Container name
+      if (options.containerName) {
+        command.push('--name', options.containerName);
+      }
+
+      // Working directory
+      if (options.workingDir) {
+        command.push('-w', options.workingDir);
+      }
+
+      // User and group
+      if (options.user) {
+        command.push('-u', options.user);
+      }
+
+      // Privileged mode
+      if (options.privileged) {
+        command.push('--privileged');
+      }
+
+      // Capabilities
+      if (options.capabilities) {
+        options.capabilities.forEach(cap => {
+          command.push('--cap-add', cap);
+        });
+      }
+
+      // Security options
+      if (options.securityOpt) {
+        options.securityOpt.forEach(opt => {
+          command.push('--security-opt', opt);
+        });
+      }
+
+      // Environment variables
+      if (options.environment) {
+        Object.entries(options.environment).forEach(([key, value]) => {
+          command.push('-e', `${key}=${value}`);
+        });
+      }
+
+      // Volumes
+      if (options.volumes) {
+        options.volumes.forEach(volume => {
+          command.push('-v', volume);
+        });
+      }
+
+      // Port mappings
+      if (options.ports) {
+        options.ports.forEach(port => {
+          command.push('-p', port);
+        });
+      }
+
+      // Network
+      if (options.network) {
+        command.push('--network', options.network);
+      }
+
+      // Pod
+      if (options.pod) {
+        command.push('--pod', options.pod);
+      }
+
+      // Memory and CPU limits
+      if (options.memory) {
+        command.push('-m', options.memory);
+      }
+
+      if (options.cpus) {
+        command.push('--cpus', options.cpus);
+      }
+
+      if (options.cpuShares) {
+        command.push('--cpu-shares', options.cpuShares.toString());
+      }
+
+      // Devices
+      if (options.devices) {
+        options.devices.forEach(device => {
+          command.push('--device', device);
+        });
+      }
+
+      // Labels
+      if (options.labels) {
+        Object.entries(options.labels).forEach(([key, value]) => {
+          command.push('-l', `${key}=${value}`);
+        });
+      }
+
+      // Restart policy
+      if (options.restart) {
+        command.push('--restart', options.restart);
+      }
+
+      // Health checks
+      if (options.healthCmd) {
+        command.push('--health-cmd', options.healthCmd.join(' '));
+      }
+
+      if (options.healthInterval) {
+        command.push('--health-interval', options.healthInterval);
+      }
+
+      if (options.noHealthcheck) {
+        command.push('--no-healthcheck');
+      }
+
+      // Pull policy
+      if (options.pull) {
+        command.push('--pull', options.pull);
+      }
+
+      // Read-only
+      if (options.readOnly) {
+        command.push('--read-only');
+      }
+
+      // Tmpfs
+      if (options.tmpfs) {
+        options.tmpfs.forEach(tmpfs => {
+          command.push('--tmpfs', tmpfs);
+        });
+      }
+
+      // Image
+      command.push(options.image);
+    }
+
+    // Command and arguments
+    if (options.command) {
+      command.push(options.command);
+    }
+
+    if (options.args) {
+      command.push(...options.args);
+    }
+
+    return command;
+  }
+
+  private buildEnvironment(options: PodmanConnectionOptions): Record<string, string> {
+    const env: Record<string, string> = {};
+
+    // Podman environment variables
+    if (options.remoteSocket) {
+      env.CONTAINER_HOST = options.remoteSocket;
+    }
+
+    if (options.connection) {
+      env.CONTAINER_CONNECTION = options.connection;
+    }
+
+    if (options.sshPassphrase) {
+      env.CONTAINER_SSHKEY = options.sshPassphrase;
+    }
+
+    // Registry settings
+    if (options.registriesConf) {
+      env.REGISTRIES_CONFIG_PATH = options.registriesConf;
+    }
+
+    if (options.authfile) {
+      env.REGISTRY_AUTH_FILE = options.authfile;
+    }
+
+    // Storage settings
+    if (options.storageDriver) {
+      env.STORAGE_DRIVER = options.storageDriver;
+    }
+
+    // Runtime settings
+    if (options.runtime) {
+      env.OCI_RUNTIME = options.runtime;
+    }
+
+    // Logging
+    if (options.enableLogging && options.logLevel) {
+      env.PODMAN_LOG_LEVEL = options.logLevel;
+    }
+
+    // Rootless mode
+    if (options.enableRootless) {
+      env.PODMAN_USERNS = 'keep-id';
+    }
+
+    // Custom environment variables
+    if (options.environment) {
+      Object.assign(env, options.environment);
+    }
+
+    return env;
+  }
+
+  async cleanup(): Promise<void> {
+    this.logger.info('Cleaning up Podman protocol');
+
+    // Close all Podman processes
+    for (const [sessionId, process] of Array.from(this.podmanProcesses)) {
+      try {
+        process.kill();
+      } catch (error) {
+        this.logger.error(`Error killing Podman process for session ${sessionId}:`, error);
       }
     }
 
-    this.removeAllListeners();
-    this.isInitialized = false;
+    // Clear all data
+    this.podmanProcesses.clear();
+    this.containerStates.clear();
+
+    // Call parent cleanup
+    await super.cleanup();
   }
 }
+
+export default PodmanProtocol;

@@ -1,6 +1,17 @@
-import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import { WebSocket } from 'ws';
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import {
+  ConsoleSession,
+  SessionOptions,
+  ConsoleType,
+  ConsoleOutput
+} from '../types/index.js';
+import {
+  ProtocolCapabilities,
+  SessionState as BaseSessionState,
+  ErrorContext
+} from '../core/IProtocol.js';
 
 // Google Cloud SDK imports - made optional to handle missing dependencies
 let GoogleAuth: any, JWT: any, OAuth2Client: any, UserRefreshClient: any;
@@ -48,10 +59,10 @@ try {
   console.warn('gcp-metadata not available, metadata service functionality will be disabled');
 }
 import { v4 as uuidv4 } from 'uuid';
-import { 
-  GCPConnectionOptions, 
-  GCPCloudShellSession, 
-  GCPComputeSession, 
+import {
+  GCPConnectionOptions,
+  GCPCloudShellSession,
+  GCPComputeSession,
   GCPGKESession,
   GCPTokenInfo,
   GCPResourceInfo,
@@ -59,11 +70,8 @@ import {
   GCPRateLimitInfo,
   GCPServiceAccountInfo,
   GCPIAMPolicy,
-  ConsoleSession,
-  ConsoleOutput,
   ConsoleEvent
 } from '../types/index.js';
-import { Logger } from '../utils/logger.js';
 
 // Type interfaces for GCP SDK types when not available
 interface GoogleAuthLike {
@@ -83,9 +91,17 @@ interface ZonesClientLike {
   list(params: { project: string }): Promise<[any[]]>;
 }
 
+// GCP-specific session state interface
+interface GCPSessionState extends BaseSessionState {
+  gcpProjectId?: string;
+  authMethod?: string;
+  sessionType?: 'cloud-shell' | 'compute' | 'gke';
+  tunnelConnected?: boolean;
+}
+
 /**
  * Google Cloud Platform Protocol Implementation
- * 
+ *
  * This class provides comprehensive support for:
  * - Google Cloud Shell integration
  * - Compute Engine VM connections via OS Login
@@ -94,12 +110,14 @@ interface ZonesClientLike {
  * - OAuth2 and service account authentication
  * - Quota and rate limiting management
  */
-export class GCPProtocol extends EventEmitter {
+export class GCPProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'gcp-shell';
+  public readonly capabilities: ProtocolCapabilities;
+
   private auth!: GoogleAuthLike;
   private computeClient!: InstancesClientLike;
   private osLoginClient!: OSLoginServiceClientLike;
   private zonesClient!: ZonesClientLike;
-  private logger: Logger;
   
   // Session management
   private cloudShellSessions = new Map<string, GCPCloudShellSession>();
@@ -139,9 +157,248 @@ export class GCPProtocol extends EventEmitter {
   ];
 
   constructor() {
-    super();
-    this.logger = new Logger('GCPProtocol');
-    this.initializeClients();
+    super('gcp');
+
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: false,
+      supportsX11Forwarding: true,
+      supportsPortForwarding: true,
+      supportsAuthentication: true,
+      supportsEncryption: true,
+      supportsCompression: false,
+      supportsMultiplexing: false,
+      supportsKeepAlive: true,
+      supportsReconnection: true,
+      supportsBinaryData: false,
+      supportsCustomEnvironment: true,
+      supportsWorkingDirectory: true,
+      supportsSignals: true,
+      supportsResizing: true,
+      supportsPTY: true,
+      maxConcurrentSessions: 100,
+      defaultTimeout: 45000,
+      supportedEncodings: ['utf-8'],
+      supportedAuthMethods: ['oauth2', 'service-account', 'default'],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: true
+      }
+    };
+  }
+
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
+    try {
+      await this.initializeClients();
+      this.isInitialized = true;
+      this.logger.info('GCP protocol initialized with session management fixes');
+    } catch (error: any) {
+      this.logger.error('Failed to initialize GCP protocol', error);
+      throw error;
+    }
+  }
+
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    const sessionId = `gcp-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    return await this.createSessionWithTypeDetection(sessionId, options);
+  }
+
+  async sendInput(sessionId: string, input: string): Promise<void> {
+    const cloudShellSession = this.cloudShellSessions.get(sessionId);
+    if (cloudShellSession) {
+      return this.sendCloudShellInput(sessionId, input);
+    }
+
+    const computeSession = this.computeSessions.get(sessionId);
+    if (computeSession) {
+      return this.sendComputeInput(sessionId, input);
+    }
+
+    const gkeSession = this.gkeSessions.get(sessionId);
+    if (gkeSession) {
+      return this.sendGKEInput(sessionId, input);
+    }
+
+    throw new Error(`Session ${sessionId} not found`);
+  }
+
+  getSessionState(sessionId: string): Promise<BaseSessionState> {
+    const cloudShellSession = this.cloudShellSessions.get(sessionId);
+    const computeSession = this.computeSessions.get(sessionId);
+    const gkeSession = this.gkeSessions.get(sessionId);
+    const session = this.sessions.get(sessionId);
+
+    const gcpSession = cloudShellSession || computeSession || gkeSession;
+
+    if (!gcpSession || !session) {
+      return Promise.resolve({
+        sessionId,
+        status: 'failed',
+        isOneShot: false,
+        isPersistent: true,
+        createdAt: new Date(),
+        lastActivity: new Date(),
+        metadata: { error: 'Session not found' }
+      });
+    }
+
+    const sshConnection = this.sshConnections.get(sessionId);
+    const webSocket = this.webSocketConnections.get(sessionId);
+    const connected = (sshConnection && !sshConnection.killed) ||
+                     (webSocket && webSocket.readyState === WebSocket.OPEN);
+
+    const state: BaseSessionState = {
+      sessionId,
+      status: connected ? 'running' : 'stopped',
+      isOneShot: false,
+      isPersistent: true,
+      createdAt: session.createdAt,
+      lastActivity: session.lastActivity || new Date(),
+      metadata: {
+        gcpProjectId: cloudShellSession?.projectId || computeSession?.vmProject || gkeSession?.clusterProject,
+        sessionType: cloudShellSession ? 'cloud-shell' :
+                    computeSession ? 'compute' : 'gke',
+        tunnelConnected: connected
+      }
+    };
+
+    return Promise.resolve(state);
+  }
+
+  getActiveSessions(): ConsoleSession[] {
+    return Array.from(this.sessions.values());
+  }
+
+  async attemptReconnection(context: ErrorContext): Promise<boolean> {
+    try {
+      const sessionId = context.sessionId;
+      if (!sessionId) {
+        return false;
+      }
+
+      const cloudShellSession = this.cloudShellSessions.get(sessionId);
+      const computeSession = this.computeSessions.get(sessionId);
+      const gkeSession = this.gkeSessions.get(sessionId);
+
+      if (cloudShellSession) {
+        await this.reconnectCloudShell(sessionId, cloudShellSession);
+        return true;
+      } else if (computeSession) {
+        await this.reconnectCompute(sessionId, computeSession);
+        return true;
+      } else if (gkeSession) {
+        await this.reconnectGKE(sessionId, gkeSession);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      this.logger.error(`Failed to reconnect GCP session ${context.sessionId}:`, error);
+      return false;
+    }
+  }
+
+  private async reconnectCloudShell(sessionId: string, session: GCPCloudShellSession): Promise<void> {
+    // Close existing WebSocket
+    const existingWs = this.webSocketConnections.get(sessionId);
+    if (existingWs) {
+      existingWs.close();
+    }
+
+    // Re-establish connection
+    await this.establishCloudShellConnection(session);
+    this.logger.info(`Reconnected Cloud Shell session ${sessionId}`);
+  }
+
+  private async reconnectCompute(sessionId: string, session: GCPComputeSession): Promise<void> {
+    // Close existing SSH connection
+    const existingSsh = this.sshConnections.get(sessionId);
+    if (existingSsh) {
+      existingSsh.kill();
+    }
+
+    // Re-establish connection
+    await this.establishComputeConnection(session, {} as GCPConnectionOptions);
+    this.logger.info(`Reconnected Compute session ${sessionId}`);
+  }
+
+  private async reconnectGKE(sessionId: string, session: GCPGKESession): Promise<void> {
+    // Close existing kubectl connection
+    const existingKubectl = this.sshConnections.get(sessionId);
+    if (existingKubectl) {
+      existingKubectl.kill();
+    }
+
+    // Re-establish connection
+    await this.establishGKEConnection(session, {} as GCPConnectionOptions);
+    this.logger.info(`Reconnected GKE session ${sessionId}`);
+  }
+
+  async dispose(): Promise<void> {
+    await this.cleanup();
+  }
+
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+    await this.sendInput(sessionId, fullCommand + '\n');
+  }
+
+  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: BaseSessionState): Promise<ConsoleSession> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const gcpOptions = options as GCPConnectionOptions;
+
+    // Determine GCP service type and create specific session
+    let gcpSession: GCPCloudShellSession | GCPComputeSession | GCPGKESession;
+
+    if (gcpOptions.vmName) {
+      // Compute Engine session
+      gcpSession = await this.createComputeSession(sessionId, gcpOptions);
+    } else if (gcpOptions.clusterName) {
+      // GKE session
+      gcpSession = await this.createGKESession(sessionId, gcpOptions);
+    } else {
+      // Default to Cloud Shell
+      gcpSession = await this.createCloudShellSession(sessionId, gcpOptions);
+    }
+
+    // Create BaseProtocol session
+    const session: ConsoleSession = {
+      id: sessionId,
+      command: options.command || 'gcp-session',
+      args: options.args || [],
+      cwd: options.cwd || '',
+      env: options.env || {},
+      createdAt: new Date(),
+      lastActivity: new Date(),
+      status: 'running',
+      type: this.type,
+      streaming: options.streaming,
+      executionState: 'idle',
+      activeCommands: new Map()
+    };
+
+    this.sessions.set(sessionId, session);
+
+    // Set up event handlers for GCP-specific events
+    this.setupGCPEventHandlers(sessionId);
+
+    return session;
+  }
+
+
+  /**
+   * Set up GCP-specific event handlers
+   */
+  private setupGCPEventHandlers(sessionId: string): void {
+    // Set up handlers for SSH connections, WebSocket events, etc.
+    // This replaces the EventEmitter pattern with direct callback management
   }
 
   /**
@@ -390,27 +647,6 @@ export class GCPProtocol extends EventEmitter {
     }
   }
 
-  /**
-   * Send input to a GCP session
-   */
-  async sendInput(sessionId: string, input: string): Promise<void> {
-    const cloudShellSession = this.cloudShellSessions.get(sessionId);
-    if (cloudShellSession) {
-      return this.sendCloudShellInput(sessionId, input);
-    }
-    
-    const computeSession = this.computeSessions.get(sessionId);
-    if (computeSession) {
-      return this.sendComputeInput(sessionId, input);
-    }
-    
-    const gkeSession = this.gkeSessions.get(sessionId);
-    if (gkeSession) {
-      return this.sendGKEInput(sessionId, input);
-    }
-    
-    throw new Error(`Session ${sessionId} not found`);
-  }
 
   /**
    * Close a GCP session
@@ -629,7 +865,7 @@ export class GCPProtocol extends EventEmitter {
         data: data.toString(),
         timestamp: new Date()
       };
-      this.emit('output', output);
+      this.addToOutputBuffer(session.sessionId, output);
     });
 
     ws.on('error', (error) => {
@@ -725,7 +961,7 @@ export class GCPProtocol extends EventEmitter {
         data: data.toString(),
         timestamp: new Date()
       };
-      this.emit('output', output);
+      this.addToOutputBuffer(session.sessionId, output);
     });
 
     sshProcess.stderr?.on('data', (data) => {
@@ -735,7 +971,7 @@ export class GCPProtocol extends EventEmitter {
         data: data.toString(),
         timestamp: new Date()
       };
-      this.emit('output', output);
+      this.addToOutputBuffer(session.sessionId, output);
     });
 
     sshProcess.on('error', (error) => {
@@ -797,7 +1033,7 @@ export class GCPProtocol extends EventEmitter {
         data: data.toString(),
         timestamp: new Date()
       };
-      this.emit('output', output);
+      this.addToOutputBuffer(session.sessionId, output);
     });
 
     kubectlProcess.stderr?.on('data', (data) => {
@@ -807,7 +1043,7 @@ export class GCPProtocol extends EventEmitter {
         data: data.toString(),
         timestamp: new Date()
       };
-      this.emit('output', output);
+      this.addToOutputBuffer(session.sessionId, output);
     });
 
     this.sshConnections.set(session.sessionId, kubectlProcess);

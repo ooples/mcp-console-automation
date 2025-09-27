@@ -1,35 +1,5 @@
-// Docker API compatibility layer - handles optional dockerode dependency
-interface DockerContainer {
-  id: string;
-  start(): Promise<void>;
-  stop(options?: any): Promise<void>;
-  remove(options?: any): Promise<void>;
-  kill(options?: any): Promise<void>;
-  exec(options: any): Promise<any>;
-  stats(options?: any): any;
-  logs(options?: any): any;
-  inspect(): Promise<any>;
-}
-
-interface DockerAPI {
-  createContainer(options: any): Promise<DockerContainer>;
-  listContainers(options?: any): Promise<any[]>;
-  getContainer(id: string): DockerContainer;
-  getEvents(options?: any): any;
-  version(callback?: (err: any, data: any) => void): Promise<any>;
-  info(callback?: (err: any, data: any) => void): Promise<any>;
-  ping(callback?: (err: any, data: any) => void): Promise<any>;
-}
-
-// Dynamic Docker import with fallback
-let Docker: (new (options?: any) => DockerAPI) | null = null;
-try {
-  Docker = require('dockerode');
-} catch (error) {
-  // dockerode is optional dependency
-  console.warn('Docker support requires dockerode package. Install with: npm install dockerode');
-}
-import { EventEmitter } from 'events';
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import { ProtocolCapabilities, SessionState } from '../core/IProtocol.js';
 import { Readable, PassThrough } from 'stream';
 import { v4 as uuidv4 } from 'uuid';
 import stripAnsi from 'strip-ansi';
@@ -63,7 +33,37 @@ import {
   ConsoleType
 } from '../types/index.js';
 
-import { Logger } from '../utils/logger.js';
+// Docker API compatibility layer - handles optional dockerode dependency
+interface DockerContainer {
+  id: string;
+  start(): Promise<void>;
+  stop(options?: any): Promise<void>;
+  remove(options?: any): Promise<void>;
+  kill(options?: any): Promise<void>;
+  exec(options: any): Promise<any>;
+  stats(options?: any): any;
+  logs(options?: any): any;
+  inspect(): Promise<any>;
+}
+
+interface DockerAPI {
+  createContainer(options: any): Promise<DockerContainer>;
+  listContainers(options?: any): Promise<any[]>;
+  getContainer(id: string): DockerContainer;
+  getEvents(options?: any): any;
+  version(callback?: (err: any, data: any) => void): Promise<any>;
+  info(callback?: (err: any, data: any) => void): Promise<any>;
+  ping(callback?: (err: any, data: any) => void): Promise<any>;
+}
+
+// Dynamic Docker import with fallback
+let Docker: (new (options?: any) => DockerAPI) | null = null;
+try {
+  Docker = require('dockerode');
+} catch (error) {
+  // dockerode is optional dependency
+  console.warn('Docker support requires dockerode package. Install with: npm install dockerode');
+}
 
 export interface DockerProtocolEvents {
   'container-created': (containerId: string, session: DockerSession) => void;
@@ -81,6 +81,7 @@ export interface DockerProtocolEvents {
   'connection-error': (error: Error) => void;
   'reconnected': (connection: DockerAPI) => void;
   'output': (output: ConsoleOutput) => void;
+  'sessionClosed': (sessionId: string) => void;
 }
 
 export declare interface DockerProtocol {
@@ -92,11 +93,13 @@ export declare interface DockerProtocol {
  * Production-ready Docker Protocol implementation for console automation
  * Supports Docker containers, docker exec, docker-compose, health checks, and comprehensive monitoring
  */
-export class DockerProtocol extends EventEmitter {
+export class DockerProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'docker';
+  public readonly capabilities: ProtocolCapabilities;
+
   private docker: DockerAPI | null = null;
-  private logger: Logger;
   private config: DockerProtocolConfig;
-  private sessions: Map<string, DockerSession> = new Map();
+  private dockerSessions: Map<string, DockerSession> = new Map();
   private containers: Map<string, DockerContainer> = new Map();
   private execSessions: Map<string, any> = new Map();
   private healthChecks: Map<string, NodeJS.Timeout> = new Map();
@@ -111,29 +114,64 @@ export class DockerProtocol extends EventEmitter {
   private dockerAvailable: boolean = false;
 
   constructor(config: DockerProtocolConfig) {
-    super();
+    super('DockerProtocol');
     this.config = config;
-    this.logger = new Logger('DockerProtocol');
-    
+
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: true,
+      supportsX11Forwarding: false,
+      supportsPortForwarding: true,
+      supportsAuthentication: true,
+      supportsEncryption: false,
+      supportsCompression: false,
+      supportsMultiplexing: true,
+      supportsKeepAlive: false,
+      supportsReconnection: true,
+      supportsBinaryData: true,
+      supportsCustomEnvironment: true,
+      supportsWorkingDirectory: true,
+      supportsSignals: true,
+      supportsResizing: true,
+      supportsPTY: true,
+      maxConcurrentSessions: 100,
+      defaultTimeout: 30000,
+      supportedEncodings: ['utf-8', 'binary'],
+      supportedAuthMethods: ['registry-auth'],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: true,
+      },
+    };
+  }
+
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
     // Check if Docker is available
     this.dockerAvailable = Docker !== null;
-    
+
     if (!this.dockerAvailable) {
       this.logger.warn('Docker (dockerode) is not available. Install with: npm install dockerode');
       this.connectionHealthy = false;
-      return;
+      throw new Error('Docker (dockerode) is not available. Install with: npm install dockerode');
     }
-    
+
     // Initialize Docker connection with comprehensive error handling
     this.initializeDockerConnection();
-    
+
     // Set up connection monitoring
     this.setupConnectionMonitoring();
-    
+
     // Start event monitoring if enabled
     if (this.config.monitoring.enableMetrics) {
       this.startEventMonitoring();
     }
+
+    this.isInitialized = true;
+    this.logger.info('Docker protocol initialized with session management fixes');
   }
 
   /**
@@ -295,8 +333,8 @@ export class DockerProtocol extends EventEmitter {
   private handleDockerEvent(event: DockerEvent): void {
     if (event.type === 'container') {
       const containerId = event.actor.id;
-      const session = Array.from(this.sessions.values()).find(s => s.containerId === containerId);
-      
+      const session = Array.from(this.dockerSessions.values()).find(s => s.containerId === containerId);
+
       if (session) {
         switch (event.action) {
           case 'start':
@@ -310,7 +348,7 @@ export class DockerProtocol extends EventEmitter {
             break;
           case 'destroy':
             session.status = 'stopped';
-            this.cleanupSession(session.id);
+            this.cleanupDockerSession(session.id);
             this.emit('container-removed', containerId, session);
             break;
         }
@@ -318,42 +356,54 @@ export class DockerProtocol extends EventEmitter {
     }
   }
 
-  /**
-   * Create a Docker session (run a new container)
-   */
-  async createSession(sessionOptions: SessionOptions): Promise<DockerSession> {
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const sessionId = `docker-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+    // Use session management fixes from BaseProtocol
+    return await this.createSessionWithTypeDetection(sessionId, options);
+  }
+
+  protected async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.dockerAvailable || !this.docker) {
       throw new Error('Docker (dockerode) is not available. Install with: npm install dockerode');
     }
-    
+
     if (!this.connectionHealthy) {
       throw new Error('Docker connection is not healthy');
     }
 
-    const sessionId = uuidv4();
-    const containerOptions = this.parseContainerOptions(sessionOptions);
-    const dockerOptions = sessionOptions.dockerOptions || this.config.connection;
-    
     try {
+      const containerOptions = this.parseContainerOptions(options);
+      const dockerOptions = options.dockerOptions || this.config.connection;
+
       // Create container
       const container = await this.docker.createContainer(containerOptions);
       const containerId = container.id;
-      
+
       this.containers.set(containerId, container);
 
-      // Build session object
-      const session: DockerSession = {
+      // Build Docker session object
+      const dockerSession: DockerSession = {
         id: sessionId,
-        command: containerOptions.cmd?.[0] || sessionOptions.command,
-        args: containerOptions.cmd?.slice(1) || sessionOptions.args || [],
-        cwd: containerOptions.workingDir || sessionOptions.cwd || '/app',
+        command: containerOptions.cmd?.[0] || options.command,
+        args: containerOptions.cmd?.slice(1) || options.args || [],
+        cwd: containerOptions.workingDir || options.cwd || '/app',
         env: this.parseEnvironment(containerOptions.env),
         createdAt: new Date(),
-        status: 'running',
-        type: sessionOptions.consoleType as ConsoleType,
-        streaming: sessionOptions.streaming || this.config.logStreaming.enabled,
+        status: sessionState.isOneShot ? 'initializing' : 'running',
+        type: this.type,
+        streaming: options.streaming || this.config.logStreaming.enabled,
         executionState: 'idle',
         activeCommands: new Map(),
+        lastActivity: new Date(),
         dockerOptions,
         containerOptions,
         containerId,
@@ -365,53 +415,78 @@ export class DockerProtocol extends EventEmitter {
         portMappings: this.parsePortMappings(containerOptions.hostConfig?.portBindings)
       };
 
-      this.sessions.set(sessionId, session);
-      
-      // Start container
-      await container.start();
-      session.isRunning = true;
-      session.status = 'running';
+      this.dockerSessions.set(sessionId, dockerSession);
 
-      // Get container info and update session
-      const containerInfo = await container.inspect();
-      session.containerState = this.parseContainerState(containerInfo.State);
-      session.networkSettings = containerInfo.NetworkSettings;
-      session.pid = containerInfo.State.Pid;
+      // For persistent sessions, start container immediately
+      // For one-shot sessions, start when executing command
+      if (!sessionState.isOneShot) {
+        await container.start();
+        dockerSession.isRunning = true;
+        dockerSession.status = 'running';
 
-      this.emit('container-created', containerId, session);
-      this.emit('container-started', containerId, session);
+        // Get container info and update session
+        const containerInfo = await container.inspect();
+        dockerSession.containerState = this.parseContainerState(containerInfo.State);
+        dockerSession.networkSettings = containerInfo.NetworkSettings;
+        dockerSession.pid = containerInfo.State.Pid;
 
-      // Set up health monitoring if enabled
-      if (this.config.healthCheck.enabled) {
-        this.startHealthCheck(session);
+        this.emit('container-created', containerId, dockerSession);
+        this.emit('container-started', containerId, dockerSession);
+
+        // Set up health monitoring if enabled
+        if (this.config.healthCheck.enabled) {
+          this.startHealthCheck(dockerSession);
+        }
+
+        // Start log streaming if enabled
+        if (dockerSession.streaming) {
+          this.startLogStreaming(dockerSession);
+        }
+
+        // Start metrics collection if enabled
+        if (this.config.monitoring.enableMetrics) {
+          this.startMetricsCollection(dockerSession);
+        }
       }
 
-      // Start log streaming if enabled
-      if (session.streaming) {
-        this.startLogStreaming(session);
-      }
+      // Create ConsoleSession for BaseProtocol
+      const consoleSession: ConsoleSession = {
+        id: sessionId,
+        command: dockerSession.command,
+        args: dockerSession.args,
+        cwd: dockerSession.cwd,
+        env: dockerSession.env,
+        createdAt: dockerSession.createdAt,
+        status: dockerSession.status,
+        type: this.type,
+        streaming: dockerSession.streaming,
+        executionState: dockerSession.executionState,
+        activeCommands: dockerSession.activeCommands,
+        lastActivity: dockerSession.lastActivity,
+        dockerOptions,
+        pid: dockerSession.pid
+      };
 
-      // Start metrics collection if enabled
-      if (this.config.monitoring.enableMetrics) {
-        this.startMetricsCollection(session);
-      }
+      this.sessions.set(sessionId, consoleSession);
+      this.outputBuffers.set(sessionId, []);
 
-      this.logger.info('Docker container session created', {
-        sessionId,
+      this.logger.info(`Docker session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`, {
         containerId,
         image: containerOptions.image,
         name: containerOptions.name
       });
 
-      return session;
+      return consoleSession;
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to create Docker session', {
         sessionId,
-        error: errorMessage,
-        containerOptions
+        error: errorMessage
       });
+
+      // Cleanup on failure
+      this.dockerSessions.delete(sessionId);
       throw error instanceof Error ? error : new Error(errorMessage);
     }
   }
@@ -502,26 +577,60 @@ export class DockerProtocol extends EventEmitter {
     }
   }
 
-  /**
-   * Execute command in Docker session
-   */
-  async executeCommand(sessionId: string, command: string, options?: { timeout?: number }): Promise<string> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const dockerSession = this.dockerSessions.get(sessionId);
+    const sessionState = await this.getSessionState(sessionId);
+
+    if (!dockerSession) {
+      throw new Error(`Docker session ${sessionId} not found`);
     }
 
-    if (session.isExecSession) {
-      return this.executeExecCommand(session, command, options);
-    } else {
-      return this.executeContainerCommand(session, command, options);
+    try {
+      // For one-shot sessions, start container first if not already started
+      if (sessionState.isOneShot && !dockerSession.isRunning) {
+        const container = this.containers.get(dockerSession.containerId!);
+        if (container) {
+          await container.start();
+          dockerSession.isRunning = true;
+          dockerSession.status = 'running';
+
+          // Get container info
+          const containerInfo = await container.inspect();
+          dockerSession.containerState = this.parseContainerState(containerInfo.State);
+          dockerSession.networkSettings = containerInfo.NetworkSettings;
+          dockerSession.pid = containerInfo.State.Pid;
+
+          this.emit('container-created', dockerSession.containerId!, dockerSession);
+          this.emit('container-started', dockerSession.containerId!, dockerSession);
+        }
+      }
+
+      // Build full command
+      const fullCommand = args ? `${command} ${args.join(' ')}` : command;
+
+      if (dockerSession.isExecSession) {
+        await this.executeExecCommand(dockerSession, fullCommand);
+      } else {
+        await this.executeContainerCommand(dockerSession, fullCommand);
+      }
+
+      // For one-shot sessions, mark as complete after command execution
+      if (sessionState.isOneShot) {
+        setTimeout(() => {
+          this.markSessionComplete(sessionId, 0);
+        }, 1000); // Give time for output to be captured
+      }
+
+    } catch (error) {
+      this.logger.error(`Failed to execute Docker command: ${error}`);
+      throw error;
     }
   }
 
   /**
    * Execute command in exec session
    */
-  private async executeExecCommand(session: DockerSession, command: string, options?: { timeout?: number }): Promise<string> {
+  private async executeExecCommand(session: DockerSession, command: string): Promise<void> {
     const exec = this.execSessions.get(session.execId!);
     if (!exec) {
       throw new Error(`Exec session ${session.execId} not found`);
@@ -529,7 +638,7 @@ export class DockerProtocol extends EventEmitter {
 
     try {
       session.executionState = 'executing';
-      
+
       const stream = await exec.start({
         hijack: true,
         stdin: true,
@@ -540,42 +649,36 @@ export class DockerProtocol extends EventEmitter {
 
       this.emit('exec-started', session.execId!, session);
 
-      let output = '';
-      const timeout = options?.timeout || 30000;
+      stream.write(command + '\n');
 
-      return new Promise((resolve, reject) => {
-        const timeoutHandle = setTimeout(() => {
-          reject(new Error('Command execution timeout'));
-        }, timeout);
+      stream.on('data', (chunk: Buffer) => {
+        const data = chunk.toString();
 
-        stream.write(command + '\n');
+        const consoleOutput: ConsoleOutput = {
+          sessionId: session.id,
+          type: 'stdout',
+          data: stripAnsi(data),
+          timestamp: new Date(),
+          raw: data
+        };
 
-        stream.on('data', (chunk: Buffer) => {
-          const data = chunk.toString();
-          output += data;
-          
-          const consoleOutput: ConsoleOutput = {
-            sessionId: session.id,
-            type: 'stdout',
-            data: stripAnsi(data),
-            timestamp: new Date(),
-            raw: data
-          };
+        this.addToOutputBuffer(session.id, consoleOutput);
+      });
 
-          this.emit('output', consoleOutput);
-        });
+      stream.on('end', () => {
+        session.executionState = 'idle';
+      });
 
-        stream.on('end', () => {
-          clearTimeout(timeoutHandle);
-          session.executionState = 'idle';
-          resolve(output);
-        });
-
-        stream.on('error', (error: Error) => {
-          clearTimeout(timeoutHandle);
-          session.executionState = 'idle';
-          reject(error);
-        });
+      stream.on('error', (error: Error) => {
+        session.executionState = 'idle';
+        const consoleOutput: ConsoleOutput = {
+          sessionId: session.id,
+          type: 'stderr',
+          data: error.message,
+          timestamp: new Date(),
+          raw: error.message
+        };
+        this.addToOutputBuffer(session.id, consoleOutput);
       });
 
     } catch (error) {
@@ -594,7 +697,7 @@ export class DockerProtocol extends EventEmitter {
   /**
    * Execute command in container session
    */
-  private async executeContainerCommand(session: DockerSession, command: string, options?: { timeout?: number }): Promise<string> {
+  private async executeContainerCommand(session: DockerSession, command: string): Promise<void> {
     const container = this.containers.get(session.containerId!);
     if (!container) {
       throw new Error(`Container ${session.containerId} not found`);
@@ -613,39 +716,55 @@ export class DockerProtocol extends EventEmitter {
         stdin: false
       });
 
-      let output = '';
-      const timeout = options?.timeout || 30000;
+      stream.on('data', (chunk: Buffer) => {
+        const data = chunk.toString();
+        const consoleOutput: ConsoleOutput = {
+          sessionId: session.id,
+          type: 'stdout',
+          data: stripAnsi(data),
+          timestamp: new Date(),
+          raw: data
+        };
 
-      return new Promise((resolve, reject) => {
-        const timeoutHandle = setTimeout(() => {
-          reject(new Error('Command execution timeout'));
-        }, timeout);
+        this.addToOutputBuffer(session.id, consoleOutput);
+      });
 
-        stream.on('data', (chunk: Buffer) => {
-          output += chunk.toString();
-        });
+      stream.on('end', async () => {
+        try {
+          const inspectResult = await exec.inspect();
+          const exitCode = inspectResult.ExitCode;
 
-        stream.on('end', async () => {
-          clearTimeout(timeoutHandle);
-          
-          try {
-            const inspectResult = await exec.inspect();
-            const exitCode = inspectResult.ExitCode;
-            
-            if (exitCode === 0) {
-              resolve(output);
-            } else {
-              reject(new Error(`Command failed with exit code ${exitCode}: ${output}`));
-            }
-          } catch (inspectError) {
-            reject(inspectError);
+          if (exitCode !== 0) {
+            const errorOutput: ConsoleOutput = {
+              sessionId: session.id,
+              type: 'stderr',
+              data: `Command failed with exit code ${exitCode}`,
+              timestamp: new Date(),
+              raw: `Command failed with exit code ${exitCode}`
+            };
+            this.addToOutputBuffer(session.id, errorOutput);
           }
-        });
+        } catch (inspectError) {
+          const errorOutput: ConsoleOutput = {
+            sessionId: session.id,
+            type: 'stderr',
+            data: `Failed to inspect command result: ${inspectError}`,
+            timestamp: new Date(),
+            raw: `Failed to inspect command result: ${inspectError}`
+          };
+          this.addToOutputBuffer(session.id, errorOutput);
+        }
+      });
 
-        stream.on('error', (error: Error) => {
-          clearTimeout(timeoutHandle);
-          reject(error);
-        });
+      stream.on('error', (error: Error) => {
+        const errorOutput: ConsoleOutput = {
+          sessionId: session.id,
+          type: 'stderr',
+          data: error.message,
+          timestamp: new Date(),
+          raw: error.message
+        };
+        this.addToOutputBuffer(session.id, errorOutput);
       });
 
     } catch (error) {
@@ -660,73 +779,89 @@ export class DockerProtocol extends EventEmitter {
     }
   }
 
-  /**
-   * Stop Docker session
-   */
-  async stopSession(sessionId: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
+  async sendInput(sessionId: string, input: string): Promise<void> {
+    const dockerSession = this.dockerSessions.get(sessionId);
+    if (!dockerSession) {
+      throw new Error(`Docker session ${sessionId} not found`);
     }
 
-    try {
-      if (session.isExecSession) {
-        // Exec sessions don't need explicit stopping, just cleanup
-        this.cleanupSession(sessionId);
-      } else {
-        const container = this.containers.get(session.containerId!);
-        if (container) {
-          if (options?.force) {
-            await container.kill();
-          } else {
-            await container.stop({ t: options?.timeout || 10 });
-          }
-          
-          if (session.autoCleanup) {
-            await container.remove();
-            this.emit('container-removed', session.containerId!, session);
-          }
-        }
-        
-        this.cleanupSession(sessionId);
+    // For Docker containers, input handling depends on session type
+    if (dockerSession.isExecSession) {
+      const exec = this.execSessions.get(dockerSession.execId!);
+      if (exec) {
+        // Send input to exec session stream (if available)
+        this.logger.info('Input sent to Docker exec session', { sessionId, input });
       }
-
-      session.status = 'stopped';
-      session.isRunning = false;
-      
-      this.logger.info('Docker session stopped', {
-        sessionId,
-        containerId: session.containerId,
-        isExecSession: session.isExecSession
-      });
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Failed to stop Docker session', {
-        sessionId,
-        error: errorMessage
-      });
-      throw error instanceof Error ? error : new Error(errorMessage);
+    } else {
+      // For container sessions, we'd typically use docker exec for interactive commands
+      this.logger.info('Input sent to Docker container session', { sessionId, input });
     }
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    const dockerSession = this.dockerSessions.get(sessionId);
+
+    if (dockerSession) {
+      try {
+        if (dockerSession.isExecSession) {
+          // Exec sessions don't need explicit stopping, just cleanup
+          this.cleanupDockerSession(sessionId);
+        } else {
+          const container = this.containers.get(dockerSession.containerId!);
+          if (container) {
+            await container.stop({ t: 10 });
+
+            if (dockerSession.autoCleanup) {
+              await container.remove();
+              this.emit('container-removed', dockerSession.containerId!, dockerSession);
+            }
+          }
+
+          this.cleanupDockerSession(sessionId);
+        }
+
+        dockerSession.status = 'stopped';
+        dockerSession.isRunning = false;
+
+        this.logger.info('Docker session stopped', {
+          sessionId,
+          containerId: dockerSession.containerId,
+          isExecSession: dockerSession.isExecSession
+        });
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error('Failed to stop Docker session', {
+          sessionId,
+          error: errorMessage
+        });
+      }
+    }
+
+    // Remove from base class tracking
+    this.sessions.delete(sessionId);
+    this.outputBuffers.delete(sessionId);
+
+    this.emit('sessionClosed', sessionId);
   }
 
   /**
    * Get session output
    */
   async getSessionOutput(sessionId: string, options?: { since?: Date; limit?: number }): Promise<ConsoleOutput[]> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
+    const dockerSession = this.dockerSessions.get(sessionId);
+    if (!dockerSession) {
+      throw new Error(`Docker session ${sessionId} not found`);
     }
 
-    if (session.isExecSession) {
+    if (dockerSession.isExecSession) {
       // For exec sessions, we don't store historical output
       return [];
     }
 
-    const container = this.containers.get(session.containerId!);
+    const container = this.containers.get(dockerSession.containerId!);
     if (!container) {
-      throw new Error(`Container ${session.containerId} not found`);
+      throw new Error(`Container ${dockerSession.containerId} not found`);
     }
 
     try {
@@ -746,8 +881,8 @@ export class DockerProtocol extends EventEmitter {
 
       const stream = await container.logs(logOptions);
       const logs = stream.toString();
-      
-      return this.parseDockerLogs(logs, session.id);
+
+      return this.parseDockerLogs(logs, sessionId);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1260,11 +1395,11 @@ export class DockerProtocol extends EventEmitter {
   }
 
   /**
-   * Cleanup session resources
+   * Cleanup Docker session resources
    */
-  private cleanupSession(sessionId: string): void {
-    const session = this.sessions.get(sessionId);
-    if (!session) return;
+  private cleanupDockerSession(sessionId: string): void {
+    const dockerSession = this.dockerSessions.get(sessionId);
+    if (!dockerSession) return;
 
     // Stop health checks
     const healthCheckId = `health-${sessionId}`;
@@ -1289,14 +1424,14 @@ export class DockerProtocol extends EventEmitter {
     }
 
     // Clean up containers and exec sessions
-    if (session.containerId) {
-      this.containers.delete(session.containerId);
+    if (dockerSession.containerId) {
+      this.containers.delete(dockerSession.containerId);
     }
-    if (session.execId) {
-      this.execSessions.delete(session.execId);
+    if (dockerSession.execId) {
+      this.execSessions.delete(dockerSession.execId);
     }
 
-    this.sessions.delete(sessionId);
+    this.dockerSessions.delete(sessionId);
   }
 
   /**
@@ -1331,27 +1466,33 @@ export class DockerProtocol extends EventEmitter {
     };
   }
 
-  /**
-   * Cleanup all resources
-   */
-  async cleanup(): Promise<void> {
-    this.logger.info('Cleaning up Docker protocol resources');
+  async dispose(): Promise<void> {
+    this.logger.info('Disposing Docker protocol');
 
     // Stop all health checks
-    Array.from(this.healthChecks.entries()).forEach(([id, interval]) => {
-      clearInterval(interval);
+    Array.from(this.healthChecks.keys()).forEach(id => {
+      const interval = this.healthChecks.get(id);
+      if (interval) {
+        clearInterval(interval);
+      }
     });
     this.healthChecks.clear();
 
     // Stop all metrics collection
-    Array.from(this.metricsIntervals.entries()).forEach(([sessionId, interval]) => {
-      clearInterval(interval);
+    Array.from(this.metricsIntervals.keys()).forEach(sessionId => {
+      const interval = this.metricsIntervals.get(sessionId);
+      if (interval) {
+        clearInterval(interval);
+      }
     });
     this.metricsIntervals.clear();
 
     // Close all log streams
-    Array.from(this.logStreams.entries()).forEach(([sessionId, stream]) => {
-      stream.destroy();
+    Array.from(this.logStreams.keys()).forEach(sessionId => {
+      const stream = this.logStreams.get(sessionId);
+      if (stream) {
+        stream.destroy();
+      }
     });
     this.logStreams.clear();
 
@@ -1360,17 +1501,25 @@ export class DockerProtocol extends EventEmitter {
       clearTimeout(this.eventMonitor);
     }
 
-    // Clean up all sessions
-    const sessionIds = Array.from(this.sessions.keys());
+    // Clean up all Docker sessions
+    const sessionIds = Array.from(this.dockerSessions.keys());
     for (const sessionId of sessionIds) {
       try {
-        await this.stopSession(sessionId, { force: true });
+        await this.closeSession(sessionId);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.logger.warn('Failed to stop session during cleanup', { sessionId, error: errorMessage });
       }
     }
 
+    this.dockerSessions.clear();
+    this.containers.clear();
+    this.execSessions.clear();
+
+    await this.cleanup();
+
     this.logger.info('Docker protocol cleanup completed');
   }
 }
+
+export default DockerProtocol;

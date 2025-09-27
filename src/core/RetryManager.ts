@@ -65,13 +65,18 @@ export class RetryManager extends EventEmitter {
       circuitBreakerThreshold: 3,
       circuitBreakerWindow: 120000,
       shouldRetry: (error: Error) => {
+        // Check for explicit non-retryable flag
+        if ((error as any).nonRetryable) {
+          return false;
+        }
         const authErrors = [
           'authentication failed', 'auth failed', 'invalid credentials',
           'access denied', 'permission denied', 'unauthorized'
         ];
         const errorMsg = error.message.toLowerCase();
-        return authErrors.some(msg => errorMsg.includes(msg)) && 
-               !errorMsg.includes('invalid password'); // Don't retry bad passwords
+        return authErrors.some(msg => errorMsg.includes(msg)) &&
+               !errorMsg.includes('invalid password') &&
+               !errorMsg.includes('invalid username'); // Don't retry bad credentials
       }
     },
     resource: {
@@ -100,6 +105,10 @@ export class RetryManager extends EventEmitter {
       circuitBreakerThreshold: 4,
       circuitBreakerWindow: 90000,
       shouldRetry: (error: Error) => {
+        // Check for explicit non-retryable flag first
+        if ((error as any).nonRetryable) {
+          return false;
+        }
         const sshErrors = [
           'connection refused', 'connection reset', 'connection timeout',
           'host unreachable', 'network unreachable', 'ssh connection lost'
@@ -107,7 +116,8 @@ export class RetryManager extends EventEmitter {
         const errorMsg = error.message.toLowerCase();
         return sshErrors.some(msg => errorMsg.includes(msg)) &&
                !errorMsg.includes('permission denied') &&
-               !errorMsg.includes('authentication failed');
+               !errorMsg.includes('authentication failed') &&
+               !errorMsg.includes('ssh password authentication is not supported');
       }
     },
     generic: {
@@ -119,6 +129,10 @@ export class RetryManager extends EventEmitter {
       circuitBreakerThreshold: 5,
       circuitBreakerWindow: 60000,
       shouldRetry: (error: Error) => {
+        // Check for explicit non-retryable flag
+        if ((error as any).nonRetryable) {
+          return false;
+        }
         // Generic transient errors
         const transientErrors = [
           'timeout', 'temporary', 'busy', 'unavailable', 'try again'

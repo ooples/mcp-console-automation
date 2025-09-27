@@ -1,30 +1,26 @@
-import { EventEmitter } from 'events';
 import { Socket } from 'net';
-import { Logger } from '../utils/logger.js';
-import { 
-  ConsoleSession, 
-  SessionOptions, 
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import { ProtocolCapabilities, SessionState } from '../core/IProtocol.js';
+import {
+  ConsoleSession,
+  SessionOptions,
   ConsoleOutput,
   TelnetConnectionOptions,
   TelnetSessionState,
   TelnetCommand,
-  TelnetOption
+  TelnetOption,
+  ConsoleType
 } from '../types/index.js';
-import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
 
-export class TelnetProtocol extends EventEmitter implements IProtocol {
-  public readonly type = 'telnet' as const;
+export class TelnetProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'telnet';
   public readonly capabilities: ProtocolCapabilities;
-  public readonly healthStatus: ProtocolHealthStatus;
-  
-  private logger: Logger;
-  private sessions: Map<string, TelnetSession> = new Map();
-  private isInitialized = false;
+
+  private telnetSessions: Map<string, TelnetSession> = new Map();
 
   constructor() {
-    super();
-    this.logger = new Logger('TelnetProtocol');
-    
+    super('TelnetProtocol');
+
     this.capabilities = {
       supportsStreaming: true,
       supportsFileTransfer: false,
@@ -53,34 +49,13 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
         freebsd: true,
       },
     };
-
-    this.healthStatus = {
-      isHealthy: true,
-      lastChecked: new Date(),
-      errors: [],
-      warnings: [],
-      metrics: {
-        activeSessions: 0,
-        totalSessions: 0,
-        averageLatency: 0,
-        successRate: 1.0,
-        uptime: 0,
-      },
-      dependencies: {
-        telnet: {
-          available: true,
-          version: '1.0',
-        },
-      },
-    };
   }
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    
-    this.logger.info('Initializing Telnet protocol');
+
+    this.logger.info('Initializing Telnet protocol with session management fixes');
     this.isInitialized = true;
-    this.emit('initialized');
   }
 
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
@@ -88,14 +63,23 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
       await this.initialize();
     }
 
+    const sessionId = `telnet-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+    // Use session management fixes from BaseProtocol
+    return await this.createSessionWithTypeDetection(sessionId, options);
+  }
+
+  protected async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     const telnetOptions = options.telnetOptions;
     if (!telnetOptions) {
       throw new Error('Telnet options are required');
     }
 
-    const sessionId = `telnet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    const session: TelnetSession = {
+    const telnetSession: TelnetSession = {
       id: sessionId,
       socket: null,
       state: {
@@ -118,31 +102,42 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
       buffer: Buffer.alloc(0)
     };
 
-    this.sessions.set(sessionId, session);
+    this.telnetSessions.set(sessionId, telnetSession);
 
     try {
-      await this.connectSession(session);
-      
+      // For persistent sessions, connect immediately
+      // For one-shot sessions, connect on command execution
+      if (!sessionState.isOneShot) {
+        await this.connectSession(telnetSession);
+      }
+
       const consoleSession: ConsoleSession = {
         id: sessionId,
-        type: 'telnet',
-        status: 'running',
+        type: this.type,
+        status: sessionState.isOneShot ? 'initializing' : 'running',
         createdAt: new Date(),
         lastActivity: new Date(),
         executionState: 'idle',
         command: options.command || '',
         args: options.args || [],
         cwd: telnetOptions.initialDirectory || '/',
-        env: options.environment || {},
-        environment: options.environment || {},
+        env: options.env || {},
         activeCommands: new Map(),
-        telnetOptions
+        telnetOptions,
+        streaming: options.streaming ?? false
       };
 
-      this.emit('sessionCreated', consoleSession);
+      this.sessions.set(sessionId, consoleSession);
+      this.outputBuffers.set(sessionId, []);
+
+      this.logger.info(`Telnet session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
       return consoleSession;
+
     } catch (error) {
-      this.sessions.delete(sessionId);
+      this.logger.error(`Failed to create Telnet session: ${error}`);
+
+      // Cleanup on failure
+      this.telnetSessions.delete(sessionId);
       throw error;
     }
   }
@@ -185,7 +180,7 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
       socket.on('close', () => {
         session.state.isConnected = false;
         this.logger.info(`Session ${session.id} disconnected`);
-        this.emit('sessionClosed', session.id);
+        this.markSessionComplete(session.id, 0);
       });
     });
   }
@@ -214,11 +209,15 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
         
         const textData = buffer.slice(start, processed).toString('utf8');
         if (textData.length > 0) {
-          this.emit('sessionOutput', {
+          const output: ConsoleOutput = {
             sessionId: session.id,
+            type: 'stdout',
             data: textData,
-            timestamp: new Date()
-          });
+            timestamp: new Date(),
+            raw: textData,
+          };
+
+          this.addToOutputBuffer(session.id, output);
         }
       }
     }
@@ -258,101 +257,102 @@ export class TelnetProtocol extends EventEmitter implements IProtocol {
   }
 
   async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
+    const telnetSession = this.telnetSessions.get(sessionId);
+    const sessionState = await this.getSessionState(sessionId);
+
+    if (!telnetSession) {
+      throw new Error(`Telnet session ${sessionId} not found`);
     }
-
-    if (!session.state.isConnected || !session.socket) {
-      throw new Error(`Session ${sessionId} is not connected`);
-    }
-
-    const telnetCommand: TelnetCommand = {
-      id: `cmd-${Date.now()}`,
-      command,
-      timestamp: new Date(),
-      status: 'pending'
-    };
-
-    session.state.commandQueue.push(telnetCommand);
 
     try {
+      // For one-shot sessions, connect first if not already connected
+      if (sessionState.isOneShot && !telnetSession.state.isConnected) {
+        await this.connectSession(telnetSession);
+      }
+
+      if (!telnetSession.state.isConnected || !telnetSession.socket) {
+        throw new Error(`Session ${sessionId} is not connected`);
+      }
+
+      // Build full command
+      const fullCommand = args ? `${command} ${args.join(' ')}` : command;
+
+      const telnetCommand: TelnetCommand = {
+        id: `cmd-${Date.now()}`,
+        command: fullCommand,
+        timestamp: new Date(),
+        status: 'pending'
+      };
+
+      telnetSession.state.commandQueue.push(telnetCommand);
+
       // Send command with carriage return + line feed
-      session.socket.write(command + '\r\n');
-      session.state.lastActivity = new Date();
+      telnetSession.socket.write(fullCommand + '\r\n');
+      telnetSession.state.lastActivity = new Date();
       telnetCommand.status = 'executing';
 
-      // For telnet, we don't wait for specific output, just send the command
+      // For one-shot sessions, mark as complete after command is sent
+      if (sessionState.isOneShot) {
+        setTimeout(() => {
+          this.markSessionComplete(sessionId, 0);
+        }, 1000); // Give time for output to be captured
+      }
+
       telnetCommand.status = 'completed';
-      
-      // IProtocol.executeCommand returns void, output should be retrieved via getOutput
+
     } catch (error) {
-      telnetCommand.status = 'failed';
+      this.logger.error(`Failed to execute Telnet command: ${error}`);
       throw error;
     }
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
+    const telnetSession = this.telnetSessions.get(sessionId);
+    if (!telnetSession) {
+      throw new Error(`Telnet session ${sessionId} not found`);
     }
 
-    if (!session.state.isConnected || !session.socket) {
+    if (!telnetSession.state.isConnected || !telnetSession.socket) {
       throw new Error(`Session ${sessionId} is not connected`);
     }
 
-    session.socket.write(input);
-    session.state.lastActivity = new Date();
-  }
-
-  async getOutput(sessionId: string, since?: Date): Promise<string> {
-    // Telnet protocol doesn't buffer output internally
-    // Output is emitted via events and should be captured by the consumer
-    return '';
+    telnetSession.socket.write(input);
+    telnetSession.state.lastActivity = new Date();
   }
 
   async closeSession(sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      this.logger.warn(`Attempted to close non-existent session: ${sessionId}`);
-      return;
+    const telnetSession = this.telnetSessions.get(sessionId);
+
+    if (telnetSession) {
+      if (telnetSession.socket) {
+        telnetSession.socket.destroy();
+      }
+      this.telnetSessions.delete(sessionId);
     }
 
-    if (session.socket) {
-      session.socket.destroy();
-    }
-
+    // Remove from base class tracking
     this.sessions.delete(sessionId);
+    this.outputBuffers.delete(sessionId);
+
     this.emit('sessionClosed', sessionId);
     this.logger.info(`Closed telnet session: ${sessionId}`);
   }
 
-  async listSessions(): Promise<string[]> {
-    return Array.from(this.sessions.keys());
-  }
-
-  async getSessionStatus(sessionId: string): Promise<'running' | 'stopped' | 'error'> {
-    const session = this.sessions.get(sessionId);
-    if (!session) return 'stopped';
-    return session.state.isConnected ? 'running' : 'stopped';
-  }
-
-  async getHealthStatus(): Promise<ProtocolHealthStatus> {
-    this.healthStatus.lastChecked = new Date();
-    this.healthStatus.metrics.activeSessions = this.sessions.size;
-    return { ...this.healthStatus };
-  }
-
   async dispose(): Promise<void> {
     this.logger.info('Disposing Telnet protocol');
-    
-    // Close all sessions
-    const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
-    
-    this.isInitialized = false;
-    this.removeAllListeners();
+
+    // Close all telnet sessions
+    const sessionIds = Array.from(this.telnetSessions.keys());
+    for (const sessionId of sessionIds) {
+      const telnetSession = this.telnetSessions.get(sessionId);
+      if (telnetSession?.socket) {
+        telnetSession.socket.destroy();
+      }
+    }
+
+    this.telnetSessions.clear();
+
+    await this.cleanup();
   }
 }
 

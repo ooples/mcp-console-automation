@@ -1,4 +1,4 @@
-export type ConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto' | 'ssh' | 'sftp' | 'scp' | 'azure-shell' | 'azure-bastion' | 'azure-ssh' | 'gcp-shell' | 'gcp-ssh' | 'gcp-oslogin' | 'aws-ssm' | 'ssm-session' | 'ssm-tunnel' | 'serial' | 'com' | 'uart' | 'docker' | 'docker-exec' | 'kubectl' | 'k8s-exec' | 'k8s-logs' | 'k8s-port-forward' | 'telnet' | 'wsl' | 'wsl2' | 'rdp' | 'mstsc' | 'vnc' | 'winrm' | 'psremoting' | 'websocket-term' | 'xterm-ws' | 'web-terminal' | 'ipmi' | 'bmc' | 'idrac' | 'named-pipe' | 'unix-socket' | 'ipc' | 'ansible' | 'ansible-ssh' | 'ansible-winrm' | 'ansible-local' | 'lxc' | 'podman' | 'containerd' | 'chef' | 'dbus' | 'dotnet' | 'cassandra' | 'golang' | 'gotty' | 'hyperv' | 'guacamole' | 'ilo' | 'java' | 'jtag' | 'messagequeue' | 'mysql' | 'mongodb' | 'php' | 'powershelldirect' | 'postgresql' | 'psexec' | 'node' | 'puppet' | 'python' | 'qemu' | 'redis' | 'ruby' | 'rust' | 'spice' | 'sqlite' | 'saltstack' | 'terraform' | 'vagrant' | 'vmware' | 'virtualbox' | 'wetty' | 'wmi' | 'xen' | 'x11vnc' | 'ttyd';
+export type ConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto' | 'ssh' | 'sftp' | 'scp' | 'azure-shell' | 'azure-bastion' | 'azure-ssh' | 'gcp-shell' | 'gcp-ssh' | 'gcp-oslogin' | 'aws-ssm' | 'ssm-session' | 'ssm-tunnel' | 'serial' | 'com' | 'uart' | 'docker' | 'docker-exec' | 'kubectl' | 'k8s-exec' | 'k8s-logs' | 'k8s-port-forward' | 'telnet' | 'wsl' | 'wsl2' | 'rdp' | 'mstsc' | 'vnc' | 'winrm' | 'psremoting' | 'websocket-term' | 'xterm-ws' | 'web-terminal' | 'ipmi' | 'bmc' | 'idrac' | 'named-pipe' | 'unix-socket' | 'ipc' | 'ansible' | 'ansible-ssh' | 'ansible-winrm' | 'ansible-local' | 'lxc' | 'podman' | 'containerd' | 'chef' | 'dbus' | 'dotnet' | 'cassandra' | 'golang' | 'gotty' | 'hyperv' | 'guacamole' | 'ilo' | 'java' | 'jtag' | 'messagequeue' | 'mysql' | 'mssql' | 'mongodb' | 'php' | 'powershelldirect' | 'postgresql' | 'psexec' | 'node' | 'puppet' | 'python' | 'qemu' | 'redis' | 'ruby' | 'rust' | 'spice' | 'sqlite' | 'saltstack' | 'terraform' | 'vagrant' | 'vmware' | 'virtualbox' | 'wetty' | 'wmi' | 'xen' | 'x11vnc' | 'ttyd' | 'pulumi' | 'jenkins' | 'gitlab-runner' | 'github-actions' | 'circleci' | 'elasticsearch' | 'oracle' | 'neo4j' | 'jupyter' | 'vscode-remote' | 'code-server' | 'theia' | 'cloud9' | 'virtualization';
 
 // Console Type Categories
 export type LocalConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto';
@@ -21,12 +21,14 @@ export type SystemProtocolType = 'dbus' | 'wmi' | 'messagequeue' | 'jtag' | 'pse
 
 export interface ConsoleSession {
   id: string;
+  sessionType?: 'one-shot' | 'persistent';  // Distinguish session types
   command: string;
   args: string[];
   cwd: string;
   env: Record<string, string>;
   environment?: Record<string, string>; // Alternative environment property
   createdAt: Date;
+  endedAt?: Date; // Session end time
   pid?: number;
   status: 'running' | 'stopped' | 'crashed' | 'terminated' | 'failed' | 'paused' | 'initializing' | 'recovering' | 'closed';
   exitCode?: number;
@@ -59,6 +61,11 @@ export interface ConsoleSession {
   wslOptions?: WSLConnectionOptions; // Missing property
   dockerOptions?: DockerConnectionOptions;
   dockerState?: DockerSession;
+  // Docker-specific properties
+  containerId?: string;
+  containerName?: string;
+  imageId?: string;
+  isExecSession?: boolean;
   sftpOptions?: SFTPSessionOptions;
   sessionState?: any; // Generic session state for various connection types
   // Command execution state
@@ -66,6 +73,7 @@ export interface ConsoleSession {
   currentCommandId?: string;
   lastCommandCompletedAt?: Date;
   activeCommands: Map<string, CommandExecution>;
+  metadata?: any;
 }
 
 export interface ConsoleOutput {
@@ -227,7 +235,7 @@ export interface AlertConfig {
 
 export interface ConsoleEvent {
   sessionId: string;
-  type: 'started' | 'stopped' | 'error' | 'input' | 'output' | 'prompt-detected' | 'vnc-framebuffer-update' | 'vnc-message' | 'vnc-clipboard-update' | 'terminated';
+  type: 'started' | 'stopped' | 'error' | 'input' | 'output' | 'prompt-detected' | 'vnc-framebuffer-update' | 'vnc-message' | 'vnc-clipboard-update' | 'terminated' | 'session-closed';
   timestamp: Date;
   data?: any;
 }
@@ -269,9 +277,27 @@ export interface SessionOptions {
   ipcOptions?: IPCConnectionOptions;
   webSocketTerminalOptions?: WebSocketTerminalConnectionOptions;
   ansibleOptions?: AnsibleConnectionOptions;
+  chefOptions?: any; // ChefConnectionOptions defined in ChefProtocol
+  puppetOptions?: any; // PuppetConnectionOptions defined in PuppetProtocol
+
+  // WMI-specific options
+  wmiHost?: string;
+  wmiNamespace?: string;
+  wmiUsername?: string;
+  wmiPassword?: string;
+  wmiDomain?: string;
+  wmiAuthLevel?: string;
+  wmiImpersonationLevel?: string;
+  wmiTimeout?: number;
+  wmiLocale?: string;
+  wmiEnablePrivileges?: boolean;
+  wmiUseKerberos?: boolean;
+  wmiUseNTLMv2?: boolean;
   // Additional protocol options for completeness
   sftpOptions?: SFTPSessionOptions;
   scpOptions?: SCPTransferOptions;
+  // One-shot command flag
+  isOneShot?: boolean;
 }
 
 // Connection Pooling Configuration
@@ -567,6 +593,19 @@ export interface VNCConnectionOptions {
   debugLevel?: 'error' | 'warn' | 'info' | 'debug' | 'trace';
   customOptions?: Record<string, any>;
   encoding?: VNCEncoding[]; // Supported encodings
+
+  // Missing properties found in VNCProtocol usage
+  mode?: 'viewer' | 'server'; // VNC mode
+  initialWidth?: number; // Initial screen width
+  initialHeight?: number; // Initial screen height
+  vncViewer?: string; // VNC viewer executable path
+  fullScreen?: boolean; // Full screen mode
+  scaleFactor?: number; // Scale factor for display
+  vncServer?: string; // VNC server executable path
+  display?: string; // Display identifier
+  daemonMode?: boolean; // Run as daemon
+  geometry?: string; // Screen geometry
+  depth?: number; // Color depth
 }
 
 export type VNCEncoding = 
@@ -601,7 +640,7 @@ export type VeNCryptSubType =
   | 'tlssasl'          // 263 - TLS with SASL authentication
   | 'x509sasl';        // 264 - X509 with SASL authentication
 
-export type VNCSecurityType = 
+export type VNCSecurityType =
   | 'none'             // 1 - No security
   | 'vnc'              // 2 - VNC authentication
   | 'ra2'              // 5 - RA2 authentication
@@ -612,7 +651,12 @@ export type VNCSecurityType =
   | 'vencrypt'         // 19 - VeNCrypt security
   | 'sasl'             // 20 - SASL security
   | 'md5hash'          // 21 - MD5 hash authentication
-  | 'xvp';             // 22 - Xvp authentication
+  | 'xvp'              // 22 - Xvp authentication
+  | 'x509'             // X.509 certificate authentication
+  | 'plain'            // Plain text authentication
+  | 'mslogonii'        // Microsoft Logon II
+  | 'ard'              // Apple Remote Desktop
+  | 'mslogon';         // Microsoft Logon
 
 export interface VNCMonitorConfig {
   id: number;
@@ -2708,12 +2752,14 @@ export interface WinRMConnectionOptions {
   password?: string;
   domain?: string; // Windows domain
   authType?: 'basic' | 'negotiate' | 'ntlm' | 'kerberos' | 'credssp' | 'certificate';
+  authMethod?: 'basic' | 'negotiate' | 'ntlm' | 'kerberos' | 'credssp' | 'certificate';
   
   // Certificate authentication
   certificatePath?: string;
   certificatePassword?: string;
   clientCertificate?: string; // PEM format certificate
   clientKey?: string; // PEM format private key
+  verifyCertificate?: boolean;
   
   // Kerberos settings
   kerberosRealm?: string;
@@ -2759,6 +2805,7 @@ export interface WinRMConnectionOptions {
   
   // Connection pooling and management
   maxConnections?: number;
+  timeout?: number;
   connectionTimeout?: number;
   operationTimeout?: number;
   keepAliveInterval?: number;

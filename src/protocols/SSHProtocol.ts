@@ -1,31 +1,28 @@
-import { EventEmitter } from 'events';
-import { Client as SSHClient, ConnectConfig } from 'ssh2';
-import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import { SSHAdapter, SSHOptions, createSSHSession, createSSHSessionWithHandlers } from '../core/SSHAdapter.js';
+import { ProtocolCapabilities, SessionState } from '../core/IProtocol.js';
 import {
   ConsoleSession,
   ConsoleOutput,
   SessionOptions,
-  SSHConnectionOptions
+  SSHConnectionOptions,
+  ConsoleType
 } from '../types/index.js';
-import { Logger } from '../utils/logger.js';
 
 /**
  * SSH Protocol implementation for secure remote shell access
+ * Uses the robust SSHAdapter for actual SSH connections with retry/recovery
  */
-export class SSHProtocol extends EventEmitter implements IProtocol {
-  public readonly type = 'ssh';
+export class SSHProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'ssh';
   public readonly capabilities: ProtocolCapabilities;
-  public readonly healthStatus: ProtocolHealthStatus;
 
-  private logger: Logger;
-  private sessions: Map<string, SSHSession> = new Map();
-  private connectionPool: Map<string, SSHClient> = new Map();
-  private isInitialized: boolean = false;
+  private connectionPool: Map<string, SSHAdapter> = new Map();
+  private sessionAdapters: Map<string, SSHAdapter> = new Map();
 
   constructor() {
-    super();
-    this.logger = new Logger('SSHProtocol');
-    
+    super('SSHProtocol');
+
     this.capabilities = {
       supportsStreaming: true,
       supportsFileTransfer: true,
@@ -54,26 +51,6 @@ export class SSHProtocol extends EventEmitter implements IProtocol {
         freebsd: true,
       },
     };
-
-    this.healthStatus = {
-      isHealthy: true,
-      lastChecked: new Date(),
-      errors: [],
-      warnings: [],
-      metrics: {
-        activeSessions: 0,
-        totalSessions: 0,
-        averageLatency: 0,
-        successRate: 1.0,
-        uptime: 0,
-      },
-      dependencies: {
-        ssh: {
-          available: true,
-          version: '2.0',
-        },
-      },
-    };
   }
 
   async initialize(): Promise<void> {
@@ -82,12 +59,10 @@ export class SSHProtocol extends EventEmitter implements IProtocol {
     }
 
     try {
-      // SSH client is available via ssh2 package
+      // SSH functionality available through SSHAdapter
       this.isInitialized = true;
-      this.logger.info('SSH protocol initialized');
+      this.logger.info('SSH protocol initialized with session management fixes');
     } catch (error) {
-      this.healthStatus.isHealthy = false;
-      this.healthStatus.errors.push(`Failed to initialize: ${error}`);
       throw error;
     }
   }
@@ -97,77 +72,321 @@ export class SSHProtocol extends EventEmitter implements IProtocol {
       throw new Error('Protocol not initialized');
     }
 
-    const sessionId = `ssh-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = `ssh-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+    // Use session management fixes from BaseProtocol
+    return await this.createSessionWithTypeDetection(sessionId, options);
+  }
+
+  protected async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
+    // CRITICAL DEBUG: Track execution flow
+    const debugLog = (msg: string) => {
+      try {
+        console.error(`[SSH-DEBUG] ${msg}`);
+      } catch (e) {
+        // Ignore debug errors
+      }
+    };
+    
+    debugLog('=== SSHProtocol.doCreateSession CALLED ===');
+    debugLog(`sessionId: ${sessionId}`);
+    debugLog(`sessionState.isOneShot: ${sessionState.isOneShot}`);
+    debugLog(`options.command: "${options.command}"`);
+    debugLog(`options.args: ${JSON.stringify(options.args)}`);
+    debugLog(`has sshOptions: ${!!options.sshOptions}`);
     
     try {
-      // Implementation would create SSH connection and session here
-      // This is a stub - actual implementation would use ssh2 library
-      
-      const consoleSession: ConsoleSession = {
+      // Validate SSH options
+      if (!options.sshOptions) {
+        debugLog('ERROR: No SSH options provided!');
+        throw new Error('SSH connection options required');
+      }
+
+      // Convert to SSHAdapter options
+      const sshOptions: SSHOptions = {
+        host: options.sshOptions.host,
+        port: options.sshOptions.port,
+        username: options.sshOptions.username,
+        password: options.sshOptions.password,
+        privateKey: options.sshOptions.privateKey,
+        strictHostKeyChecking: options.sshOptions.strictHostKeyChecking,
+        timeout: options.timeout || this.capabilities.defaultTimeout,
+      };
+
+      // Create SSH adapter for this session with immediate handler setup
+      // This pattern eliminates race conditions by ensuring handlers are attached atomically
+      const adapter = createSSHSessionWithHandlers(
+        sshOptions,
+        sessionId,
+        (adapter) => this.setupAdapterHandlers(sessionId, adapter)
+      );
+
+      // Store adapter after handlers are guaranteed to be set up
+      this.sessionAdapters.set(sessionId, adapter);
+
+      // SSH always needs connection, regardless of one-shot or persistent
+      debugLog(`CONNECTING for ${sessionState.isOneShot ? 'one-shot' : 'persistent'} session`);
+      debugLog(`SSH Options: ${JSON.stringify({
+        host: sshOptions.host,
+        hasPassword: !!sshOptions.password,
+        hasPrivateKey: !!sshOptions.privateKey
+      })}`);
+      await adapter.connect(sshOptions);
+      debugLog('>>> adapter.connect() COMPLETED <<<');
+
+      const session: ConsoleSession = {
         id: sessionId,
-        command: options.command,
+        command: options.command || 'ssh',
         args: options.args || [],
-        cwd: options.cwd || '/',
+        cwd: options.cwd || '~',
         env: options.env || {},
         createdAt: new Date(),
-        status: 'running',
-        type: 'ssh',
+        status: sessionState.isOneShot ? 'initializing' : 'running',
+        type: this.type,
         streaming: options.streaming ?? false,
         sshOptions: options.sshOptions,
         executionState: 'idle',
         activeCommands: new Map(),
+        lastActivity: new Date(),
+        pid: undefined // SSH sessions don't have local PIDs
       };
 
-      this.healthStatus.metrics.activeSessions++;
-      this.healthStatus.metrics.totalSessions++;
+      this.sessions.set(sessionId, session);
+      this.outputBuffers.set(sessionId, []);
 
-      this.emit('sessionCreated', consoleSession);
-      return consoleSession;
+      debugLog(`SSH session ${sessionId} created successfully (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
+      this.logger.info(`SSH session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
+      return session;
 
     } catch (error) {
+      try {
+        console.error(`[SSH-DEBUG] ERROR in doCreateSession: ${error}`);
+        console.error(`[SSH-DEBUG] Error stack: ${(error as Error).stack}`);
+      } catch (e) {
+        // Ignore debug errors
+      }
       this.logger.error(`Failed to create SSH session: ${error}`);
+
+      // Cleanup on failure
+      const adapter = this.sessionAdapters.get(sessionId);
+      if (adapter) {
+        adapter.destroy();
+        this.sessionAdapters.delete(sessionId);
+      }
+
       throw error;
     }
   }
 
   async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    // Stub implementation
-    this.emit('commandExecuted', { sessionId, command, args, timestamp: new Date() });
+    const adapter = this.sessionAdapters.get(sessionId);
+    const sessionState = await this.getSessionState(sessionId);
+
+    if (!adapter) {
+      throw new Error(`SSH adapter for session ${sessionId} not found`);
+    }
+
+    try {
+      // For one-shot sessions, connect first if not already connected
+      if (sessionState.isOneShot && !adapter.isActive()) {
+        const session = this.sessions.get(sessionId);
+        if (session?.sshOptions) {
+          const sshOptions: SSHOptions = {
+            host: session.sshOptions.host,
+            port: session.sshOptions.port,
+            username: session.sshOptions.username,
+            password: session.sshOptions.password,
+            privateKey: session.sshOptions.privateKey,
+            strictHostKeyChecking: session.sshOptions.strictHostKeyChecking,
+            timeout: this.capabilities.defaultTimeout,
+          };
+          await adapter.connect(sshOptions);
+        }
+      }
+
+      // Build full command
+      const fullCommand = args ? `${command} ${args.join(' ')}` : command;
+
+      // Send command via SSH adapter
+      await adapter.sendCommand(fullCommand);
+
+      // For one-shot sessions, mark as complete when command is sent
+      if (sessionState.isOneShot) {
+        setTimeout(() => {
+          this.markSessionComplete(sessionId, 0);
+        }, 1000); // Give time for output to be captured
+      }
+
+      this.emit('commandExecuted', { sessionId, command: fullCommand, timestamp: new Date() });
+
+    } catch (error) {
+      this.logger.error(`Failed to execute SSH command: ${error}`);
+      throw error;
+    }
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
-    // Stub implementation
-    this.emit('inputSent', { sessionId, input, timestamp: new Date() });
-  }
+    const adapter = this.sessionAdapters.get(sessionId);
 
-  async getOutput(sessionId: string, since?: Date): Promise<string> {
-    // Stub implementation
-    return '';
+    if (!adapter) {
+      throw new Error(`SSH adapter for session ${sessionId} not found`);
+    }
+
+    try {
+      // Check if this is a password input
+      if (input.includes('\n') && !input.trim().includes(' ')) {
+        await adapter.sendPassword(input.trim());
+      } else {
+        await adapter.sendCommand(input);
+      }
+
+      this.emit('inputSent', { sessionId, input, timestamp: new Date() });
+
+    } catch (error) {
+      this.logger.error(`Failed to send SSH input: ${error}`);
+      throw error;
+    }
   }
 
   async closeSession(sessionId: string): Promise<void> {
-    this.emit('sessionClosed', sessionId);
-  }
+    const adapter = this.sessionAdapters.get(sessionId);
 
-  async getHealthStatus(): Promise<ProtocolHealthStatus> {
-    this.healthStatus.lastChecked = new Date();
-    return { ...this.healthStatus };
+    if (adapter) {
+      adapter.destroy();
+      this.sessionAdapters.delete(sessionId);
+    }
+
+    // Remove from base class tracking
+    this.sessions.delete(sessionId);
+    this.outputBuffers.delete(sessionId);
+
+    this.emit('sessionClosed', sessionId);
   }
 
   async dispose(): Promise<void> {
     this.logger.info('Disposing SSH protocol');
-    this.sessions.clear();
-    this.connectionPool.clear();
-    this.removeAllListeners();
-    this.isInitialized = false;
-  }
-}
 
-interface SSHSession {
-  id: string;
-  client: SSHClient;
-  channel: any;
-  created: Date;
-  lastActivity: Date;
-  isActive: boolean;
+    // Close all SSH adapters
+    for (const sessionId of this.sessionAdapters.keys()) {
+      const adapter = this.sessionAdapters.get(sessionId);
+      if (adapter) {
+        adapter.destroy();
+      }
+    }
+
+    this.sessionAdapters.clear();
+    this.connectionPool.clear();
+
+    await this.cleanup();
+  }
+
+  /**
+   * Setup event handlers for SSH adapter with error-safe patterns
+   */
+  private setupAdapterHandlers(sessionId: string, adapter: SSHAdapter): void {
+    // CRITICAL: All handlers must be synchronous and error-safe
+    // Use try-catch to prevent handler errors from breaking the adapter
+
+    adapter.on('data', (data: string) => {
+      try {
+        const output: ConsoleOutput = {
+          sessionId,
+          type: 'stdout',
+          data,
+          timestamp: new Date(),
+          raw: data,
+        };
+
+        this.addToOutputBuffer(sessionId, output);
+      } catch (error) {
+        this.logger.error(`Error handling SSH data for session ${sessionId}:`, error);
+      }
+    });
+
+    adapter.on('error', (error: string) => {
+      try {
+        const output: ConsoleOutput = {
+          sessionId,
+          type: 'stderr',
+          data: error,
+          timestamp: new Date(),
+          raw: error,
+        };
+
+        this.addToOutputBuffer(sessionId, output);
+      } catch (handlerError) {
+        this.logger.error(`Error handling SSH error for session ${sessionId}:`, handlerError);
+        // Log original error too in case handler fails
+        this.logger.error(`Original SSH error:`, error);
+      }
+    });
+
+    adapter.on('close', (code: number) => {
+      try {
+        this.markSessionComplete(sessionId, code);
+      } catch (error) {
+        this.logger.error(`Error handling SSH close for session ${sessionId}:`, error);
+      }
+    });
+
+    adapter.on('connected', () => {
+      try {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          session.status = 'running';
+          session.executionState = 'idle';
+        }
+      } catch (error) {
+        this.logger.error(`Error handling SSH connected for session ${sessionId}:`, error);
+      }
+    });
+
+    adapter.on('error-recovered', (data) => {
+      try {
+        this.logger.info(`SSH session ${sessionId} error recovered: ${JSON.stringify(data)}`);
+      } catch (error) {
+        this.logger.error(`Error logging SSH recovery for session ${sessionId}:`, error);
+      }
+    });
+
+    adapter.on('degradation-enabled', (data) => {
+      try {
+        this.logger.warn(`SSH session ${sessionId} degraded mode: ${JSON.stringify(data)}`);
+      } catch (error) {
+        this.logger.error(`Error logging SSH degradation for session ${sessionId}:`, error);
+      }
+    });
+
+    // CRITICAL: Add handler for new safety events from improved SSHAdapter
+    adapter.on('connection-failed', (data) => {
+      try {
+        this.logger.error(`SSH session ${sessionId} connection failed: ${JSON.stringify(data)}`);
+        // Mark session as failed so it can be cleaned up
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          session.status = 'failed';
+        }
+      } catch (error) {
+        this.logger.error(`Error handling SSH connection failure for session ${sessionId}:`, error);
+      }
+    });
+
+    adapter.on('connection-restored', (data) => {
+      try {
+        this.logger.info(`SSH session ${sessionId} connection restored: ${JSON.stringify(data)}`);
+        // Update session status
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          session.status = 'running';
+          session.executionState = 'idle';
+        }
+      } catch (error) {
+        this.logger.error(`Error handling SSH connection restoration for session ${sessionId}:`, error);
+      }
+    });
+  }
 }

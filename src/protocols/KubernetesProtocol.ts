@@ -1,4 +1,6 @@
-import { EventEmitter } from 'events';
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import { ProtocolCapabilities, SessionState } from '../core/IProtocol.js';
+import { Logger } from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as k8s from '@kubernetes/client-node';
 import * as yaml from 'js-yaml';
@@ -15,9 +17,10 @@ import {
   KubernetesLogOptions,
   KubernetesExecOptions,
   ConsoleOutput,
-  ConsoleSession
+  ConsoleSession,
+  SessionOptions,
+  ConsoleType
 } from '../types/index.js';
-import { Logger } from '../utils/logger.js';
 
 export interface KubernetesProtocolOptions {
   connectionOptions: KubernetesConnectionOptions;
@@ -89,7 +92,10 @@ export interface KubernetesUser {
   };
 }
 
-export class KubernetesProtocol extends EventEmitter {
+export class KubernetesProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'k8s-exec';
+  public readonly capabilities: ProtocolCapabilities;
+
   private kc: k8s.KubeConfig;
   private k8sApi: k8s.CoreV1Api;
   private k8sAppsApi: k8s.AppsV1Api;
@@ -97,9 +103,8 @@ export class KubernetesProtocol extends EventEmitter {
   private k8sLogsApi: k8s.Log;
   private k8sPortForwardApi: k8s.PortForward;
   private k8sCpApi: k8s.Cp;
-  private logger: Logger;
   private connectionOptions: KubernetesConnectionOptions;
-  private activeSessions: Map<string, KubernetesSessionState> = new Map();
+  private kubernetesSessions: Map<string, KubernetesSessionState> = new Map();
   private activeExecSessions: Map<string, any> = new Map();
   private activePortForwards: Map<string, any> = new Map();
   private activeLogStreams: Map<string, any> = new Map();
@@ -113,12 +118,40 @@ export class KubernetesProtocol extends EventEmitter {
   private currentNamespace?: string;
 
   constructor(options: KubernetesProtocolOptions) {
-    super();
+    super('KubernetesProtocol');
     this.connectionOptions = options.connectionOptions;
-    this.logger = options.logger || new Logger('KubernetesProtocol');
     this.maxReconnectAttempts = options.maxReconnectAttempts || 5;
     this.reconnectDelay = options.reconnectDelay || 5000;
     this.heartbeatInterval = options.heartbeatInterval || 30000;
+
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: true,
+      supportsX11Forwarding: false,
+      supportsPortForwarding: true,
+      supportsAuthentication: true,
+      supportsEncryption: true,
+      supportsCompression: false,
+      supportsMultiplexing: true,
+      supportsKeepAlive: true,
+      supportsReconnection: true,
+      supportsBinaryData: true,
+      supportsCustomEnvironment: true,
+      supportsWorkingDirectory: true,
+      supportsSignals: true,
+      supportsResizing: true,
+      supportsPTY: true,
+      maxConcurrentSessions: 50,
+      defaultTimeout: 30000,
+      supportedEncodings: ['utf-8'],
+      supportedAuthMethods: ['token', 'cert', 'exec'],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: true,
+      },
+    };
 
     this.kc = new k8s.KubeConfig();
     this.k8sApi = this.kc.makeApiClient(k8s.CoreV1Api);
@@ -129,26 +162,32 @@ export class KubernetesProtocol extends EventEmitter {
     this.k8sCpApi = new k8s.Cp(this.kc);
   }
 
-  /**
-   * Initialize and connect to Kubernetes cluster
-   */
-  async connect(): Promise<void> {
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
     try {
       await this.loadKubeConfig();
       await this.validateConnection();
       this.isConnected = true;
       this.reconnectAttempts = 0;
       this.startHeartbeat();
-      this.emit('connected');
-      this.logger.info('Successfully connected to Kubernetes cluster', {
+      this.isInitialized = true;
+      this.logger.info('Kubernetes protocol initialized with session management fixes', {
         context: this.currentContext,
         namespace: this.currentNamespace
       });
     } catch (error: any) {
-      this.logger.error('Failed to connect to Kubernetes cluster', error);
+      this.logger.error('Failed to initialize Kubernetes cluster connection', error);
       this.isConnected = false;
       throw error;
     }
+  }
+
+  /**
+   * Connect to Kubernetes cluster (alias for initialize)
+   */
+  async connect(): Promise<void> {
+    await this.initialize();
   }
 
   /**
@@ -159,7 +198,7 @@ export class KubernetesProtocol extends EventEmitter {
       this.stopHeartbeat();
       
       // Close all active sessions
-      for (const [sessionId, session] of Array.from(this.activeSessions.entries())) {
+      for (const [sessionId, session] of Array.from(this.sessions.entries())) {
         await this.closeSession(sessionId);
       }
       
@@ -184,7 +223,7 @@ export class KubernetesProtocol extends EventEmitter {
       }
 
       this.isConnected = false;
-      this.activeSessions.clear();
+      this.sessions.clear();
       this.activeExecSessions.clear();
       this.activePortForwards.clear();
       this.activeLogStreams.clear();
@@ -590,7 +629,7 @@ export class KubernetesProtocol extends EventEmitter {
       };
 
       // Store session state
-      this.activeSessions.set(sessionId, sessionState);
+      this.kubernetesSessions.set(sessionId, sessionState);
 
       // Create exec connection
       const command = options.command || ['/bin/bash'];
@@ -637,7 +676,7 @@ export class KubernetesProtocol extends EventEmitter {
       return sessionState;
     } catch (error: any) {
       this.logger.error('Failed to create exec session', { sessionId, options, error });
-      this.activeSessions.delete(sessionId);
+      this.kubernetesSessions.delete(sessionId);
       throw error;
     }
   }
@@ -663,47 +702,6 @@ export class KubernetesProtocol extends EventEmitter {
     }
   }
 
-  /**
-   * Close a session
-   */
-  async closeSession(sessionId: string): Promise<void> {
-    try {
-      const sessionState = this.activeSessions.get(sessionId);
-      if (!sessionState) {
-        this.logger.warn('Session not found for closing', { sessionId });
-        return;
-      }
-
-      // Close exec session
-      const execSession = this.activeExecSessions.get(sessionId);
-      if (execSession) {
-        try {
-          if (execSession.stdin && typeof execSession.stdin.end === 'function') {
-            execSession.stdin.end();
-          }
-          if (execSession.stdout && typeof execSession.stdout.destroy === 'function') {
-            execSession.stdout.destroy();
-          }
-          if (execSession.stderr && typeof execSession.stderr.destroy === 'function') {
-            execSession.stderr.destroy();
-          }
-        } catch (error: any) {
-          this.logger.warn('Error closing exec session streams', { sessionId, error });
-        }
-        this.activeExecSessions.delete(sessionId);
-      }
-
-      // Update session state
-      sessionState.connectionState.connected = false;
-      this.activeSessions.delete(sessionId);
-
-      this.emit('sessionClosed', { sessionId });
-      this.logger.info('Session closed', { sessionId });
-    } catch (error: any) {
-      this.logger.error('Failed to close session', { sessionId, error });
-      throw error;
-    }
-  }
 
   /**
    * Start port forwarding
@@ -949,15 +947,54 @@ export class KubernetesProtocol extends EventEmitter {
   /**
    * Get session state
    */
-  getSessionState(sessionId: string): KubernetesSessionState | undefined {
-    return this.activeSessions.get(sessionId);
+  async getSessionState(sessionId: string): Promise<SessionState> {
+    const kubernetesSession = this.kubernetesSessions.get(sessionId);
+    if (!kubernetesSession) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const consoleSession = this.sessions.get(sessionId);
+    if (!consoleSession) {
+      throw new Error(`Console session ${sessionId} not found`);
+    }
+
+    // Convert KubernetesSessionState + ConsoleSession to BaseProtocol SessionState
+    return {
+      sessionId: sessionId,
+      status: kubernetesSession.connectionState.connected ? 'running' : 'stopped',
+      isOneShot: kubernetesSession.sessionType === 'exec' && consoleSession.status === 'initializing',
+      isPersistent: kubernetesSession.sessionType === 'exec' && consoleSession.status === 'running',
+      createdAt: consoleSession.createdAt,
+      lastActivity: kubernetesSession.connectionState.lastHeartbeat || consoleSession.lastActivity,
+      pid: undefined, // Kubernetes sessions don't have PIDs
+      exitCode: undefined,
+      metadata: {
+        sessionType: kubernetesSession.sessionType,
+        podInfo: kubernetesSession.podInfo,
+        connectionState: kubernetesSession.connectionState
+      }
+    };
+  }
+
+  /**
+   * Get Kubernetes-specific session state
+   */
+  getKubernetesSessionState(sessionId: string): KubernetesSessionState | undefined {
+    return this.kubernetesSessions.get(sessionId);
   }
 
   /**
    * Get all active sessions
    */
-  getActiveSessions(): Map<string, KubernetesSessionState> {
-    return new Map(this.activeSessions);
+  getActiveSessions(): ConsoleSession[] {
+    return Array.from(this.sessions.values());
+  }
+
+  /**
+   * Get all Kubernetes-specific active sessions
+   */
+  getKubernetesActiveSessions(): Map<string, KubernetesSessionState> {
+    return new Map(this.kubernetesSessions);
   }
 
   /**
@@ -1091,8 +1128,8 @@ export class KubernetesProtocol extends EventEmitter {
       checkCount++;
 
       // Active sessions health
-      const sessionCount = this.activeSessions.size;
-      const healthySessions = Array.from(this.activeSessions.values())
+      const sessionCount = this.kubernetesSessions.size;
+      const healthySessions = Array.from(this.kubernetesSessions.values())
         .filter(session => session.connectionState.connected).length;
       
       checks.sessions = {
@@ -1141,6 +1178,187 @@ export class KubernetesProtocol extends EventEmitter {
     }
 
     return { status, checks, overallScore };
+  }
+
+  // ==========================================
+  // BaseProtocol Integration Methods
+  // ==========================================
+
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const sessionId = `k8s-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+    // Use session management fixes from BaseProtocol
+    return await this.createSessionWithTypeDetection(sessionId, options);
+  }
+
+  protected async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
+    try {
+      if (!options.kubernetesOptions) {
+        throw new Error('Kubernetes options are required');
+      }
+
+      // Create a comprehensive Kubernetes exec options object combining different sources
+      const kubernetesExecOptions: KubernetesExecOptions = {
+        // Use name from kubernetesOptions or a default
+        name: (options.kubernetesOptions as any).podName || (options.kubernetesOptions as any).name || 'default-pod',
+        namespace: options.kubernetesOptions.namespace || this.currentNamespace || 'default',
+        containerName: (options.kubernetesOptions as any).containerName,
+        command: options.command ? [options.command, ...(options.args || [])] : ['/bin/bash'],
+        stdin: true,
+        interactive: true,
+        workingDir: options.cwd,
+        env: options.env
+      };
+
+      // Create Kubernetes exec session
+      await this.createExecSession(sessionId, kubernetesExecOptions);
+
+      const session: ConsoleSession = {
+        id: sessionId,
+        command: options.command || '/bin/bash',
+        args: options.args || [],
+        cwd: options.cwd || '/',
+        env: options.env || {},
+        createdAt: new Date(),
+        status: sessionState.isOneShot ? 'initializing' : 'running',
+        type: this.type,
+        streaming: options.streaming ?? false,
+        kubernetesOptions: options.kubernetesOptions,
+        executionState: 'idle',
+        activeCommands: new Map(),
+        lastActivity: new Date(),
+        pid: undefined // Kubernetes sessions don't have local PIDs
+      };
+
+      this.sessions.set(sessionId, session);
+      this.outputBuffers.set(sessionId, []);
+
+      this.logger.info(`Kubernetes session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
+      return session;
+
+    } catch (error) {
+      this.logger.error(`Failed to create Kubernetes session: ${error}`);
+
+      // Cleanup on failure
+      const kubernetesSession = this.kubernetesSessions.get(sessionId);
+      if (kubernetesSession) {
+        this.kubernetesSessions.delete(sessionId);
+      }
+      const execSession = this.activeExecSessions.get(sessionId);
+      if (execSession) {
+        this.activeExecSessions.delete(sessionId);
+      }
+
+      throw error;
+    }
+  }
+
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const kubernetesSession = this.kubernetesSessions.get(sessionId);
+    const sessionState = await this.getSessionState(sessionId);
+
+    if (!kubernetesSession) {
+      throw new Error(`Kubernetes session ${sessionId} not found`);
+    }
+
+    try {
+      // For one-shot sessions, ensure connection first
+      if (sessionState.isOneShot && !kubernetesSession.connectionState.connected) {
+        // Session should already be connected through doCreateSession
+        // This is a fallback
+        await this.initialize();
+      }
+
+      // Build full command
+      const fullCommand = args ? `${command} ${args.join(' ')}` : command;
+
+      // Send command via existing sendInput method
+      await this.sendInput(sessionId, fullCommand + '\n');
+
+      // For one-shot sessions, mark as complete when command is sent
+      if (sessionState.isOneShot) {
+        setTimeout(() => {
+          this.markSessionComplete(sessionId, 0);
+        }, 1000); // Give time for output to be captured
+      }
+
+      this.emit('commandExecuted', { sessionId, command: fullCommand, timestamp: new Date() });
+
+    } catch (error) {
+      this.logger.error(`Failed to execute Kubernetes command: ${error}`);
+      throw error;
+    }
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    try {
+      const sessionState = this.kubernetesSessions.get(sessionId);
+      if (!sessionState) {
+        this.logger.warn('Session not found for closing', { sessionId });
+        return;
+      }
+
+      // Close exec session
+      const execSession = this.activeExecSessions.get(sessionId);
+      if (execSession) {
+        try {
+          if (execSession.stdin && typeof execSession.stdin.end === 'function') {
+            execSession.stdin.end();
+          }
+          if (execSession.stdout && typeof execSession.stdout.destroy === 'function') {
+            execSession.stdout.destroy();
+          }
+          if (execSession.stderr && typeof execSession.stderr.destroy === 'function') {
+            execSession.stderr.destroy();
+          }
+        } catch (error: any) {
+          this.logger.warn('Error closing exec session streams', { sessionId, error });
+        }
+        this.activeExecSessions.delete(sessionId);
+      }
+
+      // Update session state
+      sessionState.connectionState.connected = false;
+      this.kubernetesSessions.delete(sessionId);
+
+      // Remove from base class tracking
+      this.sessions.delete(sessionId);
+      this.outputBuffers.delete(sessionId);
+
+      this.emit('sessionClosed', sessionId);
+      this.logger.info('Session closed', { sessionId });
+    } catch (error: any) {
+      this.logger.error('Failed to close session', { sessionId, error });
+      throw error;
+    }
+  }
+
+  async dispose(): Promise<void> {
+    this.logger.info('Disposing Kubernetes protocol');
+
+    // Close all sessions
+    const sessionIds = Array.from(this.kubernetesSessions.keys());
+    for (const sessionId of sessionIds) {
+      try {
+        await this.closeSession(sessionId);
+      } catch (error) {
+        this.logger.warn(`Error closing session ${sessionId} during dispose:`, error);
+      }
+    }
+
+    // Stop heartbeat and disconnect
+    this.stopHeartbeat();
+    await this.disconnect();
+
+    await this.cleanup();
   }
 }
 

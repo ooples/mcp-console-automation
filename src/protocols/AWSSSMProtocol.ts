@@ -1,4 +1,6 @@
-import { EventEmitter } from 'events';
+import { BaseProtocol } from '../core/BaseProtocol.js';
+import { ProtocolCapabilities, SessionState as BaseSessionState } from '../core/IProtocol.js';
+import { Logger } from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 import { WebSocket } from 'ws';
 
@@ -190,25 +192,26 @@ try {
   console.warn('@aws-sdk/credential-providers not available, credential provider functionality will be disabled');
 }
 
-import { 
-  AWSSSMConnectionOptions, 
-  AWSSSMSession, 
-  AWSSSMTarget, 
-  AWSSSMDocument, 
-  AWSSSMCommandExecution, 
+import {
+  AWSSSMConnectionOptions,
+  AWSSSMSession,
+  AWSSSMTarget,
+  AWSSSMDocument,
+  AWSSSMCommandExecution,
   AWSSSMPortForwardingSession,
-  AWSSSMError, 
-  AWSSSMSessionLog, 
+  AWSSSMError,
+  AWSSSMSessionLog,
   AWSSSMSessionManagerConfig,
   AWSCredentials,
   AWSSTSAssumedRole,
   AWSSSMRetryConfig,
   ConsoleOutput,
   ConsoleSession,
-  ConsoleEvent
+  ConsoleEvent,
+  SessionOptions,
+  ConsoleType
 } from '../types/index.js';
 
-import { Logger } from '../utils/logger.js';
 import { RetryManager } from '../core/RetryManager.js';
 import { ErrorRecovery } from '../core/ErrorRecovery.js';
 
@@ -225,18 +228,19 @@ import { ErrorRecovery } from '../core/ErrorRecovery.js';
  * - Advanced retry logic with exponential backoff
  * - Session recording and audit capabilities
  */
-export class AWSSSMProtocol extends EventEmitter {
+export class AWSSSMProtocol extends BaseProtocol {
+  public readonly type: ConsoleType = 'aws-ssm';
+  public readonly capabilities: ProtocolCapabilities;
   private ssmClient!: SSMClientType;
   private ec2Client!: EC2ClientType;
   private stsClient!: STSClientType;
   private s3Client?: S3ClientType;
   private cloudWatchLogsClient?: CloudWatchLogsClientType;
   
-  private logger: Logger;
   private retryManager: RetryManager;
   private errorRecovery: ErrorRecovery;
   
-  private sessions: Map<string, AWSSSMSession> = new Map();
+  private awsSSMSessions: Map<string, AWSSSMSession> = new Map();
   private portForwardingSessions: Map<string, AWSSSMPortForwardingSession> = new Map();
   private webSockets: Map<string, WebSocket> = new Map();
   
@@ -255,10 +259,38 @@ export class AWSSSMProtocol extends EventEmitter {
   private reconnectAttempts: number = 0;
   
   constructor(options: AWSSSMConnectionOptions, config?: Partial<AWSSSMSessionManagerConfig>) {
-    super();
-    
+    super('AWSSSMProtocol');
+
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsFileTransfer: true,
+      supportsX11Forwarding: false,
+      supportsPortForwarding: true,
+      supportsAuthentication: true,
+      supportsEncryption: true,
+      supportsCompression: false,
+      supportsMultiplexing: true,
+      supportsKeepAlive: true,
+      supportsReconnection: true,
+      supportsBinaryData: true,
+      supportsCustomEnvironment: true,
+      supportsWorkingDirectory: true,
+      supportsSignals: true,
+      supportsResizing: true,
+      supportsPTY: true,
+      maxConcurrentSessions: 10,
+      defaultTimeout: 60000,
+      supportedEncodings: ['utf-8'],
+      supportedAuthMethods: ['aws-credentials', 'iam-role', 'instance-profile'],
+      platformSupport: {
+        windows: true,
+        linux: true,
+        macos: true,
+        freebsd: false,
+      },
+    };
+
     this.connectionOptions = options;
-    this.logger = new Logger(`AWSSSMProtocol-${options.region}`);
     this.retryManager = new RetryManager();
     this.errorRecovery = new ErrorRecovery();
     
@@ -502,7 +534,7 @@ export class AWSSSMProtocol extends EventEmitter {
       this.logger.debug(`Health check passed - Account: ${identity.Account}, User: ${identity.Arn}`);
 
       // Check active sessions
-      for (const [sessionId, session] of Array.from(this.sessions.entries())) {
+      for (const [sessionId, session] of Array.from(this.awsSSMSessions.entries())) {
         if (session.status === 'Connected' || session.status === 'Connecting') {
           await this.checkSessionHealth(sessionId);
         }
@@ -524,7 +556,7 @@ export class AWSSSMProtocol extends EventEmitter {
 
       // Attempt recovery if configured
       if (this.reconnectAttempts <= this.config.connectionConfig.retryAttempts) {
-        await this.attemptReconnection();
+        await this.attemptReconnection({ error: 'Health check failed' });
       }
     }
   }
@@ -556,7 +588,7 @@ export class AWSSSMProtocol extends EventEmitter {
   /**
    * Attempt to reconnect and recover sessions
    */
-  private async attemptReconnection(): Promise<void> {
+  protected async attemptReconnection(context: any): Promise<boolean> {
     try {
       this.logger.info(`Attempting reconnection (${this.reconnectAttempts}/${this.config.connectionConfig.retryAttempts})`);
       
@@ -567,14 +599,26 @@ export class AWSSSMProtocol extends EventEmitter {
       this.initializeAWSClients();
       
       // Attempt to reconnect active sessions
-      for (const [sessionId, session] of Array.from(this.sessions.entries())) {
+      for (const [sessionId, session] of Array.from(this.awsSSMSessions.entries())) {
         if (session.status === 'Disconnected' || session.status === 'Failed') {
           await this.attemptSessionRecovery(sessionId);
         }
       }
-      
+
+      return true; // Reconnection succeeded
     } catch (error) {
       this.logger.error('Reconnection attempt failed:', error);
+      return false; // Reconnection failed
+    }
+  }
+
+  /**
+   * Ensure AWS credentials are available and valid
+   */
+  private async ensureCredentials(): Promise<void> {
+    // Basic credential validation - AWS SDK will handle loading
+    if (!this.connectionOptions.region) {
+      throw new Error('AWS region is required');
     }
   }
 
@@ -705,7 +749,7 @@ export class AWSSSMProtocol extends EventEmitter {
         };
       }
 
-      this.sessions.set(sessionId, session);
+      this.awsSSMSessions.set(sessionId, session);
       
       // Initialize WebSocket connection
       await this.initializeWebSocketConnection(sessionId, response.StreamUrl!);
@@ -899,10 +943,10 @@ export class AWSSSMProtocol extends EventEmitter {
             this.portForwardingSessions.set(sessionId, session);
           }
         } else {
-          const session = this.sessions.get(sessionId);
+          const session = this.awsSSMSessions.get(sessionId);
           if (session) {
             session.status = 'Connected';
-            this.sessions.set(sessionId, session);
+            this.awsSSMSessions.set(sessionId, session);
           }
         }
         
@@ -1030,7 +1074,7 @@ export class AWSSSMProtocol extends EventEmitter {
    */
   async terminateSession(sessionId: string): Promise<void> {
     try {
-      const session = this.sessions.get(sessionId) || this.portForwardingSessions.get(sessionId);
+      const session = this.awsSSMSessions.get(sessionId) || this.portForwardingSessions.get(sessionId);
       if (!session) {
         throw new Error(`Session ${sessionId} not found`);
       }
@@ -1048,10 +1092,10 @@ export class AWSSSMProtocol extends EventEmitter {
       }
 
       // Update session status
-      if (this.sessions.has(sessionId)) {
-        const ssmSession = this.sessions.get(sessionId)!;
+      if (this.awsSSMSessions.has(sessionId)) {
+        const ssmSession = this.awsSSMSessions.get(sessionId)!;
         ssmSession.status = 'Terminated';
-        this.sessions.set(sessionId, ssmSession);
+        this.awsSSMSessions.set(sessionId, ssmSession);
       } else {
         const portSession = this.portForwardingSessions.get(sessionId)!;
         portSession.status = 'Terminated';
@@ -1157,8 +1201,8 @@ export class AWSSSMProtocol extends EventEmitter {
       accountId: await this.getAccountId(),
       region: this.connectionOptions.region,
       sessionOwner: 'session-manager',
-      targetId: this.sessions.get(sessionId)?.instanceId,
-      targetType: this.sessions.get(sessionId)?.targetType
+      targetId: this.awsSSMSessions.get(sessionId)?.instanceId,
+      targetType: this.awsSSMSessions.get(sessionId)?.targetType
     };
 
     // Add to in-memory log
@@ -1192,8 +1236,8 @@ export class AWSSSMProtocol extends EventEmitter {
       accountId: await this.getAccountId(),
       region: this.connectionOptions.region,
       sessionOwner: 'session-manager',
-      targetId: this.sessions.get(sessionId)?.instanceId,
-      targetType: this.sessions.get(sessionId)?.targetType
+      targetId: this.awsSSMSessions.get(sessionId)?.instanceId,
+      targetType: this.awsSSMSessions.get(sessionId)?.targetType
     };
 
     // Add to in-memory log
@@ -1286,7 +1330,7 @@ export class AWSSSMProtocol extends EventEmitter {
    * Update session statistics
    */
   private updateSessionStatistics(sessionId: string, bytes: number, direction: 'in' | 'out'): void {
-    const session = this.sessions.get(sessionId);
+    const session = this.awsSSMSessions.get(sessionId);
     if (!session) return;
 
     if (!session.statistics) {
@@ -1312,19 +1356,19 @@ export class AWSSSMProtocol extends EventEmitter {
     session.statistics.lastActivityTime = new Date();
     session.lastAccessedDate = new Date();
     
-    this.sessions.set(sessionId, session);
+    this.awsSSMSessions.set(sessionId, session);
   }
 
   /**
    * Handle session disconnect
    */
   private async handleSessionDisconnect(sessionId: string, reason: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
+    const session = this.awsSSMSessions.get(sessionId);
     if (!session) return;
 
     session.status = 'Disconnected';
     session.reason = reason;
-    this.sessions.set(sessionId, session);
+    this.awsSSMSessions.set(sessionId, session);
 
     // Close WebSocket if still open
     const ws = this.webSockets.get(sessionId);
@@ -1340,11 +1384,11 @@ export class AWSSSMProtocol extends EventEmitter {
    * Handle session errors
    */
   private async handleSessionError(sessionId: string, error: Error): Promise<void> {
-    const session = this.sessions.get(sessionId);
+    const session = this.awsSSMSessions.get(sessionId);
     if (session) {
       session.status = 'Failed';
       session.reason = error.message;
-      this.sessions.set(sessionId, session);
+      this.awsSSMSessions.set(sessionId, session);
     }
 
     // Log error event
@@ -1359,7 +1403,7 @@ export class AWSSSMProtocol extends EventEmitter {
    */
   private async attemptSessionRecovery(sessionId: string): Promise<void> {
     try {
-      const session = this.sessions.get(sessionId);
+      const session = this.awsSSMSessions.get(sessionId);
       if (!session) return;
 
       this.logger.info(`Attempting recovery for session: ${sessionId}`);
@@ -1370,7 +1414,7 @@ export class AWSSSMProtocol extends EventEmitter {
       }));
 
       session.status = 'Connected';
-      this.sessions.set(sessionId, session);
+      this.awsSSMSessions.set(sessionId, session);
       
       this.logger.info(`Session recovery successful: ${sessionId}`);
       this.emit('session-recovered', { sessionId });
@@ -1387,7 +1431,7 @@ export class AWSSSMProtocol extends EventEmitter {
   private startSessionMonitoring(sessionId: string): void {
     // Check session status periodically
     const monitorInterval = setInterval(async () => {
-      const session = this.sessions.get(sessionId);
+      const session = this.awsSSMSessions.get(sessionId);
       if (!session || session.status === 'Terminated') {
         clearInterval(monitorInterval);
         return;
@@ -1481,7 +1525,7 @@ export class AWSSSMProtocol extends EventEmitter {
    * Get session information
    */
   getSession(sessionId: string): AWSSSMSession | undefined {
-    return this.sessions.get(sessionId);
+    return this.awsSSMSessions.get(sessionId);
   }
 
   /**
@@ -1495,7 +1539,7 @@ export class AWSSSMProtocol extends EventEmitter {
    * List all active sessions
    */
   listSessions(): AWSSSMSession[] {
-    return Array.from(this.sessions.values());
+    return Array.from(this.awsSSMSessions.values());
   }
 
   /**
@@ -1561,7 +1605,7 @@ export class AWSSSMProtocol extends EventEmitter {
       // Terminate all active sessions
       const terminationPromises: Promise<void>[] = [];
       
-      for (const sessionId of Array.from(this.sessions.keys())) {
+      for (const sessionId of Array.from(this.awsSSMSessions.keys())) {
         terminationPromises.push(this.terminateSession(sessionId).catch(err => 
           this.logger.error(`Failed to terminate session ${sessionId} during cleanup:`, err)
         ));
@@ -1585,7 +1629,7 @@ export class AWSSSMProtocol extends EventEmitter {
       }
 
       // Clear all collections
-      this.sessions.clear();
+      this.awsSSMSessions.clear();
       this.portForwardingSessions.clear();
       this.webSockets.clear();
       this.sessionLogs.clear();
@@ -1593,10 +1637,171 @@ export class AWSSSMProtocol extends EventEmitter {
 
       this.logger.info('AWS SSM Protocol destroyed successfully');
       this.emit('destroyed');
-      
+
     } catch (error) {
       this.logger.error('Error during protocol destruction:', error);
       throw error;
     }
+  }
+
+  // ==========================================
+  // BaseProtocol Integration Methods
+  // ==========================================
+
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
+    try {
+      // Validate configuration and credentials
+      await this.ensureCredentials();
+
+      // Setup authentication
+      if (this.connectionOptions.roleArn) {
+        await this.refreshCredentials();
+      }
+
+      this.isInitialized = true;
+      this.logger.info('AWS SSM protocol initialized with session management fixes');
+    } catch (error: any) {
+      this.logger.error('Failed to initialize AWS SSM protocol', error);
+      throw error;
+    }
+  }
+
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const sessionId = `aws-ssm-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+    // Use session management fixes from BaseProtocol
+    return await this.createSessionWithTypeDetection(sessionId, options);
+  }
+
+  protected async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: BaseSessionState
+  ): Promise<ConsoleSession> {
+    try {
+      if (!options.awsSSMOptions) {
+        throw new Error('AWS SSM options are required');
+      }
+
+      // Create AWS SSM session using existing method
+      const awsSessionId = await this.startSession({
+        instanceId: options.awsSSMOptions.instanceId,
+        documentName: options.awsSSMOptions.documentName || 'AWS-StartSSHSession',
+        parameters: options.awsSSMOptions.parameters
+      });
+
+      const consoleSession: ConsoleSession = {
+        id: sessionId,
+        command: options.command || 'sh',
+        args: options.args || [],
+        cwd: options.cwd || '/home/ssm-user',
+        env: options.env || {},
+        createdAt: new Date(),
+        status: sessionState.isOneShot ? 'initializing' : 'running',
+        type: this.type,
+        streaming: options.streaming ?? false,
+        awsSSMOptions: options.awsSSMOptions,
+        executionState: 'idle',
+        activeCommands: new Map(),
+        lastActivity: new Date(),
+        pid: undefined // AWS SSM sessions don't have local PIDs
+      };
+
+      this.sessions.set(sessionId, consoleSession);
+      this.outputBuffers.set(sessionId, []);
+
+      this.logger.info(`AWS SSM session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
+      return consoleSession;
+
+    } catch (error) {
+      this.logger.error(`Failed to create AWS SSM session: ${error}`);
+
+      // Cleanup on failure
+      const awsSession = this.awsSSMSessions.get(sessionId);
+      if (awsSession) {
+        this.awsSSMSessions.delete(sessionId);
+      }
+
+      throw error;
+    }
+  }
+
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const awsSession = this.awsSSMSessions.get(sessionId);
+    const sessionState = await this.getSessionState(sessionId);
+
+    if (!awsSession) {
+      throw new Error(`AWS SSM session ${sessionId} not found`);
+    }
+
+    try {
+      // For one-shot sessions, ensure connection first
+      if (sessionState.isOneShot && awsSession.status !== 'Connected') {
+        // Session should already be connected through doCreateSession
+        // This is a fallback
+        await this.initialize();
+      }
+
+      // Build full command
+      const fullCommand = args ? `${command} ${args.join(' ')}` : command;
+
+      // Send command via existing method
+      await this.sendInput(sessionId, fullCommand + '\n');
+
+      // For one-shot sessions, mark as complete when command is sent
+      if (sessionState.isOneShot) {
+        setTimeout(() => {
+          this.markSessionComplete(sessionId, 0);
+        }, 1000); // Give time for output to be captured
+      }
+
+      this.emit('commandExecuted', { sessionId, command: fullCommand, timestamp: new Date() });
+
+    } catch (error) {
+      this.logger.error(`Failed to execute AWS SSM command: ${error}`);
+      throw error;
+    }
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    try {
+      // Use existing AWS SSM session termination
+      await this.terminateSession(sessionId);
+
+      // Remove from base class tracking
+      this.sessions.delete(sessionId);
+      this.outputBuffers.delete(sessionId);
+
+      this.emit('sessionClosed', sessionId);
+      this.logger.info('Session closed', { sessionId });
+    } catch (error: any) {
+      this.logger.error('Failed to close session', { sessionId, error });
+      throw error;
+    }
+  }
+
+  async dispose(): Promise<void> {
+    this.logger.info('Disposing AWS SSM protocol');
+
+    // Close all sessions
+    const sessionIds = Array.from(this.awsSSMSessions.keys());
+    for (const sessionId of sessionIds) {
+      try {
+        await this.closeSession(sessionId);
+      } catch (error) {
+        this.logger.warn(`Error closing session ${sessionId} during dispose:`, error);
+      }
+    }
+
+    // Use existing destroy method
+    await this.destroy();
+
+    await this.cleanup();
   }
 }

@@ -1,4 +1,3 @@
-import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import { PythonShell } from 'python-shell';
 import * as fs from 'fs';
@@ -7,6 +6,7 @@ import * as os from 'os';
 import * as yaml from 'js-yaml';
 import { v4 as uuidv4 } from 'uuid';
 import stripAnsi from 'strip-ansi';
+import { BaseProtocol } from '../core/BaseProtocol.js';
 
 import {
   AnsibleConnectionOptions,
@@ -33,9 +33,14 @@ import {
   ConsoleType
 } from '../types/index.js';
 
-import { Logger } from '../utils/logger.js';
-import { MonitoringSystem } from '../monitoring/MonitoringSystem.js';
-import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
+import {
+  ProtocolCapabilities,
+  SessionState,
+  ErrorContext,
+  ProtocolHealthStatus,
+  ErrorRecoveryResult,
+  ResourceUsage
+} from '../core/IProtocol.js';
 
 export interface AnsibleExecutionContext {
   sessionId: string;
@@ -89,20 +94,35 @@ export interface AnsibleGalaxyOptions {
   rolesPath?: string;
 }
 
-export class AnsibleProtocol extends EventEmitter implements IProtocol {
+export class AnsibleProtocol extends BaseProtocol {
   public readonly type: ConsoleType = 'ansible';
   public readonly capabilities: ProtocolCapabilities;
-  public readonly healthStatus: ProtocolHealthStatus;
-  
-  private logger: Logger;
-  private monitoring?: MonitoringSystem;
-  private sessions: Map<string, AnsibleSession> = new Map();
+
+  private ansibleSessions: Map<string, AnsibleSession> = new Map();
   private activeProcesses: Map<string, ChildProcess> = new Map();
   private factCache: Map<string, any> = new Map();
   private callbackBuffer: Map<string, AnsibleCallbackEvent[]> = new Map();
   private vaultPasswords: Map<string, string> = new Map();
+  private monitoring: boolean = true;
   private config: AnsibleProtocolConfig;
-  private _healthStatus: ProtocolHealthStatus;
+
+  // Compatibility property for old ProtocolFactory interface
+  public get healthStatus(): ProtocolHealthStatus {
+    return {
+      isHealthy: this.isInitialized,
+      lastChecked: new Date(),
+      errors: [],
+      warnings: [],
+      metrics: {
+        activeSessions: this.sessions.size,
+        totalSessions: this.sessions.size,
+        averageLatency: 0,
+        successRate: 100,
+        uptime: 0
+      },
+      dependencies: {}
+    };
+  }
 
   // Default configuration
   private static readonly DEFAULT_CONFIG: AnsibleProtocolConfig = {
@@ -131,8 +151,7 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
   };
 
   constructor(config?: Partial<AnsibleProtocolConfig>) {
-    super();
-    this.logger = new Logger('AnsibleProtocol');
+    super('ansible');
     this.config = { ...AnsibleProtocol.DEFAULT_CONFIG, ...config };
     
     // Initialize capabilities
@@ -164,33 +183,8 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
         freebsd: true
       }
     };
-    
-    // Initialize health status
-    this._healthStatus = {
-      isHealthy: true,
-      lastChecked: new Date(),
-      errors: [],
-      warnings: [],
-      metrics: {
-        activeSessions: 0,
-        totalSessions: 0,
-        averageLatency: 0,
-        successRate: 100,
-        uptime: 0
-      },
-      dependencies: {
-        ansible: { available: false },
-        python: { available: false }
-      }
-    };
-    
-    this.healthStatus = this._healthStatus;
-    
-    this.initializeCallbacks();
-  }
 
-  public setMonitoring(monitoring: MonitoringSystem): void {
-    this.monitoring = monitoring;
+    this.initializeCallbacks();
   }
 
   private initializeCallbacks(): void {
@@ -200,82 +194,35 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
     this.on('fact_gathered', this.handleFactGathered.bind(this));
   }
 
-  /**
-   * Initialize the protocol
-   */
-  public async initialize(): Promise<void> {
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
     try {
-      // Check if ansible is available
-      const ansibleCheck = spawn('ansible', ['--version'], { stdio: 'pipe' });
-      await new Promise<void>((resolve, reject) => {
-        ansibleCheck.on('close', (code) => {
-          if (code === 0) {
-            this._healthStatus.dependencies.ansible = { available: true };
-            resolve();
-          } else {
-            this._healthStatus.dependencies.ansible = { 
-              available: false, 
-              error: 'Ansible not found in PATH' 
-            };
-            reject(new Error('Ansible not available'));
-          }
-        });
-        ansibleCheck.on('error', () => {
-          this._healthStatus.dependencies.ansible = { 
-            available: false, 
-            error: 'Ansible not found' 
-          };
-          reject(new Error('Ansible not available'));
-        });
-      });
-      
-      // Check Python availability
-      const pythonCheck = spawn('python3', ['--version'], { stdio: 'pipe' });
-      await new Promise<void>((resolve) => {
-        pythonCheck.on('close', (code) => {
-          this._healthStatus.dependencies.python = { 
-            available: code === 0 
-          };
-          resolve();
-        });
-        pythonCheck.on('error', () => {
-          this._healthStatus.dependencies.python = { 
-            available: false, 
-            error: 'Python not found' 
-          };
-          resolve();
-        });
-      });
-      
-      this._healthStatus.isHealthy = this._healthStatus.dependencies.ansible.available;
-      this.logger.info('AnsibleProtocol initialized successfully');
-    } catch (error) {
-      this._healthStatus.isHealthy = false;
-      this._healthStatus.errors.push(`Initialization failed: ${error}`);
+      // Check if Ansible is available
+      await this.checkAnsibleAvailability();
+      this.isInitialized = true;
+      this.logger.info('Ansible protocol initialized with production features');
+    } catch (error: any) {
+      this.logger.error('Failed to initialize Ansible protocol', error);
       throw error;
     }
   }
 
-  /**
-   * Create a new console session
-   */
-  public async createSession(options: SessionOptions): Promise<ConsoleSession> {
+  async createSession(options: SessionOptions): Promise<ConsoleSession> {
+    const sessionId = `ansible-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    return await this.createSessionWithTypeDetection(sessionId, options);
+  }
+
+  async dispose(): Promise<void> {
+    await this.cleanup();
+  }
+
+  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
     const ansibleOptions = options as AnsibleConnectionOptions;
-    const sessionId = uuidv4();
-    
-    const session: ConsoleSession = {
-      id: sessionId,
-      command: ansibleOptions.playbookPath || ansibleOptions.inventory || 'ansible-playbook',
-      args: [],
-      cwd: process.cwd(),
-      env: process.env as Record<string, string>,
-      createdAt: new Date(),
-      type: 'ansible' as ConsoleType,
-      status: 'initializing',
-      pid: 0,
-      executionState: 'idle',
-      activeCommands: new Map()
-    };
 
     // Create internal Ansible session for protocol-specific data
     const ansibleSession: AnsibleSession = {
@@ -300,44 +247,31 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
       }))
     };
 
-    this.sessions.set(sessionId, ansibleSession);
+    this.ansibleSessions.set(sessionId, ansibleSession);
     this.callbackBuffer.set(sessionId, []);
 
-    this.logger.info(`Created Ansible session ${sessionId}`);
-    return session;
-  }
-
-  /**
-   * Create a new Ansible session (legacy method)
-   */
-  private async createAnsibleSession(options: AnsibleConnectionOptions): Promise<AnsibleSession> {
-    const sessionId = uuidv4();
-    const session: AnsibleSession = {
+    // Create session object
+    const session: ConsoleSession = {
       id: sessionId,
-      type: 'playbook',
+      command: ansibleOptions.playbookPath || ansibleOptions.inventory || 'ansible-playbook',
+      args: [],
+      cwd: options.cwd || process.cwd(),
+      env: { ...process.env, ...options.env },
+      createdAt: new Date(),
+      lastActivity: new Date(),
       status: 'running',
-      startedAt: new Date(),
-      options,
-      results: [],
-      stats: {
-        processed: {},
-        failures: {},
-        ok: {},
-        dark: {},
-        changed: {},
-        skipped: {}
-      },
-      callbacks: this.config.callbackPlugins.map(name => ({
-        name,
-        type: 'stdout' as const,
-        enabled: true
-      }))
+      type: this.type,
+      streaming: options.streaming,
+      executionState: 'idle',
+      activeCommands: new Map(),
+      pid: 0
     };
 
     this.sessions.set(sessionId, session);
-    this.callbackBuffer.set(sessionId, []);
 
-    this.logger.info(`Created Ansible session ${sessionId}`);
+    this.logger.info(`Ansible session ${sessionId} created for ${ansibleOptions.playbookPath || ansibleOptions.inventory || 'Ansible automation'}`);
+    this.emit('session-created', { sessionId, type: 'ansible', session });
+
     return session;
   }
 
@@ -348,7 +282,7 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
     sessionId: string,
     playbookOptions: AnsiblePlaybookOptions
   ): Promise<void> {
-    const session = this.sessions.get(sessionId);
+    const session = this.ansibleSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -394,7 +328,7 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
     pattern: string = 'all',
     options?: Partial<AnsibleConnectionOptions>
   ): Promise<void> {
-    const session = this.sessions.get(sessionId);
+    const session = this.ansibleSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -449,7 +383,7 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
     pattern: string = 'all',
     options?: Partial<AnsibleConnectionOptions>
   ): Promise<Record<string, any>> {
-    const session = this.sessions.get(sessionId);
+    const session = this.ansibleSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -751,12 +685,12 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
    * Cancel running session
    */
   public async cancelSession(sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
+    const session = this.ansibleSessions.get(sessionId);
     const process = this.activeProcesses.get(sessionId);
 
     if (process && !process.killed) {
       process.kill('SIGTERM');
-      
+
       // Force kill after timeout
       setTimeout(() => {
         if (!process.killed) {
@@ -774,11 +708,8 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
     this.logger.info(`Cancelled Ansible session ${sessionId}`);
   }
 
-  /**
-   * Execute command in session
-   */
-  public async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const session = this.sessions.get(sessionId);
+  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+    const session = this.ansibleSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -802,87 +733,192 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
     }
   }
 
-  /**
-   * Send input to session
-   */
-  public async sendInput(sessionId: string, input: string): Promise<void> {
+  async sendInput(sessionId: string, input: string): Promise<void> {
     const process = this.activeProcesses.get(sessionId);
-    if (process && process.stdin) {
-      process.stdin.write(input);
+    const session = this.sessions.get(sessionId);
+
+    if (!process || !process.stdin || !session) {
+      throw new Error(`No active Ansible session: ${sessionId}`);
     }
+
+    process.stdin.write(input);
+    session.lastActivity = new Date();
+
+    this.emit('input-sent', {
+      sessionId,
+      input,
+      timestamp: new Date(),
+    });
+
+    this.logger.debug(`Sent input to Ansible session ${sessionId}: ${input.substring(0, 100)}`);
   }
 
-  /**
-   * Get output from session
-   */
-  public async getOutput(sessionId: string, since?: Date): Promise<string> {
+  // Override getOutput to satisfy old ProtocolFactory interface (returns string)
+  async getOutput(sessionId: string, since?: Date): Promise<any> {
+    const outputs = await super.getOutput(sessionId, since);
     const events = this.callbackBuffer.get(sessionId) || [];
-    
-    let output = '';
+
+    let output = outputs.map((out: any) => out.data).join('');
     for (const event of events) {
       if (!since || event.timestamp >= since) {
         output += `[${event.timestamp.toISOString()}] ${event.eventType}: ${JSON.stringify(event.result || event)}
 `;
       }
     }
-    
+
     return output;
   }
 
-  /**
-   * Close session
-   */
-  public async closeSession(sessionId: string): Promise<void> {
-    await this.cancelSession(sessionId);
+  async closeSession(sessionId: string): Promise<void> {
+    try {
+      const process = this.activeProcesses.get(sessionId);
+      if (process) {
+        // Try graceful shutdown first
+        process.kill('SIGTERM');
+
+        // Force kill after timeout
+        setTimeout(() => {
+          if (process && !process.killed) {
+            process.kill('SIGKILL');
+          }
+        }, 10000);
+
+        this.activeProcesses.delete(sessionId);
+      }
+
+      // Clean up base protocol session
+      this.sessions.delete(sessionId);
+      this.ansibleSessions.delete(sessionId);
+      this.callbackBuffer.delete(sessionId);
+
+      this.logger.info(`Ansible session ${sessionId} closed`);
+      this.emit('session-closed', sessionId);
+    } catch (error) {
+      this.logger.error(`Error closing Ansible session ${sessionId}:`, error);
+      throw error;
+    }
   }
 
-  /**
-   * Get health status
-   */
-  public async getHealthStatus(): Promise<ProtocolHealthStatus> {
-    this._healthStatus.lastChecked = new Date();
-    this._healthStatus.metrics.activeSessions = this.activeProcesses.size;
-    this._healthStatus.metrics.totalSessions = this.sessions.size;
-    return { ...this._healthStatus };
+  async getHealthStatus(): Promise<ProtocolHealthStatus> {
+    const baseStatus = await super.getHealthStatus();
+
+    try {
+      await this.checkAnsibleAvailability();
+      return {
+        ...baseStatus,
+        dependencies: {
+          ansible: { available: true },
+          python: { available: true }
+        }
+      };
+    } catch (error) {
+      return {
+        ...baseStatus,
+        isHealthy: false,
+        errors: [...baseStatus.errors, `Ansible not available: ${error}`],
+        dependencies: {
+          ansible: { available: false },
+          python: { available: false }
+        }
+      };
+    }
   }
 
-  /**
-   * Dispose of protocol resources
-   */
-  public async dispose(): Promise<void> {
-    await this.shutdown();
+  // Missing IProtocol methods for compatibility
+  getAllSessions(): ConsoleSession[] {
+    return Array.from(this.sessions.values());
+  }
+
+  getActiveSessions(): ConsoleSession[] {
+    return Array.from(this.sessions.values()).filter(session =>
+      session.status === 'running'
+    );
+  }
+
+  getSessionCount(): number {
+    return this.sessions.size;
+  }
+
+  async getSessionState(sessionId: string): Promise<SessionState> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    return {
+      sessionId,
+      status: session.status,
+      isOneShot: false, // Ansible sessions can be long-running
+      isPersistent: true,
+      createdAt: session.createdAt,
+      lastActivity: session.lastActivity,
+      pid: session.pid,
+      metadata: {}
+    };
+  }
+
+  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
+    this.logger.error(`Error in Ansible session ${context.sessionId}: ${error.message}`);
+
+    return {
+      recovered: false,
+      strategy: 'none',
+      attempts: 0,
+      duration: 0,
+      error: error.message
+    };
+  }
+
+  async recoverSession(sessionId: string): Promise<boolean> {
+    const process = this.activeProcesses.get(sessionId);
+    return process && !process.killed || false;
+  }
+
+  getResourceUsage(): ResourceUsage {
+    const memUsage = process.memoryUsage();
+    const cpuUsage = process.cpuUsage();
+
+    return {
+      memory: {
+        used: memUsage.heapUsed,
+        available: memUsage.heapTotal,
+        peak: memUsage.heapTotal
+      },
+      cpu: {
+        usage: cpuUsage.user + cpuUsage.system,
+        load: [0, 0, 0]
+      },
+      network: {
+        bytesIn: 0,
+        bytesOut: 0,
+        connectionsActive: this.activeProcesses.size
+      },
+      storage: {
+        bytesRead: 0,
+        bytesWritten: 0
+      },
+      sessions: {
+        active: this.sessions.size,
+        total: this.sessions.size,
+        peak: this.sessions.size
+      }
+    };
   }
 
   /**
    * Get session status and results
    */
   public getSession(sessionId: string): AnsibleSession | undefined {
-    return this.sessions.get(sessionId);
+    return this.ansibleSessions.get(sessionId);
   }
 
   /**
    * List all active sessions
    */
   public listSessions(): AnsibleSession[] {
-    return Array.from(this.sessions.values());
+    return Array.from(this.ansibleSessions.values());
   }
 
-  /**
-   * Clean up completed sessions
-   */
-  public cleanup(): void {
-    Array.from(this.sessions.entries()).forEach(([sessionId, session]) => {
-      if (session.status === 'completed' || session.status === 'failed' || session.status === 'cancelled') {
-        const process = this.activeProcesses.get(sessionId);
-        if (process && !process.killed) {
-          process.kill();
-        }
-        this.sessions.delete(sessionId);
-        this.activeProcesses.delete(sessionId);
-        this.callbackBuffer.delete(sessionId);
-      }
-    });
-  }
 
   // Private helper methods
 
@@ -1087,7 +1123,7 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
   }
 
   private setupProcessHandlers(sessionId: string, process: ChildProcess): void {
-    const session = this.sessions.get(sessionId);
+    const session = this.ansibleSessions.get(sessionId);
     if (!session) return;
 
     let outputBuffer = '';
@@ -1099,23 +1135,25 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
       // Parse JSON callback output
       this.parseCallbackOutput(sessionId, output);
 
-      this.emit('output', {
+      const consoleOutput: ConsoleOutput = {
         sessionId,
         type: 'stdout',
         data: output,
         timestamp: new Date()
-      } as ConsoleOutput);
+      };
+      this.addToOutputBuffer(sessionId, consoleOutput);
     });
 
     process.stderr?.on('data', (data) => {
       const output = data.toString();
       
-      this.emit('output', {
+      const consoleOutput: ConsoleOutput = {
         sessionId,
         type: 'stderr',
         data: output,
         timestamp: new Date()
-      } as ConsoleOutput);
+      };
+      this.addToOutputBuffer(sessionId, consoleOutput);
     });
 
     process.on('close', (code, signal) => {
@@ -1129,13 +1167,7 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
         this.logger.warn(`Failed to parse final stats: ${error}`);
       }
 
-      this.emit('session_completed', {
-        sessionId,
-        exitCode: code,
-        signal,
-        status: session.status
-      });
-
+      this.markSessionComplete(sessionId, code || 0);
       this.activeProcesses.delete(sessionId);
     });
 
@@ -1352,12 +1384,30 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
     return facts;
   }
 
+  private async checkAnsibleAvailability(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const testProcess = spawn('ansible', ['--version'], { stdio: 'pipe' });
+
+      testProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error('Ansible not found. Please install Ansible.'));
+        }
+      });
+
+      testProcess.on('error', () => {
+        reject(new Error('Ansible not found. Please install Ansible.'));
+      });
+    });
+  }
+
   // Cleanup and shutdown
-  public async shutdown(): Promise<void> {
-    this.logger.info('Shutting down Ansible protocol...');
-    
+  async cleanup(): Promise<void> {
+    this.logger.info('Cleaning up Ansible protocol');
+
     // Cancel all active sessions
-    const activeSessions = Array.from(this.sessions.keys());
+    const activeSessions = Array.from(this.ansibleSessions.keys());
     for (const sessionId of activeSessions) {
       try {
         await this.cancelSession(sessionId);
@@ -1370,8 +1420,11 @@ export class AnsibleProtocol extends EventEmitter implements IProtocol {
     this.factCache.clear();
     this.vaultPasswords.clear();
     this.callbackBuffer.clear();
+    this.activeProcesses.clear();
+    this.ansibleSessions.clear();
 
-    this.logger.info('Ansible protocol shutdown complete');
+    // Call parent cleanup
+    await super.cleanup();
   }
 }
 

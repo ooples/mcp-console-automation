@@ -263,7 +263,12 @@ export class ProtocolFactory extends EventEmitter {
     const protocolTypes: ConsoleType[] = [
       'cmd', 'powershell', 'bash', 'ssh', 'telnet', 'docker', 'kubectl',
       'azure-shell', 'gcp-shell', 'aws-ssm', 'wsl', 'serial', 'rdp', 'vnc',
-      'winrm', 'websocket-term', 'ansible'
+      'winrm', 'websocket-term', 'ansible', 'ipmi', 'guacamole', 'wetty',
+      'wmi', 'x11vnc', 'xen', 'ipc', 'sftp', 'chef', 'puppet', 'saltstack',
+      'pulumi', 'terraform', 'jenkins', 'gitlab-runner', 'github-actions',
+      'circleci', 'mysql', 'postgresql', 'redis', 'mongodb', 'elasticsearch',
+      'sqlite', 'oracle', 'mssql', 'cassandra', 'neo4j', 'jupyter', 'vscode-remote',
+      'code-server', 'theia', 'cloud9'
     ];
 
     // Set default config for all protocol types
@@ -415,6 +420,222 @@ export class ProtocolFactory extends EventEmitter {
       'ansible': {
         factory: () => this.loadProtocolModule('AnsibleProtocol', '../protocols/AnsibleProtocol.js'),
         config: this.protocolConfigs.get('ansible')!,
+        lazy: true,
+        priority: 4,
+      },
+
+      // Hardware management protocols
+      'ipmi': {
+        factory: () => this.loadProtocolModule('IPMIProtocol', '../protocols/IPMIProtocol.js'),
+        config: this.protocolConfigs.get('ipmi')!,
+        lazy: true,
+        priority: 4,
+      },
+
+      // Web-based terminal protocols
+      'guacamole': {
+        factory: () => this.loadProtocolModule('GuacamoleProtocol', '../protocols/GuacamoleProtocol.js'),
+        config: this.protocolConfigs.get('guacamole')!,
+        lazy: true,
+        priority: 4,
+      },
+      'wetty': {
+        factory: () => this.loadProtocolModule('WeTTYProtocol', '../protocols/WeTTYProtocol.js'),
+        config: this.protocolConfigs.get('wetty')!,
+        lazy: true,
+        priority: 4,
+      },
+
+      // Windows management protocols
+      'wmi': {
+        factory: () => this.loadProtocolModule('WMIProtocol', '../protocols/WMIProtocol.js'),
+        config: this.protocolConfigs.get('wmi')!,
+        lazy: true,
+        priority: 4,
+      },
+
+      // X11/VNC protocols
+      'x11vnc': {
+        factory: () => this.loadProtocolModule('X11VNCProtocol', '../protocols/X11VNCProtocol.js'),
+        config: this.protocolConfigs.get('x11vnc')!,
+        lazy: true,
+        priority: 4,
+      },
+
+      // Hypervisor protocols
+      'xen': {
+        factory: () => this.loadProtocolModule('XenProtocol', '../protocols/XenProtocol.js'),
+        config: this.protocolConfigs.get('xen')!,
+        lazy: true,
+        priority: 4,
+      },
+
+      // IPC protocol
+      'ipc': {
+        factory: () => this.loadProtocolModule('IPCProtocol', '../protocols/IPCProtocol.js'),
+        config: this.protocolConfigs.get('ipc')!,
+        lazy: true,
+        priority: 3,
+      },
+
+      // File transfer protocols
+      'sftp': {
+        factory: () => this.loadProtocolModule('SFTPProtocol', '../protocols/SFTPProtocol.js'),
+        config: this.protocolConfigs.get('sftp')!,
+        lazy: true,
+        priority: 3,
+      },
+
+      // Configuration management protocols
+      'chef': {
+        factory: () => this.loadProtocolModule('ChefProtocol', '../protocols/ChefProtocol.js'),
+        config: this.protocolConfigs.get('chef')!,
+        lazy: true,
+        priority: 4,
+      },
+      'puppet': {
+        factory: () => this.loadProtocolModule('PuppetProtocol', '../protocols/PuppetProtocol.js'),
+        config: this.protocolConfigs.get('puppet')!,
+        lazy: true,
+        priority: 4,
+      },
+      'saltstack': {
+        factory: () => this.loadProtocolModule('SaltStackProtocol', '../protocols/SaltStackProtocol.js'),
+        config: this.protocolConfigs.get('saltstack')!,
+        lazy: true,
+        priority: 4,
+      },
+
+      // Infrastructure as Code protocols
+      'pulumi': {
+        factory: () => this.loadProtocolModule('PulumiProtocol', '../protocols/PulumiProtocol.js'),
+        config: this.protocolConfigs.get('pulumi')!,
+        lazy: true,
+        priority: 4,
+      },
+      'terraform': {
+        factory: () => this.loadProtocolModule('TerraformProtocol', '../protocols/TerraformProtocol.js'),
+        config: this.protocolConfigs.get('terraform')!,
+        lazy: true,
+        priority: 4,
+      },
+
+      // CI/CD protocols
+      'jenkins': {
+        factory: () => this.loadProtocolModule('JenkinsProtocol', '../protocols/JenkinsProtocol.js'),
+        config: this.protocolConfigs.get('jenkins')!,
+        lazy: true,
+        priority: 4,
+      },
+      'gitlab-runner': {
+        factory: () => this.loadProtocolModule('GitLabRunnerProtocol', '../protocols/GitLabRunnerProtocol.js'),
+        config: this.protocolConfigs.get('gitlab-runner')!,
+        lazy: true,
+        priority: 4,
+      },
+      'github-actions': {
+        factory: () => this.loadProtocolModule('GitHubActionsProtocol', '../protocols/GitHubActionsProtocol.js'),
+        config: this.protocolConfigs.get('github-actions')!,
+        lazy: true,
+        priority: 4,
+      },
+      'circleci': {
+        factory: () => this.loadProtocolModule('CircleCIProtocol', '../protocols/CircleCIProtocol.js'),
+        config: this.protocolConfigs.get('circleci')!,
+        lazy: true,
+        priority: 4,
+      },
+
+      // Database protocols
+      'mysql': {
+        factory: () => this.loadProtocolModule('MySQLProtocol', '../protocols/MySQLProtocol.js'),
+        config: this.protocolConfigs.get('mysql')!,
+        lazy: true,
+        priority: 3,
+      },
+      'postgresql': {
+        factory: () => this.loadProtocolModule('PostgreSQLProtocol', '../protocols/PostgreSQLProtocol.js'),
+        config: this.protocolConfigs.get('postgresql')!,
+        lazy: true,
+        priority: 3,
+      },
+      'redis': {
+        factory: () => this.loadProtocolModule('RedisProtocol', '../protocols/RedisProtocol.js'),
+        config: this.protocolConfigs.get('redis')!,
+        lazy: true,
+        priority: 3,
+      },
+      'mongodb': {
+        factory: () => this.loadProtocolModule('MongoDBProtocol', '../protocols/MongoDBProtocol.js'),
+        config: this.protocolConfigs.get('mongodb')!,
+        lazy: true,
+        priority: 3,
+      },
+      'elasticsearch': {
+        factory: () => this.loadProtocolModule('ElasticsearchProtocol', '../protocols/ElasticsearchProtocol.js'),
+        config: this.protocolConfigs.get('elasticsearch')!,
+        lazy: true,
+        priority: 3,
+      },
+      'sqlite': {
+        factory: () => this.loadProtocolModule('SQLiteProtocol', '../protocols/SQLiteProtocol.js'),
+        config: this.protocolConfigs.get('sqlite')!,
+        lazy: true,
+        priority: 3,
+      },
+      'oracle': {
+        factory: () => this.loadProtocolModule('OracleProtocol', '../protocols/OracleProtocol.js'),
+        config: this.protocolConfigs.get('oracle')!,
+        lazy: true,
+        priority: 3,
+      },
+      'mssql': {
+        factory: () => this.loadProtocolModule('MSSQLProtocol', '../protocols/MSSQLProtocol.js'),
+        config: this.protocolConfigs.get('mssql')!,
+        lazy: true,
+        priority: 3,
+      },
+      'cassandra': {
+        factory: () => this.loadProtocolModule('CassandraProtocol', '../protocols/CassandraProtocol.js'),
+        config: this.protocolConfigs.get('cassandra')!,
+        lazy: true,
+        priority: 3,
+      },
+      'neo4j': {
+        factory: () => this.loadProtocolModule('Neo4jProtocol', '../protocols/Neo4jProtocol.js'),
+        config: this.protocolConfigs.get('neo4j')!,
+        lazy: true,
+        priority: 3,
+      },
+
+      // Development environment protocols
+      'jupyter': {
+        factory: () => this.loadProtocolModule('JupyterProtocol', '../protocols/JupyterProtocol.js'),
+        config: this.protocolConfigs.get('jupyter')!,
+        lazy: true,
+        priority: 4,
+      },
+      'vscode-remote': {
+        factory: () => this.loadProtocolModule('VSCodeRemoteProtocol', '../protocols/VSCodeRemoteProtocol.js'),
+        config: this.protocolConfigs.get('vscode-remote')!,
+        lazy: true,
+        priority: 4,
+      },
+      'code-server': {
+        factory: () => this.loadProtocolModule('CodeServerProtocol', '../protocols/CodeServerProtocol.js'),
+        config: this.protocolConfigs.get('code-server')!,
+        lazy: true,
+        priority: 4,
+      },
+      'theia': {
+        factory: () => this.loadProtocolModule('TheiaProtocol', '../protocols/TheiaProtocol.js'),
+        config: this.protocolConfigs.get('theia')!,
+        lazy: true,
+        priority: 4,
+      },
+      'cloud9': {
+        factory: () => this.loadProtocolModule('Cloud9Protocol', '../protocols/Cloud9Protocol.js'),
+        config: this.protocolConfigs.get('cloud9')!,
         lazy: true,
         priority: 4,
       },
