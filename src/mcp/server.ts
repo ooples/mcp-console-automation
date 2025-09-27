@@ -14,6 +14,21 @@ import { SessionManager } from '../core/SessionManager.js';
 import { SessionOptions, ConsoleSession, BackgroundJobOptions } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 import { SSHBridge } from './SSHBridge.js';
+import * as fs from 'fs';
+
+const DEBUG_LOG_FILE = 'C:\\Users\\yolan\\source\\repos\\mcp-console-automation\\mcp-debug.log';
+function debugLog(...args: any[]) {
+  const timestamp = new Date().toISOString();
+  const message = `[${timestamp}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')}\n`;
+  fs.appendFileSync(DEBUG_LOG_FILE, message, 'utf8');
+}
+
+interface ErrorClassification {
+  severity: 'critical' | 'recoverable' | 'warning';
+  category: 'ssh' | 'network' | 'resource' | 'protocol' | 'unknown';
+  canRecover: boolean;
+  suggestedAction: string;
+}
 
 export class ConsoleAutomationServer {
   private server: Server;
@@ -21,6 +36,7 @@ export class ConsoleAutomationServer {
   private sessionManager: SessionManager;
   private sshBridge: SSHBridge;
   private logger: Logger;
+  private sessionRecoveryMap: Map<string, any> = new Map();
 
   constructor() {
     this.logger = new Logger('MCPServer');
@@ -29,7 +45,8 @@ export class ConsoleAutomationServer {
     this.sshBridge = new SSHBridge();
 
     this.logger.info('Production-ready SSH handler initialized');
-    
+    debugLog('[INIT] MCP Server initializing with SSH Bridge support');
+
     this.server = new Server(
       {
         name: 'console-automation',
@@ -44,6 +61,7 @@ export class ConsoleAutomationServer {
 
     this.setupHandlers();
     this.setupCleanup();
+    this.setupStdioProtection();
   }
 
   private setupHandlers() {
@@ -751,13 +769,54 @@ export class ConsoleAutomationServer {
   }
 
   private async handleCreateSession(args: SessionOptions) {
-    // Debug logging to see what MCP is receiving
+    debugLog('[DEBUG] === handleCreateSession START ===');
+    debugLog('[DEBUG] Args:', args);
     this.logger.debug('MCP handleCreateSession received args:', JSON.stringify(args, null, 2));
 
-    // Check if SSH options are present - use new SSH bridge for SSH sessions
-    if (args.consoleType === 'ssh' || args.sshOptions) {
-      this.logger.info('Using production SSH handler for SSH session');
-      const sessionId = await this.sshBridge.createSession(args);
+    try {
+      // Check if SSH options are present - use new SSH bridge for SSH sessions
+      if (args.consoleType === 'ssh' || args.sshOptions) {
+        this.logger.info('Using production SSH handler for SSH session');
+        debugLog('[SSH] Creating SSH session via SSHBridge');
+
+        const sessionId = await this.sshBridge.createSession(args);
+
+        // Store for recovery if needed
+        this.sessionRecoveryMap.set(sessionId, {
+          type: 'ssh',
+          options: args
+        });
+
+        debugLog('[SSH] Session created successfully:', sessionId);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                sessionId,
+                message: `SSH session created`,
+                consoleType: 'ssh',
+                streaming: false
+              }, null, 2)
+            } as TextContent
+          ]
+        };
+      }
+
+      // Use ConsoleManager for non-SSH sessions
+      debugLog('[DEBUG] Creating non-SSH session via ConsoleManager');
+
+      const sessionId = await this.consoleManager.createSession(args);
+      const session = this.consoleManager.getSession(sessionId);
+
+      debugLog('[DEBUG] Session created successfully:', sessionId);
+
+      // Store for recovery if needed
+      this.sessionRecoveryMap.set(sessionId, {
+        type: 'console',
+        options: args
+      });
 
       return {
         content: [
@@ -765,33 +824,18 @@ export class ConsoleAutomationServer {
             type: 'text',
             text: JSON.stringify({
               sessionId,
-              message: `SSH session created`,
-              consoleType: 'ssh',
-              streaming: false
+              message: `Session created for command: ${args.command}`,
+              pid: session?.pid,
+              consoleType: session?.type,
+              streaming: session?.streaming
             }, null, 2)
           } as TextContent
         ]
       };
+    } catch (error: any) {
+      debugLog('[ERROR] Session creation failed:', error);
+      throw error;
     }
-
-    // Use ConsoleManager for non-SSH sessions
-    const sessionId = await this.consoleManager.createSession(args);
-    const session = this.consoleManager.getSession(sessionId);
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            sessionId,
-            message: `Session created for command: ${args.command}`,
-            pid: session?.pid,
-            consoleType: session?.type,
-            streaming: session?.streaming
-          }, null, 2)
-        } as TextContent
-      ]
-    };
   }
 
   private async handleSendInput(args: { sessionId: string; input: string }) {
@@ -1070,6 +1114,9 @@ export class ConsoleAutomationServer {
     } else {
       await this.consoleManager.stopSession(args.sessionId);
     }
+
+    // Clear recovery map entry
+    this.sessionRecoveryMap.delete(args.sessionId);
 
     return {
       content: [
@@ -1701,68 +1748,96 @@ export class ConsoleAutomationServer {
   
   private async handleUseProfile(args: { profileName: string; command?: string; args?: string[]; cwd?: string; env?: any }) {
     this.logger.info(`handleUseProfile called with profile: ${args.profileName}`);
+    debugLog('[PROFILE] Using profile:', args.profileName);
 
-    // Check if this is an SSH profile
-    const connectionProfiles = this.consoleManager.listConnectionProfiles();
-    const profile = connectionProfiles?.find((p: any) => p.name === args.profileName);
+    try {
+      // Check if this is an SSH profile
+      const connectionProfiles = this.consoleManager.listConnectionProfiles();
+      const profile = connectionProfiles?.find((p: any) => p.name === args.profileName);
 
-    if (profile && profile.type === 'ssh') {
-      this.logger.info(`Profile ${args.profileName} is SSH type - routing through SSH bridge`);
+      if (profile && profile.type === 'ssh') {
+        this.logger.info(`Profile ${args.profileName} is SSH type - routing through SSH bridge`);
+        debugLog('[PROFILE] SSH profile detected, using SSHBridge');
 
-      // Use SSH bridge for SSH profiles
-      const sessionOptions = {
-        command: args.command || '',
-        args: args.args,
-        cwd: args.cwd,
-        env: args.env,
-        profileName: args.profileName,
-        consoleType: 'ssh' as const,
-        sshOptions: profile.sshOptions
-      };
+        // Use SSH bridge for SSH profiles
+        const sessionOptions = {
+          command: args.command || '',
+          args: args.args,
+          cwd: args.cwd,
+          env: args.env,
+          profileName: args.profileName,
+          consoleType: 'ssh' as const,
+          sshOptions: profile.sshOptions
+        };
 
-      const sessionId = await this.sshBridge.createSession(sessionOptions);
+        const sessionId = await this.sshBridge.createSession(sessionOptions);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              sessionId,
-              profileUsed: args.profileName,
-              message: `Session created using profile: ${args.profileName}`,
-              consoleType: 'ssh'
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    } else {
-      this.logger.info(`Profile ${args.profileName} is not SSH - using ConsoleManager`);
+        // Store for recovery if needed
+        this.sessionRecoveryMap.set(sessionId, {
+          profileName: args.profileName,
+          type: 'ssh'
+        });
 
-      // Use regular console manager for non-SSH profiles
-      const sessionOptions: SessionOptions = {
-        command: args.command || '',
-        args: args.args,
-        cwd: args.cwd,
-        env: args.env,
-        profileName: args.profileName
-      } as any;
+        debugLog('[PROFILE] SSH session created:', sessionId);
 
-      const sessionId = await this.consoleManager.createSession(sessionOptions);
-      const session = this.consoleManager.getSession(sessionId);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                sessionId,
+                profileUsed: args.profileName,
+                message: `Session created using profile: ${args.profileName}`,
+                consoleType: 'ssh'
+              }, null, 2)
+            } as TextContent
+          ]
+        };
+      } else {
+        this.logger.info(`Profile ${args.profileName} is not SSH - using ConsoleManager`);
+        debugLog('[PROFILE] Non-SSH profile, using ConsoleManager');
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              sessionId,
-              profileUsed: args.profileName,
-              message: `Session created using profile: ${args.profileName}`,
-              consoleType: session?.type
-            }, null, 2)
-          } as TextContent
-        ]
-      };
+        // Use regular console manager for non-SSH profiles
+        const sessionOptions: SessionOptions = {
+          command: args.command || '',
+          args: args.args,
+          cwd: args.cwd,
+          env: args.env,
+          profileName: args.profileName
+        } as any;
+
+        debugLog('[DEBUG] Creating session with options:', sessionOptions);
+
+        const sessionId = await this.consoleManager.createSession(sessionOptions);
+        const session = this.consoleManager.getSession(sessionId);
+
+        debugLog('[DEBUG] Session created successfully:', sessionId);
+
+        // Store for recovery if needed
+        if (sessionId) {
+          this.sessionRecoveryMap.set(sessionId, {
+            profileName: args.profileName,
+            type: 'profile'
+          } as any);
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                sessionId,
+                profileUsed: args.profileName,
+                message: `Session created using profile: ${args.profileName}`,
+                consoleType: session?.type
+              }, null, 2)
+            } as TextContent
+          ]
+        };
+      }
+    } catch (error: any) {
+      debugLog('[ERROR] Profile usage failed:', error);
+      throw error;
     }
   }
 
@@ -2110,33 +2185,89 @@ export class ConsoleAutomationServer {
     }
   }
 
+  private async gracefulShutdown() {
+    debugLog('[SHUTDOWN] Starting graceful shutdown');
+    this.logger.info('Starting graceful shutdown...');
+
+    try {
+      // Destroy SSH Bridge first
+      await this.sshBridge.destroy();
+      debugLog('[SHUTDOWN] SSH Bridge destroyed');
+
+      // Then ConsoleManager
+      await this.consoleManager.destroy();
+      debugLog('[SHUTDOWN] ConsoleManager destroyed');
+
+      // Finally SessionManager
+      this.sessionManager.destroy();
+      debugLog('[SHUTDOWN] SessionManager destroyed');
+
+      debugLog('[SHUTDOWN] Graceful shutdown complete');
+    } catch (error: any) {
+      debugLog('[SHUTDOWN ERROR]', error);
+      this.logger.error('Error during graceful shutdown:', error);
+    }
+  }
+
   private setupCleanup() {
     process.on('SIGINT', async () => {
-      this.logger.info('Shutting down...');
-      await this.sshBridge.destroy();
-      await this.consoleManager.destroy();
-      this.sessionManager.destroy();
+      this.logger.info('Received SIGINT, shutting down...');
+      debugLog('[SIGNAL] SIGINT received');
+      await this.gracefulShutdown();
       process.exit(0);
     });
 
     process.on('SIGTERM', async () => {
-      this.logger.info('Shutting down...');
-      await this.sshBridge.destroy();
-      await this.consoleManager.destroy();
-      this.sessionManager.destroy();
+      this.logger.info('Received SIGTERM, shutting down...');
+      debugLog('[SIGNAL] SIGTERM received');
+      await this.gracefulShutdown();
       process.exit(0);
     });
 
     process.on('uncaughtException', async (error) => {
       this.logger.error('Uncaught exception:', error);
-      await this.sshBridge.destroy();
-      await this.consoleManager.destroy();
+      debugLog('[UNCAUGHT EXCEPTION]', error);
+      await this.gracefulShutdown();
       process.exit(1);
     });
 
     process.on('unhandledRejection', (reason) => {
       this.logger.error(`Unhandled rejection: ${reason}`);
+      debugLog('[UNHANDLED REJECTION]', reason);
     });
+  }
+
+  private setupStdioProtection() {
+    debugLog('[INIT] Setting up STDIO protection');
+
+    // Save original stdout/stderr write methods
+    const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+    const originalStderrWrite = process.stderr.write.bind(process.stderr);
+
+    // Override stdout.write to filter out non-MCP content
+    process.stdout.write = function(chunk: any, encoding?: any, callback?: any): boolean {
+      // Convert chunk to string for inspection
+      const str = chunk?.toString ? chunk.toString() : String(chunk);
+
+      // Only allow JSON-RPC messages through stdout
+      // MCP protocol uses JSON-RPC 2.0 format
+      if (str.trim().startsWith('{') && (str.includes('"jsonrpc":"2.0"') || str.includes('"method"') || str.includes('"result"'))) {
+        return originalStdoutWrite(chunk, encoding, callback);
+      }
+
+      // Redirect non-MCP content to debug log
+      debugLog('[STDOUT-FILTERED]', str);
+      return true;
+    } as any;
+
+    // Keep stderr as-is but log it for debugging
+    process.stderr.write = function(chunk: any, encoding?: any, callback?: any): boolean {
+      const str = chunk?.toString ? chunk.toString() : String(chunk);
+      debugLog('[STDERR]', str);
+      return originalStderrWrite(chunk, encoding, callback);
+    } as any;
+
+    debugLog('[INIT] STDIO protection enabled');
   }
 
   async start() {
