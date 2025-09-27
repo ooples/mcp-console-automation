@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { Client as SSHClient, ConnectConfig } from 'ssh2';
+import { Client as SSHClient, ConnectConfig, utils as ssh2Utils } from 'ssh2';
 import { v4 as uuidv4 } from 'uuid';
 import { readFileSync } from 'fs';
 import { Logger } from '../utils/logger.js';
@@ -312,12 +312,45 @@ export class ConnectionPool extends EventEmitter {
     }
 
     const sshClient = new SSHClient();
+
+    // Parse private key if provided
+    let parsedPrivateKey: Buffer | string | undefined;
+    if (options.privateKey) {
+      parsedPrivateKey = options.privateKey;
+    } else if (options.privateKeyPath) {
+      try {
+        const keyData = readFileSync(options.privateKeyPath, 'utf8');
+
+        // Try to parse the key to handle different formats (OpenSSH, PEM, etc.)
+        try {
+          const parsedKey = ssh2Utils.parseKey(keyData);
+          if (!(parsedKey instanceof Error)) {
+            if (Array.isArray(parsedKey)) {
+              parsedPrivateKey = parsedKey[0].getPrivatePEM();
+            } else {
+              parsedPrivateKey = parsedKey.getPrivatePEM();
+            }
+            this.logger.debug('[ConnectionPool] Successfully parsed private key');
+          } else {
+            throw parsedKey;
+          }
+        } catch (parseError) {
+          // If parsing fails, use raw key data
+          this.logger.warn(`[ConnectionPool] Key parsing failed, using raw key data: ${parseError}`);
+          parsedPrivateKey = keyData;
+        }
+      } catch (error) {
+        this.logger.error(`Failed to read private key from ${options.privateKeyPath}: ${error}`);
+        throw error;
+      }
+    }
+
     const connectConfig: ConnectConfig = {
       host: options.host,
       port: options.port || 22,
       username: options.username,
       password: options.password,
-      privateKey: options.privateKey || (options.privateKeyPath ? readFileSync(options.privateKeyPath) : undefined),
+      privateKey: parsedPrivateKey,
       passphrase: options.passphrase,
       readyTimeout: options.readyTimeout || this.config.connectionTimeout,
       keepaliveInterval: options.keepAliveInterval || this.config.keepAliveInterval,

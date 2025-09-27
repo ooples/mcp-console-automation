@@ -1,7 +1,7 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { EventEmitter } from 'events';
 import { platform } from 'os';
-import { Client as SSHClient, ClientChannel } from 'ssh2';
+import { Client as SSHClient, ClientChannel, utils as ssh2Utils } from 'ssh2';
 import { readFileSync } from 'fs';
 import { RetryManager } from './RetryManager.js';
 import { ErrorRecovery, ErrorContext } from './ErrorRecovery.js';
@@ -275,7 +275,31 @@ export class SSHAdapter extends EventEmitter {
         connectConfig.password = options.password;
       } else if (options.privateKey) {
         try {
-          connectConfig.privateKey = readFileSync(options.privateKey);
+          const keyData = readFileSync(options.privateKey, 'utf8');
+
+          // Try to parse the key to handle different formats (OpenSSH, PEM, etc.)
+          try {
+            const parsedKey = ssh2Utils.parseKey(keyData);
+            if (parsedKey instanceof Error) {
+              throw parsedKey;
+            }
+
+            // ssh2 parseKey returns a ParsedKey object
+            // We need to get the private key in a format ssh2 can use
+            if (Array.isArray(parsedKey)) {
+              // Multiple keys found, use the first one
+              connectConfig.privateKey = parsedKey[0].getPrivatePEM();
+            } else {
+              connectConfig.privateKey = parsedKey.getPrivatePEM();
+            }
+
+            this.logger.debug('[SSH] Successfully parsed private key');
+          } catch (parseError) {
+            // If parsing fails, try using the raw key data
+            // (might work for some formats)
+            this.logger.warn(`[SSH] Key parsing failed, using raw key data: ${parseError}`);
+            connectConfig.privateKey = keyData;
+          }
         } catch (error) {
           reject(new Error(`Failed to read private key: ${error}`));
           return;

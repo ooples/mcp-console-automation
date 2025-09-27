@@ -2,7 +2,7 @@ import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import stripAnsi from 'strip-ansi';
-import { Client as SSHClient, ClientChannel, ConnectConfig } from 'ssh2';
+import { Client as SSHClient, ClientChannel, ConnectConfig, utils as ssh2Utils } from 'ssh2';
 import { ConsoleSession, ConsoleOutput, ConsoleEvent, SessionOptions, ConsoleType, ConnectionPoolingOptions, SSHConnectionOptions, TelnetConnectionOptions, ExtendedErrorPattern, CommandExecution, AzureConnectionOptions, SerialConnectionOptions, WSLConnectionOptions, WSLSession, SFTPSessionOptions, FileTransferSession, SFTPTransferOptions, AWSSSMConnectionOptions, RDPConnectionOptions, RDPSession, WinRMConnectionOptions, WinRMSessionState, VNCConnectionOptions, VNCSession, VNCFramebuffer, VNCSecurityType, WebSocketTerminalConnectionOptions, WebSocketTerminalSessionState, IPCSessionState, IPMISessionState, AnsibleConnectionOptions, IPCConnectionOptions, IPMIConnectionOptions } from '../types/index.js';
 import { ErrorDetector } from './ErrorDetector.js';
 import { Logger } from '../utils/logger.js';
@@ -3169,14 +3169,50 @@ export class ConsoleManager extends EventEmitter {
         connectConfig.password = sshOptions.password;
       } else if (sshOptions.privateKey) {
         try {
-          connectConfig.privateKey = readFileSync(sshOptions.privateKey);
+          const keyData = readFileSync(sshOptions.privateKey, 'utf8');
+
+          // Try to parse the key to handle different formats (OpenSSH, PEM, etc.)
+          try {
+            const parsedKey = ssh2Utils.parseKey(keyData);
+            if (!(parsedKey instanceof Error)) {
+              if (Array.isArray(parsedKey)) {
+                connectConfig.privateKey = parsedKey[0].getPrivatePEM();
+              } else {
+                connectConfig.privateKey = parsedKey.getPrivatePEM();
+              }
+              this.logger.debug('[ConsoleManager] Successfully parsed private key');
+            } else {
+              throw parsedKey;
+            }
+          } catch (parseError) {
+            this.logger.warn(`[ConsoleManager] Key parsing failed, using raw key data: ${parseError}`);
+            connectConfig.privateKey = keyData;
+          }
         } catch (error) {
           this.logger.error(`Failed to read private key: ${error}`);
           return { success: false, error: `Failed to read private key: ${sshOptions.privateKey}` };
         }
       } else if (sshOptions.privateKeyPath) {
         try {
-          connectConfig.privateKey = readFileSync(sshOptions.privateKeyPath);
+          const keyData = readFileSync(sshOptions.privateKeyPath, 'utf8');
+
+          // Try to parse the key to handle different formats (OpenSSH, PEM, etc.)
+          try {
+            const parsedKey = ssh2Utils.parseKey(keyData);
+            if (!(parsedKey instanceof Error)) {
+              if (Array.isArray(parsedKey)) {
+                connectConfig.privateKey = parsedKey[0].getPrivatePEM();
+              } else {
+                connectConfig.privateKey = parsedKey.getPrivatePEM();
+              }
+              this.logger.debug('[ConsoleManager] Successfully parsed private key');
+            } else {
+              throw parsedKey;
+            }
+          } catch (parseError) {
+            this.logger.warn(`[ConsoleManager] Key parsing failed, using raw key data: ${parseError}`);
+            connectConfig.privateKey = keyData;
+          }
         } catch (error) {
           this.logger.error(`Failed to read private key: ${error}`);
           return { success: false, error: `Failed to read private key: ${sshOptions.privateKeyPath}` };
@@ -6072,7 +6108,25 @@ export class ConsoleManager extends EventEmitter {
         // Authentication setup
         if (sshConfig.privateKey) {
           try {
-            connectConfig.privateKey = readFileSync(sshConfig.privateKey);
+            const keyData = readFileSync(sshConfig.privateKey, 'utf8');
+
+            // Try to parse the key to handle different formats (OpenSSH, PEM, etc.)
+            try {
+              const parsedKey = ssh2Utils.parseKey(keyData);
+              if (!(parsedKey instanceof Error)) {
+                if (Array.isArray(parsedKey)) {
+                  connectConfig.privateKey = parsedKey[0].getPrivatePEM();
+                } else {
+                  connectConfig.privateKey = parsedKey.getPrivatePEM();
+                }
+                this.logger.debug('[ConsoleManager] Successfully parsed private key');
+              } else {
+                throw parsedKey;
+              }
+            } catch (parseError) {
+              this.logger.warn(`[ConsoleManager] Key parsing failed, using raw key data: ${parseError}`);
+              connectConfig.privateKey = keyData;
+            }
           } catch (error) {
             this.logger.error(`Failed to read private key: ${error}`);
             throw new Error(`Failed to read private key: ${sshConfig.privateKey}`);
