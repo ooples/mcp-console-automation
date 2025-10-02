@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { Phase4Handlers } from './Phase4Handlers';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
@@ -41,6 +42,7 @@ interface ErrorClassification {
 }
 
 export class ConsoleAutomationServer {
+  private phase4Handlers: Phase4Handlers;
   private server: Server;
   private consoleManager: ConsoleManager;
   private sessionManager: SessionManager;
@@ -63,6 +65,7 @@ export class ConsoleAutomationServer {
   private snapshotDiffer: SnapshotDiffer;
 
   constructor() {
+    this.phase4Handlers = new Phase4Handlers();
     this.logger = new Logger('MCPServer');
     this.consoleManager = new ConsoleManager();
     this.sessionManager = new SessionManager();
@@ -228,19 +231,19 @@ export class ConsoleAutomationServer {
 
           // Phase 4: Enhanced Test Execution Tools
           case 'console_run_test_parallel':
-            return await this.handleRunTestParallel(args as any);
+            return await this.phase4Handlers.handleRunTestParallel(args);
 
           case 'console_retry_failed_tests':
-            return await this.handleRetryFailedTests(args as any);
+            return await this.phase4Handlers.handleRetryFailedTests(args);
 
           case 'console_detect_flaky_tests':
-            return await this.handleDetectFlakyTests(args as any);
+            return await this.phase4Handlers.handleDetectFlakyTests(args);
 
           case 'console_set_test_timeout':
-            return await this.handleSetTestTimeout(args as any);
+            return await this.phase4Handlers.handleSetTestTimeout(args);
 
           case 'console_get_execution_metrics':
-            return await this.handleGetExecutionMetrics(args as any);
+            return await this.phase4Handlers.handleGetExecutionMetrics(args);
 
           // Phase 2: Assertion Framework Tools
           case 'console_assert_output':
@@ -871,9 +874,8 @@ export class ConsoleAutomationServer {
           properties: {
             olderThan: { type: 'number', description: 'Clean up jobs older than this many milliseconds' }
           }
-        }
-      },
-
+        },
+ 
       // Phase 4: Enhanced Test Execution Tools
       {
         name: 'console_run_test_parallel',
@@ -881,11 +883,7 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            tests: { 
-              type: 'array',
-              description: 'Array of test definitions to execute',
-              items: { type: 'object' }
-            },
+            tests: { type: 'array', description: 'Array of test definitions to execute', items: { type: 'object' } },
             maxWorkers: { type: 'number', description: 'Maximum number of worker threads (default: 4)' },
             timeout: { type: 'number', description: 'Test timeout in milliseconds' },
             failFast: { type: 'boolean', description: 'Stop on first failure' }
@@ -893,43 +891,29 @@ export class ConsoleAutomationServer {
           required: ['tests']
         }
       },
-
       {
         name: 'console_retry_failed_tests',
         description: 'Retry failed tests with configurable retry strategy',
         inputSchema: {
           type: 'object',
           properties: {
-            failedTests: { 
-              type: 'array',
-              description: 'Array of failed test results to retry',
-              items: { type: 'object' }
-            },
+            failedTests: { type: 'array', description: 'Array of failed test results to retry', items: { type: 'object' } },
             maxRetries: { type: 'number', description: 'Maximum retry attempts (default: 3)' },
             backoffMs: { type: 'number', description: 'Initial backoff delay in ms (default: 1000)' },
             backoffMultiplier: { type: 'number', description: 'Backoff multiplier for exponential backoff (default: 2)' },
             retryOnTimeout: { type: 'boolean', description: 'Retry on timeout errors' },
-            retryOnErrors: { 
-              type: 'array',
-              description: 'Retry only on specific error patterns',
-              items: { type: 'string' }
-            }
+            retryOnErrors: { type: 'array', description: 'Retry only on specific error patterns', items: { type: 'string' } }
           },
           required: ['failedTests']
         }
       },
-
       {
         name: 'console_detect_flaky_tests',
         description: 'Detect flaky tests by running them multiple times',
         inputSchema: {
           type: 'object',
           properties: {
-            tests: { 
-              type: 'array',
-              description: 'Array of test definitions to analyze for flakiness',
-              items: { type: 'object' }
-            },
+            tests: { type: 'array', description: 'Array of test definitions to analyze for flakiness', items: { type: 'object' } },
             runs: { type: 'number', description: 'Number of times to run each test (default: 10)' },
             threshold: { type: 'number', description: 'Flake rate threshold 0-1 (default: 0.1)' },
             parallel: { type: 'boolean', description: 'Run flake detection in parallel (default: true)' }
@@ -937,7 +921,6 @@ export class ConsoleAutomationServer {
           required: ['tests']
         }
       },
-
       {
         name: 'console_set_test_timeout',
         description: 'Set global test timeout configuration',
@@ -949,7 +932,6 @@ export class ConsoleAutomationServer {
           }
         }
       },
-
       {
         name: 'console_get_execution_metrics',
         description: 'Get execution metrics for test runs',
@@ -960,8 +942,7 @@ export class ConsoleAutomationServer {
           }
         }
       },
-
-      },
+     },
 
       // Phase 2: Assertion Framework Tools
       {
@@ -2550,276 +2531,7 @@ export class ConsoleAutomationServer {
     }
   }
 
-  private async handleCleanupJobs(args: { olderThan?: number }
-
-  // Phase 4: Enhanced Test Execution Handlers
-  private async handleRunTestParallel(args: any) {
-    try {
-      const { tests, maxWorkers = 4, timeout = 30000, failFast = false } = args;
-
-      if (!tests || !Array.isArray(tests)) {
-        throw new Error('tests parameter must be an array');
-      }
-
-      // Import Phase 4 modules
-      const { ParallelExecutor } = require('../testing/ParallelExecutor');
-      const executor = new ParallelExecutor();
-
-      const config = {
-        maxWorkers,
-        timeout,
-        isolateTests: true,
-        failFast,
-      };
-
-      const result = await executor.executeTests(tests, config);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              ...result,
-              timestamp: new Date().toISOString()
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    }
-  }
-
-  private async handleRetryFailedTests(args: any) {
-    try {
-      const {
-        failedTests,
-        maxRetries = 3,
-        backoffMs = 1000,
-        backoffMultiplier = 2,
-        retryOnTimeout = true,
-        retryOnErrors
-      } = args;
-
-      if (!failedTests || !Array.isArray(failedTests)) {
-        throw new Error('failedTests parameter must be an array');
-      }
-
-      const { RetryManager } = require('../testing/RetryManager');
-      const retryManager = new RetryManager();
-
-      const config = {
-        maxRetries,
-        backoffMs,
-        backoffMultiplier,
-        retryOnTimeout,
-        retryOnErrors,
-      };
-
-      // Create a simple executor function (stub)
-      const executor = async (test: any) => {
-        // This would integrate with actual test execution
-        return {
-          test,
-          status: 'pass',
-          duration: 0,
-          startTime: Date.now(),
-          endTime: Date.now(),
-          assertions: [],
-        };
-      };
-
-      const results = await retryManager.retryFailedTests(
-        failedTests,
-        executor,
-        config
-      );
-
-      const statistics = retryManager.getRetryStatistics(results);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              results,
-              statistics,
-              timestamp: new Date().toISOString()
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    }
-  }
-
-  private async handleDetectFlakyTests(args: any) {
-    try {
-      const {
-        tests,
-        runs = 10,
-        threshold = 0.1,
-        parallel = true
-      } = args;
-
-      if (!tests || !Array.isArray(tests)) {
-        throw new Error('tests parameter must be an array');
-      }
-
-      const { FlakeDetector } = require('../testing/FlakeDetector');
-      const detector = new FlakeDetector();
-
-      const config = {
-        runs,
-        threshold,
-        parallel,
-      };
-
-      // Create a simple executor function (stub)
-      const executor = async (test: any) => {
-        return {
-          test,
-          status: Math.random() > 0.1 ? 'pass' : 'fail',
-          duration: Math.random() * 1000,
-          startTime: Date.now(),
-          endTime: Date.now(),
-          assertions: [],
-        };
-      };
-
-      const reports = await detector.detectFlakyTests(tests, executor, config);
-      const summary = detector.generateFlakeSummary(reports);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              reports,
-              summary,
-              timestamp: new Date().toISOString()
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    }
-  }
-
-  private async handleSetTestTimeout(args: any) {
-    try {
-      const { timeout, workerTimeout } = args;
-
-      // Store timeout configuration (could be in a config object)
-      const config = {
-        timeout: timeout || 30000,
-        workerTimeout: workerTimeout || 60000,
-      };
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              config,
-              message: 'Test timeout configuration updated',
-              timestamp: new Date().toISOString()
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    }
-  }
-
-  private async handleGetExecutionMetrics(args: any) {
-    try {
-      const { testName } = args;
-
-      const { ExecutionMetricsCollector } = require('../testing/ExecutionMetrics');
-      const collector = new ExecutionMetricsCollector();
-
-      const metrics = testName
-        ? collector.getTestMetrics(testName)
-        : collector.getMetrics();
-
-      const summary = collector.getSummary();
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              metrics,
-              summary,
-              timestamp: new Date().toISOString()
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
-      };
-    }
-  }
-) {
+  private async handleCleanupJobs(args: { olderThan?: number }) {
     try {
       const cutoffDate = args.olderThan ? new Date(Date.now() - args.olderThan) : undefined;
       const cleanedCount = await this.sessionManager.cleanupCompletedJobs(cutoffDate);
@@ -3262,6 +2974,322 @@ export class ConsoleAutomationServer {
     } as any;
 
     debugLog('[INIT] STDIO protection enabled');
+  }
+
+  // ========================================================================
+  // Phase 2: Assertion Framework Handlers
+  // ========================================================================
+
+  private async handleAssertOutput(args: {
+    sessionId: string;
+    assertionType: 'contains' | 'matches' | 'equals';
+    expected: string;
+    message?: string;
+  }) {
+    try {
+      const session = this.consoleManager.getSession(args.sessionId);
+      if (!session) {
+        throw new McpError(ErrorCode.InvalidParams, `Session not found: ${args.sessionId}`);
+      }
+
+      const outputs = this.consoleManager.getOutput(args.sessionId);
+      const output = outputs.map(o => o.data).join('\n');
+      let assertion: Assertion;
+
+      switch (args.assertionType) {
+        case 'contains':
+          assertion = {
+            type: 'output_contains',
+            expected: args.expected,
+            actual: output,
+            message: args.message,
+          };
+          break;
+
+        case 'matches':
+          assertion = {
+            type: 'output_matches',
+            expected: args.expected,
+            actual: output,
+            message: args.message,
+          };
+          break;
+
+        case 'equals':
+          assertion = {
+            type: 'state_equals',
+            expected: args.expected,
+            actual: output,
+            message: args.message,
+          };
+          break;
+
+        default:
+          throw new McpError(ErrorCode.InvalidParams, `Unknown assertion type: ${args.assertionType}`);
+      }
+
+      const result = await this.assertionEngine.evaluate(assertion);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: result.passed,
+                message: result.message,
+                assertion: result.assertion,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
+      };
+    } catch (error: any) {
+      throw new McpError(ErrorCode.InternalError, `Assertion failed: ${error.message}`);
+    }
+  }
+
+  private async handleAssertExitCode(args: {
+    sessionId: string;
+    expected: number;
+    message?: string;
+  }) {
+    try {
+      const session = this.consoleManager.getSession(args.sessionId);
+      if (!session) {
+        throw new McpError(ErrorCode.InvalidParams, `Session not found: ${args.sessionId}`);
+      }
+
+      const exitCode = session.exitCode ?? 0;
+
+      const assertion: Assertion = {
+        type: 'exit_code',
+        expected: args.expected,
+        actual: exitCode,
+        message: args.message,
+      };
+
+      const result = await this.assertionEngine.evaluate(assertion);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: result.passed,
+                message: result.message,
+                exitCode,
+                expected: args.expected,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
+      };
+    } catch (error: any) {
+      throw new McpError(ErrorCode.InternalError, `Exit code assertion failed: ${error.message}`);
+    }
+  }
+
+  private async handleAssertNoErrors(args: { sessionId: string; message?: string }) {
+    try {
+      const session = this.consoleManager.getSession(args.sessionId);
+      if (!session) {
+        throw new McpError(ErrorCode.InvalidParams, `Session not found: ${args.sessionId}`);
+      }
+
+      const outputs = this.consoleManager.getOutput(args.sessionId);
+      const output = outputs.map(o => o.data).join('\n');
+
+      const assertion: Assertion = {
+        type: 'no_errors',
+        expected: null,
+        actual: output,
+        message: args.message,
+      };
+
+      const result = await this.assertionEngine.evaluate(assertion);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: result.passed,
+                message: result.message,
+                output: output.substring(0, 500),
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
+      };
+    } catch (error: any) {
+      throw new McpError(ErrorCode.InternalError, `No errors assertion failed: ${error.message}`);
+    }
+  }
+
+  private async handleSaveSnapshot(args: { sessionId: string; metadata?: Record<string, any> }) {
+    try {
+      const session = this.consoleManager.getSession(args.sessionId);
+      if (!session) {
+        throw new McpError(ErrorCode.InvalidParams, `Session not found: ${args.sessionId}`);
+      }
+
+      const outputs = this.consoleManager.getOutput(args.sessionId);
+      const output = outputs.map(o => o.data).join('\n');
+
+      const snapshot = await this.snapshotManager.capture(
+        args.sessionId,
+        output,
+        {
+          exitCode: session.exitCode,
+          status: session.status,
+        },
+        args.metadata
+      );
+
+      const filepath = await this.snapshotManager.save(snapshot);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: true,
+                message: 'Snapshot saved successfully',
+                filepath,
+                snapshot: {
+                  sessionId: snapshot.sessionId,
+                  timestamp: snapshot.timestamp,
+                  hash: snapshot.hash,
+                },
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
+      };
+    } catch (error: any) {
+      throw new McpError(ErrorCode.InternalError, `Failed to save snapshot: ${error.message}`);
+    }
+  }
+
+  private async handleCompareSnapshots(args: {
+    snapshot1Path: string;
+    snapshot2Path: string;
+    detailed?: boolean;
+  }) {
+    try {
+      const snapshot1 = await this.snapshotManager.load(args.snapshot1Path);
+      const snapshot2 = await this.snapshotManager.load(args.snapshot2Path);
+
+      if (args.detailed) {
+        const detailedDiff = this.snapshotDiffer.compareDetailed(snapshot1, snapshot2);
+        const formatted = this.snapshotDiffer.formatDiff(detailedDiff);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: true,
+                  message: 'Snapshots compared successfully',
+                  diff: detailedDiff,
+                  formatted,
+                  summary: this.snapshotDiffer.getSummary(detailedDiff),
+                },
+                null,
+                2
+              ),
+            } as TextContent,
+          ],
+        };
+      } else {
+        const diff = this.snapshotDiffer.compare(snapshot1, snapshot2);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: true,
+                  message: 'Snapshots compared successfully',
+                  diff,
+                  identical: diff.identical,
+                  similarity: diff.similarity,
+                },
+                null,
+                2
+              ),
+            } as TextContent,
+          ],
+        };
+      }
+    } catch (error: any) {
+      throw new McpError(ErrorCode.InternalError, `Failed to compare snapshots: ${error.message}`);
+    }
+  }
+
+  private async handleAssertState(args: {
+    sessionId: string;
+    expected: any;
+    message?: string;
+  }) {
+    try {
+      const session = this.consoleManager.getSession(args.sessionId);
+      if (!session) {
+        throw new McpError(ErrorCode.InvalidParams, `Session not found: ${args.sessionId}`);
+      }
+
+      const outputs = this.consoleManager.getOutput(args.sessionId);
+      const output = outputs.map(o => o.data).join('\n');
+
+      const actualState = {
+        output,
+        exitCode: session.exitCode,
+        status: session.status,
+      };
+
+      const assertion: Assertion = {
+        type: 'state_equals',
+        expected: args.expected,
+        actual: actualState,
+        message: args.message,
+      };
+
+      const result = await this.assertionEngine.evaluate(assertion);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: result.passed,
+                message: result.message,
+                actualState,
+                expectedState: args.expected,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
+      };
+    } catch (error: any) {
+      throw new McpError(ErrorCode.InternalError, `State assertion failed: ${error.message}`);
+    }
   }
 
   async start() {
