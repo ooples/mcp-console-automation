@@ -121,7 +121,6 @@ export class FlakeDetector {
     const failures = results.length - passes;
 
     // Flake rate is the percentage of runs that differ from the majority
-    const majority = Math.max(passes, failures);
     const minority = Math.min(passes, failures);
 
     return minority / results.length;

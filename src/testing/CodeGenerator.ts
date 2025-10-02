@@ -307,7 +307,7 @@ export class CodeGenerator {
   /**
    * Generate assert code (Phase 2)
    */
-  private generateAssertCode(step: RecordingStep, lang: string): string {
+  private generateAssertCode(_step: RecordingStep, _lang: string): string {
     return `// Assertions will be implemented in Phase 2`;
   }
 
