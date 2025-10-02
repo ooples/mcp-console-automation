@@ -2,7 +2,7 @@
  * ExecutionMetrics - Collects and tracks test execution metrics
  */
 
-import { ExecutionMetrics, TestResult } from '../types/test-framework';
+import { ExecutionMetrics, TestResult } from '../types/test-framework.js';
 
 export class ExecutionMetricsCollector {
   private metrics: Map<string, ExecutionMetrics> = new Map();

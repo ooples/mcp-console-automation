@@ -2,7 +2,7 @@
  * Unit tests for TestRecorder
  */
 
-import { TestRecorder } from '../testing/TestRecorder';
+import { TestRecorder } from '../testing/TestRecorder.js';
 import * as fs from 'fs';
 import * as path from 'path';
 

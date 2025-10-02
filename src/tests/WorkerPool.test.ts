@@ -2,7 +2,7 @@
  * Tests for WorkerPool
  */
 
-import { WorkerPool, WorkerTask } from '../testing/WorkerPool';
+import { WorkerPool, WorkerTask } from '../testing/WorkerPool.js';
 
 describe('WorkerPool', () => {
   let pool: WorkerPool;

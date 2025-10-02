@@ -2,14 +2,14 @@
  * ParallelExecutor - Executes tests in parallel using worker threads
  */
 
-import { WorkerPool, WorkerTask } from './WorkerPool';
+import { WorkerPool, WorkerTask } from './WorkerPool.js';
 import {
   TestDefinition,
   TestResult,
   ParallelExecutionConfig,
   ParallelExecutionResult,
-} from '../types/test-framework';
-import { ExecutionMetricsCollector } from './ExecutionMetrics';
+} from '../types/test-framework.js';
+import { ExecutionMetricsCollector } from './ExecutionMetrics.js';
 
 export class ParallelExecutor {
   private workerPool?: WorkerPool;

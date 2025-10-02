@@ -4,11 +4,11 @@
  */
 
 import { TextContent } from '@modelcontextprotocol/sdk/types.js';
-import { ParallelExecutor } from '../testing/ParallelExecutor';
-import { RetryManager } from '../testing/RetryManager';
-import { FlakeDetector } from '../testing/FlakeDetector';
-import { ExecutionMetricsCollector } from '../testing/ExecutionMetrics';
-import { TestDefinition, TestResult } from '../types/test-framework';
+import { ParallelExecutor } from '../testing/ParallelExecutor.js';
+import { RetryManager } from '../testing/RetryManager.js';
+import { FlakeDetector } from '../testing/FlakeDetector.js';
+import { ExecutionMetricsCollector } from '../testing/ExecutionMetrics.js';
+import { TestDefinition, TestResult } from '../types/test-framework.js';
 
 export class Phase4Handlers {
   private metricsCollector: ExecutionMetricsCollector;

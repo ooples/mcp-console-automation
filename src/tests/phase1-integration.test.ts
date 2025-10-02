@@ -3,10 +3,10 @@
  * Tests the full workflow: Record -> Replay -> Generate Code
  */
 
-import { TestRecorder } from '../testing/TestRecorder';
-import { TestReplayEngine } from '../testing/TestReplayEngine';
-import { CodeGenerator } from '../testing/CodeGenerator';
-import { ConsoleManager } from '../core/ConsoleManager';
+import { TestRecorder } from '../testing/TestRecorder.js';
+import { TestReplayEngine } from '../testing/TestReplayEngine.js';
+import { CodeGenerator } from '../testing/CodeGenerator.js';
+import { ConsoleManager } from '../core/ConsoleManager.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -44,7 +44,7 @@ describe('Phase 1 Integration Tests', () => {
   afterEach(async () => {
     // Cleanup any active sessions
     try {
-      await consoleManager.cleanupSessions({ force: true });
+      await consoleManager.stopAllSessions();
     } catch (e) {
       // Ignore cleanup errors
     }

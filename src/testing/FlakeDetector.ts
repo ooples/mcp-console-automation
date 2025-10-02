@@ -2,7 +2,7 @@
  * FlakeDetector - Detects flaky tests by running them multiple times
  */
 
-import { TestDefinition, TestResult, FlakeReport } from '../types/test-framework';
+import { TestDefinition, TestResult, FlakeReport } from '../types/test-framework.js';
 
 export interface FlakeDetectionConfig {
   runs: number;

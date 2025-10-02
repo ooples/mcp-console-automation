@@ -3,7 +3,7 @@
  */
 
 import { parentPort, workerData } from 'worker_threads';
-import { TestDefinition, TestResult, AssertionResult } from '../types/test-framework';
+import { TestDefinition, TestResult, AssertionResult } from '../types/test-framework.js';
 
 interface WorkerMessage {
   type: 'execute' | 'shutdown';

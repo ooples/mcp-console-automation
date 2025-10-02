@@ -2,8 +2,8 @@
  * Tests for ExecutionMetrics
  */
 
-import { ExecutionMetricsCollector, PerformanceMonitor, MetricsAggregator } from '../testing/ExecutionMetrics';
-import { TestResult } from '../types/test-framework';
+import { ExecutionMetricsCollector, PerformanceMonitor, MetricsAggregator } from '../testing/ExecutionMetrics.js';
+import { TestResult } from '../types/test-framework.js';
 
 describe('ExecutionMetricsCollector', () => {
   let collector: ExecutionMetricsCollector;

@@ -3,10 +3,10 @@
  * Tests full workflow of assertion framework components working together
  */
 
-import { AssertionEngine } from '../testing/AssertionEngine';
-import { SnapshotManager } from '../testing/SnapshotManager';
-import { SnapshotDiffer } from '../testing/SnapshotDiffer';
-import { Assertion } from '../types/test-framework';
+import { AssertionEngine } from '../testing/AssertionEngine.js';
+import { SnapshotManager } from '../testing/SnapshotManager.js';
+import { SnapshotDiffer } from '../testing/SnapshotDiffer.js';
+import { Assertion } from '../types/test-framework.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

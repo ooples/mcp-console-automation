@@ -2,10 +2,10 @@
  * Unit tests for TestReplayEngine
  */
 
-import { TestReplayEngine } from '../testing/TestReplayEngine';
-import { TestRecorder } from '../testing/TestRecorder';
-import { TestRecording } from '../types/test-framework';
-import { ConsoleManager } from '../core/ConsoleManager';
+import { TestReplayEngine } from '../testing/TestReplayEngine.js';
+import { TestRecorder } from '../testing/TestRecorder.js';
+import { TestRecording } from '../types/test-framework.js';
+import { ConsoleManager } from '../core/ConsoleManager.js';
 
 // Mock ConsoleManager
 jest.mock('../core/ConsoleManager');
@@ -233,9 +233,9 @@ describe('TestReplayEngine', () => {
       };
 
       // Mock a slow operation
-      mockConsoleManager.createSession = jest.fn(() =>
-        new Promise(resolve => setTimeout(() => resolve({ sessionId: 's1' }), 200))
-      );
+      mockConsoleManager.createSession = jest.fn((options: any) =>
+        new Promise(resolve => setTimeout(() => resolve('s1'), 200))
+      ) as any;
 
       const result = await engine.replay(recording, { timeout: 100 });
 

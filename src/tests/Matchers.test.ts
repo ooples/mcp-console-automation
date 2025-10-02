@@ -3,7 +3,7 @@
  * Tests all 30+ matcher functions for 100% coverage
  */
 
-import { Matchers } from '../testing/Matchers';
+import { Matchers } from '../testing/Matchers.js';
 
 describe('Matchers', () => {
   let matchers: Matchers;

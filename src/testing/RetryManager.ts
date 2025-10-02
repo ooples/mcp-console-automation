@@ -7,7 +7,7 @@ import {
   TestResult,
   RetryConfig,
   RetryResult,
-} from '../types/test-framework';
+} from '../types/test-framework.js';
 
 export class RetryManager {
   private defaultConfig: RetryConfig = {
@@ -136,7 +136,7 @@ export class RetryManager {
   /**
    * Calculate backoff delay
    */
-  private calculateBackoff(attempt: number, config: RetryConfig): number {
+  protected calculateBackoff(attempt: number, config: RetryConfig): number {
     const multiplier = config.backoffMultiplier || 1;
     return config.backoffMs * Math.pow(multiplier, attempt);
   }
@@ -293,7 +293,7 @@ export class JitteredRetryManager extends RetryManager {
    * Calculate backoff with jitter
    */
   protected calculateBackoff(attempt: number, config: RetryConfig): number {
-    const baseDelay = super['calculateBackoff'](attempt, config);
+    const baseDelay = super.calculateBackoff(attempt, config);
     // Add random jitter (0-25% of base delay)
     const jitter = Math.random() * 0.25 * baseDelay;
     return Math.floor(baseDelay + jitter);
