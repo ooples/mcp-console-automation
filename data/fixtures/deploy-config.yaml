@@ -1,0 +1,73 @@
+name: Production Deployment Configuration
+version: "1.0.0"
+updated: "2024-01-15T00:00:00Z"
+
+environments:
+  production:
+    deploy_branch: main
+    auto_deploy: false
+    require_approval: true
+    notifications:
+      slack: "#deployments"
+      email: "ops@example.com"
+
+  staging:
+    deploy_branch: develop
+    auto_deploy: true
+    require_approval: false
+    notifications:
+      slack: "#staging-deploys"
+      email: "dev@example.com"
+
+  development:
+    deploy_branch: feature/*
+    auto_deploy: true
+    require_approval: false
+
+deployment_steps:
+  - name: pre_deploy_checks
+    commands:
+      - npm run test
+      - npm run lint
+      - npm run build
+
+  - name: backup
+    commands:
+      - ./scripts/backup-database.sh
+      - ./scripts/backup-files.sh
+
+  - name: deploy
+    commands:
+      - ./scripts/deploy.sh
+      - ./scripts/migrate.sh
+
+  - name: health_check
+    commands:
+      - ./scripts/health-check.sh
+
+  - name: rollback_on_failure
+    commands:
+      - ./scripts/rollback.sh
+
+regions:
+  - name: us-east-1
+    servers: 3
+    load_balancer: lb-east-01
+
+  - name: us-west-2
+    servers: 2
+    load_balancer: lb-west-01
+
+monitoring:
+  enabled: true
+  services:
+    - prometheus
+    - grafana
+    - sentry
+  alerts:
+    - type: error_rate
+      threshold: 5
+      window: 5m
+    - type: response_time
+      threshold: 500
+      window: 10m

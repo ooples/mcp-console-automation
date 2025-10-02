@@ -1,0 +1,52 @@
+[
+  {
+    "id": "server-001",
+    "hostname": "web-prod-01.example.com",
+    "ip": "192.168.1.10",
+    "port": 22,
+    "username": "deploy",
+    "environment": "production",
+    "region": "us-east-1",
+    "tags": ["web", "frontend", "production"]
+  },
+  {
+    "id": "server-002",
+    "hostname": "web-prod-02.example.com",
+    "ip": "192.168.1.11",
+    "port": 22,
+    "username": "deploy",
+    "environment": "production",
+    "region": "us-east-1",
+    "tags": ["web", "frontend", "production"]
+  },
+  {
+    "id": "server-003",
+    "hostname": "api-prod-01.example.com",
+    "ip": "192.168.1.20",
+    "port": 22,
+    "username": "deploy",
+    "environment": "production",
+    "region": "us-west-2",
+    "tags": ["api", "backend", "production"]
+  },
+  {
+    "id": "server-004",
+    "hostname": "db-prod-01.example.com",
+    "ip": "192.168.1.30",
+    "port": 22,
+    "username": "dbadmin",
+    "environment": "production",
+    "region": "us-east-1",
+    "tags": ["database", "postgresql", "production"]
+  },
+  {
+    "id": "server-005",
+    "hostname": "web-staging-01.example.com",
+    "ip": "192.168.2.10",
+    "port": 22,
+    "username": "deploy",
+    "environment": "staging",
+    "region": "us-east-1",
+    "tags": ["web", "frontend", "staging"]
+  }
+]
