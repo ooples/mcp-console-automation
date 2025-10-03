@@ -35,7 +35,7 @@
     "ai",
     "llm"
   ],
-  "author": "",
+  "author": "ooples",
   "license": "MIT",
   "dependencies": {
     "@azure/arm-compute": "^21.0.0",
@@ -108,10 +108,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/mcp-console-automation.git"
+    "url": "git+https://github.com/ooples/mcp-console-automation.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/mcp-console-automation/issues"
+    "url": "https://github.com/ooples/mcp-console-automation/issues"
   },
-  "homepage": "https://github.com/yourusername/mcp-console-automation#readme"
+  "homepage": "https://github.com/ooples/mcp-console-automation#readme"
 }

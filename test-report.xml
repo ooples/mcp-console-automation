@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
   <file path="C:\Users\yolan\source\repos\mcp-console-automation\src\tests\TestRecorder.test.ts">
-    <testCase name="TestRecorder startRecording should start a new recording" duration="9"/>
-    <testCase name="TestRecorder startRecording should throw error if recording already in progress" duration="26"/>
-    <testCase name="TestRecorder startRecording should capture environment metadata" duration="4"/>
+    <testCase name="TestRecorder startRecording should start a new recording" duration="7"/>
+    <testCase name="TestRecorder startRecording should throw error if recording already in progress" duration="25"/>
+    <testCase name="TestRecorder startRecording should capture environment metadata" duration="3"/>
     <testCase name="TestRecorder stopRecording should stop recording and save to file" duration="5"/>
-    <testCase name="TestRecorder stopRecording should throw error if no recording in progress" duration="4"/>
-    <testCase name="TestRecorder stopRecording should include duration in saved recording" duration="4"/>
-    <testCase name="TestRecorder recordCreateSession should record a create_session step" duration="9"/>
-    <testCase name="TestRecorder recordCreateSession should set currentSessionId" duration="3"/>
-    <testCase name="TestRecorder recordSendInput should record a send_input step" duration="4"/>
-    <testCase name="TestRecorder recordSendInput should use current session ID if not specified" duration="4"/>
-    <testCase name="TestRecorder recordSendKey should record a send_key step" duration="3"/>
+    <testCase name="TestRecorder stopRecording should throw error if no recording in progress" duration="3"/>
+    <testCase name="TestRecorder stopRecording should include duration in saved recording" duration="3"/>
+    <testCase name="TestRecorder recordCreateSession should record a create_session step" duration="7"/>
+    <testCase name="TestRecorder recordCreateSession should set currentSessionId" duration="2"/>
+    <testCase name="TestRecorder recordSendInput should record a send_input step" duration="3"/>
+    <testCase name="TestRecorder recordSendInput should use current session ID if not specified" duration="2"/>
+    <testCase name="TestRecorder recordSendKey should record a send_key step" duration="2"/>
     <testCase name="TestRecorder recordWaitForOutput should record a wait_for_output step" duration="3"/>
     <testCase name="TestRecorder getStats should return recording statistics" duration="4"/>
     <testCase name="TestRecorder getStats should return null if no recording" duration="4"/>
     <testCase name="TestRecorder cancelRecording should cancel recording without saving" duration="3"/>
     <testCase name="TestRecorder cancelRecording should throw error if no recording in progress" duration="3"/>
     <testCase name="TestRecorder Static methods listRecordings should list all recordings in directory" duration="4"/>
-    <testCase name="TestRecorder Static methods listRecordings should return empty array if directory does not exist" duration="4"/>
-    <testCase name="TestRecorder Static methods loadRecording should load a recording from file" duration="3"/>
-    <testCase name="TestRecorder Static methods loadRecording should throw error if recording not found" duration="3"/>
-    <testCase name="TestRecorder Static methods loadRecording should handle .json extension" duration="10"/>
-    <testCase name="TestRecorder Static methods deleteRecording should delete a recording file" duration="6"/>
-    <testCase name="TestRecorder Static methods deleteRecording should not throw if file does not exist" duration="4"/>
-    <testCase name="TestRecorder Timestamp tracking should record relative timestamps for steps" duration="53"/>
+    <testCase name="TestRecorder Static methods listRecordings should return empty array if directory does not exist" duration="3"/>
+    <testCase name="TestRecorder Static methods loadRecording should load a recording from file" duration="4"/>
+    <testCase name="TestRecorder Static methods loadRecording should throw error if recording not found" duration="8"/>
+    <testCase name="TestRecorder Static methods loadRecording should handle .json extension" duration="3"/>
+    <testCase name="TestRecorder Static methods deleteRecording should delete a recording file" duration="4"/>
+    <testCase name="TestRecorder Static methods deleteRecording should not throw if file does not exist" duration="3"/>
+    <testCase name="TestRecorder Timestamp tracking should record relative timestamps for steps" duration="47"/>
     <testCase name="TestRecorder Edge cases should handle special characters in filenames" duration="3"/>
     <testCase name="TestRecorder Edge cases should handle empty steps array" duration="4"/>
-    <testCase name="TestRecorder Edge cases should preserve metadata through save/load cycle" duration="3"/>
+    <testCase name="TestRecorder Edge cases should preserve metadata through save/load cycle" duration="4"/>
   </file>
 </testExecutions>

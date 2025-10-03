@@ -1,0 +1,66 @@
+# Node modules
+node_modules
+npm-debug.log
+
+# TypeScript
+*.ts
+!src/**/*.ts
+tsconfig.json
+tsconfig.test.json
+
+# Tests
+test
+tests
+src/tests
+*.test.ts
+*.spec.ts
+jest.config.cjs
+jest.config.simple.cjs
+babel.config.cjs
+
+# Documentation
+docs
+examples
+*.md
+!README.md
+LICENSE
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist-test
+coverage
+*.tgz
+
+# Data and logs
+data
+logs
+*.log
+
+# CI/CD
+.github
+
+# Development
+.env
+.env.local
+.env.*.local
+
+# Scripts
+install.ps1
+install.sh
+test-*.ts
+verify-*.ts

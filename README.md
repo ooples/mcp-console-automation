@@ -91,97 +91,122 @@ mcp-console --log-level info
 npx @mcp/console-automation --log-level info
 ```
 
-## Available Tools (12 Total)
+## Available Tools (40 Total)
 
-### `console_create_session`
-Create a new console session for running commands.
+This MCP server provides **40 comprehensive tools** organized into 6 categories:
 
-**Parameters:**
-- `command` (required): The command to execute
-- `args`: Array of command arguments
-- `cwd`: Working directory
-- `env`: Environment variables object
-- `detectErrors`: Enable automatic error detection (default: true)
-- `timeout`: Session timeout in milliseconds
+### 📚 Complete Documentation
 
-**Example:**
-```json
-{
-  "command": "python",
-  "args": ["script.py"],
-  "cwd": "/path/to/project",
-  "detectErrors": true
-}
+- **[Complete Tools Reference](docs/TOOLS.md)** - Detailed documentation for all 40 tools
+- **[Practical Examples](docs/EXAMPLES.md)** - Real-world usage examples and patterns
+- **[Publishing Guide](PUBLISHING.md)** - How to list this server in registries
+
+### Tool Categories
+
+#### 🖥️ Session Management (9 tools)
+- `console_create_session` - Create local or SSH console sessions
+- `console_send_input` - Send text input to sessions
+- `console_send_key` - Send special keys (Enter, Ctrl+C, etc.)
+- `console_get_output` - Get filtered/paginated output with advanced search
+- `console_get_stream` - Stream output from long-running processes
+- `console_wait_for_output` - Wait for specific patterns
+- `console_stop_session` - Stop sessions
+- `console_list_sessions` - List all active sessions
+- `console_cleanup_sessions` - Clean up inactive sessions
+
+#### ⚡ Command Execution (6 tools)
+- `console_execute_command` - Execute commands with output capture
+- `console_detect_errors` - Analyze output for errors
+- `console_get_resource_usage` - Get system resource stats
+- `console_clear_output` - Clear output buffers
+- `console_get_session_state` - Get session execution state
+- `console_get_command_history` - View command history
+
+#### 📊 Monitoring & Alerts (6 tools)
+- `console_get_system_metrics` - Comprehensive system metrics
+- `console_get_session_metrics` - Session-specific metrics
+- `console_get_alerts` - Active monitoring alerts
+- `console_get_monitoring_dashboard` - Real-time dashboard data
+- `console_start_monitoring` - Start custom monitoring
+- `console_stop_monitoring` - Stop monitoring
+
+#### 📁 Profile Management (4 tools)
+- `console_save_profile` - Save SSH/app connection profiles
+- `console_list_profiles` - List saved profiles
+- `console_remove_profile` - Remove profiles
+- `console_use_profile` - Quick connect with saved profiles
+
+#### 🔄 Background Jobs (9 tools)
+- `console_execute_async` - Execute commands asynchronously
+- `console_get_job_status` - Check job status
+- `console_get_job_output` - Get job output
+- `console_cancel_job` - Cancel running jobs
+- `console_list_jobs` - List all background jobs
+- `console_get_job_progress` - Monitor job progress
+- `console_get_job_result` - Get complete job results
+- `console_get_job_metrics` - Job execution statistics
+- `console_cleanup_jobs` - Clean up completed jobs
+
+#### ✅ Test Automation (6 tools)
+- `console_assert_output` - Assert output matches criteria
+- `console_assert_exit_code` - Assert exit codes
+- `console_assert_no_errors` - Verify no errors occurred
+- `console_save_snapshot` - Save session state snapshots
+- `console_compare_snapshots` - Compare state differences
+- `console_assert_state` - Assert session state
+
+### Quick Start Examples
+
+#### Create a Local Session
+```javascript
+const session = await console_create_session({
+  command: "npm",
+  args: ["run", "dev"],
+  detectErrors: true
+});
 ```
 
-### `console_send_input`
-Send text input to an active console session.
+#### Connect via SSH
+```javascript
+const session = await console_create_session({
+  command: "bash",
+  consoleType: "ssh",
+  sshOptions: {
+    host: "example.com",
+    username: "user",
+    privateKeyPath: "~/.ssh/id_rsa"
+  }
+});
+```
 
-**Parameters:**
-- `sessionId` (required): Session ID
-- `input` (required): Text to send
+#### Run Tests with Assertions
+```javascript
+const session = await console_create_session({
+  command: "npm",
+  args: ["test"]
+});
 
-### `console_send_key`
-Send special key sequences to a console session.
+await console_assert_output({
+  sessionId: session.sessionId,
+  assertionType: "contains",
+  expected: "All tests passed"
+});
+```
 
-**Parameters:**
-- `sessionId` (required): Session ID
-- `key` (required): Key to send (enter, tab, up, down, ctrl+c, escape, etc.)
+#### Background Job Execution
+```javascript
+const job = await console_execute_async({
+  sessionId: session.sessionId,
+  command: "npm run build",
+  priority: 8
+});
 
-### `console_get_output`
-Retrieve output from a console session.
+const status = await console_get_job_status({
+  jobId: job.jobId
+});
+```
 
-**Parameters:**
-- `sessionId` (required): Session ID
-- `limit`: Maximum number of output lines to return
-
-### `console_wait_for_output`
-Wait for specific output pattern in console.
-
-**Parameters:**
-- `sessionId` (required): Session ID
-- `pattern` (required): Regex pattern to wait for
-- `timeout`: Timeout in milliseconds (default: 5000)
-
-### `console_execute_command`
-Execute a command and wait for completion.
-
-**Parameters:**
-- `command` (required): Command to execute
-- `args`: Command arguments
-- `cwd`: Working directory
-- `env`: Environment variables
-- `timeout`: Execution timeout
-
-### `console_detect_errors`
-Analyze console output for errors and exceptions.
-
-**Parameters:**
-- `sessionId`: Session ID to analyze
-- `text`: Direct text to analyze (if not using session)
-
-### `console_stop_session`
-Stop an active console session.
-
-**Parameters:**
-- `sessionId` (required): Session ID to stop
-
-### `console_list_sessions`
-List all active console sessions.
-
-### `console_resize_session`
-Resize terminal dimensions for a session.
-
-**Parameters:**
-- `sessionId` (required): Session ID
-- `cols` (required): Number of columns
-- `rows` (required): Number of rows
-
-### `console_clear_output`
-Clear the output buffer for a session.
-
-**Parameters:**
-- `sessionId` (required): Session ID
+For more examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md)
 
 ## Use Cases
 
