@@ -7,6 +7,11 @@ module.exports = {
     '<rootDir>/test/**/*.test.ts',
     '<rootDir>/src/tests/**/*.test.ts'
   ],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+    '/coverage/'
+  ],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
