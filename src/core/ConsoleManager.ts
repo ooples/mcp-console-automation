@@ -957,6 +957,14 @@ export class ConsoleManager extends EventEmitter {
     }
 
     this.logger.debug(`Completed command execution ${commandId} with status ${commandExecution.status} in ${commandExecution.duration}ms`);
+    
+    // Emit completion event for event-driven waiting
+    this.emit('command-completed', {
+      commandId,
+      exitCode: commandExecution.exitCode,
+      duration: commandExecution.duration || 0,
+      status: commandExecution.status
+    });
   }
 
   /**
@@ -1063,42 +1071,47 @@ export class ConsoleManager extends EventEmitter {
     }
 
     const startTime = Date.now();
-    const checkInterval = 100; // Check every 100ms
 
     return new Promise((resolve, reject) => {
-      const checkCompletion = () => {
-        const currentExecution = this.commandExecutions.get(commandId);
-        if (!currentExecution) {
-          reject(new Error(`Command execution ${commandId} was removed`));
-          return;
-        }
+      // Setup timeout
+      const timeoutHandle = setTimeout(() => {
+        this.removeListener('command-completed', completionListener);
+        this.completeCommandExecution(commandId, -1);
+        resolve({
+          exitCode: -1,
+          duration: Date.now() - startTime,
+          status: 'timeout'
+        });
+      }, timeout);
 
-        // Check if command completed
-        if (currentExecution.status !== 'executing') {
+      // Setup completion listener
+      const completionListener = (event: any) => {
+        if (event.commandId === commandId) {
+          clearTimeout(timeoutHandle);
+          this.removeListener('command-completed', completionListener);
+
           resolve({
-            exitCode: currentExecution.exitCode,
-            duration: currentExecution.duration || (Date.now() - startTime),
-            status: currentExecution.status === 'completed' ? 'completed' : 'failed'
+            exitCode: event.exitCode,
+            duration: event.duration || (Date.now() - startTime),
+            status: event.status === 'completed' ? 'completed' : 'failed'
           });
-          return;
         }
-
-        // Check timeout
-        if (Date.now() - startTime > timeout) {
-          this.completeCommandExecution(commandId, -1);
-          resolve({
-            exitCode: -1,
-            duration: Date.now() - startTime,
-            status: 'timeout'
-          });
-          return;
-        }
-
-        // Continue checking
-        setTimeout(checkCompletion, checkInterval);
       };
 
-      checkCompletion();
+      this.on('command-completed', completionListener);
+
+      // Check if already completed (race condition protection)
+      const currentExecution = this.commandExecutions.get(commandId);
+      if (currentExecution && currentExecution.status !== 'executing') {
+        clearTimeout(timeoutHandle);
+        this.removeListener('command-completed', completionListener);
+
+        resolve({
+          exitCode: currentExecution.exitCode,
+          duration: currentExecution.duration || (Date.now() - startTime),
+          status: currentExecution.status === 'completed' ? 'completed' : 'failed'
+        });
+      }
     });
   }
 

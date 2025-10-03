@@ -114,6 +114,13 @@ export interface CommandExecution {
   };
 }
 
+export interface CommandCompletedEvent {
+  commandId: string;
+  exitCode?: number;
+  duration: number;
+  status: 'completed' | 'failed' | 'timeout';
+}
+
 export interface ErrorPattern {
   pattern: RegExp;
   type: 'error' | 'warning' | 'exception';
