@@ -45,11 +45,14 @@ jobs:
     name: Build and Release
     runs-on: ubuntu-latest
     needs: test-before-release
-    
+
+    outputs:
+      version: ${{ steps.extract_version.outputs.version }}
+
     permissions:
       contents: write
       packages: write
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -118,35 +121,18 @@ jobs:
           .
     
     - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      id: create_release
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.extract_version.outputs.version }}
-        release_name: Release ${{ steps.extract_version.outputs.version }}
+        name: Release ${{ steps.extract_version.outputs.version }}
         body: ${{ steps.changelog.outputs.changelog }}
         draft: false
         prerelease: ${{ contains(steps.extract_version.outputs.version, '-') }}
-    
-    - name: Upload release assets
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./mcp-console-automation-*.tgz
-        asset_name: mcp-console-automation-${{ steps.extract_version.outputs.version }}.tgz
-        asset_content_type: application/gzip
-    
-    - name: Upload source archive
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./mcp-console-automation-${{ steps.extract_version.outputs.version }}-src.tar.gz
-        asset_name: mcp-console-automation-${{ steps.extract_version.outputs.version }}-src.tar.gz
-        asset_content_type: application/gzip
+        files: |
+          mcp-console-automation-*.tgz
+          mcp-console-automation-${{ steps.extract_version.outputs.version }}-src.tar.gz
+        generate_release_notes: true
     
     - name: Publish to NPM
       if: ${{ !contains(steps.extract_version.outputs.version, '-') }}
@@ -352,8 +338,8 @@ jobs:
     - name: Test NPM package installation
       run: |
         # Test installing the published package
-        npm install -g @mcp/console-automation@latest
-        mcp-console --version || echo "CLI test completed"
+        npm install -g mcp-console-automation@latest
+        npx mcp-console-automation --version || echo "CLI test completed"
     
     - name: Test Docker image
       if: needs.docker-release.result == 'success'

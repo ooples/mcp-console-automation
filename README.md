@@ -20,17 +20,67 @@ This server is **fully production-ready** with:
 
 ## Features
 
-- **Full Terminal Control**: Create and manage multiple console sessions simultaneously
+### 🚀 Core Capabilities
+
+- **Full Terminal Control**: Create and manage up to 50 concurrent console sessions
+- **Multi-Protocol Support**: Local shells (cmd, PowerShell, pwsh, bash, zsh, sh) and remote SSH connections
 - **Interactive Input**: Send text input and special key sequences (Enter, Tab, Ctrl+C, etc.)
-- **Real-time Output Monitoring**: Capture and analyze console output as it happens
-- **Streaming Support**: Efficient streaming for long-running processes
-- **Multiple Console Types**: Support for cmd, PowerShell, bash, zsh, sh
-- **Automatic Error Detection**: Built-in patterns to detect errors, exceptions, and stack traces
-- **Session Management**: Create, stop, and manage up to 50 concurrent sessions
-- **Resource Management**: Memory monitoring, automatic cleanup, session limits
-- **Command Execution**: Run commands and wait for completion with timeout support
-- **Pattern Matching**: Wait for specific output patterns before continuing
+- **Real-time Output Monitoring**: Capture, filter, and analyze console output with advanced search
+- **Streaming Support**: Efficient streaming for long-running processes with pattern matching
+- **Automatic Error Detection**: Built-in patterns to detect errors, exceptions, and stack traces across languages
 - **Cross-platform**: Works on Windows, macOS, and Linux without native dependencies
+
+### 🔐 SSH & Remote Connections
+
+- **Full SSH Support**: Password and key-based authentication with passphrase support
+- **SSH Options**: Custom ports, connection timeouts, keep-alive settings
+- **Connection Profiles**: Save and reuse SSH configurations for quick access
+- **Cloud Platform Support**: Azure, AWS, GCP, Kubernetes connections via saved profiles
+- **Container Support**: Docker and WSL integration for containerized workflows
+
+### ✅ Test Automation Framework
+
+- **Automated Test Cases**: Built-in assertion tools for console output validation
+- **Output Assertions**: Verify output contains, matches regex, or equals expected values
+- **Exit Code Validation**: Assert command exit codes for success/failure detection
+- **Error-Free Validation**: Automatically check for errors in command output
+- **State Snapshots**: Save and compare session states before/after operations
+- **Test Workflows**: Chain assertions for comprehensive testing scenarios
+
+### 🔄 Background Job Execution
+
+- **Async Command Execution**: Run long-running commands in background with full output capture
+- **Priority Queue System**: Prioritize jobs (1-10 scale) for optimal resource utilization
+- **Job Monitoring**: Track status, progress, and completion of background jobs
+- **Job Control**: Cancel, pause, or resume background operations
+- **Result Retrieval**: Get complete output and exit codes from completed jobs
+- **Resource Management**: Automatic cleanup of completed jobs with configurable retention
+
+### 📊 Enterprise Monitoring & Alerts
+
+- **System-Wide Metrics**: CPU, memory, disk, and network usage tracking
+- **Session Metrics**: Per-session performance monitoring and resource consumption
+- **Real-time Dashboards**: Live monitoring data with customizable views
+- **Alert System**: Performance, error, security, and anomaly alerts with severity levels
+- **Custom Monitoring**: Configure monitoring intervals, metrics, and thresholds per session
+- **Diagnostics**: Built-in error analysis and session health validation
+
+### 📁 Profile Management
+
+- **Connection Profiles**: Save SSH, Docker, WSL, and cloud platform connections
+- **Application Profiles**: Store common command configurations (Node.js, Python, .NET, Java, Go, Rust)
+- **Quick Connect**: Instantly connect using saved profiles with override support
+- **Environment Variables**: Store environment configurations per profile
+- **Working Directory Management**: Set default directories for each profile
+
+### 🔍 Advanced Output Processing
+
+- **Regex Filtering**: Search output with regular expressions (case-sensitive/insensitive)
+- **Multi-Pattern Search**: Combine multiple patterns with AND/OR logic
+- **Pagination**: Get specific line ranges, head, or tail of output
+- **Time-based Filtering**: Filter output by timestamp (absolute or relative: '5m', '1h', '2d')
+- **Output Streaming**: Real-time output capture for long-running processes
+- **Buffer Management**: Clear output buffers to reduce memory usage
 
 ## Quick Installation
 
