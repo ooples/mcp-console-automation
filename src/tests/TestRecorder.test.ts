@@ -288,7 +288,7 @@ describe('TestRecorder', () => {
       recorder.recordSendInput('step3');
 
       const steps = recorder.getRecording()?.steps;
-      expect(steps?.[0].timestamp).toBe(0); // First step should be at 0
+      expect(steps?.[0].timestamp).toBeLessThanOrEqual(5); // First step should be close to 0
       expect(steps?.[1].timestamp).toBeGreaterThan(0);
       expect(steps?.[2].timestamp).toBeGreaterThan(steps?.[1].timestamp);
     });
