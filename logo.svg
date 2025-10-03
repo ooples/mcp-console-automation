@@ -1,0 +1,79 @@
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="400" height="400" fill="#0A0E27" rx="40"/>
+
+  <!-- Gradient definitions -->
+  <defs>
+    <linearGradient id="terminalGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00D9FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7B61FF;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00FF94;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00D9FF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Terminal window background -->
+  <rect x="60" y="80" width="280" height="240" rx="12" fill="#1A1F3A" stroke="url(#terminalGradient)" stroke-width="2"/>
+
+  <!-- Terminal header -->
+  <rect x="60" y="80" width="280" height="35" rx="12" fill="url(#terminalGradient)" opacity="0.3"/>
+
+  <!-- Terminal dots -->
+  <circle cx="80" cy="97.5" r="5" fill="#FF5F57"/>
+  <circle cx="100" cy="97.5" r="5" fill="#FFBD2E"/>
+  <circle cx="120" cy="97.5" r="5" fill="#28CA42"/>
+
+  <!-- Terminal prompt -->
+  <text x="80" y="150" font-family="Monaco, 'Courier New', monospace" font-size="18" fill="url(#accentGradient)" font-weight="bold">$</text>
+  <text x="100" y="150" font-family="Monaco, 'Courier New', monospace" font-size="16" fill="#00D9FF">mcp-console</text>
+
+  <!-- Cursor blinking effect -->
+  <rect x="225" y="135" width="12" height="20" fill="#00FF94">
+    <animate attributeName="opacity" values="1;0;1" dur="1.5s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- Command line examples -->
+  <text x="80" y="185" font-family="Monaco, 'Courier New', monospace" font-size="14" fill="#7B8BA8">Session created</text>
+  <text x="80" y="210" font-family="Monaco, 'Courier New', monospace" font-size="14" fill="#7B8BA8">Monitoring: ✓</text>
+  <text x="80" y="235" font-family="Monaco, 'Courier New', monospace" font-size="14" fill="#7B8BA8">SSH ready: ✓</text>
+  <text x="80" y="260" font-family="Monaco, 'Courier New', monospace" font-size="14" fill="#7B8BA8">Jobs: 3 active</text>
+
+  <!-- Automation symbol (gear/cog) -->
+  <g transform="translate(290, 270)">
+    <!-- Gear -->
+    <path d="M 0,-18 L 4,-14 L 8,-18 L 12,-14 L 18,-14 L 18,-8 L 14,-4 L 18,0 L 14,4 L 18,8 L 18,14 L 12,14 L 8,18 L 4,14 L 0,18 L -4,14 L -8,18 L -12,14 L -18,14 L -18,8 L -14,4 L -18,0 L -14,-4 L -18,-8 L -18,-14 L -12,-14 L -8,-18 L -4,-14 Z"
+          fill="url(#terminalGradient)" stroke="none">
+      <animateTransform
+        attributeName="transform"
+        type="rotate"
+        from="0"
+        to="360"
+        dur="8s"
+        repeatCount="indefinite"/>
+    </path>
+    <!-- Center circle -->
+    <circle r="8" fill="#0A0E27"/>
+  </g>
+
+  <!-- AI/Automation indicator -->
+  <g transform="translate(110, 270)">
+    <circle r="20" fill="none" stroke="url(#accentGradient)" stroke-width="2" opacity="0.6">
+      <animate attributeName="r" values="20;24;20" dur="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="16" fill="none" stroke="url(#accentGradient)" stroke-width="2" opacity="0.4">
+      <animate attributeName="r" values="16;20;16" dur="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="8" fill="url(#accentGradient)">
+      <animate attributeName="opacity" values="1;0.6;1" dur="2s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- Text label -->
+  <text x="200" y="355" font-family="'Segoe UI', Arial, sans-serif" font-size="22" font-weight="700" fill="url(#terminalGradient)" text-anchor="middle">CONSOLE</text>
+  <text x="200" y="378" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="600" fill="#7B8BA8" text-anchor="middle">AUTOMATION</text>
+</svg>

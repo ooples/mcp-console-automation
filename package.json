@@ -1,5 +1,5 @@
 {
-  "name": "@mcp/console-automation",
+  "name": "mcp-console-automation",
   "version": "1.0.0",
   "description": "MCP server for AI-driven console application automation and monitoring",
   "main": "dist/mcp/server.js",
