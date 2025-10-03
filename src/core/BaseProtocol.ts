@@ -5,9 +5,9 @@ import {
   ProtocolCapabilities,
   ProtocolHealthStatus,
   SessionState,
-  CommandExecutionOptions,
-  WaitOptions,
-  WaitResult,
+  // CommandExecutionOptions,
+  // WaitOptions,
+  // WaitResult,
   ErrorContext,
   ErrorRecoveryResult,
   ResourceUsage
@@ -17,7 +17,7 @@ import {
   ConsoleSession,
   ConsoleOutput,
   SessionOptions,
-  HealthCheckResult
+  // HealthCheckResult
 } from '../types/index.js';
 
 /**
@@ -71,7 +71,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
     // DEBUG: Log what we're checking
     try {
       // Use dynamic import for debugging
-      const debugFile = 'C:\\Users\\yolan\\source\\repos\\mcp-console-automation\\ssh-debug.log';
+      const _debugFile = 'C:\\Users\\yolan\\source\\repos\\mcp-console-automation\\ssh-debug.log';
       const timestamp = new Date().toISOString();
       const msg = `[${timestamp}] BaseProtocol.isOneShotCommand: command="${command}", args=${JSON.stringify(args)}\n`;
       // Use console.error which goes to stderr (not redirected by MCP)
@@ -359,7 +359,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
     return error.message.includes('session') || error.message.includes('process');
   }
 
-  protected async attemptReconnection(context: ErrorContext): Promise<boolean> {
+  protected async attemptReconnection(_context: ErrorContext): Promise<boolean> {
     // Subclasses can override this for protocol-specific reconnection logic
     return false;
   }
@@ -393,7 +393,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       await this.closeSession(sessionId);
 
       // Recreate session with same options
-      const newSession = await this.createSession({
+      const _newSession = await this.createSession({
         command: session.command,
         args: session.args,
         cwd: session.cwd,

@@ -449,7 +449,7 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Get existing healthy connection using load balancing strategy
    */
-  private async getExistingConnection(hostKey: string, options: SSHConnectionOptions): Promise<PooledConnection | null> {
+  private async getExistingConnection(hostKey: string, _options: SSHConnectionOptions): Promise<PooledConnection | null> {
     const hostConnections = this.connectionsByHost.get(hostKey);
     if (!hostConnections || hostConnections.size === 0) {
       return null;
@@ -492,14 +492,14 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Handle connection failure and update circuit breaker
    */
-  private handleConnectionFailure(hostKey: string, error: any): void {
+  private handleConnectionFailure(hostKey: string, error: Error | unknown): void {
     this.recordCircuitBreakerFailure(hostKey, error);
   }
 
   /**
    * Record circuit breaker failure with enhanced state management
    */
-  private recordCircuitBreakerFailure(hostKey: string, error: any): void {
+  private recordCircuitBreakerFailure(hostKey: string, error: Error | unknown): void {
     let breaker = this.circuitBreakers.get(hostKey);
     if (!breaker) {
       breaker = {
