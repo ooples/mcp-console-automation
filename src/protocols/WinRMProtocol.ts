@@ -512,7 +512,9 @@ export class WinRMProtocol extends BaseProtocol {
       const shell = body?.["rsp:Shell"]?.[0] || body?.["x:Shell"]?.[0];
       const shellId = shell?.["rsp:ShellId"]?.[0] || shell?.["x:ShellId"]?.[0];
       if (shellId && typeof shellId === "string") return shellId;
-    } catch {}
+    } catch {
+      // XML parsing failed, will fall back to generated ID
+    }
     return uuidv4(); // Fallback to generated ID
   }
 
@@ -641,7 +643,9 @@ export class WinRMProtocol extends BaseProtocol {
     if (base64Match) {
       try {
         return Buffer.from(base64Match[1], 'base64').toString('utf-8');
-      } catch {}
+      } catch {
+        // Base64 decoding failed, will return raw response
+      }
     }
 
     // Return raw response as fallback

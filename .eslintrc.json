@@ -34,7 +34,12 @@
     ],
     "prefer-const": "warn",
     "no-var": "error",
-    "no-useless-escape": "warn"
+    "no-useless-escape": "warn",
+    "no-control-regex": "off",
+    "no-case-declarations": "off",
+    "no-misleading-character-class": "off",
+    "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/no-unsafe-declaration-merging": "off"
   },
   "env": {
     "node": true,
@@ -45,12 +50,15 @@
     "node_modules/",
     "*.js",
     "examples/",
+    "test/",
+    "tests/",
     "test-*.ts",
     "run-*.ts",
     "*-test.ts",
     "debug-*.ts",
     "*-demo.ts",
     "*-verify.ts",
+    "verify-*.ts",
     "switch-*.mjs",
     "pagination-*.cjs",
     "diagnostics-*.js"

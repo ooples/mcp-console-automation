@@ -58,13 +58,9 @@ export class SSHProtocol extends BaseProtocol {
       return;
     }
 
-    try {
-      // SSH functionality available through SSHAdapter
-      this.isInitialized = true;
-      this.logger.info('SSH protocol initialized with session management fixes');
-    } catch (error) {
-      throw error;
-    }
+    // SSH functionality available through SSHAdapter
+    this.isInitialized = true;
+    this.logger.info('SSH protocol initialized with session management fixes');
   }
 
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
