@@ -453,7 +453,7 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues, questions, or suggestions, please open an issue on GitHub:
-https://github.com/yourusername/mcp-console-automation/issues
+https://github.com/ooples/mcp-console-automation/issues
 
 ## Roadmap
 
