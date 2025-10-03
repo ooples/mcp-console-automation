@@ -341,7 +341,7 @@ export class ConsoleAutomationServer {
       },
       {
         name: 'console_send_input',
-        description: 'Send text input to a console session',
+        description: 'Send text input to a console session. WARNING: This is for interactive shells only (SSH prompts, interactive CLIs). For command execution, use console_execute_command or console_execute_async which handle completion automatically.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -429,7 +429,7 @@ export class ConsoleAutomationServer {
       },
       {
         name: 'console_wait_for_output',
-        description: 'Wait for specific output pattern in console',
+        description: 'Wait for specific output pattern in console (e.g., shell prompts). For command completion, use console_execute_command which waits automatically, or use streaming/background jobs for long-running commands.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1518,7 +1518,19 @@ export class ConsoleAutomationServer {
         let suggestion = '';
         
         if (error.message.includes('timeout') || error.message.includes('timed out')) {
-          suggestion = '\n\nTip: This command timed out. For long-running commands, use console_create_session to create a persistent session, then use console_send_input and console_wait_for_output instead of console_execute_command. This allows better control over long-running processes.';
+          suggestion = `\n\nTip: This command timed out. For long-running commands, use one of these approaches:
+
+1. Increase timeout: Use console_execute_command with a longer timeout parameter
+   Example: { command: "long-task", timeout: 300000 } // 5 minutes
+
+2. Streaming session (for large outputs): Use console_create_session with streaming
+   Example: { command: "long-task", streaming: true }
+   Then use console_get_stream to retrieve output in chunks
+
+3. Background job (for async execution): Use console_execute_async
+   Then monitor with console_get_job_status and console_get_job_output
+
+See documentation for detailed examples of each pattern.`;
         }
         
         return {
@@ -1577,7 +1589,19 @@ export class ConsoleAutomationServer {
       let suggestion = '';
       
       if (error.message.includes('timeout') || error.message.includes('timed out')) {
-        suggestion = '\n\nTip: This command timed out. For long-running commands, use console_create_session to create a persistent session, then use console_send_input and console_wait_for_output instead of console_execute_command. This allows better control over long-running processes.';
+        suggestion = `\n\nTip: This command timed out. For long-running commands, use one of these approaches:
+
+1. Increase timeout: Use console_execute_command with a longer timeout parameter
+   Example: { command: "long-task", timeout: 300000 } // 5 minutes
+
+2. Streaming session (for large outputs): Use console_create_session with streaming
+   Example: { command: "long-task", streaming: true }
+   Then use console_get_stream to retrieve output in chunks
+
+3. Background job (for async execution): Use console_execute_async
+   Then monitor with console_get_job_status and console_get_job_output
+
+See documentation for detailed examples of each pattern.`;
       }
       
       throw new McpError(

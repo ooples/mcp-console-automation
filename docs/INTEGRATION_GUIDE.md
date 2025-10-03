@@ -443,6 +443,165 @@ All comprehensive tests pass:
 - ✅ Concurrent sessions work efficiently
 - ✅ Zero token limit failures
 
+## Common Mistakes and Anti-Patterns
+
+### ⚠️ Anti-Pattern: Using sendInput + getOutput for Command Execution
+
+**Problem:** This pattern creates a race condition where output is retrieved before the command completes.
+
+**WRONG - Race Condition:**
+```typescript
+// ❌ DON'T DO THIS
+await mcp.console_send_input({
+  sessionId: 'my-session',
+  input: 'npm install\n'
+});
+
+// Command hasn't finished yet!
+const output = await mcp.console_get_output({
+  sessionId: 'my-session'
+});
+// Result: You get "npm install" echo but not the actual output
+```
+
+**Why it fails:**
+1. `console_send_input` sends the command and returns **immediately**
+2. The command starts executing but hasn't completed yet
+3. `console_get_output` retrieves whatever is in the buffer **at that moment** (usually just the command echo)
+4. The actual command output arrives later and is missed
+
+**Visual Diagram:**
+```
+Time →
+─────────────────────────────────────────────────────────
+sendInput("cmd\n")     getOutput()        Output arrives
+      ↓                   ↓                      ↓
+      |                   |                      |
+      ▼                   ▼                      ▼
+   [Command sent]    [Buffer: "cmd"]      [Actual output]
+                          ❌ Too early!         ❌ Missed!
+```
+
+**✅ CORRECT Solutions:**
+
+**Option 1: Use console_execute_command (Synchronous)**
+```typescript
+const result = await mcp.console_execute_command({
+  sessionId: 'my-session',
+  command: 'npm install',
+  timeout: 300000  // 5 minutes
+});
+console.log(result.output);  // ✅ Complete output guaranteed
+```
+
+**Option 2: Use streaming (Large outputs)**
+```typescript
+const session = await mcp.console_create_session({
+  command: 'npm install',
+  streaming: true
+});
+
+const stream = await mcp.console_get_stream({
+  sessionId: session.sessionId,
+  maxLines: 50
+});
+
+// Paginate through all output
+while (stream.hasMore) {
+  // Process stream.chunks
+  stream = await mcp.console_get_stream({
+    sessionId: session.sessionId,
+    since: stream.nextSequenceId
+  });
+}
+```
+
+**Option 3: Use background jobs (Async execution)**
+```typescript
+const job = await mcp.console_execute_async({
+  command: 'npm install',
+  options: { sessionId: 'my-session', timeout: 600000 }
+});
+
+// Poll for completion
+let status;
+do {
+  await sleep(1000);
+  status = await mcp.console_get_job_status(job.jobId);
+} while (status.job.status === 'running');
+
+const output = await mcp.console_get_job_output(job.jobId);
+```
+
+### When to Use Each API
+
+| API | Purpose | Use Case |
+|-----|---------|----------|
+| `console_execute_command` | ✅ Command execution | Most commands (<2 min, <10KB output) |
+| `console_create_session` + streaming | ✅ Large output commands | Commands with >10KB output |
+| `console_execute_async` | ✅ Long-running commands | Commands taking minutes/hours |
+| `console_send_input` | ⚠️ Interactive shells ONLY | SSH prompts, interactive CLIs |
+| `console_wait_for_output` | ⚠️ Pattern matching ONLY | Waiting for specific prompts |
+
+### Decision Tree
+
+```
+Need to execute a command?
+│
+├─ Fast (<30s) + Small output (<10KB)?
+│  → Use console_execute_command
+│
+├─ Large output (>10KB) OR need real-time updates?
+│  → Use console_create_session with streaming
+│
+├─ Long-running (>2 min) OR can run async?
+│  → Use console_execute_async + job monitoring
+│
+└─ Interactive shell (SSH login, prompts)?
+   → Use console_send_input + console_wait_for_output
+```
+
+### Additional Anti-Patterns
+
+**❌ Using sleep to "wait" for command completion:**
+```typescript
+await mcp.console_send_input({ sessionId, input: 'command\n' });
+await sleep(5000);  // Guessing how long to wait
+const output = await mcp.console_get_output({ sessionId });
+```
+**Problem:** You don't know how long the command will take!
+
+**✅ Instead:** Let the system handle timing with proper execution APIs.
+
+---
+
+**❌ Not handling timeouts properly:**
+```typescript
+const result = await mcp.console_execute_command({
+  command: 'very-long-command',
+  timeout: 30000  // Default - too short!
+});
+```
+**Problem:** Command will timeout and you'll get incomplete results.
+
+**✅ Instead:** Set appropriate timeout or use background jobs:
+```typescript
+// Option 1: Increase timeout
+const result = await mcp.console_execute_command({
+  command: 'very-long-command',
+  timeout: 600000  // 10 minutes
+});
+
+// Option 2: Use background job
+const job = await mcp.console_execute_async({
+  command: 'very-long-command'
+});
+```
+
+---
+
+**For detailed usage patterns and examples, see:** [USAGE_PATTERNS.md](./USAGE_PATTERNS.md)
+
 ## Conclusion
 
 The Enhanced Streaming Architecture provides a **complete solution** to the 25k token limit problem while maintaining full backwards compatibility. Key benefits:
