@@ -58,8 +58,7 @@ module.exports = {
   },
   transformIgnorePatterns: [],
   setupFilesAfterEnv: [
-    '<rootDir>/tests/setup/jest.setup.ts',
-    '<rootDir>/tests/setup/global-teardown.ts'
+    '<rootDir>/tests/setup/jest.setup.ts'
   ],
   testTimeout: 45000,
   maxWorkers: '75%',
