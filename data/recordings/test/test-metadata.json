@@ -1,0 +1,18 @@
+{
+  "name": "test-metadata",
+  "version": "1.0.0",
+  "createdAt": "2025-10-03T01:18:43.371Z",
+  "duration": 0,
+  "steps": [],
+  "metadata": {
+    "author": "John Doe",
+    "description": "Test recording",
+    "tags": [
+      "integration",
+      "ssh"
+    ],
+    "environment": {
+      "test": "value"
+    }
+  }
+}

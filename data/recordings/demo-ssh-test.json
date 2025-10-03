@@ -1,0 +1,209 @@
+{
+  "name": "demo-ssh-test",
+  "version": "1.0.0",
+  "createdAt": "2025-10-02T12:00:00.000Z",
+  "duration": 15420,
+  "steps": [
+    {
+      "type": "create_session",
+      "timestamp": 0,
+      "data": {
+        "command": "ssh",
+        "consoleType": "ssh",
+        "sshOptions": {
+          "host": "example.com",
+          "port": 22,
+          "username": "deployer",
+          "privateKeyPath": "~/.ssh/id_rsa"
+        }
+      },
+      "output": "SSH session created successfully",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "wait_for_output",
+      "timestamp": 2150,
+      "data": {
+        "pattern": "\\$",
+        "timeout": 10000
+      },
+      "output": "deployer@example:~$",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_input",
+      "timestamp": 2300,
+      "data": {
+        "input": "cd /var/www/myapp"
+      },
+      "output": "",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_key",
+      "timestamp": 2320,
+      "data": {
+        "key": "enter"
+      },
+      "output": "deployer@example:/var/www/myapp$",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_input",
+      "timestamp": 3500,
+      "data": {
+        "input": "git pull origin main"
+      },
+      "output": "",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_key",
+      "timestamp": 3520,
+      "data": {
+        "key": "enter"
+      },
+      "output": "Updating 3f2a1b9..7d4e8c2",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "wait_for_output",
+      "timestamp": 5800,
+      "data": {
+        "pattern": "Fast-forward|Already up to date",
+        "timeout": 30000
+      },
+      "output": "Fast-forward\n src/app.js | 25 +++++++++++++++++++++----\n 1 file changed, 21 insertions(+), 4 deletions(-)\ndeployer@example:/var/www/myapp$",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_input",
+      "timestamp": 6100,
+      "data": {
+        "input": "npm install"
+      },
+      "output": "",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_key",
+      "timestamp": 6120,
+      "data": {
+        "key": "enter"
+      },
+      "output": "npm WARN deprecated...",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "wait_for_output",
+      "timestamp": 12300,
+      "data": {
+        "pattern": "up to date|added \\d+ packages",
+        "timeout": 120000
+      },
+      "output": "added 3 packages, removed 1 package, and updated 5 packages in 6.18s\ndeployer@example:/var/www/myapp$",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_input",
+      "timestamp": 12500,
+      "data": {
+        "input": "npm run build"
+      },
+      "output": "",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_key",
+      "timestamp": 12520,
+      "data": {
+        "key": "enter"
+      },
+      "output": "> myapp@1.0.0 build\n> webpack --mode production",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "wait_for_output",
+      "timestamp": 14850,
+      "data": {
+        "pattern": "built successfully|webpack compiled",
+        "timeout": 180000
+      },
+      "output": "webpack 5.89.0 compiled successfully in 2319 ms\ndeployer@example:/var/www/myapp$",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_input",
+      "timestamp": 15100,
+      "data": {
+        "input": "sudo systemctl restart myapp"
+      },
+      "output": "",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_key",
+      "timestamp": 15120,
+      "data": {
+        "key": "enter"
+      },
+      "output": "[sudo] password for deployer:",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_input",
+      "timestamp": 15200,
+      "data": {
+        "input": "***REDACTED***"
+      },
+      "output": "",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_key",
+      "timestamp": 15220,
+      "data": {
+        "key": "enter"
+      },
+      "output": "deployer@example:/var/www/myapp$",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_input",
+      "timestamp": 15400,
+      "data": {
+        "input": "exit"
+      },
+      "output": "",
+      "sessionId": "ssh-session-1"
+    },
+    {
+      "type": "send_key",
+      "timestamp": 15420,
+      "data": {
+        "key": "enter"
+      },
+      "output": "Connection to example.com closed.",
+      "sessionId": "ssh-session-1"
+    }
+  ],
+  "metadata": {
+    "author": "DevOps Team",
+    "description": "Automated deployment test for web application - connects via SSH, pulls latest code, installs dependencies, builds application, and restarts service",
+    "tags": [
+      "deployment",
+      "ssh",
+      "automation",
+      "production"
+    ],
+    "environment": {
+      "platform": "linux",
+      "nodeVersion": "v18.17.0",
+      "cwd": "/home/deployer/automation",
+      "timestamp": "2025-10-02T12:00:00.000Z",
+      "targetServer": "example.com",
+      "targetApp": "myapp",
+      "deploymentType": "rolling-update"
+    }
+  }
+}

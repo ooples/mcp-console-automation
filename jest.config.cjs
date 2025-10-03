@@ -1,10 +1,11 @@
-export default {
+module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/tests', '<rootDir>/test'],
+  roots: ['<rootDir>/tests', '<rootDir>/test', '<rootDir>/src/tests'],
   testMatch: [
     '<rootDir>/tests/**/*.test.ts',
-    '<rootDir>/test/**/*.test.ts'
+    '<rootDir>/test/**/*.test.ts',
+    '<rootDir>/src/tests/**/*.test.ts'
   ],
   collectCoverageFrom: [
     'src/**/*.ts',
@@ -36,21 +37,21 @@ export default {
     }
   },
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^(\.{1,2}/.+)\.js$': '$1',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@tests/(.*)$': '<rootDir>/tests/$1'
   },
-  extensionsToTreatAsEsm: ['.ts'],
-  transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      useESM: true,
-      tsconfig: {
-        module: 'esnext',
-        target: 'es2022',
-        moduleResolution: 'bundler'
-      }
-    }]
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  globals: {
+    'ts-jest': {
+      tsconfig: '<rootDir>/tsconfig.test.json',
+      isolatedModules: true
+    }
   },
+  transform: {
+    '^.+\.(js|jsx|mjs|cjs)$': 'babel-jest'
+  },
+  transformIgnorePatterns: [],
   setupFilesAfterEnv: [
     '<rootDir>/tests/setup/jest.setup.ts',
     '<rootDir>/tests/setup/global-teardown.ts'
@@ -62,42 +63,6 @@ export default {
   clearMocks: true,
   restoreMocks: true,
   resetMocks: true,
-  projects: [
-    {
-      displayName: 'unit',
-      testMatch: ['<rootDir>/tests/unit/**/*.test.ts'],
-      testTimeout: 15000,
-      maxWorkers: '50%'
-    },
-    {
-      displayName: 'integration',
-      testMatch: ['<rootDir>/tests/integration/**/*.test.ts'],
-      testTimeout: 120000,
-      maxWorkers: 3,
-      setupFilesAfterEnv: ['<rootDir>/tests/setup/integration.setup.ts']
-    },
-    {
-      displayName: 'performance',
-      testMatch: ['<rootDir>/tests/performance/**/*.test.ts'],
-      testTimeout: 300000,
-      maxWorkers: 2,
-      setupFilesAfterEnv: ['<rootDir>/tests/setup/performance.setup.ts']
-    },
-    {
-      displayName: 'security',
-      testMatch: ['<rootDir>/tests/security/**/*.test.ts'],
-      testTimeout: 180000,
-      maxWorkers: 2,
-      setupFilesAfterEnv: ['<rootDir>/tests/setup/security.setup.ts']
-    },
-    {
-      displayName: 'e2e',
-      testMatch: ['<rootDir>/tests/e2e/**/*.test.ts'],
-      testTimeout: 600000,
-      maxWorkers: 1,
-      setupFilesAfterEnv: ['<rootDir>/tests/setup/e2e.setup.ts']
-    }
-  ],
   reporters: [
     'default',
     ['jest-junit', {
@@ -116,6 +81,6 @@ export default {
     }]
   ],
   testResultsProcessor: 'jest-sonar-reporter',
-  globalSetup: '<rootDir>/tests/setup/global-setup.ts',
-  globalTeardown: '<rootDir>/tests/setup/global-teardown.ts'
+  globalSetup: '<rootDir>/tests/setup/global-setup-simple.js',
+  globalTeardown: '<rootDir>/tests/setup/global-teardown-simple.js'
 };

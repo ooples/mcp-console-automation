@@ -1,0 +1,150 @@
+{
+  "name": "demo-deployment-suite",
+  "description": "Demo test suite for deployment verification",
+  "tests": [
+    {
+      "name": "Check server connectivity",
+      "description": "Verify the server is reachable and responding",
+      "assertions": [
+        {
+          "type": "output_contains",
+          "expected": "connected",
+          "message": "Server should be connected"
+        },
+        {
+          "type": "no_errors",
+          "expected": true,
+          "message": "No connection errors should occur"
+        }
+      ],
+      "timeout": 10000,
+      "retry": 2,
+      "skip": false,
+      "tags": ["connectivity", "smoke"]
+    },
+    {
+      "name": "Verify application start",
+      "description": "Ensure the application starts successfully",
+      "assertions": [
+        {
+          "type": "output_contains",
+          "expected": "Application started",
+          "message": "Application should start successfully"
+        },
+        {
+          "type": "output_matches",
+          "expected": "listening.*port.*\\d+",
+          "message": "Application should be listening on a port"
+        }
+      ],
+      "timeout": 15000,
+      "retry": 1,
+      "skip": false,
+      "tags": ["startup", "smoke"]
+    },
+    {
+      "name": "Health check endpoint",
+      "description": "Verify the health check endpoint returns OK",
+      "assertions": [
+        {
+          "type": "output_contains",
+          "expected": "200",
+          "message": "Health check should return 200 OK"
+        },
+        {
+          "type": "output_contains",
+          "expected": "healthy",
+          "message": "Health status should be healthy"
+        }
+      ],
+      "timeout": 5000,
+      "retry": 3,
+      "skip": false,
+      "tags": ["health", "smoke"]
+    },
+    {
+      "name": "Database connection",
+      "description": "Verify database connectivity",
+      "assertions": [
+        {
+          "type": "output_contains",
+          "expected": "database connected",
+          "message": "Database should be connected"
+        },
+        {
+          "type": "no_errors",
+          "expected": true,
+          "message": "No database errors should occur"
+        }
+      ],
+      "timeout": 8000,
+      "retry": 2,
+      "skip": false,
+      "tags": ["database", "integration"]
+    },
+    {
+      "name": "API endpoint test",
+      "description": "Verify critical API endpoints are working",
+      "assertions": [
+        {
+          "type": "output_contains",
+          "expected": "API ready",
+          "message": "API should be ready"
+        },
+        {
+          "type": "output_matches",
+          "expected": "routes.*registered",
+          "message": "Routes should be registered"
+        }
+      ],
+      "timeout": 10000,
+      "retry": 1,
+      "skip": false,
+      "tags": ["api", "integration"]
+    },
+    {
+      "name": "Memory usage check",
+      "description": "Verify memory usage is within acceptable limits",
+      "assertions": [
+        {
+          "type": "output_matches",
+          "expected": "memory.*[0-9]+",
+          "message": "Memory usage should be reported"
+        }
+      ],
+      "timeout": 5000,
+      "retry": 0,
+      "skip": false,
+      "tags": ["performance", "monitoring"]
+    },
+    {
+      "name": "Graceful shutdown",
+      "description": "Verify application shuts down gracefully",
+      "assertions": [
+        {
+          "type": "output_contains",
+          "expected": "shutdown complete",
+          "message": "Application should shutdown gracefully"
+        },
+        {
+          "type": "exit_code",
+          "expected": 0,
+          "message": "Exit code should be 0"
+        }
+      ],
+      "timeout": 10000,
+      "retry": 1,
+      "skip": false,
+      "tags": ["shutdown", "smoke"]
+    }
+  ],
+  "config": {
+    "timeout": 30000,
+    "retry": 0,
+    "parallel": false,
+    "maxWorkers": 1,
+    "bail": false,
+    "verbose": true
+  },
+  "tags": ["deployment", "smoke-test", "demo"]
+}

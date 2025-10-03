@@ -1,0 +1,16 @@
+test_id,test_name,input_value,expected_output,priority,timeout_ms
+1,login_test_valid,admin:password123,success,high,5000
+2,login_test_invalid,admin:wrongpass,failure,high,5000
+3,api_health_check,/api/health,200,critical,3000
+4,api_users_list,/api/users,200,medium,10000
+5,api_create_user,"{""name"":""test""}",201,medium,8000
+6,file_upload_small,small.txt,success,low,15000
+7,file_upload_large,large.zip,success,low,60000
+8,database_query,SELECT * FROM users,rows,high,5000
+9,cache_set,key:value,ok,medium,2000
+10,cache_get,key,value,medium,2000
+11,email_send,test@example.com,sent,low,10000
+12,notification_push,device123,delivered,low,8000
+13,search_query,test query,results,medium,7000
+14,batch_process,batch_001,completed,low,120000
+15,report_generate,monthly_report,ready,low,30000

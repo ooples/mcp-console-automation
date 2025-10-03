@@ -1,0 +1,17 @@
+{
+  "sessionId": "example-error-session",
+  "timestamp": 1709500060000,
+  "output": "$ npm test\n> mcp-console-automation@1.0.0 test\n> jest\n\n FAIL  src/tests/AssertionEngine.test.ts\n  AssertionEngine\n    ✓ evaluates output_contains assertion (5ms)\n    ✗ evaluates output_matches assertion (12ms)\n    ✓ evaluates exit_code assertion (2ms)\n    ✓ evaluates no_errors assertion (2ms)\n    ✓ evaluates state_equals assertion (3ms)\n\n  ● AssertionEngine › evaluates output_matches assertion\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: true\n    Received: false\n\n      42 |     const result = await engine.evaluate(assertion);\n      43 |     \n    > 44 |     expect(result.passed).toBe(true);\n         |                           ^\n      45 |   });\n      46 |\n      47 |   test('evaluates exit_code assertion', async () => {\n\n      at Object.<anonymous> (src/tests/AssertionEngine.test.ts:44:27)\n\nTest Suites: 1 failed, 1 total\nTests:       1 failed, 4 passed, 5 total\nSnapshots:   0 total\nTime:        2.567s\nRan all test suites.\nERROR: Test execution failed with exit code 1\n",
+  "state": {
+    "exitCode": 1,
+    "isRunning": false,
+    "error": "Test execution failed"
+  },
+  "metadata": {
+    "command": "npm test",
+    "environment": "test",
+    "author": "test-framework",
+    "description": "Failed test execution example"
+  },
+  "hash": "z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7c6b5a4"
+}
