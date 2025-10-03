@@ -8,8 +8,7 @@ module.exports = {
 
   // Only run unit tests in CI (skip slow integration/stress tests)
   testMatch: [
-    '<rootDir>/tests/unit/**/*.test.ts',
-    '<rootDir>/src/tests/**/*.test.ts'
+    '<rootDir>/tests/unit/**/*.test.ts'
   ],
 
   testPathIgnorePatterns: [
@@ -19,9 +18,7 @@ module.exports = {
     '/tests/integration/',
     '/tests/stress/',
     '/test/',
-    'performance',  // Exclude performance tests
-    'parallel',     // Exclude parallel execution tests
-    'phase4'        // Exclude phase 4 performance tests
+    '/src/tests/'  // Exclude all src/tests - contains integration/performance tests
   ],
 
   moduleNameMapper: {
