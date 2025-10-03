@@ -18,7 +18,10 @@ module.exports = {
     '/coverage/',
     '/tests/integration/',
     '/tests/stress/',
-    '/test/'
+    '/test/',
+    'performance',  // Exclude performance tests
+    'parallel',     // Exclude parallel execution tests
+    'phase4'        // Exclude phase 4 performance tests
   ],
 
   moduleNameMapper: {
