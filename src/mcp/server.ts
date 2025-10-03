@@ -11,6 +11,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { ConsoleManager } from '../core/ConsoleManager.js';
 import { SessionManager } from '../core/SessionManager.js';
+import { SmartExecutor } from '../core/SmartExecutor.js';
 import { SessionOptions, ConsoleSession, BackgroundJobOptions } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 import { SSHBridge } from './SSHBridge.js';
@@ -44,6 +45,7 @@ export class ConsoleAutomationServer {
   private server: Server;
   private consoleManager: ConsoleManager;
   private sessionManager: SessionManager;
+  private smartExecutor: SmartExecutor;
   private sshBridge: SSHBridge;
   private logger: Logger;
   private sessionRecoveryMap: Map<string, any> = new Map();
@@ -66,6 +68,7 @@ export class ConsoleAutomationServer {
     this.logger = new Logger('MCPServer');
     this.consoleManager = new ConsoleManager();
     this.sessionManager = new SessionManager();
+    this.smartExecutor = new SmartExecutor(this.consoleManager);
     this.sshBridge = new SSHBridge();
     this.assertionEngine = new AssertionEngine();
     this.snapshotManager = new SnapshotManager();
@@ -150,6 +153,9 @@ export class ConsoleAutomationServer {
 
           case 'console_execute_command':
             return await this.handleExecuteCommand(args as any);
+          
+          case 'console_execute_smart':
+            return await this.handleExecuteSmart(args as any);
           
           case 'console_detect_errors':
             return await this.handleDetectErrors(args as any);
@@ -514,6 +520,21 @@ export class ConsoleAutomationServer {
             }
           },
           required: ['command']
+        }
+      },
+      {
+        name: 'console_execute_smart',
+        description: 'Intelligent command execution that automatically selects the best strategy (synchronous, streaming, or background). Analyzes command patterns and switches strategies if needed. Recommended for all command execution.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'Session ID to execute command in' },
+            command: { type: 'string', description: 'Command to execute' },
+            args: { type: 'array', items: { type: 'string' }, description: 'Command arguments' },
+            timeout: { type: 'number', description: 'Maximum execution timeout in milliseconds (default: 30000)' },
+            env: { type: 'object', description: 'Environment variables' }
+          },
+          required: ['sessionId', 'command']
         }
       },
       {
@@ -1520,14 +1541,17 @@ export class ConsoleAutomationServer {
         if (error.message.includes('timeout') || error.message.includes('timed out')) {
           suggestion = `\n\nTip: This command timed out. For long-running commands, use one of these approaches:
 
-1. Increase timeout: Use console_execute_command with a longer timeout parameter
+1. Smart Execute (recommended): Use console_execute_smart which automatically picks the best strategy
+   Example: { sessionId: "session-id", command: "long-task" }
+
+2. Increase timeout: Use console_execute_command with a longer timeout parameter
    Example: { command: "long-task", timeout: 300000 } // 5 minutes
 
-2. Streaming session (for large outputs): Use console_create_session with streaming
+3. Streaming session (for large outputs): Use console_create_session with streaming
    Example: { command: "long-task", streaming: true }
    Then use console_get_stream to retrieve output in chunks
 
-3. Background job (for async execution): Use console_execute_async
+4. Background job (for async execution): Use console_execute_async
    Then monitor with console_get_job_status and console_get_job_output
 
 See documentation for detailed examples of each pattern.`;
@@ -1591,14 +1615,17 @@ See documentation for detailed examples of each pattern.`;
       if (error.message.includes('timeout') || error.message.includes('timed out')) {
         suggestion = `\n\nTip: This command timed out. For long-running commands, use one of these approaches:
 
-1. Increase timeout: Use console_execute_command with a longer timeout parameter
+1. Smart Execute (recommended): Use console_execute_smart which automatically picks the best strategy
+   Example: { sessionId: "session-id", command: "long-task" }
+
+2. Increase timeout: Use console_execute_command with a longer timeout parameter
    Example: { command: "long-task", timeout: 300000 } // 5 minutes
 
-2. Streaming session (for large outputs): Use console_create_session with streaming
+3. Streaming session (for large outputs): Use console_create_session with streaming
    Example: { command: "long-task", streaming: true }
    Then use console_get_stream to retrieve output in chunks
 
-3. Background job (for async execution): Use console_execute_async
+4. Background job (for async execution): Use console_execute_async
    Then monitor with console_get_job_status and console_get_job_output
 
 See documentation for detailed examples of each pattern.`;
@@ -1617,6 +1644,51 @@ See documentation for detailed examples of each pattern.`;
         } as TextContent
       ]
     };
+  }
+
+  private async handleExecuteSmart(args: { sessionId: string; command: string; args?: string[]; timeout?: number; env?: Record<string, string> }) {
+    try {
+      // Validate required parameters
+      if (!args.sessionId) {
+        throw new McpError(ErrorCode.InvalidParams, 'sessionId parameter is required');
+      }
+      if (!args.command) {
+        throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+      }
+
+      this.logger.info(`Smart execute for session ${args.sessionId}: ${args.command}`);
+
+      // Execute using smart executor
+      const result = await this.smartExecutor.execute(args.command, {
+        sessionId: args.sessionId,
+        args: args.args,
+        timeout: args.timeout,
+        env: args.env
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: result.success,
+              output: result.output,
+              exitCode: result.exitCode,
+              duration: result.duration,
+              strategyUsed: result.strategyUsed,
+              switched: result.switched,
+              switchReason: result.switchReason,
+              timestamp: new Date().toISOString()
+            }, null, 2)
+          } as TextContent
+        ]
+      };
+    } catch (error: any) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Smart execution failed: ${error.message}`
+      );
+    }
   }
 
   /**

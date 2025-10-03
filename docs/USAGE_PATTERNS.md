@@ -7,6 +7,9 @@
 ```
 START: What kind of command?
 │
+├─ Not sure / Want automatic optimization?
+│  → Use Pattern 0: Smart Execute (Recommended)
+│
 ├─ Fast command (<30s) + Small output (<10KB)
 │  → Use Pattern 1: Synchronous Execution
 │
@@ -19,6 +22,56 @@ START: What kind of command?
 │
 └─ Interactive shell (SSH login, prompts, interactive CLI)
    → Use Low-Level APIs (sendInput + waitForOutput)
+```
+
+---
+
+## Pattern 0: Smart Execute (Recommended)
+
+**Best for:** Any command execution - automatically selects optimal strategy
+
+**Tool:** `console_execute_smart`
+
+**Example:**
+```typescript
+const result = await executeSmart({
+  sessionId: 'my-session',
+  command: 'any-command-here'
+});
+
+console.log(result.output);         // Command output
+console.log(result.exitCode);       // Exit code (0 = success)
+console.log(result.duration);       // Execution time in ms
+console.log(result.strategyUsed);   // 'fast', 'streaming', or 'background'
+console.log(result.switched);       // true if strategy was changed mid-execution
+console.log(result.switchReason);   // Why strategy was switched (if applicable)
+```
+
+**How it works:**
+1. **Analyzes command** - Recognizes patterns (npm install, git clone, etc.)
+2. **Selects strategy** - Picks fast/streaming/background based on analysis
+3. **Monitors execution** - Watches output size and duration
+4. **Switches if needed** - Changes strategy mid-execution if needed
+5. **Returns unified result** - Same format regardless of strategy used
+
+**Command Pattern Recognition:**
+- **Quick commands** (`ls`, `pwd`, `echo`) → Fast path
+- **Long-running** (`npm install`, `cargo build`) → Background job
+- **Streaming** (`tail -f`, `watch`) → Streaming execution
+- **Unknown** → Start with fast path, switch if needed
+
+**Automatic Strategy Switching:**
+```typescript
+// Example: Command expected to be fast but produces large output
+const result = await executeSmart({
+  sessionId: 'my-session',
+  command: 'cat huge-log-file.txt'
+});
+
+// System detects large output and switches to streaming
+console.log(result.strategyUsed);  // 'streaming'
+console.log(result.switched);       // true
+console.log(result.switchReason);   // 'Large output detected'
 ```
 
 ---
@@ -399,9 +452,10 @@ const job2 = await executeAsync({
 
 | Pattern | Use Case | Pros | Cons |
 |---------|----------|------|------|
+| **Smart Execute** | Any command (recommended) | Auto-optimizes, switches strategies | Requires session |
 | **Synchronous** | Fast commands | Simple, immediate results | Limited by timeout |
 | **Streaming** | Large outputs | Real-time, paginated | More complex setup |
 | **Background Jobs** | Long-running | Truly async, parallel | Need to poll status |
 | **Low-Level** | Interactive shells | Full control | Easy to misuse |
 
-**Golden Rule:** Use the execution patterns (1-3) for running commands. Reserve low-level APIs for interactive scenarios only.
+**Golden Rule:** Use Smart Execute for most commands. Use specific execution patterns (1-3) when you need precise control. Reserve low-level APIs for interactive scenarios only.
