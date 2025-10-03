@@ -22,7 +22,7 @@ module.exports = {
   ],
 
   moduleNameMapper: {
-    '^(\.{1,2}/.+)\.js$': '$1',
+    '^(\.\.?/.*)\\.js$': '$1',  // Match ./ or ../ imports (with any depth) ending in .js
     '^@/(.*)$': '<rootDir>/src/$1'
   },
 
