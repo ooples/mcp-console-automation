@@ -283,7 +283,7 @@ export class WinRMProtocol extends BaseProtocol {
 
       // Create shell
       const shellResponse = await this.createShell(session);
-      session.shellId = this.extractShellId(shellResponse);
+      session.shellId = await this.extractShellId(shellResponse);
       session.state.shellId = session.shellId;
       session.state.isConnected = true;
       session.state.lastActivity = new Date();
@@ -501,18 +501,18 @@ export class WinRMProtocol extends BaseProtocol {
   /**
    * Extract shell ID from response
    */
-  private extractShellId(response: string): string {
+  private async extractShellId(response: string): Promise<string> {
     const match = response.match(/ShellId[>:]?\s*([A-F0-9-]+)/i);
     if (match) return match[1];
 
     // Try parsing as XML
     try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(response, 'text/xml');
-      const shellId = doc.querySelector('ShellId')?.textContent;
-      if (shellId) return shellId;
+      const result = await xml2js.parseStringPromise(response);
+      const body = result?.["s:Envelope"]?.["s:Body"]?.[0];
+      const shell = body?.["rsp:Shell"]?.[0] || body?.["x:Shell"]?.[0];
+      const shellId = shell?.["rsp:ShellId"]?.[0] || shell?.["x:ShellId"]?.[0];
+      if (shellId && typeof shellId === "string") return shellId;
     } catch {}
-
     return uuidv4(); // Fallback to generated ID
   }
 
