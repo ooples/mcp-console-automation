@@ -359,10 +359,7 @@ Use Cases:
 
 ### 🎨 Logo & Assets
 - [x] Create SVG logo - **COMPLETED** (`logo.svg` created)
-- [ ] Convert SVG to 400x400 PNG for Cline submission
-  - **Tool Required**: Use online converter like https://cloudconvert.com/svg-to-png
-  - **Settings**: 400x400 pixels, transparent background
-  - **Save As**: `logo.png` in repository root
+- [x] Convert SVG to 400x400 PNG - **COMPLETED** (`logo.png` created and pushed to GitHub)
 
 ### 🚀 Automated Submissions (COMPLETED)
 - [x] Docker MCP Registry - PR #311
@@ -370,31 +367,36 @@ Use Cases:
 - [x] Official MCP Servers (modelcontextprotocol) - PR #2814
 
 ### ⭐ HIGH PRIORITY Manual Submissions
-- [ ] **Official GitHub MCP Registry** (CLI tool required)
-  - Install publisher CLI from https://github.com/modelcontextprotocol/registry
-  - Run: `./bin/mcp-publisher` with GitHub OAuth
-  - Namespace: `io.github.ooples/console-automation`
+- [x] **Cline's MCP Marketplace** - **COMPLETED**
+  - ✅ Issue #504 created: https://github.com/cline/mcp-marketplace/issues/504
+  - Logo uploaded, all requirements met
 
-- [ ] **Cline's MCP Marketplace** (requires PNG logo)
-  - Create GitHub issue: https://github.com/cline/mcp-marketplace/issues/new
-  - Use "MCP server submission" template
-  - Upload `logo.png` (400x400 PNG)
+- [x] **MCPServers.org (wong2)** - **COMPLETED**
+  - ✅ Submitted via web form successfully
+  - Category: Development, awaiting review
+
+- [ ] **Official GitHub MCP Registry** (CLI tool required)
+  - ⚠️ **ACTION NEEDED**: User must complete GitHub OAuth authorization
+  - CLI installed at: `C:\Users\yolan\source\repos\mcp-registry-cli\bin\mcp-publisher.exe`
+  - Go to: https://github.com/login/device and enter code: CDE0-2DA6
+  - Then run: `cd "C:\Users\yolan\source\repos\mcp-console-automation" && "C:\Users\yolan\source\repos\mcp-registry-cli\bin\mcp-publisher.exe" publish`
+  - `server.json` file created and configured
 
 - [ ] **MCP Server Finder** (Notion form)
-  - Submit at: https://pewter-lancer-965.notion.site/1aaef90c9cf280a7afa2c039bce8bcf6
-
-- [ ] **MCPServers.org (wong2)** (web form ONLY - no PR)
-  - Submit at: https://mcpservers.org/submit
-  - Consider $39 "Official Badge" for visibility
+  - ⚠️ **ACTION NEEDED**: Manual form submission required
+  - Form URL: https://pewter-lancer-965.notion.site/1aaef90c9cf280a7afa2c039bce8bcf6
+  - Fill in: Repository name (mcp-console-automation), Description, Owner (ooples)
 
 - [ ] **MCP Server Directory (.org)** (web form)
   - Submit at: https://mcpserverdirectory.org/submit
 
 ### 📦 Package Publishing
 - [ ] **npm Publishing** (requires npm login)
-  - Run: `npm login`
-  - Run: `npm publish`
-  - Package: `mcp-console-automation@1.0.0`
+  - ⚠️ **ACTION NEEDED**: User must log in to npm
+  - Package name verified available: `mcp-console-automation`
+  - Run: `cd "C:\Users\yolan\source\repos\mcp-console-automation" && npm login`
+  - Then run: `npm publish`
+  - Package version: `1.0.0`
 
 ### 🔄 Medium Priority Submissions
 - [ ] Submit to MCP.so (web form)
