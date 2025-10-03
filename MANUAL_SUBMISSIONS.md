@@ -376,11 +376,14 @@ Use Cases:
   - Category: Development, awaiting review
 
 - [ ] **Official GitHub MCP Registry** (CLI tool required)
-  - ⚠️ **ACTION NEEDED**: User must complete GitHub OAuth authorization
+  - ⚠️ **ACTION NEEDED**: User must complete submission
   - CLI installed at: `C:\Users\yolan\source\repos\mcp-registry-cli\bin\mcp-publisher.exe`
-  - Go to: https://github.com/login/device and enter code: CDE0-2DA6
-  - Then run: `cd "C:\Users\yolan\source\repos\mcp-console-automation" && "C:\Users\yolan\source\repos\mcp-registry-cli\bin\mcp-publisher.exe" publish`
   - `server.json` file created and configured
+  - **Publishing Steps**:
+    1. Authenticate: `cd "C:\Users\yolan\source\repos\mcp-registry-cli" && .\bin\mcp-publisher.exe login github`
+    2. Complete GitHub OAuth in browser
+    3. Publish: `cd "C:\Users\yolan\source\repos\mcp-console-automation" && "C:\Users\yolan\source\repos\mcp-registry-cli\bin\mcp-publisher.exe" publish`
+  - **IMPORTANT**: Must run publish command from directory containing server.json
 
 - [ ] **MCP Server Finder** (Notion form)
   - ⚠️ **ACTION NEEDED**: Manual form submission required
@@ -389,6 +392,8 @@ Use Cases:
 
 - [ ] **MCP Server Directory (.org)** (web form)
   - Submit at: https://mcpserverdirectory.org/submit
+  - **Detailed Description**: See `DETAILED_DESCRIPTION.md` for comprehensive submission text
+  - Use the "Detailed Description" section for the submission form
 
 ### 📦 Package Publishing
 - [ ] **npm Publishing** (requires npm login)
