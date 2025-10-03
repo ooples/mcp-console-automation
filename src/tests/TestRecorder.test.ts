@@ -75,7 +75,7 @@ describe('TestRecorder', () => {
       expect(recorder.isCurrentlyRecording()).toBe(false);
 
       // Check file was created
-      const filepath = path.join(testOutputDir, 'test_stop.json');
+      const filepath = path.join(testOutputDir, 'test-stop.json');
       expect(fs.existsSync(filepath)).toBe(true);
     });
 
@@ -262,7 +262,7 @@ describe('TestRecorder', () => {
         recorder.startRecording({ name: 'test-delete' });
         recorder.stopRecording();
 
-        const filepath = path.join(testOutputDir, 'test_delete.json');
+        const filepath = path.join(testOutputDir, 'test-delete.json');
         expect(fs.existsSync(filepath)).toBe(true);
 
         TestRecorder.deleteRecording('test-delete', testOutputDir);
