@@ -22,9 +22,8 @@ module.exports = {
   ],
 
   moduleNameMapper: {
-    // Strip .js extension from relative imports
-    '^(\\.\\./.*)\.js$': '$1',  // ../ imports
-    '^(\\.\\.?/.*)\.js$': '$1',  // ./ or ../ imports
+    // Strip .js extension from relative imports (matches ./ or ../ with any nesting)
+    '^(\\.{1,2}/.*)\.js$': '$1',
     '^@/(.*)$': '<rootDir>/src/$1'
   },
 
