@@ -22,8 +22,7 @@ module.exports = {
   ],
 
   moduleNameMapper: {
-    // Strip .js extension from relative imports (matches ./ or ../ or ../../ etc)
-    '^(\\.{1,2}/.+)\\.js$': '$1',
+    '^(\.{1,2}/.+)\.js$': '$1',
     '^@/(.*)$': '<rootDir>/src/$1'
   },
 
@@ -44,12 +43,12 @@ module.exports = {
   restoreMocks: true,
   resetMocks: true,
 
-  // Transform settings
-  transform: {
-    '^.+\.ts$': ['ts-jest', {
+  // Use ts-jest globals config like main config
+  globals: {
+    'ts-jest': {
       tsconfig: '<rootDir>/tsconfig.test.json',
       isolatedModules: true
-    }]
+    }
   },
 
   transformIgnorePatterns: [],
