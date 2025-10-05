@@ -127,12 +127,11 @@ jobs:
         echo "Registry: https://registry.modelcontextprotocol.io"
 
     - name: Commit server.json if updated
-      continue-on-error: true
       run: |
         if [[ -n $(git status --porcelain server.json) ]]; then
           git add server.json
           git commit -m "chore: update server.json to version ${{ steps.extract_version.outputs.version_no_v }}"
-          git push || echo "⚠️ Could not push to master (branch protected)"
+          git push || { echo "⚠️ Could not push to master (branch protected)"; exit 0; }
           echo "Updated server.json committed"
         else
           echo "No changes to server.json"
