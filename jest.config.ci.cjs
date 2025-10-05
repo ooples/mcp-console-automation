@@ -23,7 +23,7 @@ module.exports = {
 
   moduleNameMapper: {
     // Strip .js extension from any relative import starting with .
-    '^(\\..*)\.js$': '$1',
+    '^(\\..*)\\\.js$': '$1',
     '^@/(.*)$': '<rootDir>/src/$1'
   },
 
