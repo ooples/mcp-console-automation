@@ -375,15 +375,13 @@ Use Cases:
   - ✅ Submitted via web form successfully
   - Category: Development, awaiting review
 
-- [ ] **Official GitHub MCP Registry** (CLI tool required)
-  - ⚠️ **ACTION NEEDED**: User must complete submission
-  - CLI installed at: `C:\Users\yolan\source\repos\mcp-registry-cli\bin\mcp-publisher.exe`
-  - `server.json` file created and configured
-  - **Publishing Steps**:
-    1. Authenticate: `cd "C:\Users\yolan\source\repos\mcp-registry-cli" && .\bin\mcp-publisher.exe login github`
-    2. Complete GitHub OAuth in browser
-    3. Publish: `cd "C:\Users\yolan\source\repos\mcp-console-automation" && "C:\Users\yolan\source\repos\mcp-registry-cli\bin\mcp-publisher.exe" publish`
-  - **IMPORTANT**: Must run publish command from directory containing server.json
+- [x] **Official GitHub MCP Registry** - **COMPLETED** ✅
+  - ✅ Version 1.0.2 successfully published via GitHub Actions workflow
+  - Package: `io.github.ooples/mcp-console-automation`
+  - Registry URL: https://registry.modelcontextprotocol.io
+  - Authentication: GitHub OIDC (automated via CI/CD)
+  - Published: 2025-10-05
+  - **Automated Publishing**: GitHub Action workflow automatically publishes on new releases
 
 - [ ] **MCP Server Finder** (Notion form)
   - ⚠️ **ACTION NEEDED**: Manual form submission required
