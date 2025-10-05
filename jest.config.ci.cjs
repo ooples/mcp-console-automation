@@ -27,6 +27,8 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1'
   },
 
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+
   // Minimal setup - no complex global setup/teardown
   setupFilesAfterEnv: [],
   globalSetup: undefined,
