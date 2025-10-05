@@ -65,23 +65,37 @@ jobs:
         echo "Updated server.json to version ${VERSION_NO_V}"
         cat server.json
 
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
     - name: Install MCP Publisher CLI
       run: |
-        # Install the MCP registry CLI tool globally
-        npm install -g @modelcontextprotocol/registry-cli
+        # Clone the MCP registry repository
+        git clone https://github.com/modelcontextprotocol/registry /tmp/mcp-registry
+        cd /tmp/mcp-registry
+
+        # Build the publisher CLI
+        make publisher
+
+        # Move binary to a location in PATH
+        sudo mv bin/mcp-publisher /usr/local/bin/
 
         # Verify installation
-        mcp-publisher --version || echo "Warning: mcp-publisher not in PATH"
+        mcp-publisher --version
+
+        # Return to workspace
+        cd $GITHUB_WORKSPACE
 
     - name: Authenticate with GitHub for MCP Registry
       run: |
-        # Use GitHub token for authentication
-        # The MCP registry should support GitHub App authentication
-        echo "Authenticating with GitHub token..."
-
-        # Set up git config for potential commits
+        # Set up git config for the publisher
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global user.name "github-actions[bot]"
+
+        # Set up GitHub CLI authentication
+        gh auth setup-git
 
     - name: Publish to MCP Registry
       env:
@@ -89,16 +103,21 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "Publishing to MCP Registry..."
+        echo "Package: io.github.ooples/mcp-console-automation"
+        echo "Version: ${{ steps.extract_version.outputs.version_no_v }}"
 
-        # The MCP publisher should use the GITHUB_TOKEN automatically
-        # If not, we may need to use gh auth to set up credentials
-        gh auth setup-git
+        # Authenticate using GitHub CLI device flow (non-interactive)
+        # The publisher should use GITHUB_TOKEN for authentication
+        echo "$GITHUB_TOKEN" | gh auth login --with-token
 
         # Attempt to publish
-        mcp-publisher publish --non-interactive || {
+        mcp-publisher publish || {
           echo "::error::Failed to publish to MCP registry"
           echo "Checking server.json validity..."
           cat server.json
+          echo ""
+          echo "Checking authentication status..."
+          gh auth status
           exit 1
         }
 
