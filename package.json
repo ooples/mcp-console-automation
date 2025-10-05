@@ -1,6 +1,6 @@
 {
   "name": "mcp-console-automation",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP server for AI-driven console application automation and monitoring",
   "mcpName": "io.github.ooples/mcp-console-automation",
   "main": "dist/mcp/server.js",

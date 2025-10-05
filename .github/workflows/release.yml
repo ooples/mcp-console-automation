@@ -241,7 +241,7 @@ jobs:
       uses: docker/metadata-action@v5
       with:
         images: |
-          mcp/console-automation
+          cheatcountry/mcp-console-automation
           ghcr.io/${{ github.repository }}
         tags: |
           type=ref,event=tag
