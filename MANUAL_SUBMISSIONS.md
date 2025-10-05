@@ -376,12 +376,14 @@ Use Cases:
   - Category: Development, awaiting review
 
 - [x] **Official GitHub MCP Registry** - **COMPLETED** ✅
-  - ✅ Version 1.0.2 successfully published via GitHub Actions workflow
+  - ✅ Version 1.0.2 successfully published to MCP Registry
   - Package: `io.github.ooples/mcp-console-automation`
   - Registry URL: https://registry.modelcontextprotocol.io
   - Authentication: GitHub OIDC (automated via CI/CD)
   - Published: 2025-10-05
   - **Automated Publishing**: GitHub Action workflow automatically publishes on new releases
+  - **Status**: ✅ Package is live and accessible on the registry
+  - **Workflow**: Fixed protected branch issue (commit fd4dcb9) - workflow now completes successfully
 
 - [ ] **MCP Server Finder** (Notion form)
   - ⚠️ **ACTION NEEDED**: Manual form submission required
