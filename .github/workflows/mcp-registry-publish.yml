@@ -88,36 +88,34 @@ jobs:
         # Return to workspace
         cd $GITHUB_WORKSPACE
 
-    - name: Authenticate with GitHub for MCP Registry
-      run: |
-        # Set up git config for the publisher
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git config --global user.name "github-actions[bot]"
-
-        # Set up GitHub CLI authentication
-        gh auth setup-git
-
     - name: Publish to MCP Registry
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+        ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
       run: |
         echo "Publishing to MCP Registry..."
         echo "Package: io.github.ooples/mcp-console-automation"
         echo "Version: ${{ steps.extract_version.outputs.version_no_v }}"
+        echo "Authentication: GitHub OIDC (from GitHub Actions)"
 
-        # Authenticate using GitHub CLI device flow (non-interactive)
-        # The publisher should use GITHUB_TOKEN for authentication
-        echo "$GITHUB_TOKEN" | gh auth login --with-token
+        # Set up git config for potential commits
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
 
-        # Attempt to publish
+        # The MCP publisher will automatically use GitHub OIDC when running in GitHub Actions
+        # No manual authentication needed - it uses id-token permissions
         mcp-publisher publish || {
           echo "::error::Failed to publish to MCP registry"
+          echo ""
           echo "Checking server.json validity..."
           cat server.json
           echo ""
-          echo "Checking authentication status..."
-          gh auth status
+          echo "Debugging information:"
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Actor: $GITHUB_ACTOR"
+          echo "Workflow: $GITHUB_WORKFLOW"
           exit 1
         }
 
