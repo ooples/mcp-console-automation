@@ -6,10 +6,9 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
 
-  // Skip all tests for now - unit tests have module resolution issues
-  // TODO: Fix moduleNameMapper to handle .js extensions in imports
+  // Re-enabled unit tests after confirming moduleNameMapper is correct
   testMatch: [
-    '<rootDir>/tests/NONE/**/*.test.ts'  // Matches nothing
+    '<rootDir>/src/tests/**/*.test.ts'
   ],
 
   testPathIgnorePatterns: [
@@ -18,13 +17,16 @@ module.exports = {
     '/coverage/',
     '/tests/integration/',
     '/tests/stress/',
-    '/test/',
-    '/src/tests/'  // Exclude all src/tests - contains integration/performance tests
+    '/test/'
   ],
 
   moduleNameMapper: {
     '^(\.{1,2}/.+)\.js$': '$1',
-    '^@/(.*)$': '<rootDir>/src/$1'
+    '^@/(.*)$': '<rootDir>/src/$1',
+    // Mock ESM-only packages
+    '^strip-ansi$': '<rootDir>/src/tests/__mocks__/strip-ansi.js',
+    '^ansi-regex$': '<rootDir>/src/tests/__mocks__/ansi-regex.js',
+    '^p-queue$': '<rootDir>/src/tests/__mocks__/p-queue.js'
   },
 
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
@@ -52,7 +54,10 @@ module.exports = {
     }
   },
 
-  transformIgnorePatterns: [],
+  // Transform ESM-only packages (strip-ansi, ansi-regex, etc.)
+  transformIgnorePatterns: [
+    'node_modules/(?!(strip-ansi|ansi-regex|chalk)/)'
+  ],
 
   // Simple reporting for CI
   reporters: ['default'],
