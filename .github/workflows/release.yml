@@ -179,15 +179,6 @@ jobs:
       run: |
         # Create distribution package
         npm pack
-        
-        # Create additional release artifacts
-        tar -czf mcp-console-automation-${{ steps.extract_version.outputs.version }}-src.tar.gz \
-          --exclude=node_modules \
-          --exclude=.git \
-          --exclude=dist \
-          --exclude=coverage \
-          --exclude=*.tgz \
-          .
     
     - name: Create GitHub Release
       id: create_release
@@ -200,7 +191,6 @@ jobs:
         prerelease: ${{ contains(steps.extract_version.outputs.version, '-') }}
         files: |
           mcp-console-automation-*.tgz
-          mcp-console-automation-${{ steps.extract_version.outputs.version }}-src.tar.gz
         generate_release_notes: true
     
     - name: Publish to NPM
