@@ -123,6 +123,38 @@ export class OutputFilterEngine {
         options: JSON.stringify(options, null, 2)
       });
 
+      // Validate filter options
+      const validation = this.validateFilterOptions(options);
+      if (!validation.valid) {
+        const endTime = performance.now();
+        const finalMemory = this.getMemoryUsage();
+        const processingTime = endTime - startTime;
+        const inputSize = options.maxLines && output.length > options.maxLines ? options.maxLines : output.length;
+        
+        return {
+          success: false,
+          filteredOutput: [],
+          output: [],
+          error: validation.errors.join('; '),
+          metrics: {
+            totalLines: inputSize,
+            filteredLines: 0,
+            processingTimeMs: processingTime,
+            memoryUsageBytes: finalMemory - initialMemory,
+            truncated: false,
+            filterStats: {}
+          },
+          metadata: {
+            totalLines: inputSize,
+            filteredLines: 0,
+            processingTimeMs: processingTime,
+            memoryUsageBytes: finalMemory - initialMemory,
+            truncated: false,
+            filterStats: {}
+          }
+        };
+      }
+
       // Early exit for empty output
       if (output.length === 0) {
         return this.createEmptyResult(startTime, initialMemory);
@@ -131,8 +163,13 @@ export class OutputFilterEngine {
       let result = [...output]; // Start with copy to avoid mutation
       const filterStats: any = {};
 
+      // Apply maxLines early to limit processing for performance
+      if (options.maxLines && result.length > options.maxLines) {
+        result = result.slice(0, options.maxLines);
+      }
+
       // Apply streaming mode processing for large outputs
-      if (options.streamingMode || output.length > 10000) {
+      if (options.streamingMode || result.length > 10000) {
         result = await this.processInStreamingMode(result, options);
       }
 
@@ -143,23 +180,22 @@ export class OutputFilterEngine {
         filterStats.timeFiltered = timeResult.removed;
       }
 
-      // Step 2: Line-based operations (apply before pattern matching for efficiency)
+      // Step 2: Line-based operations (head/lineRange applied before, tail applied after pattern matching)
       if (options.lineRange) {
         const lineResult = this.applyLineRangeFilter(result, options.lineRange);
         result = lineResult.filtered;
         filterStats.lineRangeFiltered = lineResult.removed;
       }
 
+      // Apply head before pattern matching
       if (options.head && !options.tail) {
         result = result.slice(0, options.head);
-      } else if (options.tail && !options.head) {
-        result = result.slice(-options.tail);
       } else if (options.head && options.tail) {
-        // Apply head first, then tail (take first N, then last M of those)
-        result = result.slice(0, options.head).slice(-options.tail);
+        // Apply head first
+        result = result.slice(0, options.head);
       }
 
-      // Step 3: Pattern matching (most CPU-intensive, apply after reduction)
+      // Step 3: Pattern matching (most CPU-intensive, apply after head reduction)
       if (options.grep) {
         const grepResult = this.applyGrepFilter(result, options.grep, options);
         result = grepResult.filtered;
@@ -173,9 +209,9 @@ export class OutputFilterEngine {
         filterStats.multiPatternMatches = multiResult.matches;
       }
 
-      // Step 5: Apply final limits
-      if (options.maxLines && result.length > options.maxLines) {
-        result = result.slice(0, options.maxLines);
+      // Apply tail after pattern matching for more intuitive behavior
+      if (options.tail) {
+        result = result.slice(-options.tail);
       }
 
       const endTime = performance.now();
@@ -183,14 +219,15 @@ export class OutputFilterEngine {
       const processingTime = endTime - startTime;
 
       // Update metrics
-      this.updateMetrics(processingTime, output.length, finalMemory - initialMemory);
+      const inputSize = options.maxLines && output.length > options.maxLines ? options.maxLines : output.length;
+      this.updateMetrics(processingTime, inputSize, finalMemory - initialMemory);
 
       const filterResult: FilterResult = {
         success: true,
         filteredOutput: result,
         output: result, // Legacy compatibility
         metrics: {
-          totalLines: output.length,
+          totalLines: inputSize,
           filteredLines: result.length,
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
@@ -198,7 +235,7 @@ export class OutputFilterEngine {
           filterStats
         },
         metadata: {
-          totalLines: output.length,
+          totalLines: inputSize,
           filteredLines: result.length,
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
@@ -216,6 +253,7 @@ export class OutputFilterEngine {
       const endTime = performance.now();
       const finalMemory = this.getMemoryUsage();
       const processingTime = endTime - startTime;
+      const inputSize = options.maxLines && output.length > options.maxLines ? options.maxLines : output.length;
       
       return {
         success: false,
@@ -223,7 +261,7 @@ export class OutputFilterEngine {
         output: [],
         error: error.message,
         metrics: {
-          totalLines: output.length,
+          totalLines: inputSize,
           filteredLines: 0,
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
@@ -231,7 +269,7 @@ export class OutputFilterEngine {
           filterStats: {}
         },
         metadata: {
-          totalLines: output.length,
+          totalLines: inputSize,
           filteredLines: 0,
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
@@ -458,7 +496,7 @@ export class OutputFilterEngine {
       this.regexCache.set(cacheKey, regex);
       return regex;
     } catch (error) {
-      throw new Error(`Invalid regular expression: ${pattern}`);
+      throw new Error(`Invalid regex pattern: ${pattern}`);
     }
   }
 
@@ -590,10 +628,10 @@ export class OutputFilterEngine {
     if (options.lineRange) {
       const [start, end] = options.lineRange;
       if (start < 1) {
-        errors.push('Line range start must be >= 1');
+        errors.push('Invalid line range: start must be >= 1');
       }
       if (end < start) {
-        errors.push('Line range end must be >= start');
+        errors.push('Invalid line range: end must be >= start');
       }
     }
 
