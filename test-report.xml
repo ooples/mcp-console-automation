@@ -1,32 +1,97 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\yolan\source\repos\mcp-console-automation\src\tests\TestRecorder.test.ts">
-    <testCase name="TestRecorder startRecording should start a new recording" duration="7"/>
-    <testCase name="TestRecorder startRecording should throw error if recording already in progress" duration="25"/>
-    <testCase name="TestRecorder startRecording should capture environment metadata" duration="3"/>
-    <testCase name="TestRecorder stopRecording should stop recording and save to file" duration="5"/>
-    <testCase name="TestRecorder stopRecording should throw error if no recording in progress" duration="3"/>
-    <testCase name="TestRecorder stopRecording should include duration in saved recording" duration="3"/>
-    <testCase name="TestRecorder recordCreateSession should record a create_session step" duration="7"/>
-    <testCase name="TestRecorder recordCreateSession should set currentSessionId" duration="2"/>
-    <testCase name="TestRecorder recordSendInput should record a send_input step" duration="3"/>
-    <testCase name="TestRecorder recordSendInput should use current session ID if not specified" duration="2"/>
-    <testCase name="TestRecorder recordSendKey should record a send_key step" duration="2"/>
-    <testCase name="TestRecorder recordWaitForOutput should record a wait_for_output step" duration="3"/>
-    <testCase name="TestRecorder getStats should return recording statistics" duration="4"/>
-    <testCase name="TestRecorder getStats should return null if no recording" duration="4"/>
-    <testCase name="TestRecorder cancelRecording should cancel recording without saving" duration="3"/>
-    <testCase name="TestRecorder cancelRecording should throw error if no recording in progress" duration="3"/>
-    <testCase name="TestRecorder Static methods listRecordings should list all recordings in directory" duration="4"/>
-    <testCase name="TestRecorder Static methods listRecordings should return empty array if directory does not exist" duration="3"/>
-    <testCase name="TestRecorder Static methods loadRecording should load a recording from file" duration="4"/>
-    <testCase name="TestRecorder Static methods loadRecording should throw error if recording not found" duration="8"/>
-    <testCase name="TestRecorder Static methods loadRecording should handle .json extension" duration="3"/>
-    <testCase name="TestRecorder Static methods deleteRecording should delete a recording file" duration="4"/>
-    <testCase name="TestRecorder Static methods deleteRecording should not throw if file does not exist" duration="3"/>
-    <testCase name="TestRecorder Timestamp tracking should record relative timestamps for steps" duration="47"/>
-    <testCase name="TestRecorder Edge cases should handle special characters in filenames" duration="3"/>
-    <testCase name="TestRecorder Edge cases should handle empty steps array" duration="4"/>
-    <testCase name="TestRecorder Edge cases should preserve metadata through save/load cycle" duration="4"/>
+  <file path="/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts">
+    <testCase name="OutputFilterEngine Basic Pattern Matching should filter lines with simple regex pattern" duration="45"/>
+    <testCase name="OutputFilterEngine Basic Pattern Matching should handle case-insensitive matching" duration="3"/>
+    <testCase name="OutputFilterEngine Basic Pattern Matching should handle complex regex patterns" duration="3"/>
+    <testCase name="OutputFilterEngine Time-based Filtering should filter by absolute timestamp (ISO)" duration="4">
+      <failure message="Error: expect(received).toHaveLength(expected)"><![CDATA[Error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+Received array:  []
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:116:37)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Time-based Filtering should filter by relative timestamp" duration="3">
+      <failure message="Error: expect(received).toHaveLength(expected)"><![CDATA[Error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+Received array:  []
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:133:37)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Time-based Filtering should handle various relative time formats" duration="4">
+      <failure message="Error: expect(received).toHaveLength(expected)"><![CDATA[Error: expect(received).toHaveLength(expected)
+
+Expected length: 1
+Received length: 0
+Received array:  []
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:156:39)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Line-based Operations should return first N lines (head)" duration="4"/>
+    <testCase name="OutputFilterEngine Line-based Operations should return last N lines (tail)" duration="4"/>
+    <testCase name="OutputFilterEngine Line-based Operations should return specific line range" duration="4"/>
+    <testCase name="OutputFilterEngine Line-based Operations should handle invalid line ranges gracefully" duration="4"/>
+    <testCase name="OutputFilterEngine Multi-pattern Search should handle AND logic with multiple patterns" duration="3">
+      <failure message="Error: expect(received).toHaveLength(expected)"><![CDATA[Error: expect(received).toHaveLength(expected)
+
+Expected length: 3
+Received length: 2
+Received array:  [{"data": "ERROR: Database connection failed", "sessionId": "test-session", "timestamp": 2025-10-08T04:45:18.490Z, "type": "stdout"}, {"data": "ERROR: Database timeout", "sessionId": "test-session", "timestamp": 2025-10-08T04:45:22.490Z, "type": "stdout"}]
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:233:37)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Multi-pattern Search should handle OR logic with multiple patterns" duration="7"/>
+    <testCase name="OutputFilterEngine Multi-pattern Search should combine multi-pattern with other filters" duration="4">
+      <failure message="Error: expect(received).toHaveLength(expected)"><![CDATA[Error: expect(received).toHaveLength(expected)
+
+Expected length: 3
+Received length: 2
+Received array:  [{"data": "ERROR: Recent error", "sessionId": "test-session", "timestamp": 2025-10-08T04:45:20.500Z, "type": "stdout"}, {"data": "WARN: Recent warning", "sessionId": "test-session", "timestamp": 2025-10-08T04:45:22.500Z, "type": "stdout"}]
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:273:37)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle 100k+ lines efficiently" duration="86">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 100
+Received: 24
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:292:44)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should use streaming mode for large outputs" duration="104">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 300
+Received: 1
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:308:44)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should respect maxLines limit for performance" duration="166">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 50000
+Received: 200000
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:321:41)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should maintain performance with complex regex patterns" duration="39"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle memory efficiently with streaming" duration="128"/>
+    <testCase name="OutputFilterEngine Combined Filter Operations should apply multiple filters in correct order" duration="2">
+      <failure message="Error: expect(received).toHaveLength(expected)"><![CDATA[Error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 1
+Received array:  [{"data": "ERROR: Latest error", "sessionId": "test-session", "timestamp": 2025-10-08T04:45:15.028Z, "type": "stdout"}]
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:385:37)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Combined Filter Operations should handle edge cases with empty results" duration="3"/>
+    <testCase name="OutputFilterEngine Combined Filter Operations should validate filter options" duration="12">
+      <failure message="Error: expect(received).toContain(expected) // indexOf"><![CDATA[Error: expect(received).toContain(expected) // indexOf
+
+Expected substring: "Invalid regex pattern"
+Received string:    "Invalid regular expression: [invalid regex("
+    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:416:40)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Caching and Optimization should cache regex patterns for performance" duration="11"/>
+    <testCase name="OutputFilterEngine Caching and Optimization should cache timestamp parsing for performance" duration="15"/>
+    <testCase name="OutputFilterEngine Real-world Scenarios should filter application logs effectively" duration="2"/>
+    <testCase name="OutputFilterEngine Real-world Scenarios should handle build output filtering" duration="3"/>
+    <testCase name="OutputFilterEngine Real-world Scenarios should filter server access logs" duration="3"/>
   </file>
 </testExecutions>

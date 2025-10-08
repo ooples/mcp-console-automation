@@ -212,7 +212,33 @@ export class OutputFilterEngine {
 
     } catch (error: any) {
       this.logger.error('Filter operation failed', error);
-      throw new Error(`Filter operation failed: ${error.message}`);
+      
+      const endTime = performance.now();
+      const finalMemory = this.getMemoryUsage();
+      const processingTime = endTime - startTime;
+      
+      return {
+        success: false,
+        filteredOutput: [],
+        output: [],
+        error: error.message,
+        metrics: {
+          totalLines: output.length,
+          filteredLines: 0,
+          processingTimeMs: processingTime,
+          memoryUsageBytes: finalMemory - initialMemory,
+          truncated: false,
+          filterStats: {}
+        },
+        metadata: {
+          totalLines: output.length,
+          filteredLines: 0,
+          processingTimeMs: processingTime,
+          memoryUsageBytes: finalMemory - initialMemory,
+          truncated: false,
+          filterStats: {}
+        }
+      };
     }
   }
 
@@ -414,20 +440,26 @@ export class OutputFilterEngine {
 
     this.metrics.cacheMisses++;
     
-    let flags = 'g';
+    // Don't use 'g' flag - we only test for match, not find all matches
+    // The 'g' flag causes regex.test() to maintain state and skip matches
+    let flags = '';
     if (options.ignoreCase) flags += 'i';
     
-    const regex = new RegExp(pattern, flags);
-    
-    // Cache with size limit
-    if (this.regexCache.size > 100) {
-      // Remove oldest entry
-      const firstKey = this.regexCache.keys().next().value;
-      this.regexCache.delete(firstKey);
+    try {
+      const regex = new RegExp(pattern, flags);
+      
+      // Cache with size limit
+      if (this.regexCache.size > 100) {
+        // Remove oldest entry
+        const firstKey = this.regexCache.keys().next().value;
+        this.regexCache.delete(firstKey);
+      }
+      
+      this.regexCache.set(cacheKey, regex);
+      return regex;
+    } catch (error) {
+      throw new Error(`Invalid regular expression: ${pattern}`);
     }
-    
-    this.regexCache.set(cacheKey, regex);
-    return regex;
   }
 
   /**
