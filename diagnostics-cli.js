@@ -188,7 +188,9 @@ class DiagnosticsCLI {
     try {
       const testFile = join(this.diagnosticsDir, 'test.tmp');
       writeFileSync(testFile, 'test');
-      require('fs').unlinkSync(testFile);
+      if (existsSync(testFile)) {
+        require('fs').unlinkSync(testFile);
+      }
     } catch (error) {
       issues.push(`Cannot write to diagnostics directory: ${error.message}`);
     }
@@ -762,14 +764,20 @@ class DiagnosticsCLI {
     
     const files = readdirSync(this.diagnosticsDir);
     const oldFiles = files.filter(f => {
-      const stats = require('fs').statSync(join(this.diagnosticsDir, f));
+      const filePath = join(this.diagnosticsDir, f);
+      const stats = require('fs').statSync(filePath);
+      // Skip directories
+      if (stats.isDirectory()) {
+        return false;
+      }
       const age = Date.now() - stats.mtime.getTime();
       return age > 7 * 24 * 60 * 60 * 1000; // Older than 7 days
     });
     
     if (oldFiles.length > 0) {
       oldFiles.forEach(file => {
-        require('fs').unlinkSync(join(this.diagnosticsDir, file));
+        const filePath = join(this.diagnosticsDir, file);
+        require('fs').unlinkSync(filePath);
       });
       
       return {

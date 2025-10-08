@@ -5,6 +5,8 @@
 import { Worker } from 'worker_threads';
 import * as path from 'path';
 import { EventEmitter } from 'events';
+import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 
 export interface WorkerTask {
   id: string;
@@ -77,7 +79,19 @@ export class WorkerPool extends EventEmitter {
    */
   private async createWorker(): Promise<WorkerInfo> {
     const workerId = this.nextWorkerId++;
-    const workerPath = path.join(__dirname, 'test-worker.js');
+    
+    // Determine the correct worker path
+    // In production/dist: __dirname points to dist/testing, use test-worker.js
+    // In development/testing with ts-jest: __dirname points to src/testing, use compiled version from dist
+    let workerPath = path.join(__dirname, 'test-worker.js');
+    
+    // If running from src (TypeScript), try to use the dist version
+    if (__dirname.includes('/src/testing') || __dirname.includes('\\src\\testing')) {
+      const distPath = path.join(__dirname, '../../dist/testing/test-worker.js');
+      if (existsSync(distPath)) {
+        workerPath = distPath;
+      }
+    }
 
     const worker = new Worker(workerPath, {
       workerData: { workerId },
