@@ -287,26 +287,10 @@ export class OutputFilterEngine {
     output: ConsoleOutput[],
     options: FilterOptions
   ): Promise<ConsoleOutput[]> {
-    const chunkSize = options.chunkSize || 1000;
-    const result: ConsoleOutput[] = [];
-    
-    for (let i = 0; i < output.length; i += chunkSize) {
-      const chunk = output.slice(i, i + chunkSize);
-      
-      // Process chunk and yield control
-      result.push(...chunk);
-      
-      // Yield control to event loop every chunk
-      await new Promise(resolve => setImmediate(resolve));
-      
-      // Memory pressure check
-      if (this.getMemoryUsage() > 100 * 1024 * 1024) { // 100MB threshold
-        this.logger.warn('Memory pressure detected, reducing chunk size');
-        break;
-      }
-    }
-    
-    return result;
+    // Streaming mode just returns the data as-is, allowing the caller
+    // to process it in chunks if needed. The actual filtering happens
+    // in the filter method.
+    return output;
   }
 
   /**
@@ -610,7 +594,7 @@ export class OutputFilterEngine {
       try {
         new RegExp(options.grep);
       } catch (error) {
-        errors.push(`Invalid grep pattern: ${options.grep}`);
+        errors.push(`Invalid regex pattern: ${options.grep}`);
       }
     }
 
@@ -619,7 +603,7 @@ export class OutputFilterEngine {
         try {
           new RegExp(pattern);
         } catch (error) {
-          errors.push(`Invalid multi-pattern: ${pattern}`);
+          errors.push(`Invalid regex pattern: ${pattern}`);
         }
       }
     }

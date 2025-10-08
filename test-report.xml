@@ -1,37 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts">
-    <testCase name="OutputFilterEngine Basic Pattern Matching should filter lines with simple regex pattern" duration="0"/>
-    <testCase name="OutputFilterEngine Basic Pattern Matching should handle case-insensitive matching" duration="0"/>
-    <testCase name="OutputFilterEngine Basic Pattern Matching should handle complex regex patterns" duration="0"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should filter by absolute timestamp (ISO)" duration="0"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should filter by relative timestamp" duration="0"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should handle various relative time formats" duration="0"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return first N lines (head)" duration="0"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return last N lines (tail)" duration="0"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return specific line range" duration="0"/>
-    <testCase name="OutputFilterEngine Line-based Operations should handle invalid line ranges gracefully" duration="0"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should handle AND logic with multiple patterns" duration="0"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should handle OR logic with multiple patterns" duration="0"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should combine multi-pattern with other filters" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle 100k+ lines efficiently" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should use streaming mode for large outputs" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should respect maxLines limit for performance" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should maintain performance with complex regex patterns" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle memory efficiently with streaming" duration="0"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should apply multiple filters in correct order" duration="0"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should handle edge cases with empty results" duration="0"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should validate filter options" duration="70">
-      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: false
-Received: true
-    at Object.<anonymous> (/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/outputFilterEngine.test.ts:427:42)]]></failure>
-    </testCase>
-    <testCase name="OutputFilterEngine Caching and Optimization should cache regex patterns for performance" duration="0"/>
-    <testCase name="OutputFilterEngine Caching and Optimization should cache timestamp parsing for performance" duration="0"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should filter application logs effectively" duration="0"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should handle build output filtering" duration="0"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should filter server access logs" duration="0"/>
+  <file path="/home/runner/work/mcp-console-automation/mcp-console-automation/src/tests/WorkerPool.test.ts">
+    <testCase name="WorkerPool Initialization should initialize with specified number of workers" duration="43"/>
+    <testCase name="WorkerPool Initialization should default to 4 workers if not specified" duration="28"/>
+    <testCase name="WorkerPool Initialization should throw error if already initialized" duration="38"/>
+    <testCase name="WorkerPool Task Execution should execute a simple task" duration="48"/>
+    <testCase name="WorkerPool Task Execution should execute multiple tasks in parallel" duration="53"/>
+    <testCase name="WorkerPool Task Execution should queue tasks when all workers are busy" duration="50"/>
+    <testCase name="WorkerPool Error Handling should handle task timeout" duration="34"/>
+    <testCase name="WorkerPool Error Handling should reject new tasks when shutting down" duration="10"/>
+    <testCase name="WorkerPool Statistics should track task completion statistics" duration="37"/>
+    <testCase name="WorkerPool Shutdown should gracefully shutdown all workers" duration="14"/>
+    <testCase name="WorkerPool Shutdown should wait for active tasks before shutdown" duration="110"/>
   </file>
 </testExecutions>
