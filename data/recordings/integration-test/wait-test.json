@@ -1,0 +1,41 @@
+{
+  "name": "wait-test",
+  "version": "1.0.0",
+  "createdAt": "2025-10-08T04:34:17.598Z",
+  "duration": 0,
+  "steps": [
+    {
+      "type": "create_session",
+      "timestamp": 0,
+      "data": {
+        "command": "bash"
+      },
+      "sessionId": "s1"
+    },
+    {
+      "type": "send_input",
+      "timestamp": 0,
+      "data": {
+        "input": "sleep 1"
+      },
+      "sessionId": "s1"
+    },
+    {
+      "type": "wait_for_output",
+      "timestamp": 0,
+      "data": {
+        "pattern": "prompt",
+        "timeout": 10000
+      },
+      "sessionId": "s1"
+    }
+  ],
+  "metadata": {
+    "environment": {
+      "platform": "linux",
+      "nodeVersion": "v20.19.5",
+      "cwd": "/home/runner/work/mcp-console-automation/mcp-console-automation",
+      "timestamp": "2025-10-08T04:34:17.598Z"
+    }
+  }
+}
