@@ -38,7 +38,11 @@ describe('FlakeDetector', () => {
         };
       };
 
-      const report = await detector.detectFlake(test, executor, { runs: 10, threshold: 0.1, parallel: false });
+      const report = await detector.detectFlake(test, executor, {
+        runs: 10,
+        threshold: 0.1,
+        parallel: false,
+      });
 
       expect(report.testName).toBe('flaky-test');
       expect(report.totalRuns).toBe(10);
@@ -65,7 +69,11 @@ describe('FlakeDetector', () => {
         assertions: [],
       });
 
-      const report = await detector.detectFlake(test, executor, { runs: 10, threshold: 0.1, parallel: false });
+      const report = await detector.detectFlake(test, executor, {
+        runs: 10,
+        threshold: 0.1,
+        parallel: false,
+      });
 
       expect(report.isFlaky).toBe(false);
       expect(report.flakeRate).toBe(0);
@@ -96,7 +104,11 @@ describe('FlakeDetector', () => {
         };
       };
 
-      const report = await detector.detectFlake(test, executor, { runs: 10, threshold: 0.1, parallel: false });
+      const report = await detector.detectFlake(test, executor, {
+        runs: 10,
+        threshold: 0.1,
+        parallel: false,
+      });
 
       expect(report.totalRuns).toBe(10);
       expect(report.failures).toBe(2);
@@ -131,7 +143,11 @@ describe('FlakeDetector', () => {
         };
       };
 
-      const report = await detector.detectFlake(test, executor, { runs: 10, threshold: 0, parallel: false });
+      const report = await detector.detectFlake(test, executor, {
+        runs: 10,
+        threshold: 0,
+        parallel: false,
+      });
 
       expect(report.failurePatterns).toBeDefined();
       expect(report.failurePatterns!.length).toBeGreaterThan(0);
@@ -161,7 +177,11 @@ describe('FlakeDetector', () => {
         };
       };
 
-      const reports = await detector.detectFlakyTests(tests, executor, { runs: 10, threshold: 0.2, parallel: false });
+      const reports = await detector.detectFlakyTests(tests, executor, {
+        runs: 10,
+        threshold: 0.2,
+        parallel: false,
+      });
 
       expect(reports.length).toBeGreaterThan(0);
       reports.forEach((r) => {
@@ -244,11 +264,19 @@ describe('FlakeDetector', () => {
       });
 
       const startParallel = Date.now();
-      await detector.detectFlake(test, executor, { runs: 10, threshold: 0.1, parallel: true });
+      await detector.detectFlake(test, executor, {
+        runs: 10,
+        threshold: 0.1,
+        parallel: true,
+      });
       const parallelDuration = Date.now() - startParallel;
 
       const startSequential = Date.now();
-      await detector.detectFlake(test, executor, { runs: 10, threshold: 0.1, parallel: false });
+      await detector.detectFlake(test, executor, {
+        runs: 10,
+        threshold: 0.1,
+        parallel: false,
+      });
       const sequentialDuration = Date.now() - startSequential;
 
       // Parallel should be faster

@@ -19,7 +19,7 @@ import {
   ConsoleOutput,
   ConsoleSession,
   SessionOptions,
-  ConsoleType
+  ConsoleType,
 } from '../types/index.js';
 
 export interface KubernetesProtocolOptions {
@@ -42,7 +42,11 @@ export interface KubernetesPod {
     containers: Array<{
       name: string;
       image: string;
-      ports?: Array<{ containerPort: number; name?: string; protocol?: string }>;
+      ports?: Array<{
+        containerPort: number;
+        name?: string;
+        protocol?: string;
+      }>;
     }>;
     nodeName?: string;
   };
@@ -172,12 +176,18 @@ export class KubernetesProtocol extends BaseProtocol {
       this.reconnectAttempts = 0;
       this.startHeartbeat();
       this.isInitialized = true;
-      this.logger.info('Kubernetes protocol initialized with session management fixes', {
-        context: this.currentContext,
-        namespace: this.currentNamespace
-      });
+      this.logger.info(
+        'Kubernetes protocol initialized with session management fixes',
+        {
+          context: this.currentContext,
+          namespace: this.currentNamespace,
+        }
+      );
     } catch (error: any) {
-      this.logger.error('Failed to initialize Kubernetes cluster connection', error);
+      this.logger.error(
+        'Failed to initialize Kubernetes cluster connection',
+        error
+      );
       this.isConnected = false;
       throw error;
     }
@@ -196,23 +206,30 @@ export class KubernetesProtocol extends BaseProtocol {
   async disconnect(): Promise<void> {
     try {
       this.stopHeartbeat();
-      
+
       // Close all active sessions
       for (const [sessionId, session] of Array.from(this.sessions.entries())) {
         await this.closeSession(sessionId);
       }
-      
+
       // Close active port forwards
-      for (const [portForwardId, portForward] of Array.from(this.activePortForwards.entries())) {
+      for (const [portForwardId, portForward] of Array.from(
+        this.activePortForwards.entries()
+      )) {
         try {
           await this.stopPortForward(portForwardId);
         } catch (error: any) {
-          this.logger.warn('Error closing port forward', { portForwardId, error });
+          this.logger.warn('Error closing port forward', {
+            portForwardId,
+            error,
+          });
         }
       }
-      
+
       // Close active log streams
-      for (const [streamId, stream] of Array.from(this.activeLogStreams.entries())) {
+      for (const [streamId, stream] of Array.from(
+        this.activeLogStreams.entries()
+      )) {
         try {
           if (stream && typeof stream.destroy === 'function') {
             stream.destroy();
@@ -227,7 +244,7 @@ export class KubernetesProtocol extends BaseProtocol {
       this.activeExecSessions.clear();
       this.activePortForwards.clear();
       this.activeLogStreams.clear();
-      
+
       this.emit('disconnected');
       this.logger.info('Disconnected from Kubernetes cluster');
     } catch (error: any) {
@@ -246,7 +263,10 @@ export class KubernetesProtocol extends BaseProtocol {
         this.kc.loadFromCluster();
         this.logger.info('Loaded in-cluster Kubernetes configuration');
       } else if (this.connectionOptions.kubeconfig) {
-        if (this.connectionOptions.kubeconfig.includes('\n') || this.connectionOptions.kubeconfig.includes('apiVersion')) {
+        if (
+          this.connectionOptions.kubeconfig.includes('\n') ||
+          this.connectionOptions.kubeconfig.includes('apiVersion')
+        ) {
           // Direct YAML content
           const config = yaml.load(this.connectionOptions.kubeconfig) as any;
           this.kc.loadFromOptions(config);
@@ -255,7 +275,9 @@ export class KubernetesProtocol extends BaseProtocol {
           if (existsSync(this.connectionOptions.kubeconfig)) {
             this.kc.loadFromFile(this.connectionOptions.kubeconfig);
           } else {
-            throw new Error(`Kubeconfig file not found: ${this.connectionOptions.kubeconfig}`);
+            throw new Error(
+              `Kubeconfig file not found: ${this.connectionOptions.kubeconfig}`
+            );
           }
         }
       } else {
@@ -272,15 +294,16 @@ export class KubernetesProtocol extends BaseProtocol {
       if (this.connectionOptions.context) {
         this.kc.setCurrentContext(this.connectionOptions.context);
       }
-      
+
       this.currentContext = this.kc.getCurrentContext();
-      this.currentNamespace = this.connectionOptions.namespace || 
-                            this.kc.getContextObject(this.currentContext)?.namespace || 
-                            'default';
+      this.currentNamespace =
+        this.connectionOptions.namespace ||
+        this.kc.getContextObject(this.currentContext)?.namespace ||
+        'default';
 
       // Apply additional options
       this.applyConnectionOptions();
-      
+
       // Re-initialize API clients with updated config
       this.k8sApi = this.kc.makeApiClient(k8s.CoreV1Api);
       this.k8sAppsApi = this.kc.makeApiClient(k8s.AppsV1Api);
@@ -288,7 +311,6 @@ export class KubernetesProtocol extends BaseProtocol {
       this.k8sLogsApi = new k8s.Log(this.kc);
       this.k8sPortForwardApi = new k8s.PortForward(this.kc);
       this.k8sCpApi = new k8s.Cp(this.kc);
-
     } catch (error: any) {
       this.logger.error('Failed to load Kubernetes configuration', error);
       throw error;
@@ -310,14 +332,22 @@ export class KubernetesProtocol extends BaseProtocol {
       // Create new cluster object with updated properties to avoid read-only issues
       const updatedCluster = {
         ...cluster,
-        ...(this.connectionOptions.server && { server: this.connectionOptions.server }),
-        ...(this.connectionOptions.clusterCertificateAuthority && { caData: this.connectionOptions.clusterCertificateAuthority }),
-        ...(this.connectionOptions.insecureSkipTlsVerify !== undefined && { skipTLSVerify: this.connectionOptions.insecureSkipTlsVerify })
+        ...(this.connectionOptions.server && {
+          server: this.connectionOptions.server,
+        }),
+        ...(this.connectionOptions.clusterCertificateAuthority && {
+          caData: this.connectionOptions.clusterCertificateAuthority,
+        }),
+        ...(this.connectionOptions.insecureSkipTlsVerify !== undefined && {
+          skipTLSVerify: this.connectionOptions.insecureSkipTlsVerify,
+        }),
       };
-      
+
       // Replace cluster in kubeconfig
       const clusters = this.kc.getClusters();
-      const clusterIndex = clusters.findIndex((c: any) => c.name === cluster.name);
+      const clusterIndex = clusters.findIndex(
+        (c: any) => c.name === cluster.name
+      );
       if (clusterIndex >= 0) {
         clusters[clusterIndex] = updatedCluster;
       }
@@ -327,11 +357,17 @@ export class KubernetesProtocol extends BaseProtocol {
       // Create new user object with updated properties to avoid read-only issues
       const updatedUser = {
         ...user,
-        ...(this.connectionOptions.token && { token: this.connectionOptions.token }),
-        ...(this.connectionOptions.clientCertificate && { certData: this.connectionOptions.clientCertificate }),
-        ...(this.connectionOptions.clientKey && { keyData: this.connectionOptions.clientKey })
+        ...(this.connectionOptions.token && {
+          token: this.connectionOptions.token,
+        }),
+        ...(this.connectionOptions.clientCertificate && {
+          certData: this.connectionOptions.clientCertificate,
+        }),
+        ...(this.connectionOptions.clientKey && {
+          keyData: this.connectionOptions.clientKey,
+        }),
       };
-      
+
       // Replace user in kubeconfig
       const users = this.kc.getUsers();
       const userIndex = users.findIndex((u: any) => u.name === user.name);
@@ -350,11 +386,13 @@ export class KubernetesProtocol extends BaseProtocol {
       // Use .data for newer versions of @kubernetes/client-node, fallback to .body for older versions
       const responseData = (response as any).data || (response as any).body;
       this.logger.info('Connection validated', {
-        namespacesCount: responseData.items.length
+        namespacesCount: responseData.items.length,
       });
     } catch (error: any) {
       this.logger.error('Connection validation failed', error);
-      throw new Error(`Failed to connect to Kubernetes cluster: ${error.message}`);
+      throw new Error(
+        `Failed to connect to Kubernetes cluster: ${error.message}`
+      );
     }
   }
 
@@ -365,7 +403,7 @@ export class KubernetesProtocol extends BaseProtocol {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
     }
-    
+
     this.heartbeatTimer = setInterval(async () => {
       try {
         await this.healthCheck();
@@ -409,14 +447,19 @@ export class KubernetesProtocol extends BaseProtocol {
     }
 
     this.reconnectAttempts++;
-    this.logger.info(`Attempting reconnection (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-    
+    this.logger.info(
+      `Attempting reconnection (${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+    );
+
     try {
-      await new Promise(resolve => setTimeout(resolve, this.reconnectDelay));
+      await new Promise((resolve) => setTimeout(resolve, this.reconnectDelay));
       await this.connect();
       this.emit('reconnected');
     } catch (error: any) {
-      this.logger.warn(`Reconnection attempt ${this.reconnectAttempts} failed`, error);
+      this.logger.warn(
+        `Reconnection attempt ${this.reconnectAttempts} failed`,
+        error
+      );
       // Will try again on next heartbeat
     }
   }
@@ -430,7 +473,7 @@ export class KubernetesProtocol extends BaseProtocol {
       name: context.name,
       cluster: context.cluster,
       user: context.user,
-      namespace: context.namespace
+      namespace: context.namespace,
     }));
   }
 
@@ -443,7 +486,7 @@ export class KubernetesProtocol extends BaseProtocol {
       name: cluster.name,
       server: cluster.server,
       certificateAuthorityData: cluster.caData,
-      insecureSkipTlsVerify: cluster.skipTLSVerify
+      insecureSkipTlsVerify: cluster.skipTLSVerify,
     }));
   }
 
@@ -457,7 +500,7 @@ export class KubernetesProtocol extends BaseProtocol {
       token: user.token,
       clientCertificateData: user.certData,
       clientKeyData: user.keyData,
-      exec: user.exec
+      exec: user.exec,
     }));
   }
 
@@ -468,11 +511,11 @@ export class KubernetesProtocol extends BaseProtocol {
     try {
       this.kc.setCurrentContext(contextName);
       this.currentContext = contextName;
-      
+
       // Update namespace from context
       const contextObj = this.kc.getContextObject(contextName);
       this.currentNamespace = contextObj?.namespace || 'default';
-      
+
       // Re-initialize API clients
       this.k8sApi = this.kc.makeApiClient(k8s.CoreV1Api);
       this.k8sAppsApi = this.kc.makeApiClient(k8s.AppsV1Api);
@@ -480,12 +523,21 @@ export class KubernetesProtocol extends BaseProtocol {
       this.k8sLogsApi = new k8s.Log(this.kc);
       this.k8sPortForwardApi = new k8s.PortForward(this.kc);
       this.k8sCpApi = new k8s.Cp(this.kc);
-      
+
       await this.validateConnection();
-      this.emit('contextChanged', { context: contextName, namespace: this.currentNamespace });
-      this.logger.info('Switched context', { context: contextName, namespace: this.currentNamespace });
+      this.emit('contextChanged', {
+        context: contextName,
+        namespace: this.currentNamespace,
+      });
+      this.logger.info('Switched context', {
+        context: contextName,
+        namespace: this.currentNamespace,
+      });
     } catch (error: any) {
-      this.logger.error('Failed to switch context', { context: contextName, error });
+      this.logger.error('Failed to switch context', {
+        context: contextName,
+        error,
+      });
       throw error;
     }
   }
@@ -493,7 +545,9 @@ export class KubernetesProtocol extends BaseProtocol {
   /**
    * List pods based on selection criteria
    */
-  async listPods(options: Partial<PodSelectionOptions> = {}): Promise<KubernetesPod[]> {
+  async listPods(
+    options: Partial<PodSelectionOptions> = {}
+  ): Promise<KubernetesPod[]> {
     try {
       const namespace = options.namespace || this.currentNamespace || 'default';
       let fieldSelector = options.fieldSelector;
@@ -502,10 +556,11 @@ export class KubernetesProtocol extends BaseProtocol {
       // Handle deployment-based selection
       if (options.deploymentName) {
         const deployment = await this.k8sAppsApi.readNamespacedDeployment({
-          name: options.deploymentName, 
-          namespace: namespace
+          name: options.deploymentName,
+          namespace: namespace,
         });
-        const deploymentData = (deployment as any).data || (deployment as any).body;
+        const deploymentData =
+          (deployment as any).data || (deployment as any).body;
         const matchLabels = deploymentData.spec?.selector?.matchLabels;
         if (matchLabels) {
           const labels = Object.entries(matchLabels)
@@ -518,10 +573,11 @@ export class KubernetesProtocol extends BaseProtocol {
       // Handle replica set-based selection
       if (options.replicaSetName) {
         const replicaSet = await this.k8sAppsApi.readNamespacedReplicaSet({
-          name: options.replicaSetName, 
-          namespace: namespace
+          name: options.replicaSetName,
+          namespace: namespace,
         });
-        const replicaSetData = (replicaSet as any).data || (replicaSet as any).body;
+        const replicaSetData =
+          (replicaSet as any).data || (replicaSet as any).body;
         const matchLabels = replicaSetData.spec?.selector?.matchLabels;
         if (matchLabels) {
           const labels = Object.entries(matchLabels)
@@ -534,8 +590,8 @@ export class KubernetesProtocol extends BaseProtocol {
       // Handle service-based selection
       if (options.serviceName) {
         const service = await this.k8sApi.readNamespacedService({
-          name: options.serviceName, 
-          namespace: namespace
+          name: options.serviceName,
+          namespace: namespace,
         });
         const serviceData = (service as any).data || (service as any).body;
         const selector = serviceData.spec?.selector;
@@ -550,7 +606,7 @@ export class KubernetesProtocol extends BaseProtocol {
       const response = await this.k8sApi.listNamespacedPod({
         namespace: namespace,
         fieldSelector: fieldSelector,
-        labelSelector: labelSelector
+        labelSelector: labelSelector,
       });
 
       const responseData = (response as any).data || (response as any).body;
@@ -568,8 +624,8 @@ export class KubernetesProtocol extends BaseProtocol {
     try {
       const ns = namespace || this.currentNamespace || 'default';
       const response = await this.k8sApi.readNamespacedPod({
-        name: name, 
-        namespace: ns
+        name: name,
+        namespace: ns,
       });
       const responseData = (response as any).data || (response as any).body;
       return this.mapPodFromApi(responseData);
@@ -582,10 +638,13 @@ export class KubernetesProtocol extends BaseProtocol {
   /**
    * Create an exec session to a pod
    */
-  async createExecSession(sessionId: string, options: KubernetesExecOptions): Promise<KubernetesSessionState> {
+  async createExecSession(
+    sessionId: string,
+    options: KubernetesExecOptions
+  ): Promise<KubernetesSessionState> {
     try {
       const namespace = options.namespace || this.currentNamespace || 'default';
-      
+
       // Find pod if not specified by name
       let podName = options.name;
       if (!podName) {
@@ -594,18 +653,22 @@ export class KubernetesProtocol extends BaseProtocol {
           throw new Error('No pods found matching the criteria');
         }
         if (pods.length > 1) {
-          throw new Error(`Multiple pods found (${pods.length}). Please specify a pod name.`);
+          throw new Error(
+            `Multiple pods found (${pods.length}). Please specify a pod name.`
+          );
         }
         podName = pods[0].metadata.name;
       }
 
       const pod = await this.getPod(podName, namespace);
-      
+
       // Determine container name
       let containerName = options.containerName;
       if (!containerName) {
         if (pod.spec.containers.length > 1) {
-          throw new Error(`Pod has ${pod.spec.containers.length} containers. Please specify container name.`);
+          throw new Error(
+            `Pod has ${pod.spec.containers.length} containers. Please specify container name.`
+          );
         }
         containerName = pod.spec.containers[0].name;
       }
@@ -620,12 +683,12 @@ export class KubernetesProtocol extends BaseProtocol {
           containerName: containerName || '',
           status: pod.status.phase,
           restartCount: pod.status.containerStatuses?.[0]?.restartCount || 0,
-          creationTimestamp: pod.metadata.creationTimestamp
+          creationTimestamp: pod.metadata.creationTimestamp,
         },
         connectionState: {
           connected: false,
-          reconnectAttempts: 0
-        }
+          reconnectAttempts: 0,
+        },
       };
 
       // Store session state
@@ -638,7 +701,7 @@ export class KubernetesProtocol extends BaseProtocol {
         stdout: true,
         stderr: true,
         tty: options.interactive !== false,
-        command: command
+        command: command,
       };
 
       // Create proper streams for exec
@@ -657,7 +720,7 @@ export class KubernetesProtocol extends BaseProtocol {
         ws,
         stdin: ws,
         stdout: ws,
-        stderr: ws
+        stderr: ws,
       };
 
       // Store exec session
@@ -670,12 +733,16 @@ export class KubernetesProtocol extends BaseProtocol {
         sessionId,
         pod: podName,
         namespace,
-        container: containerName
+        container: containerName,
       });
 
       return sessionState;
     } catch (error: any) {
-      this.logger.error('Failed to create exec session', { sessionId, options, error });
+      this.logger.error('Failed to create exec session', {
+        sessionId,
+        options,
+        error,
+      });
       this.kubernetesSessions.delete(sessionId);
       throw error;
     }
@@ -697,19 +764,24 @@ export class KubernetesProtocol extends BaseProtocol {
         throw new Error(`Stdin not available for session: ${sessionId}`);
       }
     } catch (error: any) {
-      this.logger.error('Failed to send input to exec session', { sessionId, error });
+      this.logger.error('Failed to send input to exec session', {
+        sessionId,
+        error,
+      });
       throw error;
     }
   }
 
-
   /**
    * Start port forwarding
    */
-  async startPortForward(portForwardId: string, options: PortForwardOptions): Promise<void> {
+  async startPortForward(
+    portForwardId: string,
+    options: PortForwardOptions
+  ): Promise<void> {
     try {
       const namespace = options.namespace || this.currentNamespace || 'default';
-      
+
       const portForward = await this.k8sPortForwardApi.portForward(
         namespace,
         options.podName,
@@ -721,13 +793,13 @@ export class KubernetesProtocol extends BaseProtocol {
       );
 
       this.activePortForwards.set(portForwardId, portForward);
-      
+
       this.emit('portForwardStarted', {
         portForwardId,
         localPort: options.localPort,
         remotePort: options.remotePort,
         podName: options.podName,
-        namespace
+        namespace,
       });
 
       this.logger.info('Port forward started', {
@@ -735,10 +807,14 @@ export class KubernetesProtocol extends BaseProtocol {
         localPort: options.localPort,
         remotePort: options.remotePort,
         pod: options.podName,
-        namespace
+        namespace,
       });
     } catch (error: any) {
-      this.logger.error('Failed to start port forward', { portForwardId, options, error });
+      this.logger.error('Failed to start port forward', {
+        portForwardId,
+        options,
+        error,
+      });
       throw error;
     }
   }
@@ -750,19 +826,24 @@ export class KubernetesProtocol extends BaseProtocol {
     try {
       const portForward = this.activePortForwards.get(portForwardId);
       if (!portForward) {
-        this.logger.warn('Port forward not found for stopping', { portForwardId });
+        this.logger.warn('Port forward not found for stopping', {
+          portForwardId,
+        });
         return;
       }
 
       if (typeof portForward.destroy === 'function') {
         portForward.destroy();
       }
-      
+
       this.activePortForwards.delete(portForwardId);
       this.emit('portForwardStopped', { portForwardId });
       this.logger.info('Port forward stopped', { portForwardId });
     } catch (error: any) {
-      this.logger.error('Failed to stop port forward', { portForwardId, error });
+      this.logger.error('Failed to stop port forward', {
+        portForwardId,
+        error,
+      });
       throw error;
     }
   }
@@ -770,20 +851,28 @@ export class KubernetesProtocol extends BaseProtocol {
   /**
    * Stream logs from pods
    */
-  async streamLogs(streamId: string, options: KubernetesLogOptions): Promise<void> {
+  async streamLogs(
+    streamId: string,
+    options: KubernetesLogOptions
+  ): Promise<void> {
     try {
       const namespace = options.namespace || this.currentNamespace || 'default';
-      
+
       if (options.podName) {
         // Single pod logs
-        await this.streamSinglePodLogs(streamId, options.podName, namespace, options);
+        await this.streamSinglePodLogs(
+          streamId,
+          options.podName,
+          namespace,
+          options
+        );
       } else if (options.labelSelector) {
         // Multiple pods logs
         const pods = await this.listPods({
           namespace,
-          labelSelector: options.labelSelector
+          labelSelector: options.labelSelector,
         });
-        
+
         if (pods.length === 0) {
           throw new Error('No pods found matching label selector');
         }
@@ -791,10 +880,15 @@ export class KubernetesProtocol extends BaseProtocol {
         // Stream logs from all matching pods
         for (const pod of pods) {
           const podStreamId = `${streamId}-${pod.metadata.name}`;
-          await this.streamSinglePodLogs(podStreamId, pod.metadata.name, namespace, {
-            ...options,
-            prefix: options.prefix !== false
-          });
+          await this.streamSinglePodLogs(
+            podStreamId,
+            pod.metadata.name,
+            namespace,
+            {
+              ...options,
+              prefix: options.prefix !== false,
+            }
+          );
         }
       } else {
         throw new Error('Either podName or labelSelector must be specified');
@@ -809,9 +903,9 @@ export class KubernetesProtocol extends BaseProtocol {
    * Stream logs from a single pod
    */
   private async streamSinglePodLogs(
-    streamId: string, 
-    podName: string, 
-    namespace: string, 
+    streamId: string,
+    podName: string,
+    namespace: string,
     options: KubernetesLogOptions
   ): Promise<void> {
     try {
@@ -819,9 +913,11 @@ export class KubernetesProtocol extends BaseProtocol {
         follow: options.follow !== false,
         tailLines: options.tail,
         sinceSeconds: this.parseDuration(options.since),
-        sinceTime: options.sinceTime ? new Date(options.sinceTime).toISOString() : undefined,
+        sinceTime: options.sinceTime
+          ? new Date(options.sinceTime).toISOString()
+          : undefined,
         timestamps: options.timestamps === true,
-        previous: options.previous === true
+        previous: options.previous === true,
       };
 
       const logStream = await this.k8sLogsApi.log(
@@ -833,15 +929,15 @@ export class KubernetesProtocol extends BaseProtocol {
       );
 
       this.activeLogStreams.set(streamId, logStream);
-      
+
       // The log method returns an AbortController, not a readable stream
       // We need to handle this differently for log data events
       // For now, we'll emit that the stream started and handle data through other mechanisms
-      
+
       if (logStream && typeof logStream === 'object' && 'signal' in logStream) {
         // This is an AbortController
         const abortController = logStream as AbortController;
-        
+
         // Handle abort signal
         abortController.signal.addEventListener('abort', () => {
           this.logger.info('Log stream aborted', { streamId, podName });
@@ -854,18 +950,21 @@ export class KubernetesProtocol extends BaseProtocol {
         streamId,
         podName,
         namespace,
-        containerName: options.containerName
+        containerName: options.containerName,
       });
 
       this.logger.info('Log stream started', {
         streamId,
         pod: podName,
         namespace,
-        container: options.containerName
+        container: options.containerName,
       });
     } catch (error: any) {
       this.logger.error('Failed to stream single pod logs', {
-        streamId, podName, namespace, error
+        streamId,
+        podName,
+        namespace,
+        error,
       });
       throw error;
     }
@@ -885,7 +984,7 @@ export class KubernetesProtocol extends BaseProtocol {
       if (typeof logStream.destroy === 'function') {
         logStream.destroy();
       }
-      
+
       this.activeLogStreams.delete(streamId);
       this.emit('logStreamStopped', { streamId });
       this.logger.info('Log stream stopped', { streamId });
@@ -898,12 +997,15 @@ export class KubernetesProtocol extends BaseProtocol {
   /**
    * Copy files to/from pods
    */
-  async copyFiles(copyId: string, options: KubernetesCopyOptions): Promise<void> {
+  async copyFiles(
+    copyId: string,
+    options: KubernetesCopyOptions
+  ): Promise<void> {
     try {
       const namespace = options.namespace || this.currentNamespace || 'default';
-      
+
       const containerName = options.containerName || '';
-      
+
       if (options.direction === 'upload') {
         await this.k8sCpApi.cpToPod(
           namespace,
@@ -928,14 +1030,14 @@ export class KubernetesProtocol extends BaseProtocol {
         localPath: options.localPath,
         remotePath: options.remotePath,
         podName: options.podName,
-        namespace
+        namespace,
       });
 
       this.logger.info('File copy completed', {
         copyId,
         direction: options.direction,
         pod: options.podName,
-        namespace
+        namespace,
       });
     } catch (error: any) {
       this.logger.error('Failed to copy files', { copyId, options, error });
@@ -961,25 +1063,35 @@ export class KubernetesProtocol extends BaseProtocol {
     // Convert KubernetesSessionState + ConsoleSession to BaseProtocol SessionState
     return {
       sessionId: sessionId,
-      status: kubernetesSession.connectionState.connected ? 'running' : 'stopped',
-      isOneShot: kubernetesSession.sessionType === 'exec' && consoleSession.status === 'initializing',
-      isPersistent: kubernetesSession.sessionType === 'exec' && consoleSession.status === 'running',
+      status: kubernetesSession.connectionState.connected
+        ? 'running'
+        : 'stopped',
+      isOneShot:
+        kubernetesSession.sessionType === 'exec' &&
+        consoleSession.status === 'initializing',
+      isPersistent:
+        kubernetesSession.sessionType === 'exec' &&
+        consoleSession.status === 'running',
       createdAt: consoleSession.createdAt,
-      lastActivity: kubernetesSession.connectionState.lastHeartbeat || consoleSession.lastActivity,
+      lastActivity:
+        kubernetesSession.connectionState.lastHeartbeat ||
+        consoleSession.lastActivity,
       pid: undefined, // Kubernetes sessions don't have PIDs
       exitCode: undefined,
       metadata: {
         sessionType: kubernetesSession.sessionType,
         podInfo: kubernetesSession.podInfo,
-        connectionState: kubernetesSession.connectionState
-      }
+        connectionState: kubernetesSession.connectionState,
+      },
     };
   }
 
   /**
    * Get Kubernetes-specific session state
    */
-  getKubernetesSessionState(sessionId: string): KubernetesSessionState | undefined {
+  getKubernetesSessionState(
+    sessionId: string
+  ): KubernetesSessionState | undefined {
     return this.kubernetesSessions.get(sessionId);
   }
 
@@ -1010,7 +1122,7 @@ export class KubernetesProtocol extends BaseProtocol {
   getCurrentContext(): { context: string; namespace: string } {
     return {
       context: this.currentContext || '',
-      namespace: this.currentNamespace || 'default'
+      namespace: this.currentNamespace || 'default',
     };
   }
 
@@ -1019,18 +1131,22 @@ export class KubernetesProtocol extends BaseProtocol {
    */
   private parseDuration(duration?: string): number | undefined {
     if (!duration) return undefined;
-    
+
     const match = duration.match(/^(\d+)([smh])$/);
     if (!match) return undefined;
-    
+
     const value = parseInt(match[1]);
     const unit = match[2];
-    
+
     switch (unit) {
-      case 's': return value;
-      case 'm': return value * 60;
-      case 'h': return value * 3600;
-      default: return undefined;
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 3600;
+      default:
+        return undefined;
     }
   }
 
@@ -1044,15 +1160,15 @@ export class KubernetesProtocol extends BaseProtocol {
         namespace: apiPod.metadata.namespace,
         labels: apiPod.metadata.labels,
         annotations: apiPod.metadata.annotations,
-        creationTimestamp: new Date(apiPod.metadata.creationTimestamp)
+        creationTimestamp: new Date(apiPod.metadata.creationTimestamp),
       },
       spec: {
         containers: apiPod.spec.containers.map((container: any) => ({
           name: container.name,
           image: container.image,
-          ports: container.ports
+          ports: container.ports,
         })),
-        nodeName: apiPod.spec.nodeName
+        nodeName: apiPod.spec.nodeName,
       },
       status: {
         phase: apiPod.status.phase,
@@ -1061,17 +1177,19 @@ export class KubernetesProtocol extends BaseProtocol {
           status: condition.status,
           lastTransitionTime: new Date(condition.lastTransitionTime),
           reason: condition.reason,
-          message: condition.message
+          message: condition.message,
         })),
-        containerStatuses: apiPod.status.containerStatuses?.map((status: any) => ({
-          name: status.name,
-          ready: status.ready,
-          restartCount: status.restartCount,
-          state: status.state
-        })),
+        containerStatuses: apiPod.status.containerStatuses?.map(
+          (status: any) => ({
+            name: status.name,
+            ready: status.ready,
+            restartCount: status.restartCount,
+            state: status.state,
+          })
+        ),
         podIP: apiPod.status.podIP,
-        hostIP: apiPod.status.hostIP
-      }
+        hostIP: apiPod.status.hostIP,
+      },
     };
   }
 
@@ -1097,13 +1215,13 @@ export class KubernetesProtocol extends BaseProtocol {
           checkStatus: 'pass',
           value: `${duration}ms`,
           message: 'API server accessible',
-          duration
+          duration,
         };
         totalScore += duration < 1000 ? 100 : duration < 5000 ? 75 : 50;
       } catch (error: any) {
         checks.apiServer = {
           checkStatus: 'fail',
-          message: `API server error: ${error.message}`
+          message: `API server error: ${error.message}`,
         };
         totalScore += 0;
       }
@@ -1115,13 +1233,13 @@ export class KubernetesProtocol extends BaseProtocol {
         checks.context = {
           checkStatus: 'pass',
           value: `${context.context}/${context.namespace}`,
-          message: 'Context is valid'
+          message: 'Context is valid',
         };
         totalScore += 100;
       } catch (error: any) {
         checks.context = {
           checkStatus: 'fail',
-          message: `Context error: ${error.message}`
+          message: `Context error: ${error.message}`,
         };
         totalScore += 0;
       }
@@ -1129,15 +1247,17 @@ export class KubernetesProtocol extends BaseProtocol {
 
       // Active sessions health
       const sessionCount = this.kubernetesSessions.size;
-      const healthySessions = Array.from(this.kubernetesSessions.values())
-        .filter(session => session.connectionState.connected).length;
-      
+      const healthySessions = Array.from(
+        this.kubernetesSessions.values()
+      ).filter((session) => session.connectionState.connected).length;
+
       checks.sessions = {
         checkStatus: sessionCount === healthySessions ? 'pass' : 'warn',
         value: `${healthySessions}/${sessionCount}`,
-        message: `${healthySessions} of ${sessionCount} sessions healthy`
+        message: `${healthySessions} of ${sessionCount} sessions healthy`,
       };
-      totalScore += sessionCount === 0 ? 100 : (healthySessions / sessionCount) * 100;
+      totalScore +=
+        sessionCount === 0 ? 100 : (healthySessions / sessionCount) * 100;
       checkCount++;
 
       // Resource usage check
@@ -1145,21 +1265,21 @@ export class KubernetesProtocol extends BaseProtocol {
         const memUsage = process.memoryUsage();
         const memUsageMB = memUsage.heapUsed / 1024 / 1024;
         checks.memory = {
-          checkStatus: memUsageMB < 500 ? 'pass' : memUsageMB < 1000 ? 'warn' : 'fail',
+          checkStatus:
+            memUsageMB < 500 ? 'pass' : memUsageMB < 1000 ? 'warn' : 'fail',
           value: `${memUsageMB.toFixed(2)}MB`,
-          message: `Memory usage: ${memUsageMB.toFixed(2)}MB`
+          message: `Memory usage: ${memUsageMB.toFixed(2)}MB`,
         };
         totalScore += memUsageMB < 500 ? 100 : memUsageMB < 1000 ? 75 : 25;
         checkCount++;
       } catch (error: any) {
         checks.memory = {
           checkStatus: 'fail',
-          message: `Memory check error: ${error.message}`
+          message: `Memory check error: ${error.message}`,
         };
         totalScore += 0;
         checkCount++;
       }
-
     } catch (error: any) {
       this.logger.error('Health check failed', error);
     }
@@ -1208,14 +1328,22 @@ export class KubernetesProtocol extends BaseProtocol {
       // Create a comprehensive Kubernetes exec options object combining different sources
       const kubernetesExecOptions: KubernetesExecOptions = {
         // Use name from kubernetesOptions or a default
-        name: (options.kubernetesOptions as any).podName || (options.kubernetesOptions as any).name || 'default-pod',
-        namespace: options.kubernetesOptions.namespace || this.currentNamespace || 'default',
+        name:
+          (options.kubernetesOptions as any).podName ||
+          (options.kubernetesOptions as any).name ||
+          'default-pod',
+        namespace:
+          options.kubernetesOptions.namespace ||
+          this.currentNamespace ||
+          'default',
         containerName: (options.kubernetesOptions as any).containerName,
-        command: options.command ? [options.command, ...(options.args || [])] : ['/bin/bash'],
+        command: options.command
+          ? [options.command, ...(options.args || [])]
+          : ['/bin/bash'],
         stdin: true,
         interactive: true,
         workingDir: options.cwd,
-        env: options.env
+        env: options.env,
       };
 
       // Create Kubernetes exec session
@@ -1235,15 +1363,16 @@ export class KubernetesProtocol extends BaseProtocol {
         executionState: 'idle',
         activeCommands: new Map(),
         lastActivity: new Date(),
-        pid: undefined // Kubernetes sessions don't have local PIDs
+        pid: undefined, // Kubernetes sessions don't have local PIDs
       };
 
       this.sessions.set(sessionId, session);
       this.outputBuffers.set(sessionId, []);
 
-      this.logger.info(`Kubernetes session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
+      this.logger.info(
+        `Kubernetes session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`
+      );
       return session;
-
     } catch (error) {
       this.logger.error(`Failed to create Kubernetes session: ${error}`);
 
@@ -1261,7 +1390,11 @@ export class KubernetesProtocol extends BaseProtocol {
     }
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const kubernetesSession = this.kubernetesSessions.get(sessionId);
     const sessionState = await this.getSessionState(sessionId);
 
@@ -1271,7 +1404,10 @@ export class KubernetesProtocol extends BaseProtocol {
 
     try {
       // For one-shot sessions, ensure connection first
-      if (sessionState.isOneShot && !kubernetesSession.connectionState.connected) {
+      if (
+        sessionState.isOneShot &&
+        !kubernetesSession.connectionState.connected
+      ) {
         // Session should already be connected through doCreateSession
         // This is a fallback
         await this.initialize();
@@ -1290,8 +1426,11 @@ export class KubernetesProtocol extends BaseProtocol {
         }, 1000); // Give time for output to be captured
       }
 
-      this.emit('commandExecuted', { sessionId, command: fullCommand, timestamp: new Date() });
-
+      this.emit('commandExecuted', {
+        sessionId,
+        command: fullCommand,
+        timestamp: new Date(),
+      });
     } catch (error) {
       this.logger.error(`Failed to execute Kubernetes command: ${error}`);
       throw error;
@@ -1310,17 +1449,29 @@ export class KubernetesProtocol extends BaseProtocol {
       const execSession = this.activeExecSessions.get(sessionId);
       if (execSession) {
         try {
-          if (execSession.stdin && typeof execSession.stdin.end === 'function') {
+          if (
+            execSession.stdin &&
+            typeof execSession.stdin.end === 'function'
+          ) {
             execSession.stdin.end();
           }
-          if (execSession.stdout && typeof execSession.stdout.destroy === 'function') {
+          if (
+            execSession.stdout &&
+            typeof execSession.stdout.destroy === 'function'
+          ) {
             execSession.stdout.destroy();
           }
-          if (execSession.stderr && typeof execSession.stderr.destroy === 'function') {
+          if (
+            execSession.stderr &&
+            typeof execSession.stderr.destroy === 'function'
+          ) {
             execSession.stderr.destroy();
           }
         } catch (error: any) {
-          this.logger.warn('Error closing exec session streams', { sessionId, error });
+          this.logger.warn('Error closing exec session streams', {
+            sessionId,
+            error,
+          });
         }
         this.activeExecSessions.delete(sessionId);
       }
@@ -1350,7 +1501,10 @@ export class KubernetesProtocol extends BaseProtocol {
       try {
         await this.closeSession(sessionId);
       } catch (error) {
-        this.logger.warn(`Error closing session ${sessionId} during dispose:`, error);
+        this.logger.warn(
+          `Error closing session ${sessionId} during dispose:`,
+          error
+        );
       }
     }
 

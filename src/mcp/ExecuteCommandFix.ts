@@ -1,5 +1,9 @@
 import { SimpleCommandExecutor } from '../core/SimpleCommandExecutor.js';
-import { TextContent, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import {
+  TextContent,
+  McpError,
+  ErrorCode,
+} from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Drop-in replacement for the broken handleExecuteCommand method
@@ -21,7 +25,10 @@ export function createFixedHandleExecuteCommand() {
     try {
       // Validate required parameters
       if (!args.command) {
-        throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'command parameter is required'
+        );
       }
 
       // If sessionId is provided, we ignore it and treat as one-shot
@@ -51,22 +58,26 @@ export function createFixedHandleExecuteCommand() {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              // Include sessionId if it was provided for compatibility
-              ...(args.sessionId && { sessionId: args.sessionId }),
-              command: args.command,
-              args: args.args,
-              output: result.output,
-              outputText: result.output, // Alternative field name for compatibility
-              exitCode: result.exitCode,
-              success: result.exitCode === 0,
-              method: result.method,
-              duration,
-              executedAt: new Date().toISOString(),
-              status: result.exitCode === 0 ? 'completed' : 'failed',
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                // Include sessionId if it was provided for compatibility
+                ...(args.sessionId && { sessionId: args.sessionId }),
+                command: args.command,
+                args: args.args,
+                output: result.output,
+                outputText: result.output, // Alternative field name for compatibility
+                exitCode: result.exitCode,
+                success: result.exitCode === 0,
+                method: result.method,
+                duration,
+                executedAt: new Date().toISOString(),
+                status: result.exitCode === 0 ? 'completed' : 'failed',
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       // Handle different types of errors appropriately
@@ -114,7 +125,10 @@ export function createBasicHandleExecuteCommand() {
     timeout?: number;
   }) {
     if (!args.command) {
-      throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'command parameter is required'
+      );
     }
 
     try {
@@ -132,14 +146,18 @@ export function createBasicHandleExecuteCommand() {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              command: args.command,
-              output: result.output,
-              exitCode: result.exitCode,
-              success: result.exitCode === 0,
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                command: args.command,
+                output: result.output,
+                exitCode: result.exitCode,
+                success: result.exitCode === 0,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       throw new McpError(ErrorCode.InternalError, error.message);

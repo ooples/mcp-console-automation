@@ -284,6 +284,6 @@ Next steps:
 
 Testing shortcut created on desktop: 'Test MCP Console'
 
-For documentation, visit: https://github.com/ooples/mcp-console-automation
+For documentation, visit: https://github.com/ooples/console-automation-mcp
 "@
 Write-Info $nextSteps

@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,16 +12,32 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Message Queue Protocol connection options
 interface MessageQueueConnectionOptions extends SessionOptions {
-  queueType: 'rabbitmq' | 'kafka' | 'redis' | 'activemq' | 'nats' | 'pulsar' | 'sqs' | 'servicebus' | 'custom';
+  queueType:
+    | 'rabbitmq'
+    | 'kafka'
+    | 'redis'
+    | 'activemq'
+    | 'nats'
+    | 'pulsar'
+    | 'sqs'
+    | 'servicebus'
+    | 'custom';
   brokerUrl?: string;
   username?: string;
   password?: string;
-  operation?: 'publish' | 'subscribe' | 'consume' | 'peek' | 'admin' | 'monitor' | 'console';
+  operation?:
+    | 'publish'
+    | 'subscribe'
+    | 'consume'
+    | 'peek'
+    | 'admin'
+    | 'monitor'
+    | 'console';
   queueName?: string;
   topicName?: string;
   exchangeName?: string;
@@ -34,7 +50,12 @@ interface MessageQueueConnectionOptions extends SessionOptions {
   sslKey?: string;
   sslCa?: string;
   enableSASL?: boolean;
-  saslMechanism?: 'PLAIN' | 'SCRAM-SHA-256' | 'SCRAM-SHA-512' | 'GSSAPI' | 'OAUTHBEARER';
+  saslMechanism?:
+    | 'PLAIN'
+    | 'SCRAM-SHA-256'
+    | 'SCRAM-SHA-512'
+    | 'GSSAPI'
+    | 'OAUTHBEARER';
   enableAdmin?: boolean;
   adminPort?: number;
   enableUI?: boolean;
@@ -97,9 +118,9 @@ export class MessageQueueProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -131,8 +152,8 @@ export class MessageQueueProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -143,7 +164,9 @@ export class MessageQueueProtocol extends BaseProtocol {
       // Check if message queue tools are available
       await this.checkMessageQueueAvailability();
       this.isInitialized = true;
-      this.logger.info('Message Queue protocol initialized with production features');
+      this.logger.info(
+        'Message Queue protocol initialized with production features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize Message Queue protocol', error);
       throw error;
@@ -159,8 +182,13 @@ export class MessageQueueProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -181,7 +209,9 @@ export class MessageQueueProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Message Queue session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Message Queue session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -207,12 +237,19 @@ export class MessageQueueProtocol extends BaseProtocol {
       this.logger.info(`Message Queue session ${sessionId} closed`);
       this.emit('session-closed', sessionId);
     } catch (error) {
-      this.logger.error(`Error closing Message Queue session ${sessionId}:`, error);
+      this.logger.error(
+        `Error closing Message Queue session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -231,7 +268,11 @@ export class MessageQueueProtocol extends BaseProtocol {
     const mqProcess = spawn(mqCommand[0], mqCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(mqOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(mqOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -240,7 +281,7 @@ export class MessageQueueProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -250,18 +291,23 @@ export class MessageQueueProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     mqProcess.on('error', (error) => {
-      this.logger.error(`Message Queue process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Message Queue process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     mqProcess.on('close', (code) => {
-      this.logger.info(`Message Queue process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Message Queue process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -274,7 +320,11 @@ export class MessageQueueProtocol extends BaseProtocol {
       command: mqCommand[0],
       args: mqCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(mqOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(mqOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -282,12 +332,14 @@ export class MessageQueueProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: mqProcess.pid
+      pid: mqProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Message Queue session ${sessionId} created for ${mqOptions.queueType} ${mqOptions.operation || 'console'}`);
+    this.logger.info(
+      `Message Queue session ${sessionId} created for ${mqOptions.queueType} ${mqOptions.operation || 'console'}`
+    );
     this.emit('session-created', { sessionId, type: 'messagequeue', session });
 
     return session;
@@ -296,7 +348,7 @@ export class MessageQueueProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -305,8 +357,8 @@ export class MessageQueueProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -328,25 +380,30 @@ export class MessageQueueProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Message Queue session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Message Queue session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const mqProcess = this.mqProcesses.get(sessionId);
-    return mqProcess && !mqProcess.killed || false;
+    return (mqProcess && !mqProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -357,26 +414,26 @@ export class MessageQueueProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.mqProcesses.size
+        connectionsActive: this.mqProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -388,17 +445,20 @@ export class MessageQueueProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          messagequeue: { available: true }
-        }
+          messagequeue: { available: true },
+        },
       };
     } catch (error) {
       return {
         ...baseStatus,
         isHealthy: false,
-        errors: [...baseStatus.errors, `Message Queue tools not available: ${error}`],
+        errors: [
+          ...baseStatus.errors,
+          `Message Queue tools not available: ${error}`,
+        ],
         dependencies: {
-          messagequeue: { available: false }
-        }
+          messagequeue: { available: false },
+        },
       };
     }
   }
@@ -412,17 +472,27 @@ export class MessageQueueProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Message Queue tools not found. Please install RabbitMQ, Kafka, or other message queue software.'));
+          reject(
+            new Error(
+              'Message Queue tools not found. Please install RabbitMQ, Kafka, or other message queue software.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('Message Queue tools not found. Please install RabbitMQ, Kafka, or other message queue software.'));
+        reject(
+          new Error(
+            'Message Queue tools not found. Please install RabbitMQ, Kafka, or other message queue software.'
+          )
+        );
       });
     });
   }
 
-  private buildMessageQueueCommand(options: MessageQueueConnectionOptions): string[] {
+  private buildMessageQueueCommand(
+    options: MessageQueueConnectionOptions
+  ): string[] {
     const command = [];
 
     // Message Queue system specific commands
@@ -565,7 +635,9 @@ export class MessageQueueProtocol extends BaseProtocol {
         if (options.command) {
           command.push(options.command);
         } else {
-          throw new Error('Custom Message Queue requires command to be specified');
+          throw new Error(
+            'Custom Message Queue requires command to be specified'
+          );
         }
         break;
 
@@ -581,7 +653,9 @@ export class MessageQueueProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: MessageQueueConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: MessageQueueConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Message Queue system environment variables
@@ -614,7 +688,8 @@ export class MessageQueueProtocol extends BaseProtocol {
     if (options.queueType === 'kafka') {
       if (options.enableSASL) {
         env.KAFKA_SASL_ENABLED = 'true';
-        if (options.saslMechanism) env.KAFKA_SASL_MECHANISM = options.saslMechanism;
+        if (options.saslMechanism)
+          env.KAFKA_SASL_MECHANISM = options.saslMechanism;
       }
       if (options.enableSSL) {
         env.KAFKA_SSL_ENABLED = 'true';
@@ -642,12 +717,14 @@ export class MessageQueueProtocol extends BaseProtocol {
 
     if (options.enableMetrics) {
       env.MQ_METRICS_ENABLED = 'true';
-      if (options.metricsPort) env.MQ_METRICS_PORT = options.metricsPort.toString();
+      if (options.metricsPort)
+        env.MQ_METRICS_PORT = options.metricsPort.toString();
     }
 
     if (options.enableTracing) {
       env.MQ_TRACING_ENABLED = 'true';
-      if (options.tracingEndpoint) env.MQ_TRACING_ENDPOINT = options.tracingEndpoint;
+      if (options.tracingEndpoint)
+        env.MQ_TRACING_ENDPOINT = options.tracingEndpoint;
     }
 
     if (options.logLevel) {
@@ -662,7 +739,8 @@ export class MessageQueueProtocol extends BaseProtocol {
     // Transactions
     if (options.enableTransaction) {
       env.MQ_TRANSACTION_ENABLED = 'true';
-      if (options.transactionTimeout) env.MQ_TRANSACTION_TIMEOUT = options.transactionTimeout.toString();
+      if (options.transactionTimeout)
+        env.MQ_TRANSACTION_TIMEOUT = options.transactionTimeout.toString();
     }
 
     // Custom environment variables
@@ -681,7 +759,10 @@ export class MessageQueueProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Message Queue process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Message Queue process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

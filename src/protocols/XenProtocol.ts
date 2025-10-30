@@ -7,13 +7,13 @@ import { BaseProtocol } from '../core/BaseProtocol.js';
 import {
   ProtocolCapabilities,
   ProtocolHealthStatus,
-  SessionState
+  SessionState,
 } from '../core/IProtocol.js';
 import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 
 /**
@@ -166,7 +166,7 @@ export class XenProtocol extends BaseProtocol {
     useSSL: true,
     apiVersion: '2.0',
     connectionType: 'xe',
-    timeout: 30000
+    timeout: 30000,
   };
 
   constructor() {
@@ -240,7 +240,7 @@ export class XenProtocol extends BaseProtocol {
       isOneShot: this.isOneShotCommand(options),
       isPersistent: !this.isOneShotCommand(options),
       createdAt: new Date(),
-      lastActivity: new Date()
+      lastActivity: new Date(),
     };
     return this.doCreateSession(sessionId, options, sessionState);
   }
@@ -272,7 +272,7 @@ export class XenProtocol extends BaseProtocol {
       commandQueue: [],
       interactive: !sessionState.isOneShot,
       executionState: 'idle' as const,
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     this.xenSessions.set(sessionId, session);
@@ -364,7 +364,10 @@ export class XenProtocol extends BaseProtocol {
     return config;
   }
 
-  private async connectToXen(sessionId: string, session: XenSession): Promise<void> {
+  private async connectToXen(
+    sessionId: string,
+    session: XenSession
+  ): Promise<void> {
     const config = session.config;
 
     switch (config.connectionType) {
@@ -385,7 +388,10 @@ export class XenProtocol extends BaseProtocol {
     }
   }
 
-  private async connectWithXE(sessionId: string, session: XenSession): Promise<void> {
+  private async connectWithXE(
+    sessionId: string,
+    session: XenSession
+  ): Promise<void> {
     const config = session.config;
 
     if (session.interactive) {
@@ -411,7 +417,7 @@ export class XenProtocol extends BaseProtocol {
       // Start xe process
       session.process = spawn('xe', args, {
         cwd: session.cwd,
-        env: session.env
+        env: session.env,
       });
 
       session.isConnected = true;
@@ -426,7 +432,7 @@ export class XenProtocol extends BaseProtocol {
           sessionId,
           type: 'stderr',
           data: data.toString(),
-          timestamp: new Date()
+          timestamp: new Date(),
         });
       });
 
@@ -438,7 +444,9 @@ export class XenProtocol extends BaseProtocol {
       });
 
       // Verify connection
-      await this.executeXECommand(sessionId, 'host-list', ['params=uuid,name-label']);
+      await this.executeXECommand(sessionId, 'host-list', [
+        'params=uuid,name-label',
+      ]);
     } else {
       // One-shot xe command
       const command = session.args[0] || 'host-list';
@@ -467,7 +475,7 @@ export class XenProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: result,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       session.isConnected = false;
@@ -476,17 +484,22 @@ export class XenProtocol extends BaseProtocol {
     }
   }
 
-  private async connectWithXL(sessionId: string, session: XenSession): Promise<void> {
+  private async connectWithXL(
+    sessionId: string,
+    session: XenSession
+  ): Promise<void> {
     // xl is typically used for local Xen management
     if (session.config.host && session.config.host !== 'localhost') {
-      throw new Error('xl tool only supports local Xen management. Use SSH for remote.');
+      throw new Error(
+        'xl tool only supports local Xen management. Use SSH for remote.'
+      );
     }
 
     if (session.interactive) {
       // Start xl shell
       session.process = spawn('xl', ['shell'], {
         cwd: session.cwd,
-        env: session.env
+        env: session.env,
       });
 
       session.isConnected = true;
@@ -496,7 +509,7 @@ export class XenProtocol extends BaseProtocol {
           sessionId,
           type: 'stdout',
           data: data.toString(),
-          timestamp: new Date()
+          timestamp: new Date(),
         });
       });
 
@@ -505,7 +518,7 @@ export class XenProtocol extends BaseProtocol {
           sessionId,
           type: 'stderr',
           data: data.toString(),
-          timestamp: new Date()
+          timestamp: new Date(),
         });
       });
 
@@ -519,13 +532,16 @@ export class XenProtocol extends BaseProtocol {
       const command = session.args[0] || 'list';
       const cmdArgs = session.args.slice(1);
 
-      const result = await this.executeSystemCommand('xl', [command, ...cmdArgs]);
+      const result = await this.executeSystemCommand('xl', [
+        command,
+        ...cmdArgs,
+      ]);
 
       this.addToOutputBuffer(sessionId, {
         sessionId,
         type: 'stdout',
         data: result,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       session.status = 'stopped';
@@ -533,7 +549,10 @@ export class XenProtocol extends BaseProtocol {
     }
   }
 
-  private async connectWithXAPI(sessionId: string, session: XenSession): Promise<void> {
+  private async connectWithXAPI(
+    sessionId: string,
+    session: XenSession
+  ): Promise<void> {
     const config = session.config;
 
     if (!config.host) {
@@ -549,7 +568,7 @@ export class XenProtocol extends BaseProtocol {
       sessionId,
       type: 'stdout',
       data: `Connected to Xen API at ${config.host}\nSession: ${apiSession}\n`,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     // If one-shot, mark as complete
@@ -559,7 +578,10 @@ export class XenProtocol extends BaseProtocol {
     }
   }
 
-  private async connectWithSSH(sessionId: string, session: XenSession): Promise<void> {
+  private async connectWithSSH(
+    sessionId: string,
+    session: XenSession
+  ): Promise<void> {
     const config = session.config;
 
     if (!config.host) {
@@ -577,7 +599,9 @@ export class XenProtocol extends BaseProtocol {
     }
 
     // User@host
-    const target = config.username ? `${config.username}@${config.host}` : config.host;
+    const target = config.username
+      ? `${config.username}@${config.host}`
+      : config.host;
     args.push(target);
 
     // If one-shot, add the command
@@ -588,7 +612,7 @@ export class XenProtocol extends BaseProtocol {
     // Start SSH process
     session.process = spawn('ssh', args, {
       cwd: session.cwd,
-      env: session.env
+      env: session.env,
     });
 
     session.isConnected = true;
@@ -598,7 +622,7 @@ export class XenProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     });
 
@@ -607,7 +631,7 @@ export class XenProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     });
 
@@ -626,7 +650,7 @@ export class XenProtocol extends BaseProtocol {
         jsonrpc: '2.0',
         method: 'session.login_with_password',
         params: [config.username || 'root', config.password || ''],
-        id: 1
+        id: 1,
       });
 
       const options = {
@@ -636,14 +660,14 @@ export class XenProtocol extends BaseProtocol {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData)
+          'Content-Length': Buffer.byteLength(postData),
         },
-        rejectUnauthorized: false // Allow self-signed certificates
+        rejectUnauthorized: false, // Allow self-signed certificates
       };
 
       const req = protocol.request(options, (res) => {
         let data = '';
-        res.on('data', chunk => data += chunk);
+        res.on('data', (chunk) => (data += chunk));
         res.on('end', () => {
           try {
             const response = JSON.parse(data);
@@ -664,7 +688,11 @@ export class XenProtocol extends BaseProtocol {
     });
   }
 
-  private async executeXECommand(sessionId: string, command: string, args: string[]): Promise<string> {
+  private async executeXECommand(
+    sessionId: string,
+    command: string,
+    args: string[]
+  ): Promise<string> {
     const session = this.xenSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -711,7 +739,7 @@ export class XenProtocol extends BaseProtocol {
       sessionId,
       type: 'stdout',
       data: output,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
   }
 
@@ -740,7 +768,11 @@ export class XenProtocol extends BaseProtocol {
     }
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const session = this.xenSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -763,14 +795,18 @@ export class XenProtocol extends BaseProtocol {
         if (!args || args.length === 0) {
           throw new Error('vm-shutdown requires VM UUID or name');
         }
-        await this.executeXECommand(sessionId, 'vm-shutdown', [`uuid=${args[0]}`]);
+        await this.executeXECommand(sessionId, 'vm-shutdown', [
+          `uuid=${args[0]}`,
+        ]);
         break;
 
       case 'vm-reboot':
         if (!args || args.length === 0) {
           throw new Error('vm-reboot requires VM UUID or name');
         }
-        await this.executeXECommand(sessionId, 'vm-reboot', [`uuid=${args[0]}`]);
+        await this.executeXECommand(sessionId, 'vm-reboot', [
+          `uuid=${args[0]}`,
+        ]);
         break;
 
       case 'vm-console':
@@ -802,21 +838,28 @@ export class XenProtocol extends BaseProtocol {
     }
   }
 
-  private async attachVMConsole(sessionId: string, vmId: string): Promise<void> {
+  private async attachVMConsole(
+    sessionId: string,
+    vmId: string
+  ): Promise<void> {
     const session = this.xenSessions.get(sessionId);
     if (!session) return;
 
     // Get VM console using xe
-    const consoleProcess = spawn('xe', [
-      'console',
-      `uuid=${vmId}`,
-      ...(session.config.host ? ['-s', session.config.host] : []),
-      ...(session.config.username ? ['-u', session.config.username] : []),
-      ...(session.config.password ? ['-pw', session.config.password] : [])
-    ], {
-      cwd: session.cwd,
-      env: session.env
-    });
+    const consoleProcess = spawn(
+      'xe',
+      [
+        'console',
+        `uuid=${vmId}`,
+        ...(session.config.host ? ['-s', session.config.host] : []),
+        ...(session.config.username ? ['-u', session.config.username] : []),
+        ...(session.config.password ? ['-pw', session.config.password] : []),
+      ],
+      {
+        cwd: session.cwd,
+        env: session.env,
+      }
+    );
 
     session.vmConsoles.set(vmId, consoleProcess);
 
@@ -825,7 +868,7 @@ export class XenProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: `[VM ${vmId}] ${data.toString()}`,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     });
 
@@ -834,7 +877,7 @@ export class XenProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: `[VM ${vmId}] ${data.toString()}`,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     });
 
@@ -844,7 +887,7 @@ export class XenProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: `Console disconnected from VM ${vmId}\n`,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     });
   }
@@ -920,14 +963,17 @@ export class XenProtocol extends BaseProtocol {
     this.sessions.delete(sessionId);
   }
 
-  private async xapiLogout(config: XenConfig, sessionId: string): Promise<void> {
+  private async xapiLogout(
+    config: XenConfig,
+    sessionId: string
+  ): Promise<void> {
     return new Promise((resolve) => {
       const protocol = config.useSSL ? https : http;
       const postData = JSON.stringify({
         jsonrpc: '2.0',
         method: 'session.logout',
         params: [sessionId],
-        id: 1
+        id: 1,
       });
 
       const options = {
@@ -937,9 +983,9 @@ export class XenProtocol extends BaseProtocol {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData)
+          'Content-Length': Buffer.byteLength(postData),
         },
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
       };
 
       const req = protocol.request(options, (res) => {
@@ -953,21 +999,24 @@ export class XenProtocol extends BaseProtocol {
     });
   }
 
-  private async executeSystemCommand(command: string, args: string[]): Promise<string> {
+  private async executeSystemCommand(
+    command: string,
+    args: string[]
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       const process = spawn(command, args);
       let output = '';
       let error = '';
 
-      process.stdout?.on('data', data => {
+      process.stdout?.on('data', (data) => {
         output += data.toString();
       });
 
-      process.stderr?.on('data', data => {
+      process.stderr?.on('data', (data) => {
         error += data.toString();
       });
 
-      process.on('exit', code => {
+      process.on('exit', (code) => {
         if (code === 0) {
           resolve(output);
         } else {
@@ -982,7 +1031,7 @@ export class XenProtocol extends BaseProtocol {
 
     // Close all sessions
     const sessionIds = Array.from(this.xenSessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
 
     await this.cleanup();
   }
@@ -1000,8 +1049,8 @@ export class XenProtocol extends BaseProtocol {
       warnings: [
         ...baseStatus.warnings,
         !hasXenTool ? 'No Xen management tools available' : null,
-        !deps.xe ? 'xe CLI not available (required for XenServer/XCP)' : null
-      ].filter(Boolean) as string[]
+        !deps.xe ? 'xe CLI not available (required for XenServer/XCP)' : null,
+      ].filter(Boolean) as string[],
     };
   }
 }

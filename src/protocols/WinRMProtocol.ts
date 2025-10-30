@@ -11,12 +11,12 @@ import {
   ConsoleOutput,
   ConsoleType,
   WinRMConnectionOptions,
-  WinRMSessionState
+  WinRMSessionState,
 } from '../types/index.js';
 import {
   SessionState,
   ProtocolCapabilities,
-  ProtocolHealthStatus
+  ProtocolHealthStatus,
 } from '../core/IProtocol.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -31,11 +31,14 @@ interface WinRMSession {
   process?: ChildProcess;
   shellId?: string;
   commandId?: string;
-  activeCommands: Map<string, {
-    command: string;
-    startTime: Date;
-    status: 'running' | 'completed' | 'failed';
-  }>;
+  activeCommands: Map<
+    string,
+    {
+      command: string;
+      startTime: Date;
+      status: 'running' | 'completed' | 'failed';
+    }
+  >;
   httpAgent?: http.Agent | https.Agent;
   lastSequenceId: number;
 }
@@ -77,13 +80,19 @@ export class WinRMProtocol extends BaseProtocol {
       maxConcurrentSessions: 10,
       defaultTimeout: 30000,
       supportedEncodings: ['utf-8', 'base64'],
-      supportedAuthMethods: ['basic', 'negotiate', 'ntlm', 'kerberos', 'credssp'],
+      supportedAuthMethods: [
+        'basic',
+        'negotiate',
+        'ntlm',
+        'kerberos',
+        'credssp',
+      ],
       platformSupport: {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: false
-      }
+        freebsd: false,
+      },
     };
 
     this.healthStatus = {
@@ -96,29 +105,29 @@ export class WinRMProtocol extends BaseProtocol {
         totalSessions: 0,
         averageLatency: 0,
         successRate: 1.0,
-        uptime: 0
+        uptime: 0,
       },
       dependencies: {
         winrm: {
           available: false,
-          version: 'checking...'
+          version: 'checking...',
         },
         powershell: {
           available: false,
-          version: 'checking...'
-        }
-      }
+          version: 'checking...',
+        },
+      },
     };
 
     this.xmlBuilder = new xml2js.Builder({
       rootName: 's:Envelope',
       xmldec: { version: '1.0', encoding: 'UTF-8' },
-      renderOpts: { pretty: false }
+      renderOpts: { pretty: false },
     });
 
     this.xmlParser = new xml2js.Parser({
       explicitArray: false,
-      ignoreAttrs: false
+      ignoreAttrs: false,
     });
 
     this.isInitialized = true;
@@ -138,7 +147,10 @@ export class WinRMProtocol extends BaseProtocol {
       await new Promise((resolve, reject) => {
         winrmCheck.on('exit', (code) => {
           if (code === 0) {
-            this.healthStatus.dependencies.winrm = { available: true, version: 'system' };
+            this.healthStatus.dependencies.winrm = {
+              available: true,
+              version: 'system',
+            };
             resolve(undefined);
           } else {
             reject(new Error('WinRM not found'));
@@ -147,8 +159,13 @@ export class WinRMProtocol extends BaseProtocol {
         winrmCheck.on('error', reject);
       });
     } catch {
-      this.logger.warn('WinRM command not found, will use HTTP/SOAP implementation');
-      this.healthStatus.dependencies.winrm = { available: false, version: 'soap' };
+      this.logger.warn(
+        'WinRM command not found, will use HTTP/SOAP implementation'
+      );
+      this.healthStatus.dependencies.winrm = {
+        available: false,
+        version: 'soap',
+      };
     }
 
     // Check for PowerShell
@@ -157,7 +174,10 @@ export class WinRMProtocol extends BaseProtocol {
       await new Promise((resolve, reject) => {
         psCheck.on('exit', (code) => {
           if (code === 0) {
-            this.healthStatus.dependencies.powershell = { available: true, version: 'system' };
+            this.healthStatus.dependencies.powershell = {
+              available: true,
+              version: 'system',
+            };
             resolve(undefined);
           } else {
             reject(new Error('PowerShell not found'));
@@ -166,7 +186,10 @@ export class WinRMProtocol extends BaseProtocol {
         psCheck.on('error', reject);
       });
     } catch {
-      this.healthStatus.dependencies.powershell = { available: false, version: 'not installed' };
+      this.healthStatus.dependencies.powershell = {
+        available: false,
+        version: 'not installed',
+      };
     }
 
     this.isInitialized = true;
@@ -178,7 +201,10 @@ export class WinRMProtocol extends BaseProtocol {
    */
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
     const sessionId = `winrm-${Date.now()}-${uuidv4().substring(0, 8)}`;
-    const sessionState = await this.createSessionWithTypeDetection(sessionId, options);
+    const sessionState = await this.createSessionWithTypeDetection(
+      sessionId,
+      options
+    );
     return sessionState;
   }
 
@@ -203,11 +229,11 @@ export class WinRMProtocol extends BaseProtocol {
         isConnected: false,
         shellId: '',
         lastActivity: new Date(),
-        outputBuffer: []
+        outputBuffer: [],
       },
       options: winrmOptions,
       activeCommands: new Map(),
-      lastSequenceId: 0
+      lastSequenceId: 0,
     };
 
     this.winrmSessions.set(sessionId, winrmSession);
@@ -229,7 +255,7 @@ export class WinRMProtocol extends BaseProtocol {
         environment: options.environment || {},
         activeCommands: new Map(),
         streaming: options.streaming ?? true,
-        winrmOptions
+        winrmOptions,
       };
 
       this.sessions.set(sessionId, session);
@@ -241,7 +267,7 @@ export class WinRMProtocol extends BaseProtocol {
         type: 'stdout',
         data: `WinRM session established to ${winrmOptions.host}\n`,
         timestamp: new Date(),
-        raw: ''
+        raw: '',
       });
 
       return session;
@@ -258,18 +284,19 @@ export class WinRMProtocol extends BaseProtocol {
     try {
       // Create HTTP agent for connection pooling
       const protocol = session.options.useSSL ? 'https:' : 'http:';
-      const port = session.options.port || (session.options.useSSL ? 5986 : 5985);
+      const port =
+        session.options.port || (session.options.useSSL ? 5986 : 5985);
 
       if (session.options.useSSL) {
         session.httpAgent = new https.Agent({
           rejectUnauthorized: session.options.verifyCertificate !== false,
           keepAlive: true,
-          maxSockets: 5
+          maxSockets: 5,
         });
       } else {
         session.httpAgent = new http.Agent({
           keepAlive: true,
-          maxSockets: 5
+          maxSockets: 5,
         });
       }
 
@@ -297,21 +324,26 @@ export class WinRMProtocol extends BaseProtocol {
   /**
    * Execute WinRM command using CLI tool
    */
-  private async executeWinRMCommand(args: string[], options: WinRMConnectionOptions): Promise<string> {
+  private async executeWinRMCommand(
+    args: string[],
+    options: WinRMConnectionOptions
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       const port = options.port || (options.useSSL ? 5986 : 5985);
       const winrmArgs = [
-        '-r', `http${options.useSSL ? 's' : ''}://${options.host}:${port}/wsman`,
-        '-u', `${options.domain ? options.domain + '\\' : ''}${options.username}`,
+        '-r',
+        `http${options.useSSL ? 's' : ''}://${options.host}:${port}/wsman`,
+        '-u',
+        `${options.domain ? options.domain + '\\' : ''}${options.username}`,
         ...(options.password ? ['-p', options.password] : []),
         ...(options.authMethod ? ['-a', options.authMethod] : []),
         ...(options.timeout ? ['-timeout', options.timeout.toString()] : []),
-        ...args
+        ...args,
       ];
 
       const winrmProcess = spawn('winrm', winrmArgs, {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env }
+        env: { ...process.env },
       });
 
       let stdout = '';
@@ -329,7 +361,11 @@ export class WinRMProtocol extends BaseProtocol {
         if (code === 0) {
           resolve(stdout);
         } else {
-          reject(new Error(`WinRM command failed (exit code: ${code}): ${stderr || stdout}`));
+          reject(
+            new Error(
+              `WinRM command failed (exit code: ${code}): ${stderr || stdout}`
+            )
+          );
         }
       });
 
@@ -342,9 +378,13 @@ export class WinRMProtocol extends BaseProtocol {
   /**
    * Send SOAP request for HTTP implementation
    */
-  private async sendSOAPRequest(session: WinRMSession, soapBody: string): Promise<string> {
+  private async sendSOAPRequest(
+    session: WinRMSession,
+    soapBody: string
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
-      const port = session.options.port || (session.options.useSSL ? 5986 : 5985);
+      const port =
+        session.options.port || (session.options.useSSL ? 5986 : 5985);
       const protocol = session.options.useSSL ? 'https:' : 'http:';
 
       const authHeader = this.buildAuthHeader(session.options);
@@ -356,27 +396,34 @@ export class WinRMProtocol extends BaseProtocol {
         method: 'POST',
         headers: {
           'Content-Type': 'application/soap+xml;charset=UTF-8',
-          'Authorization': authHeader,
-          'Content-Length': Buffer.byteLength(soapBody)
+          Authorization: authHeader,
+          'Content-Length': Buffer.byteLength(soapBody),
         },
-        agent: session.httpAgent
+        agent: session.httpAgent,
       };
 
-      const request = (session.options.useSSL ? https : http).request(options, (response) => {
-        let data = '';
+      const request = (session.options.useSSL ? https : http).request(
+        options,
+        (response) => {
+          let data = '';
 
-        response.on('data', (chunk) => {
-          data += chunk.toString();
-        });
+          response.on('data', (chunk) => {
+            data += chunk.toString();
+          });
 
-        response.on('end', () => {
-          if (response.statusCode === 200) {
-            resolve(data);
-          } else {
-            reject(new Error(`SOAP request failed with status ${response.statusCode}: ${data}`));
-          }
-        });
-      });
+          response.on('end', () => {
+            if (response.statusCode === 200) {
+              resolve(data);
+            } else {
+              reject(
+                new Error(
+                  `SOAP request failed with status ${response.statusCode}: ${data}`
+                )
+              );
+            }
+          });
+        }
+      );
 
       request.on('error', reject);
       request.write(soapBody);
@@ -448,12 +495,15 @@ export class WinRMProtocol extends BaseProtocol {
 
     try {
       if (this.healthStatus.dependencies.winrm?.available) {
-        return await this.executeWinRMCommand([
-          'invoke',
-          'Create',
-          'http://schemas.microsoft.com/wbem/wsman/1/windows/shell',
-          `@{InputStreams="stdin";OutputStreams="stdout,stderr";Shell="${command}"}`
-        ], session.options);
+        return await this.executeWinRMCommand(
+          [
+            'invoke',
+            'Create',
+            'http://schemas.microsoft.com/wbem/wsman/1/windows/shell',
+            `@{InputStreams="stdin";OutputStreams="stdout,stderr";Shell="${command}"}`,
+          ],
+          session.options
+        );
       } else {
         // Use SOAP implementation
         const soapRequest = this.buildCreateShellRequest(command);
@@ -508,10 +558,10 @@ export class WinRMProtocol extends BaseProtocol {
     // Try parsing as XML
     try {
       const result = await xml2js.parseStringPromise(response);
-      const body = result?.["s:Envelope"]?.["s:Body"]?.[0];
-      const shell = body?.["rsp:Shell"]?.[0] || body?.["x:Shell"]?.[0];
-      const shellId = shell?.["rsp:ShellId"]?.[0] || shell?.["x:ShellId"]?.[0];
-      if (shellId && typeof shellId === "string") return shellId;
+      const body = result?.['s:Envelope']?.['s:Body']?.[0];
+      const shell = body?.['rsp:Shell']?.[0] || body?.['x:Shell']?.[0];
+      const shellId = shell?.['rsp:ShellId']?.[0] || shell?.['x:ShellId']?.[0];
+      if (shellId && typeof shellId === 'string') return shellId;
     } catch {
       // XML parsing failed, will fall back to generated ID
     }
@@ -521,7 +571,11 @@ export class WinRMProtocol extends BaseProtocol {
   /**
    * Execute command in session
    */
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const session = this.winrmSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -537,22 +591,28 @@ export class WinRMProtocol extends BaseProtocol {
     session.activeCommands.set(commandId, {
       command: fullCommand,
       startTime: new Date(),
-      status: 'running'
+      status: 'running',
     });
 
     try {
       let result: string;
 
       if (this.healthStatus.dependencies.winrm?.available) {
-        result = await this.executeWinRMCommand([
-          'invoke',
-          'Command',
-          `http://schemas.microsoft.com/wbem/wsman/1/windows/shell/ShellId/${session.state.shellId}`,
-          `@{Command="${fullCommand}"}`
-        ], session.options);
+        result = await this.executeWinRMCommand(
+          [
+            'invoke',
+            'Command',
+            `http://schemas.microsoft.com/wbem/wsman/1/windows/shell/ShellId/${session.state.shellId}`,
+            `@{Command="${fullCommand}"}`,
+          ],
+          session.options
+        );
       } else {
         // Use SOAP implementation
-        const soapRequest = this.buildCommandRequest(session.shellId!, fullCommand);
+        const soapRequest = this.buildCommandRequest(
+          session.shellId!,
+          fullCommand
+        );
         result = await this.sendSOAPRequest(session, soapRequest);
       }
 
@@ -566,9 +626,8 @@ export class WinRMProtocol extends BaseProtocol {
         type: 'stdout',
         data: output,
         timestamp: new Date(),
-        raw: result
+        raw: result,
       });
-
     } catch (error) {
       const cmd = session.activeCommands.get(commandId);
       if (cmd) cmd.status = 'failed';
@@ -578,7 +637,7 @@ export class WinRMProtocol extends BaseProtocol {
         type: 'stderr',
         data: `Error executing command: ${error}`,
         timestamp: new Date(),
-        raw: ''
+        raw: '',
       });
 
       throw error;
@@ -639,7 +698,9 @@ export class WinRMProtocol extends BaseProtocol {
     if (outputMatch) return outputMatch[1];
 
     // Try base64 encoded output
-    const base64Match = response.match(/(?:Stream Name="stdout"[^>]*>)([A-Za-z0-9+/=]+)/);
+    const base64Match = response.match(
+      /(?:Stream Name="stdout"[^>]*>)([A-Za-z0-9+/=]+)/
+    );
     if (base64Match) {
       try {
         return Buffer.from(base64Match[1], 'base64').toString('utf-8');
@@ -683,11 +744,14 @@ export class WinRMProtocol extends BaseProtocol {
       if (session.shellId) {
         // Delete the shell
         if (this.healthStatus.dependencies.winrm?.available) {
-          await this.executeWinRMCommand([
-            'invoke',
-            'Delete',
-            `http://schemas.microsoft.com/wbem/wsman/1/windows/shell/ShellId/${session.shellId}`
-          ], session.options);
+          await this.executeWinRMCommand(
+            [
+              'invoke',
+              'Delete',
+              `http://schemas.microsoft.com/wbem/wsman/1/windows/shell/ShellId/${session.shellId}`,
+            ],
+            session.options
+          );
         } else {
           // Use SOAP to delete shell
           const soapRequest = this.buildDeleteShellRequest(session.shellId);
@@ -744,8 +808,8 @@ export class WinRMProtocol extends BaseProtocol {
       ...this.healthStatus,
       metrics: {
         ...baseHealth.metrics,
-        activeSessions: this.winrmSessions.size
-      }
+        activeSessions: this.winrmSessions.size,
+      },
     };
   }
 
@@ -757,7 +821,7 @@ export class WinRMProtocol extends BaseProtocol {
 
     // Close all sessions
     const sessionIds = Array.from(this.winrmSessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
 
     // Clean up
     await super.cleanup();
@@ -768,15 +832,20 @@ export class WinRMProtocol extends BaseProtocol {
   /**
    * Execute PowerShell script
    */
-  async executeScript(sessionId: string, script: string, scriptType: 'powershell' | 'batch' = 'powershell'): Promise<ConsoleOutput> {
+  async executeScript(
+    sessionId: string,
+    script: string,
+    scriptType: 'powershell' | 'batch' = 'powershell'
+  ): Promise<ConsoleOutput> {
     const session = this.winrmSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    const command = scriptType === 'powershell'
-      ? `powershell.exe -EncodedCommand ${Buffer.from(script, 'utf16le').toString('base64')}`
-      : script;
+    const command =
+      scriptType === 'powershell'
+        ? `powershell.exe -EncodedCommand ${Buffer.from(script, 'utf16le').toString('base64')}`
+        : script;
 
     await this.executeCommand(sessionId, command);
 
@@ -784,19 +853,25 @@ export class WinRMProtocol extends BaseProtocol {
     const outputs = await this.getOutput(sessionId);
     const latestOutput = outputs[outputs.length - 1];
 
-    return latestOutput || {
-      sessionId,
-      type: 'stdout',
-      data: '',
-      timestamp: new Date(),
-      raw: ''
-    };
+    return (
+      latestOutput || {
+        sessionId,
+        type: 'stdout',
+        data: '',
+        timestamp: new Date(),
+        raw: '',
+      }
+    );
   }
 
   /**
    * Copy file using WinRM
    */
-  async copyFile(sessionId: string, localPath: string, remotePath: string): Promise<void> {
+  async copyFile(
+    sessionId: string,
+    localPath: string,
+    remotePath: string
+  ): Promise<void> {
     const session = this.winrmSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -864,7 +939,11 @@ try {
     try {
       return JSON.parse(output.data);
     } catch {
-      return { Success: false, Output: output.data, Error: 'Failed to parse output' };
+      return {
+        Success: false,
+        Output: output.data,
+        Error: 'Failed to parse output',
+      };
     }
   }
 }

@@ -323,5 +323,5 @@ Next steps:
 
 Test the server: $INSTALL_DIR/test-server.sh
 
-For documentation, visit: https://github.com/yourusername/mcp-console-automation
+For documentation, visit: https://github.com/ooples/console-automation-mcp
 "

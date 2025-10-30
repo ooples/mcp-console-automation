@@ -21,7 +21,9 @@ describe('TestDataLoader', () => {
 
   describe('JSON fixtures', () => {
     it('should load JSON fixture', async () => {
-      const fixture = await loader.loadJSON(path.join(fixturesPath, 'users.json'));
+      const fixture = await loader.loadJSON(
+        path.join(fixturesPath, 'users.json')
+      );
 
       expect(fixture).toBeDefined();
       expect(Array.isArray(fixture)).toBe(true);
@@ -31,7 +33,9 @@ describe('TestDataLoader', () => {
     });
 
     it('should load servers JSON fixture', async () => {
-      const fixture = await loader.loadJSON(path.join(fixturesPath, 'servers.json'));
+      const fixture = await loader.loadJSON(
+        path.join(fixturesPath, 'servers.json')
+      );
 
       expect(fixture).toBeDefined();
       expect(Array.isArray(fixture)).toBe(true);
@@ -42,7 +46,9 @@ describe('TestDataLoader', () => {
 
   describe('YAML fixtures', () => {
     it('should load YAML fixture', async () => {
-      const fixture = await loader.loadYAML(path.join(fixturesPath, 'deploy-config.yaml'));
+      const fixture = await loader.loadYAML(
+        path.join(fixturesPath, 'deploy-config.yaml')
+      );
 
       expect(fixture).toBeDefined();
       expect(fixture).toHaveProperty('name');
@@ -51,7 +57,9 @@ describe('TestDataLoader', () => {
     });
 
     it('should parse YAML structure correctly', async () => {
-      const fixture = await loader.loadYAML(path.join(fixturesPath, 'deploy-config.yaml'));
+      const fixture = await loader.loadYAML(
+        path.join(fixturesPath, 'deploy-config.yaml')
+      );
 
       expect(fixture.environments.production.deploy_branch).toBe('main');
       expect(fixture.environments.production.auto_deploy).toBe(false);
@@ -60,7 +68,9 @@ describe('TestDataLoader', () => {
 
   describe('CSV fixtures', () => {
     it('should load CSV fixture', async () => {
-      const fixture = await loader.loadCSV(path.join(fixturesPath, 'test-data.csv'));
+      const fixture = await loader.loadCSV(
+        path.join(fixturesPath, 'test-data.csv')
+      );
 
       expect(fixture).toBeDefined();
       expect(Array.isArray(fixture)).toBe(true);
@@ -68,7 +78,9 @@ describe('TestDataLoader', () => {
     });
 
     it('should parse CSV with correct types', async () => {
-      const fixture = await loader.loadCSV(path.join(fixturesPath, 'test-data.csv'));
+      const fixture = await loader.loadCSV(
+        path.join(fixturesPath, 'test-data.csv')
+      );
 
       const firstRow = fixture[0];
       expect(typeof firstRow.test_id).toBe('number');
@@ -77,7 +89,9 @@ describe('TestDataLoader', () => {
     });
 
     it('should parse CSV headers correctly', async () => {
-      const fixture = await loader.loadCSV(path.join(fixturesPath, 'test-data.csv'));
+      const fixture = await loader.loadCSV(
+        path.join(fixturesPath, 'test-data.csv')
+      );
 
       expect(fixture[0]).toHaveProperty('test_id');
       expect(fixture[0]).toHaveProperty('test_name');
@@ -146,9 +160,7 @@ describe('TestDataLoader', () => {
       const tempFile = path.join(fixturesPath, 'test.xml');
       fs.writeFileSync(tempFile, '<xml></xml>');
 
-      await expect(
-        loader.loadFixture(tempFile)
-      ).rejects.toThrow('Unsupported');
+      await expect(loader.loadFixture(tempFile)).rejects.toThrow('Unsupported');
 
       fs.unlinkSync(tempFile);
     });
@@ -157,9 +169,7 @@ describe('TestDataLoader', () => {
       const tempFile = path.join(fixturesPath, 'invalid.json');
       fs.writeFileSync(tempFile, '{ invalid json }');
 
-      await expect(
-        loader.loadFixture(tempFile)
-      ).rejects.toThrow();
+      await expect(loader.loadFixture(tempFile)).rejects.toThrow();
 
       fs.unlinkSync(tempFile);
     });
@@ -167,17 +177,23 @@ describe('TestDataLoader', () => {
 
   describe('Format detection', () => {
     it('should detect JSON format from extension', async () => {
-      const fixture = await loader.loadFixture(path.join(fixturesPath, 'users.json'));
+      const fixture = await loader.loadFixture(
+        path.join(fixturesPath, 'users.json')
+      );
       expect(fixture.format).toBe('json');
     });
 
     it('should detect YAML format from extension', async () => {
-      const fixture = await loader.loadFixture(path.join(fixturesPath, 'deploy-config.yaml'));
+      const fixture = await loader.loadFixture(
+        path.join(fixturesPath, 'deploy-config.yaml')
+      );
       expect(fixture.format).toBe('yaml');
     });
 
     it('should detect CSV format from extension', async () => {
-      const fixture = await loader.loadFixture(path.join(fixturesPath, 'test-data.csv'));
+      const fixture = await loader.loadFixture(
+        path.join(fixturesPath, 'test-data.csv')
+      );
       expect(fixture.format).toBe('csv');
     });
   });

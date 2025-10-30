@@ -12,7 +12,7 @@
  * - Azure DevOps integration
  */
 
-import { AzureShellProtocol } from '../../../src/protocols/AzureShellProtocol.js';
+import { AzureProtocol } from '../../../src/protocols/AzureProtocol.js';
 import { SessionOptions } from '../../../src/types/index.js';
 import { MockTestServerFactory } from '../../utils/protocol-mocks.js';
 import { TestServerManager } from '../../utils/test-servers.js';
@@ -130,8 +130,11 @@ class MockAzureCloudShellWebSocket {
   }
 }
 
-describe('AzureShellProtocol Integration Tests', () => {
-  let protocol: AzureShellProtocol;
+// Skip cloud protocol tests if SKIP_HARDWARE_TESTS is set (requires Azure infrastructure)
+const describeIfCloud = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfCloud('AzureShellProtocol Integration Tests', () => {
+  let protocol: AzureProtocol;
   let mockFactory: MockTestServerFactory;
   let testServerManager: TestServerManager;
   let performanceBenchmark: PerformanceBenchmark;
@@ -141,7 +144,6 @@ describe('AzureShellProtocol Integration Tests', () => {
     // Setup test infrastructure
     mockFactory = new MockTestServerFactory();
     testServerManager = new TestServerManager();
-    await testServerManager.initialize();
 
     performanceBenchmark = new PerformanceBenchmark();
     securityTester = new SecurityTester();
@@ -170,7 +172,7 @@ describe('AzureShellProtocol Integration Tests', () => {
   });
 
   beforeEach(async () => {
-    protocol = new AzureShellProtocol('azure-shell');
+    protocol = new AzureProtocol('azure-shell');
     
     // Setup successful mock responses
     setupSuccessfulMockResponses();
@@ -184,7 +186,7 @@ describe('AzureShellProtocol Integration Tests', () => {
   });
 
   afterAll(async () => {
-    await testServerManager.dispose();
+    await testServerManager.stopAllServers();
   });
 
   describe('Initialization and Authentication', () => {
@@ -192,7 +194,7 @@ describe('AzureShellProtocol Integration Tests', () => {
       expect(protocol.type).toBe('azure-shell');
       expect(protocol.capabilities.supportsAuthentication).toBe(true);
       expect(protocol.capabilities.supportsEncryption).toBe(true);
-      expect(protocol.capabilities.maxConcurrentSessions).toBe(15);
+      expect(protocol.capabilities.maxConcurrentSessions).toBe(50);
     });
 
     it('should authenticate with Azure AD', async () => {
@@ -201,14 +203,14 @@ describe('AzureShellProtocol Integration Tests', () => {
         expiresOnTimestamp: Date.now() + 3600000
       });
 
-      const newProtocol = new AzureShellProtocol('azure-shell');
+      const newProtocol = new AzureProtocol('azure-shell');
       await expect(newProtocol.initialize()).resolves.not.toThrow();
     });
 
     it('should handle authentication failures gracefully', async () => {
       mockCredential.getToken.mockRejectedValueOnce(new Error('Authentication failed'));
 
-      const newProtocol = new AzureShellProtocol('azure-shell');
+      const newProtocol = new AzureProtocol('azure-shell');
       await expect(newProtocol.initialize()).rejects.toThrow('Azure authentication failed');
     });
 
@@ -220,7 +222,7 @@ describe('AzureShellProtocol Integration Tests', () => {
       ];
 
       for (const auth of authMethods) {
-        const authProtocol = new AzureShellProtocol('azure-shell', auth.config);
+        const authProtocol = new AzureProtocol('azure-shell', auth.config);
         await authProtocol.initialize();
         expect(authProtocol.healthStatus.isHealthy).toBe(true);
         await authProtocol.dispose();

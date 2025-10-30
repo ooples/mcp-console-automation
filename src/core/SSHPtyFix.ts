@@ -18,12 +18,12 @@ export interface PTYOptions {
  * Create an SSH channel with proper PTY allocation
  */
 export async function createSSHChannelWithPTY(
-  client: SSHClient, 
+  client: SSHClient,
   sessionId: string,
   ptyOptions?: PTYOptions
 ): Promise<ClientChannel> {
   const logger = new Logger('SSHPtyFix');
-  
+
   return new Promise((resolve, reject) => {
     // Default PTY options for interactive terminal
     const defaultPtyOptions = {
@@ -37,43 +37,54 @@ export async function createSSHChannelWithPTY(
         ICANON: 1,
         IEXTEN: 1,
         ISIG: 1,
-        IUTF8: 1
-      }
+        IUTF8: 1,
+      },
     };
-    
+
     const finalOptions = { ...defaultPtyOptions, ...ptyOptions };
-    
-    logger.debug(`Creating SSH channel with PTY for session ${sessionId}`, finalOptions);
-    
+
+    logger.debug(
+      `Creating SSH channel with PTY for session ${sessionId}`,
+      finalOptions
+    );
+
     // Request a shell with PTY
-    client.shell({
-      term: finalOptions.term,
-      cols: finalOptions.cols,
-      rows: finalOptions.rows,
-      height: finalOptions.height,
-      width: finalOptions.width,
-      modes: finalOptions.modes
-    }, (error, channel) => {
-      if (error) {
-        logger.error(`Failed to create SSH channel with PTY for session ${sessionId}:`, error);
-        reject(error);
-        return;
-      }
-      
-      logger.debug(`SSH channel with PTY created successfully for session ${sessionId}`);
-      
-      // Set encoding
-      channel.setEncoding('utf8');
-      
-      // Handle window resize if needed
-      channel.on('request', (accept, reject, info) => {
-        if (info === 'window-change') {
-          accept();
+    client.shell(
+      {
+        term: finalOptions.term,
+        cols: finalOptions.cols,
+        rows: finalOptions.rows,
+        height: finalOptions.height,
+        width: finalOptions.width,
+        modes: finalOptions.modes,
+      },
+      (error, channel) => {
+        if (error) {
+          logger.error(
+            `Failed to create SSH channel with PTY for session ${sessionId}:`,
+            error
+          );
+          reject(error);
+          return;
         }
-      });
-      
-      resolve(channel);
-    });
+
+        logger.debug(
+          `SSH channel with PTY created successfully for session ${sessionId}`
+        );
+
+        // Set encoding
+        channel.setEncoding('utf8');
+
+        // Handle window resize if needed
+        channel.on('request', (accept, reject, info) => {
+          if (info === 'window-change') {
+            accept();
+          }
+        });
+
+        resolve(channel);
+      }
+    );
   });
 }
 
@@ -86,7 +97,7 @@ export async function sendToSSHChannel(
   isInteractive: boolean = false
 ): Promise<void> {
   const logger = new Logger('SSHPtyFix');
-  
+
   return new Promise((resolve, reject) => {
     try {
       // Special key mappings for interactive programs
@@ -95,32 +106,34 @@ export async function sendToSSHChannel(
         'ctrl+d': '\x04',
         'ctrl+z': '\x1a',
         'ctrl+l': '\x0c',
-        'escape': '\x1b',
-        'tab': '\t',
-        'enter': '\r\n',
-        'backspace': '\x7f',
-        'delete': '\x1b[3~',
-        'up': '\x1b[A',
-        'down': '\x1b[B',
-        'right': '\x1b[C',
-        'left': '\x1b[D',
-        'home': '\x1b[H',
-        'end': '\x1b[F',
-        'pageup': '\x1b[5~',
-        'pagedown': '\x1b[6~',
-        'f1': '\x1bOP',
-        'f2': '\x1bOQ',
-        'f3': '\x1bOR',
-        'f4': '\x1bOS',
+        escape: '\x1b',
+        tab: '\t',
+        enter: '\r\n',
+        backspace: '\x7f',
+        delete: '\x1b[3~',
+        up: '\x1b[A',
+        down: '\x1b[B',
+        right: '\x1b[C',
+        left: '\x1b[D',
+        home: '\x1b[H',
+        end: '\x1b[F',
+        pageup: '\x1b[5~',
+        pagedown: '\x1b[6~',
+        f1: '\x1bOP',
+        f2: '\x1bOQ',
+        f3: '\x1bOR',
+        f4: '\x1bOS',
       };
-      
+
       // Check if input is a special key
       let dataToSend = input;
       const lowerInput = input.toLowerCase().trim();
-      
+
       if (keyMappings[lowerInput]) {
         dataToSend = keyMappings[lowerInput];
-        logger.debug(`Sending special key: ${lowerInput} -> ${dataToSend.charCodeAt(0)}`);
+        logger.debug(
+          `Sending special key: ${lowerInput} -> ${dataToSend.charCodeAt(0)}`
+        );
       } else if (isInteractive) {
         // For interactive mode, send character by character if it's a single char
         // This helps with programs like vim that process individual keystrokes
@@ -136,7 +149,7 @@ export async function sendToSSHChannel(
           dataToSend = input + '\n';
         }
       }
-      
+
       // Write to channel
       channel.write(dataToSend, (error) => {
         if (error) {
@@ -159,13 +172,16 @@ export async function sendToSSHChannel(
  */
 export function patchCreateSSHChannel(consoleManager: any): void {
   const logger = new Logger('SSHPtyFix');
-  
+
   // Replace the createSSHChannel method
-  consoleManager.createSSHChannel = async function(client: SSHClient, sessionId: string): Promise<ClientChannel> {
+  consoleManager.createSSHChannel = async function (
+    client: SSHClient,
+    sessionId: string
+  ): Promise<ClientChannel> {
     logger.info(`Patched createSSHChannel called for session ${sessionId}`);
     return createSSHChannelWithPTY(client, sessionId);
   };
-  
+
   logger.info('ConsoleManager.createSSHChannel patched for PTY support');
 }
 
@@ -174,19 +190,34 @@ export function patchCreateSSHChannel(consoleManager: any): void {
  */
 export function isInteractiveCommand(command: string): boolean {
   const interactiveCommands = [
-    'nano', 'vim', 'vi', 'emacs', 'pico',
-    'less', 'more', 'man',
-    'top', 'htop', 'iotop',
-    'ssh', 'telnet', 'ftp',
-    'python', 'node', 'irb',
-    'mysql', 'psql', 'mongo'
+    'nano',
+    'vim',
+    'vi',
+    'emacs',
+    'pico',
+    'less',
+    'more',
+    'man',
+    'top',
+    'htop',
+    'iotop',
+    'ssh',
+    'telnet',
+    'ftp',
+    'python',
+    'node',
+    'irb',
+    'mysql',
+    'psql',
+    'mongo',
   ];
-  
+
   const cmdLower = command.toLowerCase().trim();
-  return interactiveCommands.some(cmd => 
-    cmdLower === cmd || 
-    cmdLower.startsWith(cmd + ' ') ||
-    cmdLower.includes('/' + cmd + ' ') ||
-    cmdLower.endsWith('/' + cmd)
+  return interactiveCommands.some(
+    (cmd) =>
+      cmdLower === cmd ||
+      cmdLower.startsWith(cmd + ' ') ||
+      cmdLower.includes('/' + cmd + ' ') ||
+      cmdLower.endsWith('/' + cmd)
   );
 }

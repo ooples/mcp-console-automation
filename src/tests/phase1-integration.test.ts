@@ -33,7 +33,7 @@ describe('Phase 1 Integration Tests', () => {
     // Clean up test directory
     if (fs.existsSync(testDir)) {
       const files = fs.readdirSync(testDir);
-      files.forEach(file => {
+      files.forEach((file) => {
         if (file.endsWith('.json')) {
           fs.unlinkSync(path.join(testDir, file));
         }
@@ -65,19 +65,32 @@ describe('Phase 1 Integration Tests', () => {
         name: 'e2e-test',
         author: 'Integration Test',
         description: 'End-to-end test of Phase 1 features',
-        tags: ['integration', 'e2e']
+        tags: ['integration', 'e2e'],
       });
 
       expect(recorder.isCurrentlyRecording()).toBe(true);
 
       // Simulate console operations
-      recorder.recordCreateSession('test-session-1', {
-        command: 'bash',
-        cwd: process.cwd()
-      }, 'Session created successfully');
+      recorder.recordCreateSession(
+        'test-session-1',
+        {
+          command: 'bash',
+          cwd: process.cwd(),
+        },
+        'Session created successfully'
+      );
 
-      recorder.recordSendInput('echo "Hello, World!"', 'test-session-1', 'Hello, World!');
-      recorder.recordWaitForOutput('Hello', 5000, 'test-session-1', 'Pattern matched');
+      recorder.recordSendInput(
+        'echo "Hello, World!"',
+        'test-session-1',
+        'Hello, World!'
+      );
+      recorder.recordWaitForOutput(
+        'Hello',
+        5000,
+        'test-session-1',
+        'Pattern matched'
+      );
 
       // Step 2: Save recording
       const savedRecording = recorder.stopRecording();
@@ -94,26 +107,28 @@ describe('Phase 1 Integration Tests', () => {
       const loaded = TestRecorder.loadRecording('e2e_test', testDir);
       expect(loaded.name).toBe('e2e-test');
       expect(loaded.steps.length).toBe(3);
-      expect(loaded.metadata.description).toBe('End-to-end test of Phase 1 features');
+      expect(loaded.metadata.description).toBe(
+        'End-to-end test of Phase 1 features'
+      );
 
       // Step 5: Generate code (multiple languages)
       const jsCode = codeGenerator.generateCode(loaded, {
         language: 'javascript',
-        framework: 'jest'
+        framework: 'jest',
       });
       expect(jsCode).toContain('e2e_test');
       expect(jsCode).toContain('echo "Hello, World!"');
 
       const tsCode = codeGenerator.generateCode(loaded, {
         language: 'typescript',
-        framework: 'jest'
+        framework: 'jest',
       });
       expect(tsCode).toContain('ConsoleManager');
       expect(tsCode).toContain(': string');
 
       const pyCode = codeGenerator.generateCode(loaded, {
         language: 'python',
-        framework: 'pytest'
+        framework: 'pytest',
       });
       expect(pyCode).toContain('import pytest');
 
@@ -145,10 +160,14 @@ describe('Phase 1 Integration Tests', () => {
       expect(recordings).toContain('test3');
 
       // Generate code for each
-      recordings.forEach(name => {
-        const code = codeGenerator.generateCodeFromFile(name, {
-          language: 'javascript'
-        }, testDir);
+      recordings.forEach((name) => {
+        const code = codeGenerator.generateCodeFromFile(
+          name,
+          {
+            language: 'javascript',
+          },
+          testDir
+        );
         expect(code).toContain('describe');
       });
     });
@@ -159,10 +178,10 @@ describe('Phase 1 Integration Tests', () => {
       recorder.startRecording({ name: 'timing-test' });
 
       recorder.recordSendInput('step1');
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       recorder.recordSendInput('step2');
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       recorder.recordSendInput('step3');
 
@@ -170,7 +189,9 @@ describe('Phase 1 Integration Tests', () => {
 
       expect(recording.steps[0].timestamp).toBe(0);
       expect(recording.steps[1].timestamp).toBeGreaterThan(40);
-      expect(recording.steps[2].timestamp).toBeGreaterThan(recording.steps[1].timestamp);
+      expect(recording.steps[2].timestamp).toBeGreaterThan(
+        recording.steps[1].timestamp
+      );
     }, 10000);
 
     it('should preserve all metadata through save/load cycle', () => {
@@ -178,7 +199,7 @@ describe('Phase 1 Integration Tests', () => {
         name: 'metadata-test',
         author: 'Test Author',
         description: 'Test with full metadata',
-        tags: ['tag1', 'tag2', 'tag3']
+        tags: ['tag1', 'tag2', 'tag3'],
       };
 
       recorder.startRecording(metadata);
@@ -199,7 +220,7 @@ describe('Phase 1 Integration Tests', () => {
 
       recorder.recordCreateSession('s1', {
         command: 'node',
-        args: ['-e', 'console.log("test")']
+        args: ['-e', 'console.log("test")'],
       });
 
       recorder.recordSendInput('console.log("hello")', 's1');
@@ -211,7 +232,7 @@ describe('Phase 1 Integration Tests', () => {
         language: 'typescript',
         framework: 'jest',
         includeSetup: true,
-        includeTeardown: true
+        includeTeardown: true,
       });
 
       // Verify generated code structure
@@ -234,7 +255,7 @@ describe('Phase 1 Integration Tests', () => {
       // Jest
       const jestCode = codeGenerator.generateCode(recording, {
         language: 'javascript',
-        framework: 'jest'
+        framework: 'jest',
       });
       expect(jestCode).toContain('beforeAll');
       expect(jestCode).toContain('afterAll');
@@ -242,7 +263,7 @@ describe('Phase 1 Integration Tests', () => {
       // Mocha
       const mochaCode = codeGenerator.generateCode(recording, {
         language: 'javascript',
-        framework: 'mocha'
+        framework: 'mocha',
       });
       expect(mochaCode).toContain('before');
       expect(mochaCode).toContain('after');
@@ -268,9 +289,13 @@ describe('Phase 1 Integration Tests', () => {
       }).toThrow('Recording not found');
 
       expect(() => {
-        codeGenerator.generateCodeFromFile('nonexistent', {
-          language: 'javascript'
-        }, testDir);
+        codeGenerator.generateCodeFromFile(
+          'nonexistent',
+          {
+            language: 'javascript',
+          },
+          testDir
+        );
       }).toThrow('Recording not found');
     });
   });
@@ -330,7 +355,9 @@ describe('Phase 1 Integration Tests', () => {
 
       expect(recording.steps.length).toBe(4);
 
-      const sessionIds = new Set(recording.steps.map(s => s.sessionId).filter(Boolean));
+      const sessionIds = new Set(
+        recording.steps.map((s) => s.sessionId).filter(Boolean)
+      );
       expect(sessionIds.size).toBe(2);
     });
 
@@ -342,7 +369,9 @@ describe('Phase 1 Integration Tests', () => {
       recorder.recordWaitForOutput('prompt', 10000, 's1');
 
       const recording = recorder.stopRecording();
-      const waitStep = recording.steps.find(s => s.type === 'wait_for_output');
+      const waitStep = recording.steps.find(
+        (s) => s.type === 'wait_for_output'
+      );
 
       expect(waitStep).toBeDefined();
       expect(waitStep?.data.pattern).toBe('prompt');

@@ -3,7 +3,7 @@ import { KubernetesConnectionOptions } from '../types/index.js';
 
 /**
  * Kubernetes functionality demonstration
- * 
+ *
  * This example shows how to:
  * 1. Create Kubernetes exec sessions for pod access
  * 2. Stream logs from pods
@@ -20,7 +20,7 @@ export class KubernetesDemo {
         maxConnectionsPerHost: 10,
         connectionIdleTimeout: 300000,
         keepAliveInterval: 30000,
-        enableHealthChecks: true
+        enableHealthChecks: true,
       },
       sessionManager: {
         maxSessions: 10,
@@ -36,9 +36,9 @@ export class KubernetesDemo {
           recoveryDelay: 5000,
           backoffMultiplier: 2,
           persistSessionData: false,
-          healthCheckInterval: 30000
-        }
-      }
+          healthCheckInterval: 30000,
+        },
+      },
     });
   }
 
@@ -53,7 +53,7 @@ export class KubernetesDemo {
       const kubernetesOptions: KubernetesConnectionOptions = {
         // Use default kubeconfig from ~/.kube/config
         context: 'minikube', // or your cluster context
-        namespace: 'default'
+        namespace: 'default',
       };
 
       // Create exec session to a specific pod
@@ -62,7 +62,7 @@ export class KubernetesDemo {
         args: ['exec', '-it', 'my-pod', '--', '/bin/bash'],
         consoleType: 'k8s-exec',
         kubernetesOptions,
-        streaming: true
+        streaming: true,
       });
 
       console.log(`Created Kubernetes exec session: ${sessionId}`);
@@ -83,16 +83,19 @@ export class KubernetesDemo {
       // Send commands to the pod
       await this.consoleManager.sendInput(sessionId, 'ls -la\n');
       await this.consoleManager.sendInput(sessionId, 'ps aux\n');
-      await this.consoleManager.sendInput(sessionId, 'echo "Hello from Kubernetes pod!"\n');
+      await this.consoleManager.sendInput(
+        sessionId,
+        'echo "Hello from Kubernetes pod!"\n'
+      );
 
       // Wait a bit for commands to complete
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Get session output
       const output = this.consoleManager.getOutput(sessionId);
       console.log('\n=== Session Output ===');
       if (output && output.length > 0) {
-        output.forEach(line => console.log(line.data));
+        output.forEach((line) => console.log(line.data));
       } else {
         console.log('No output captured');
       }
@@ -100,7 +103,6 @@ export class KubernetesDemo {
       // Clean up
       await this.consoleManager.stopSession(sessionId);
       console.log('Kubernetes exec session completed');
-
     } catch (error) {
       console.error('Kubernetes exec demo failed:', error);
     }
@@ -115,27 +117,35 @@ export class KubernetesDemo {
     try {
       const kubernetesOptions: KubernetesConnectionOptions = {
         context: 'minikube',
-        namespace: 'default'
+        namespace: 'default',
       };
 
       // Create session using deployment selector
       const sessionId = await this.consoleManager.createSession({
         command: 'kubectl',
-        args: ['exec', '-it', '--deployment=nginx-deployment', '--', '/bin/bash'],
+        args: [
+          'exec',
+          '-it',
+          '--deployment=nginx-deployment',
+          '--',
+          '/bin/bash',
+        ],
         consoleType: 'k8s-exec',
         kubernetesOptions,
-        streaming: true
+        streaming: true,
       });
 
       console.log(`Created session for nginx deployment: ${sessionId}`);
 
       // Send some commands
       await this.consoleManager.sendInput(sessionId, 'nginx -v\n');
-      await this.consoleManager.sendInput(sessionId, 'cat /etc/nginx/nginx.conf | head -20\n');
+      await this.consoleManager.sendInput(
+        sessionId,
+        'cat /etc/nginx/nginx.conf | head -20\n'
+      );
 
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       await this.consoleManager.stopSession(sessionId);
-
     } catch (error) {
       console.error('Pod selection demo failed:', error);
     }
@@ -150,7 +160,7 @@ export class KubernetesDemo {
     try {
       const kubernetesOptions: KubernetesConnectionOptions = {
         context: 'minikube',
-        namespace: 'default'
+        namespace: 'default',
       };
 
       // Stream logs from all pods with app=nginx label
@@ -159,7 +169,7 @@ export class KubernetesDemo {
         args: ['logs', '-f', '-l', 'app=nginx', '--tail=50'],
         consoleType: 'kubectl',
         kubernetesOptions,
-        streaming: true
+        streaming: true,
       });
 
       console.log(`Started log streaming session: ${logSessionId}`);
@@ -173,11 +183,10 @@ export class KubernetesDemo {
 
       // Let logs stream for a while
       console.log('Streaming logs for 10 seconds...');
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      await new Promise((resolve) => setTimeout(resolve, 10000));
 
       await this.consoleManager.stopSession(logSessionId);
       console.log('Log streaming completed');
-
     } catch (error) {
       console.error('Log streaming demo failed:', error);
     }
@@ -192,7 +201,7 @@ export class KubernetesDemo {
     try {
       const kubernetesOptions: KubernetesConnectionOptions = {
         context: 'minikube',
-        namespace: 'default'
+        namespace: 'default',
       };
 
       // Set up port forwarding from local port 8080 to pod port 80
@@ -200,7 +209,7 @@ export class KubernetesDemo {
         command: 'kubectl',
         args: ['port-forward', 'pod/nginx-pod', '8080:80'],
         consoleType: 'kubectl',
-        kubernetesOptions
+        kubernetesOptions,
       });
 
       console.log(`Started port forwarding: localhost:8080 -> nginx-pod:80`);
@@ -209,12 +218,11 @@ export class KubernetesDemo {
       // Port forward will remain active
       console.log('Port forwarding active for 15 seconds...');
       console.log('You can test it with: curl http://localhost:8080');
-      
-      await new Promise(resolve => setTimeout(resolve, 15000));
+
+      await new Promise((resolve) => setTimeout(resolve, 15000));
 
       await this.consoleManager.stopSession(portForwardId);
       console.log('Port forwarding stopped');
-
     } catch (error) {
       console.error('Port forwarding demo failed:', error);
     }
@@ -235,39 +243,43 @@ export class KubernetesDemo {
         try {
           const kubernetesOptions: KubernetesConnectionOptions = {
             context: context,
-            namespace: 'kube-system'
+            namespace: 'kube-system',
           };
 
           const sessionId = await this.consoleManager.createSession({
             command: 'kubectl',
             args: ['get', 'pods', '--no-headers'],
             consoleType: 'kubectl',
-            kubernetesOptions
+            kubernetesOptions,
           });
 
           sessionIds.push(sessionId);
           console.log(`Created session for context '${context}': ${sessionId}`);
         } catch (error) {
-          console.warn(`Failed to create session for context '${context}':`, error instanceof Error ? error.message : String(error));
+          console.warn(
+            `Failed to create session for context '${context}':`,
+            error instanceof Error ? error.message : String(error)
+          );
         }
       }
 
       // Wait for all commands to complete
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Show results from each context
       for (const sessionId of sessionIds) {
         const output = this.consoleManager.getOutput(sessionId);
         const session = this.consoleManager.getSession(sessionId);
-        console.log(`\nResults from context '${session?.kubernetesOptions?.context || 'unknown'}':`);
+        console.log(
+          `\nResults from context '${session?.kubernetesOptions?.context || 'unknown'}':`
+        );
         if (output && output.length > 0) {
-          output.forEach(line => console.log(`  ${line.data}`));
+          output.forEach((line) => console.log(`  ${line.data}`));
         } else {
           console.log('  No output captured');
         }
         await this.consoleManager.stopSession(sessionId);
       }
-
     } catch (error) {
       console.error('Multi-context demo failed:', error);
     }
@@ -282,7 +294,7 @@ export class KubernetesDemo {
     try {
       const kubernetesOptions: KubernetesConnectionOptions = {
         context: 'minikube',
-        namespace: 'default'
+        namespace: 'default',
       };
 
       // Create a session with health monitoring enabled
@@ -294,8 +306,8 @@ export class KubernetesDemo {
         streaming: true,
         monitoring: {
           enableMetrics: true,
-          enableAuditing: true
-        }
+          enableAuditing: true,
+        },
       });
 
       console.log(`Created monitored session: ${sessionId}`);
@@ -304,7 +316,9 @@ export class KubernetesDemo {
       const healthStatus = await this.consoleManager.getHealthStatus();
       console.log('\n=== System Health Status ===');
       console.log(`Active Sessions: ${healthStatus.sessionHealth.size}`);
-      console.log(`Connection Health: ${healthStatus.connectionHealth.size} connections`);
+      console.log(
+        `Connection Health: ${healthStatus.connectionHealth.size} connections`
+      );
 
       // Show Kubernetes-specific health
       const k8sHealth = healthStatus.connectionHealth.get('kubernetes');
@@ -312,12 +326,16 @@ export class KubernetesDemo {
         console.log('\n=== Kubernetes Health ===');
         console.log(`Status: ${k8sHealth.status}`);
         console.log(`Overall Score: ${k8sHealth.overallScore}`);
-        console.log(`Context: ${k8sHealth.context.context}/${k8sHealth.context.namespace}`);
+        console.log(
+          `Context: ${k8sHealth.context.context}/${k8sHealth.context.namespace}`
+        );
         console.log(`Active Sessions: ${k8sHealth.activeSessions}`);
         console.log('Health Checks:');
         for (const [check, result] of Object.entries(k8sHealth.checks)) {
           const resultObj = result as any;
-          console.log(`  ${check}: ${resultObj.checkStatus || 'unknown'} - ${resultObj.message || resultObj.value || 'OK'}`);
+          console.log(
+            `  ${check}: ${resultObj.checkStatus || 'unknown'} - ${resultObj.message || resultObj.value || 'OK'}`
+          );
         }
       }
 
@@ -328,19 +346,23 @@ export class KubernetesDemo {
           const currentHealth = await this.consoleManager.getHealthStatus();
           const sessionHealth = currentHealth.sessionHealth.get(sessionId);
           if (sessionHealth) {
-            console.log(`Session ${sessionId} health score: ${sessionHealth.healthScore || 'N/A'}`);
+            console.log(
+              `Session ${sessionId} health score: ${sessionHealth.healthScore || 'N/A'}`
+            );
           }
         } catch (error) {
-          console.warn('Health check failed:', error instanceof Error ? error.message : String(error));
+          console.warn(
+            'Health check failed:',
+            error instanceof Error ? error.message : String(error)
+          );
         }
       }, 2000);
 
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      await new Promise((resolve) => setTimeout(resolve, 10000));
       clearInterval(healthCheckInterval);
 
       await this.consoleManager.stopSession(sessionId);
       console.log('Health monitoring demo completed');
-
     } catch (error) {
       console.error('Health monitoring demo failed:', error);
     }
@@ -351,7 +373,7 @@ export class KubernetesDemo {
    */
   async runAllDemos(): Promise<void> {
     console.log('Starting Kubernetes Console Automation Demos\n');
-    
+
     try {
       await this.demonstrateKubectlExec();
       await this.demonstratePodSelection();
@@ -359,7 +381,7 @@ export class KubernetesDemo {
       await this.demonstratePortForwarding();
       await this.demonstrateMultiContext();
       await this.demonstrateHealthMonitoring();
-      
+
       console.log('\nAll Kubernetes demos completed successfully!');
     } catch (error) {
       console.error('Demo suite failed:', error);
@@ -387,9 +409,12 @@ export class KubernetesDemo {
 export default KubernetesDemo;
 
 // If run directly, execute all demos
-if (require.main === module || (typeof __filename !== 'undefined' && process.argv[1] === __filename)) {
+if (
+  require.main === module ||
+  (typeof __filename !== 'undefined' && process.argv[1] === __filename)
+) {
   const demo = new KubernetesDemo();
-  
+
   // Handle cleanup on exit
   process.on('SIGINT', async () => {
     console.log('\n\nShutting down demos...');
@@ -398,10 +423,13 @@ if (require.main === module || (typeof __filename !== 'undefined' && process.arg
   });
 
   // Run demos
-  demo.runAllDemos().then(() => {
-    console.log('\nDemos completed. Press Ctrl+C to exit.');
-  }).catch((error) => {
-    console.error('Demo execution failed:', error);
-    process.exit(1);
-  });
+  demo
+    .runAllDemos()
+    .then(() => {
+      console.log('\nDemos completed. Press Ctrl+C to exit.');
+    })
+    .catch((error) => {
+      console.error('Demo execution failed:', error);
+      process.exit(1);
+    });
 }

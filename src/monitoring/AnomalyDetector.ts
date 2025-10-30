@@ -1,10 +1,10 @@
 import { EventEmitter } from 'events';
-import { 
-  mean, 
-  standardDeviation, 
-  quantileRankSorted, 
-  linearRegression, 
-  linearRegressionLine
+import {
+  mean,
+  standardDeviation,
+  quantileRankSorted,
+  linearRegression,
+  linearRegressionLine,
 } from 'simple-statistics';
 import { Anomaly, SystemMetrics, ProcessMetrics } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
@@ -41,7 +41,10 @@ export class AnomalyDetector extends EventEmitter {
   private config: AnomalyDetectionConfig;
   private metricHistory: Map<string, MetricSeries[]> = new Map();
   private detectedAnomalies: Map<string, Anomaly> = new Map();
-  private baselines: Map<string, { mean: number; stdDev: number; trend: number }> = new Map();
+  private baselines: Map<
+    string,
+    { mean: number; stdDev: number; trend: number }
+  > = new Map();
   private patterns: Map<string, number[]> = new Map();
   private isRunning: boolean = false;
   private detectionInterval: NodeJS.Timeout | null = null;
@@ -49,26 +52,26 @@ export class AnomalyDetector extends EventEmitter {
   constructor(config?: Partial<AnomalyDetectionConfig>) {
     super();
     this.logger = new Logger('AnomalyDetector');
-    
+
     this.config = {
       enabled: true,
       thresholds: {
         cpu: { warning: 75, critical: 90 },
         memory: { warning: 80, critical: 95 },
         disk: { warning: 85, critical: 95 },
-        network: { warning: 1000000000, critical: 10000000000 } // 1GB/10GB
+        network: { warning: 1000000000, critical: 10000000000 }, // 1GB/10GB
       },
       statisticalConfig: {
         windowSize: 100,
         confidenceLevel: 0.95,
-        seasonalityPeriod: 24 // 24 data points for hourly seasonality
+        seasonalityPeriod: 24, // 24 data points for hourly seasonality
       },
       patterns: {
         enablePatternDetection: true,
         minPatternLength: 5,
-        patternSimilarityThreshold: 0.8
+        patternSimilarityThreshold: 0.8,
       },
-      ...config
+      ...config,
     };
   }
 
@@ -110,12 +113,15 @@ export class AnomalyDetector extends EventEmitter {
     series.push({
       timestamp: new Date(),
       value,
-      sessionId
+      sessionId,
     });
 
     // Keep only recent data to prevent memory leaks
     if (series.length > this.config.statisticalConfig.windowSize * 2) {
-      series.splice(0, series.length - this.config.statisticalConfig.windowSize * 2);
+      series.splice(
+        0,
+        series.length - this.config.statisticalConfig.windowSize * 2
+      );
     }
 
     this.metricHistory.set(metricName, series);
@@ -134,22 +140,30 @@ export class AnomalyDetector extends EventEmitter {
 
     // Add CPU metrics
     this.addMetricData('cpu_usage', metrics.cpu.usage);
-    
+
     // Add memory metrics
     this.addMetricData('memory_usage', metrics.memory.percentage);
-    
+
     // Add disk metrics
     this.addMetricData('disk_usage', metrics.disk.percentage);
-    
+
     // Add network metrics
     const totalNetworkIO = metrics.network.bytesIn + metrics.network.bytesOut;
     this.addMetricData('network_io', totalNetworkIO);
 
     // Process individual processes for anomalies
-    metrics.processes.forEach(process => {
+    metrics.processes.forEach((process) => {
       if (process.sessionId) {
-        this.addMetricData(`process_cpu_${process.sessionId}`, process.cpu, process.sessionId);
-        this.addMetricData(`process_memory_${process.sessionId}`, process.memory, process.sessionId);
+        this.addMetricData(
+          `process_cpu_${process.sessionId}`,
+          process.cpu,
+          process.sessionId
+        );
+        this.addMetricData(
+          `process_memory_${process.sessionId}`,
+          process.memory,
+          process.sessionId
+        );
       }
     });
   }
@@ -157,12 +171,14 @@ export class AnomalyDetector extends EventEmitter {
   // Run anomaly detection algorithms
   private async runDetection(): Promise<void> {
     const metricNames = Array.from(this.metricHistory.keys());
-    
+
     for (const metricName of metricNames) {
       try {
         await this.detectAnomalies(metricName);
       } catch (error) {
-        this.logger.error(`Error detecting anomalies for ${metricName}: ${error}`);
+        this.logger.error(
+          `Error detecting anomalies for ${metricName}: ${error}`
+        );
       }
     }
   }
@@ -174,40 +190,64 @@ export class AnomalyDetector extends EventEmitter {
       return;
     }
 
-    const values = series.map(s => s.value);
-    const timestamps = series.map(s => s.timestamp);
+    const values = series.map((s) => s.value);
+    const timestamps = series.map((s) => s.timestamp);
     const currentValue = values[values.length - 1];
     const currentTime = timestamps[timestamps.length - 1];
 
     // 1. Threshold-based detection
-    const thresholdAnomaly = this.detectThresholdAnomaly(metricName, currentValue, currentTime);
+    const thresholdAnomaly = this.detectThresholdAnomaly(
+      metricName,
+      currentValue,
+      currentTime
+    );
     if (thresholdAnomaly) {
       this.reportAnomaly(thresholdAnomaly);
     }
 
     // 2. Statistical anomaly detection (Z-score)
-    const statisticalAnomaly = this.detectStatisticalAnomaly(metricName, values, currentValue, currentTime);
+    const statisticalAnomaly = this.detectStatisticalAnomaly(
+      metricName,
+      values,
+      currentValue,
+      currentTime
+    );
     if (statisticalAnomaly) {
       this.reportAnomaly(statisticalAnomaly);
     }
 
     // 3. Pattern-based anomaly detection
     if (this.config.patterns.enablePatternDetection) {
-      const patternAnomaly = this.detectPatternAnomaly(metricName, values, currentValue, currentTime);
+      const patternAnomaly = this.detectPatternAnomaly(
+        metricName,
+        values,
+        currentValue,
+        currentTime
+      );
       if (patternAnomaly) {
         this.reportAnomaly(patternAnomaly);
       }
     }
 
     // 4. Trend-based anomaly detection
-    const trendAnomaly = this.detectTrendAnomaly(metricName, values, timestamps, currentValue, currentTime);
+    const trendAnomaly = this.detectTrendAnomaly(
+      metricName,
+      values,
+      timestamps,
+      currentValue,
+      currentTime
+    );
     if (trendAnomaly) {
       this.reportAnomaly(trendAnomaly);
     }
   }
 
   // Threshold-based anomaly detection
-  private detectThresholdAnomaly(metricName: string, value: number, timestamp: Date): Anomaly | null {
+  private detectThresholdAnomaly(
+    metricName: string,
+    value: number,
+    timestamp: Date
+  ): Anomaly | null {
     const thresholds = this.getThresholdsForMetric(metricName);
     if (!thresholds) {
       return null;
@@ -236,17 +276,24 @@ export class AnomalyDetector extends EventEmitter {
       deviation: value - thresholds.warning,
       confidence: 1.0,
       description,
-      severity
+      severity,
     };
   }
 
   // Statistical anomaly detection using Z-score
-  private detectStatisticalAnomaly(metricName: string, values: number[], currentValue: number, timestamp: Date): Anomaly | null {
+  private detectStatisticalAnomaly(
+    metricName: string,
+    values: number[],
+    currentValue: number,
+    timestamp: Date
+  ): Anomaly | null {
     if (values.length < 10) {
       return null;
     }
 
-    const recentValues = values.slice(-this.config.statisticalConfig.windowSize);
+    const recentValues = values.slice(
+      -this.config.statisticalConfig.windowSize
+    );
     const meanValue = mean(recentValues);
     const stdDev = standardDeviation(recentValues);
 
@@ -255,7 +302,9 @@ export class AnomalyDetector extends EventEmitter {
     }
 
     const zScore = Math.abs((currentValue - meanValue) / stdDev);
-    const confidenceThreshold = this.getZScoreThreshold(this.config.statisticalConfig.confidenceLevel);
+    const confidenceThreshold = this.getZScoreThreshold(
+      this.config.statisticalConfig.confidenceLevel
+    );
 
     if (zScore > confidenceThreshold) {
       let severity: 'low' | 'medium' | 'high' | 'critical';
@@ -274,7 +323,7 @@ export class AnomalyDetector extends EventEmitter {
         deviation: Math.abs(currentValue - meanValue),
         confidence: Math.min(zScore / 4, 1.0),
         description: `${metricName} shows statistical anomaly: Z-score=${zScore.toFixed(2)}, value=${currentValue.toFixed(2)}, expected=${meanValue.toFixed(2)}±${stdDev.toFixed(2)}`,
-        severity
+        severity,
       };
     }
 
@@ -282,7 +331,12 @@ export class AnomalyDetector extends EventEmitter {
   }
 
   // Pattern-based anomaly detection
-  private detectPatternAnomaly(metricName: string, values: number[], currentValue: number, timestamp: Date): Anomaly | null {
+  private detectPatternAnomaly(
+    metricName: string,
+    values: number[],
+    currentValue: number,
+    timestamp: Date
+  ): Anomaly | null {
     const minLength = this.config.patterns.minPatternLength;
     if (values.length < minLength * 3) {
       return null;
@@ -290,7 +344,10 @@ export class AnomalyDetector extends EventEmitter {
 
     // Extract recent pattern
     const recentPattern = values.slice(-minLength);
-    const historicalPatterns = this.extractPatterns(values.slice(0, -minLength), minLength);
+    const historicalPatterns = this.extractPatterns(
+      values.slice(0, -minLength),
+      minLength
+    );
 
     if (historicalPatterns.length === 0) {
       return null;
@@ -300,8 +357,11 @@ export class AnomalyDetector extends EventEmitter {
     let maxSimilarity = 0;
     let mostSimilarPattern: number[] = [];
 
-    historicalPatterns.forEach(pattern => {
-      const similarity = this.calculatePatternSimilarity(recentPattern, pattern);
+    historicalPatterns.forEach((pattern) => {
+      const similarity = this.calculatePatternSimilarity(
+        recentPattern,
+        pattern
+      );
       if (similarity > maxSimilarity) {
         maxSimilarity = similarity;
         mostSimilarPattern = pattern;
@@ -311,7 +371,7 @@ export class AnomalyDetector extends EventEmitter {
     // Check if current pattern deviates significantly from historical patterns
     if (maxSimilarity < this.config.patterns.patternSimilarityThreshold) {
       const expectedValue = mean(mostSimilarPattern);
-      
+
       return {
         id: uuidv4(),
         timestamp,
@@ -322,7 +382,7 @@ export class AnomalyDetector extends EventEmitter {
         deviation: Math.abs(currentValue - expectedValue),
         confidence: 1 - maxSimilarity,
         description: `${metricName} shows unusual pattern: similarity=${maxSimilarity.toFixed(2)} below threshold=${this.config.patterns.patternSimilarityThreshold}`,
-        severity: maxSimilarity < 0.5 ? 'high' : 'medium'
+        severity: maxSimilarity < 0.5 ? 'high' : 'medium',
       };
     }
 
@@ -330,22 +390,34 @@ export class AnomalyDetector extends EventEmitter {
   }
 
   // Trend-based anomaly detection
-  private detectTrendAnomaly(metricName: string, values: number[], timestamps: Date[], currentValue: number, currentTimestamp: Date): Anomaly | null {
+  private detectTrendAnomaly(
+    metricName: string,
+    values: number[],
+    timestamps: Date[],
+    currentValue: number,
+    currentTimestamp: Date
+  ): Anomaly | null {
     if (values.length < 20) {
       return null;
     }
 
     // Convert timestamps to numeric values for regression
-    const timePoints = timestamps.map(t => t.getTime());
-    const dataPoints = timePoints.map((t, i) => [t, values[i]] as [number, number]);
+    const timePoints = timestamps.map((t) => t.getTime());
+    const dataPoints = timePoints.map(
+      (t, i) => [t, values[i]] as [number, number]
+    );
 
     try {
       const regression = linearRegression(dataPoints);
       const regressionLine = linearRegressionLine(regression);
-      
+
       const expectedValue = regressionLine(currentTimestamp.getTime());
       const deviation = Math.abs(currentValue - expectedValue);
-      const meanDeviation = mean(values.slice(-10).map((v, i) => Math.abs(v - regressionLine(timePoints.slice(-10)[i]))));
+      const meanDeviation = mean(
+        values
+          .slice(-10)
+          .map((v, i) => Math.abs(v - regressionLine(timePoints.slice(-10)[i])))
+      );
 
       // Check if current deviation is significantly larger than recent deviations
       if (deviation > meanDeviation * 3) {
@@ -359,7 +431,7 @@ export class AnomalyDetector extends EventEmitter {
           deviation,
           confidence: Math.min(deviation / (meanDeviation * 3), 1.0),
           description: `${metricName} deviates from trend: expected=${expectedValue.toFixed(2)}, actual=${currentValue.toFixed(2)}, deviation=${deviation.toFixed(2)}`,
-          severity: deviation > meanDeviation * 5 ? 'high' : 'medium'
+          severity: deviation > meanDeviation * 5 ? 'high' : 'medium',
         };
       }
     } catch (error) {
@@ -379,7 +451,10 @@ export class AnomalyDetector extends EventEmitter {
   }
 
   // Calculate similarity between two patterns using correlation
-  private calculatePatternSimilarity(pattern1: number[], pattern2: number[]): number {
+  private calculatePatternSimilarity(
+    pattern1: number[],
+    pattern2: number[]
+  ): number {
     if (pattern1.length !== pattern2.length) {
       return 0;
     }
@@ -395,7 +470,7 @@ export class AnomalyDetector extends EventEmitter {
     for (let i = 0; i < n; i++) {
       const diff1 = pattern1[i] - mean1;
       const diff2 = pattern2[i] - mean2;
-      
+
       numerator += diff1 * diff2;
       denominator1 += diff1 * diff1;
       denominator2 += diff2 * diff2;
@@ -415,16 +490,22 @@ export class AnomalyDetector extends EventEmitter {
       return;
     }
 
-    const values = series.slice(-this.config.statisticalConfig.windowSize).map(s => s.value);
-    const timestamps = series.slice(-this.config.statisticalConfig.windowSize).map(s => s.timestamp.getTime());
-    
+    const values = series
+      .slice(-this.config.statisticalConfig.windowSize)
+      .map((s) => s.value);
+    const timestamps = series
+      .slice(-this.config.statisticalConfig.windowSize)
+      .map((s) => s.timestamp.getTime());
+
     const meanValue = mean(values);
     const stdDev = standardDeviation(values);
-    
+
     // Calculate trend using linear regression
     let trend = 0;
     try {
-      const dataPoints = timestamps.map((t, i) => [t, values[i]] as [number, number]);
+      const dataPoints = timestamps.map(
+        (t, i) => [t, values[i]] as [number, number]
+      );
       const regression = linearRegression(dataPoints);
       trend = regression.m; // slope
     } catch (error) {
@@ -435,7 +516,9 @@ export class AnomalyDetector extends EventEmitter {
   }
 
   // Get appropriate thresholds for a metric
-  private getThresholdsForMetric(metricName: string): { warning: number; critical: number } | null {
+  private getThresholdsForMetric(
+    metricName: string
+  ): { warning: number; critical: number } | null {
     if (metricName.includes('cpu')) {
       return this.config.thresholds.cpu;
     } else if (metricName.includes('memory')) {
@@ -453,8 +536,8 @@ export class AnomalyDetector extends EventEmitter {
     // Approximate Z-score thresholds for common confidence levels
     if (confidenceLevel >= 0.99) return 2.576;
     if (confidenceLevel >= 0.95) return 1.96;
-    if (confidenceLevel >= 0.90) return 1.645;
-    if (confidenceLevel >= 0.80) return 1.282;
+    if (confidenceLevel >= 0.9) return 1.645;
+    if (confidenceLevel >= 0.8) return 1.282;
     return 1.0;
   }
 
@@ -462,9 +545,10 @@ export class AnomalyDetector extends EventEmitter {
   private reportAnomaly(anomaly: Anomaly): void {
     // Check if we already reported this anomaly recently (within 5 minutes)
     const recentAnomalies = Array.from(this.detectedAnomalies.values()).filter(
-      a => a.metric === anomaly.metric && 
-           a.timestamp.getTime() > Date.now() - 300000 &&
-           a.type === anomaly.type
+      (a) =>
+        a.metric === anomaly.metric &&
+        a.timestamp.getTime() > Date.now() - 300000 &&
+        a.type === anomaly.type
     );
 
     if (recentAnomalies.length > 0) {
@@ -483,28 +567,33 @@ export class AnomalyDetector extends EventEmitter {
 
   // Get recent anomalies
   getRecentAnomalies(hours: number = 24): Anomaly[] {
-    const cutoff = Date.now() - (hours * 60 * 60 * 1000);
+    const cutoff = Date.now() - hours * 60 * 60 * 1000;
     return Array.from(this.detectedAnomalies.values())
-      .filter(anomaly => anomaly.timestamp.getTime() > cutoff)
+      .filter((anomaly) => anomaly.timestamp.getTime() > cutoff)
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 
   // Get anomalies by severity
-  getAnomaliesBySeverity(severity: 'low' | 'medium' | 'high' | 'critical'): Anomaly[] {
-    return Array.from(this.detectedAnomalies.values())
-      .filter(anomaly => anomaly.severity === severity);
+  getAnomaliesBySeverity(
+    severity: 'low' | 'medium' | 'high' | 'critical'
+  ): Anomaly[] {
+    return Array.from(this.detectedAnomalies.values()).filter(
+      (anomaly) => anomaly.severity === severity
+    );
   }
 
   // Get anomalies for a specific session
   getSessionAnomalies(sessionId: string): Anomaly[] {
-    return Array.from(this.detectedAnomalies.values())
-      .filter(anomaly => anomaly.sessionId === sessionId);
+    return Array.from(this.detectedAnomalies.values()).filter(
+      (anomaly) => anomaly.sessionId === sessionId
+    );
   }
 
   // Clear old anomalies to prevent memory leaks
-  cleanupOldAnomalies(maxAge: number = 86400000): void { // 24 hours default
+  cleanupOldAnomalies(maxAge: number = 86400000): void {
+    // 24 hours default
     const cutoff = Date.now() - maxAge;
-    
+
     Array.from(this.detectedAnomalies.entries()).forEach(([id, anomaly]) => {
       if (anomaly.timestamp.getTime() < cutoff) {
         this.detectedAnomalies.delete(id);
@@ -525,7 +614,7 @@ export class AnomalyDetector extends EventEmitter {
       low: this.getAnomaliesBySeverity('low').length,
       medium: this.getAnomaliesBySeverity('medium').length,
       high: this.getAnomaliesBySeverity('high').length,
-      critical: this.getAnomaliesBySeverity('critical').length
+      critical: this.getAnomaliesBySeverity('critical').length,
     };
 
     return {
@@ -533,7 +622,7 @@ export class AnomalyDetector extends EventEmitter {
       metricsTracked: this.metricHistory.size,
       totalAnomalies: this.detectedAnomalies.size,
       recentAnomalies: recentAnomalies.length,
-      anomaliesBySeverity
+      anomaliesBySeverity,
     };
   }
 

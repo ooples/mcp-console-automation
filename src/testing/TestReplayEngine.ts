@@ -5,7 +5,12 @@
  * with configurable speed control and timing preservation.
  */
 
-import { TestRecording, RecordingStep, ReplayResult, StepResult } from '../types/test-framework.js';
+import {
+  TestRecording,
+  RecordingStep,
+  ReplayResult,
+  StepResult,
+} from '../types/test-framework.js';
 import { TestRecorder } from './TestRecorder.js';
 import { ConsoleManager } from '../core/ConsoleManager.js';
 
@@ -47,9 +52,12 @@ export class TestReplayEngine {
     const startTime = Date.now();
     const results: StepResult[] = [];
     const speed = options.speed !== undefined ? options.speed : 1.0;
-    const preserveTiming = options.preserveTiming !== undefined ? options.preserveTiming : true;
-    const validateOutput = options.validateOutput !== undefined ? options.validateOutput : false;
-    const stopOnError = options.stopOnError !== undefined ? options.stopOnError : false;
+    const preserveTiming =
+      options.preserveTiming !== undefined ? options.preserveTiming : true;
+    const validateOutput =
+      options.validateOutput !== undefined ? options.validateOutput : false;
+    const stopOnError =
+      options.stopOnError !== undefined ? options.stopOnError : false;
     const timeout = options.timeout || 300000; // 5 minutes default
 
     this.sessionMap.clear();
@@ -159,7 +167,9 @@ export class TestReplayEngine {
       // Validate output if requested
       if (validateOutput && step.output && output !== step.output) {
         status = 'fail';
-        error = new Error(`Output mismatch: expected "${step.output}", got "${output}"`);
+        error = new Error(
+          `Output mismatch: expected "${step.output}", got "${output}"`
+        );
       }
     } catch (err) {
       status = 'fail';
@@ -193,7 +203,9 @@ export class TestReplayEngine {
 
       return `Session created: ${actualSessionId}`;
     } catch (error) {
-      throw new Error(`Failed to create session: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to create session: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -209,7 +221,9 @@ export class TestReplayEngine {
 
       return 'Input sent successfully';
     } catch (error) {
-      throw new Error(`Failed to send input: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to send input: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -225,7 +239,9 @@ export class TestReplayEngine {
 
       return 'Key sent successfully';
     } catch (error) {
-      throw new Error(`Failed to send key: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to send key: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -245,7 +261,9 @@ export class TestReplayEngine {
 
       return result.output || `Matched pattern: ${pattern}`;
     } catch (error) {
-      throw new Error(`Failed to wait for output: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to wait for output: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -274,13 +292,15 @@ export class TestReplayEngine {
    * Cleanup all sessions created during replay
    */
   private async cleanupSessions(): Promise<void> {
-    const cleanupPromises = Array.from(this.sessionMap.values()).map(async (sessionId) => {
-      try {
-        await this.consoleManager.stopSession(sessionId);
-      } catch (error) {
-        // Ignore cleanup errors
+    const cleanupPromises = Array.from(this.sessionMap.values()).map(
+      async (sessionId) => {
+        try {
+          await this.consoleManager.stopSession(sessionId);
+        } catch (error) {
+          // Ignore cleanup errors
+        }
       }
-    });
+    );
 
     await Promise.allSettled(cleanupPromises);
     this.sessionMap.clear();
@@ -290,7 +310,7 @@ export class TestReplayEngine {
    * Sleep for specified milliseconds
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -304,9 +324,9 @@ export class TestReplayEngine {
     passRate: number;
   } {
     const total = result.steps.length;
-    const passed = result.steps.filter(s => s.status === 'pass').length;
-    const failed = result.steps.filter(s => s.status === 'fail').length;
-    const skipped = result.steps.filter(s => s.status === 'skip').length;
+    const passed = result.steps.filter((s) => s.status === 'pass').length;
+    const failed = result.steps.filter((s) => s.status === 'fail').length;
+    const skipped = result.steps.filter((s) => s.status === 'skip').length;
     const passRate = total > 0 ? passed / total : 0;
 
     return {
@@ -328,7 +348,9 @@ export class TestReplayEngine {
     lines.push(`Replay Result: ${result.recording}`);
     lines.push(`Status: ${result.status.toUpperCase()}`);
     lines.push(`Duration: ${result.duration}ms`);
-    lines.push(`Steps: ${stats.passed}/${stats.total} passed (${(stats.passRate * 100).toFixed(1)}%)`);
+    lines.push(
+      `Steps: ${stats.passed}/${stats.total} passed (${(stats.passRate * 100).toFixed(1)}%)`
+    );
 
     if (stats.failed > 0) {
       lines.push(`Failed: ${stats.failed}`);

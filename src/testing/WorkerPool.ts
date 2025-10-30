@@ -77,7 +77,20 @@ export class WorkerPool extends EventEmitter {
    */
   private async createWorker(): Promise<WorkerInfo> {
     const workerId = this.nextWorkerId++;
-    const workerPath = path.join(__dirname, 'test-worker.js');
+
+    // Determine the correct worker path
+    // Worker threads require compiled JavaScript, so we need to find the dist directory
+    let workerPath: string;
+
+    if (__filename.endsWith('.ts')) {
+      // Running in TypeScript (e.g., Jest with ts-jest)
+      // Need to point to the compiled JavaScript in dist/
+      const projectRoot = path.resolve(__dirname, '../..');
+      workerPath = path.join(projectRoot, 'dist', 'testing', 'test-worker.js');
+    } else {
+      // Already running compiled JavaScript
+      workerPath = path.join(__dirname, 'test-worker.js');
+    }
 
     const worker = new Worker(workerPath, {
       workerData: { workerId },
@@ -224,7 +237,10 @@ export class WorkerPool extends EventEmitter {
         break;
 
       default:
-        console.warn(`Unknown message type from worker ${workerId}:`, message.type);
+        console.warn(
+          `Unknown message type from worker ${workerId}:`,
+          message.type
+        );
     }
   }
 
@@ -340,8 +356,13 @@ export class WorkerPool extends EventEmitter {
       for (const [workerId, workerInfo] of this.workers.entries()) {
         const timeSinceHeartbeat = now - workerInfo.lastHeartbeat;
         if (timeSinceHeartbeat > this.config.heartbeatInterval * 3) {
-          console.warn(`Worker ${workerId} missed heartbeat (${timeSinceHeartbeat}ms)`);
-          this.handleWorkerError(workerId, new Error('Worker heartbeat timeout'));
+          console.warn(
+            `Worker ${workerId} missed heartbeat (${timeSinceHeartbeat}ms)`
+          );
+          this.handleWorkerError(
+            workerId,
+            new Error('Worker heartbeat timeout')
+          );
           this.terminateWorker(workerId, true);
         }
       }
@@ -361,7 +382,10 @@ export class WorkerPool extends EventEmitter {
   /**
    * Terminate a specific worker
    */
-  private async terminateWorker(workerId: number, force: boolean = false): Promise<void> {
+  private async terminateWorker(
+    workerId: number,
+    force: boolean = false
+  ): Promise<void> {
     const workerInfo = this.workers.get(workerId);
     if (!workerInfo) return;
 
@@ -391,10 +415,15 @@ export class WorkerPool extends EventEmitter {
       busyWorkers: workers.filter((w) => w.busy).length,
       idleWorkers: workers.filter((w) => !w.busy).length,
       queuedTasks: this.taskQueue.length,
-      totalTasksCompleted: workers.reduce((sum, w) => sum + w.tasksCompleted, 0),
-      averageTasksPerWorker: workers.length > 0
-        ? workers.reduce((sum, w) => sum + w.tasksCompleted, 0) / workers.length
-        : 0,
+      totalTasksCompleted: workers.reduce(
+        (sum, w) => sum + w.tasksCompleted,
+        0
+      ),
+      averageTasksPerWorker:
+        workers.length > 0
+          ? workers.reduce((sum, w) => sum + w.tasksCompleted, 0) /
+            workers.length
+          : 0,
     };
   }
 
@@ -412,7 +441,9 @@ export class WorkerPool extends EventEmitter {
     // Wait for active tasks to complete or timeout
     const shutdownStart = Date.now();
     while (this.workers.size > 0) {
-      const busyWorkers = Array.from(this.workers.values()).filter((w) => w.busy);
+      const busyWorkers = Array.from(this.workers.values()).filter(
+        (w) => w.busy
+      );
 
       if (busyWorkers.length === 0) {
         break; // All workers idle
@@ -428,8 +459,8 @@ export class WorkerPool extends EventEmitter {
     }
 
     // Terminate all remaining workers
-    const terminationPromises = Array.from(this.workers.keys()).map((workerId) =>
-      this.terminateWorker(workerId, true)
+    const terminationPromises = Array.from(this.workers.keys()).map(
+      (workerId) => this.terminateWorker(workerId, true)
     );
 
     await Promise.all(terminationPromises);

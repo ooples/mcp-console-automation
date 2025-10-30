@@ -4,15 +4,15 @@ import { AlertManager } from './AlertManager.js';
 import { AuditLogger } from './AuditLogger.js';
 import { PerformanceProfiler } from './PerformanceProfiler.js';
 import { Logger } from '../utils/logger.js';
-import { 
-  SystemMetrics, 
-  Alert, 
-  Anomaly, 
-  AuditEvent, 
-  LogEntry, 
-  PerformanceProfile, 
-  SLAConfig, 
-  MonitoringOptions 
+import {
+  SystemMetrics,
+  Alert,
+  Anomaly,
+  AuditEvent,
+  LogEntry,
+  PerformanceProfile,
+  SLAConfig,
+  MonitoringOptions,
 } from '../types/index.js';
 
 interface MonitoringConfig {
@@ -54,44 +54,47 @@ export class MonitoringSystem extends EventEmitter {
   private performanceProfiler?: PerformanceProfiler;
 
   // Active monitoring sessions
-  private monitoringSessions: Map<string, {
-    sessionId: string;
-    profileId?: string;
-    startTime: Date;
-    options: MonitoringOptions;
-  }> = new Map();
+  private monitoringSessions: Map<
+    string,
+    {
+      sessionId: string;
+      profileId?: string;
+      startTime: Date;
+      options: MonitoringOptions;
+    }
+  > = new Map();
 
   constructor(config?: Partial<MonitoringConfig>) {
     super();
     this.logger = new Logger('MonitoringSystem');
-    
+
     this.config = {
       anomalyDetection: {
         enabled: false,
         windowSize: 100,
-        confidenceLevel: 0.95
+        confidenceLevel: 0.95,
       },
       alerting: {
         enabled: false,
         channels: [
           {
             type: 'console',
-            config: {}
-          }
-        ]
+            config: {},
+          },
+        ],
       },
       auditing: {
         enabled: false,
         logDirectory: './logs/audit',
         encryption: false,
-        retention: 365
+        retention: 365,
       },
       performance: {
         enabled: false,
         samplingInterval: 1000,
-        profileDuration: 300
+        profileDuration: 300,
       },
-      ...config
+      ...config,
     };
   }
 
@@ -112,8 +115,8 @@ export class MonitoringSystem extends EventEmitter {
           statisticalConfig: {
             windowSize: this.config.anomalyDetection.windowSize,
             confidenceLevel: this.config.anomalyDetection.confidenceLevel,
-            seasonalityPeriod: 24
-          }
+            seasonalityPeriod: 24,
+          },
         });
         this.setupAnomalyDetectionEventHandlers();
       }
@@ -122,13 +125,13 @@ export class MonitoringSystem extends EventEmitter {
       if (this.config.alerting.enabled) {
         this.alertManager = new AlertManager();
         this.setupAlertingEventHandlers();
-        
+
         // Setup notification channels
         this.config.alerting.channels.forEach((channel, index) => {
           this.alertManager!.addNotificationChannel(`channel-${index}`, {
             type: channel.type as any,
             config: channel.config,
-            enabled: true
+            enabled: true,
           });
         });
       }
@@ -141,13 +144,13 @@ export class MonitoringSystem extends EventEmitter {
           encryption: {
             enabled: this.config.auditing.encryption,
             algorithm: 'aes-256-cbc',
-            key: process.env.AUDIT_ENCRYPTION_KEY || 'default-key'
+            key: process.env.AUDIT_ENCRYPTION_KEY || 'default-key',
           },
           retention: {
             days: this.config.auditing.retention,
             maxFileSizeMB: 100,
-            compressionEnabled: true
-          }
+            compressionEnabled: true,
+          },
         });
         await this.auditLogger.initialize();
       }
@@ -157,7 +160,7 @@ export class MonitoringSystem extends EventEmitter {
         this.performanceProfiler = new PerformanceProfiler({
           enabled: true,
           samplingInterval: this.config.performance.samplingInterval,
-          profileDuration: this.config.performance.profileDuration
+          profileDuration: this.config.performance.profileDuration,
         });
         this.setupPerformanceEventHandlers();
       }
@@ -207,7 +210,10 @@ export class MonitoringSystem extends EventEmitter {
 
     if (this.auditLogger) {
       // Flush audit logger if it has a flush method
-      if ('flush' in this.auditLogger && typeof this.auditLogger.flush === 'function') {
+      if (
+        'flush' in this.auditLogger &&
+        typeof this.auditLogger.flush === 'function'
+      ) {
         await (this.auditLogger as any).flush();
       }
     }
@@ -227,17 +233,20 @@ export class MonitoringSystem extends EventEmitter {
     } & MonitoringOptions
   ): Promise<void> {
     const monitoringOptions = sessionData;
-    
+
     const session = {
       sessionId,
       profileId: undefined as string | undefined,
       startTime: new Date(),
-      options: monitoringOptions
+      options: monitoringOptions,
     };
 
     // Start performance profiling
     if (monitoringOptions.enableProfiling && this.performanceProfiler) {
-      const profileId = await this.performanceProfiler.startProfiling(sessionId, sessionData.command);
+      const profileId = await this.performanceProfiler.startProfiling(
+        sessionId,
+        sessionData.command
+      );
       session.profileId = profileId;
     }
 
@@ -251,9 +260,9 @@ export class MonitoringSystem extends EventEmitter {
           command: sessionData.command,
           args: sessionData.args,
           pid: sessionData.pid,
-          monitoring: monitoringOptions
+          monitoring: monitoringOptions,
         },
-        riskLevel: 'low'
+        riskLevel: 'low',
       });
     }
 
@@ -284,9 +293,9 @@ export class MonitoringSystem extends EventEmitter {
         eventType: 'session_stopped',
         sessionId,
         details: {
-          duration: Date.now() - session.startTime.getTime()
+          duration: Date.now() - session.startTime.getTime(),
         },
-        riskLevel: 'low'
+        riskLevel: 'low',
       });
     }
 
@@ -295,7 +304,11 @@ export class MonitoringSystem extends EventEmitter {
   }
 
   // Record an event for a session
-  async recordEvent(sessionId: string, eventType: string, data: any): Promise<void> {
+  async recordEvent(
+    sessionId: string,
+    eventType: string,
+    data: any
+  ): Promise<void> {
     const session = this.monitoringSessions.get(sessionId);
     if (!session) {
       return;
@@ -305,13 +318,16 @@ export class MonitoringSystem extends EventEmitter {
     if (session.options.enableAnomalyDetection && this.anomalyDetector) {
       if (eventType === 'output' && data.type === 'stderr') {
         // For now, just create a basic anomaly check
-        const anomaly = data.text && data.text.toLowerCase().includes('error') ? { 
-          severity: 'medium' as const, 
-          description: 'Error detected in stderr output' 
-        } : null;
+        const anomaly =
+          data.text && data.text.toLowerCase().includes('error')
+            ? {
+                severity: 'medium' as const,
+                description: 'Error detected in stderr output',
+              }
+            : null;
         if (anomaly) {
           this.emit('anomaly-detected', anomaly);
-          
+
           if (this.alertManager) {
             await this.alertManager.createAlert({
               id: `anomaly-${sessionId}-${Date.now()}`,
@@ -322,7 +338,7 @@ export class MonitoringSystem extends EventEmitter {
               sessionId,
               source: 'MonitoringSystem',
               timestamp: new Date(),
-              resolved: false
+              resolved: false,
             });
           }
         }
@@ -330,13 +346,17 @@ export class MonitoringSystem extends EventEmitter {
     }
 
     // Log audit events for errors
-    if (eventType === 'error' && session.options.enableAuditing && this.auditLogger) {
+    if (
+      eventType === 'error' &&
+      session.options.enableAuditing &&
+      this.auditLogger
+    ) {
       await this.logAuditEvent({
         timestamp: new Date(),
         eventType: 'error_detected',
         sessionId,
         details: data,
-        riskLevel: 'medium'
+        riskLevel: 'medium',
       });
     }
   }
@@ -364,7 +384,7 @@ export class MonitoringSystem extends EventEmitter {
       startTime: session.startTime,
       duration: Date.now() - session.startTime.getTime(),
       status: 'running',
-      monitoringEnabled: session.options
+      monitoringEnabled: session.options,
     };
   }
 
@@ -380,16 +400,19 @@ export class MonitoringSystem extends EventEmitter {
   async getDashboard(): Promise<any> {
     return {
       totalSessions: this.monitoringSessions.size,
-      alerts: await this.getAlerts()
+      alerts: await this.getAlerts(),
     };
   }
 
   // Helper method for logging audit events
   private async logAuditEvent(event: AuditEvent): Promise<void> {
     if (!this.auditLogger) return;
-    
+
     // AuditLogger might not have a log method, so we'll handle it gracefully
-    if ('log' in this.auditLogger && typeof this.auditLogger.log === 'function') {
+    if (
+      'log' in this.auditLogger &&
+      typeof this.auditLogger.log === 'function'
+    ) {
       await (this.auditLogger as any).log(event);
     } else {
       this.logger.debug('Audit event:', event);
@@ -397,14 +420,19 @@ export class MonitoringSystem extends EventEmitter {
   }
 
   // Helper method for stopping performance profiling
-  private async stopPerformanceProfiling(profileId: string): Promise<PerformanceProfile | null> {
+  private async stopPerformanceProfiling(
+    profileId: string
+  ): Promise<PerformanceProfile | null> {
     if (!this.performanceProfiler) return null;
-    
+
     // PerformanceProfiler might not have finishProfiling method
-    if ('finishProfiling' in this.performanceProfiler && typeof this.performanceProfiler.finishProfiling === 'function') {
+    if (
+      'finishProfiling' in this.performanceProfiler &&
+      typeof this.performanceProfiler.finishProfiling === 'function'
+    ) {
       return await (this.performanceProfiler as any).finishProfiling(profileId);
     }
-    
+
     // Fallback: return a basic profile
     return {
       sessionId: profileId,
@@ -416,16 +444,16 @@ export class MonitoringSystem extends EventEmitter {
         avgCpuUsage: 0,
         peakMemoryUsage: 0,
         totalDiskIO: 0,
-        totalNetworkIO: 0
+        totalNetworkIO: 0,
       },
-      bottlenecks: []
+      bottlenecks: [],
     };
   }
 
   // Setup event handlers
   private setupAnomalyDetectionEventHandlers(): void {
     if (!this.anomalyDetector) return;
-    
+
     this.anomalyDetector.on('anomaly', (anomaly: Anomaly) => {
       this.emit('anomaly', anomaly);
     });
@@ -433,7 +461,7 @@ export class MonitoringSystem extends EventEmitter {
 
   private setupAlertingEventHandlers(): void {
     if (!this.alertManager) return;
-    
+
     this.alertManager.on('alert-created', (alert: Alert) => {
       this.emit('alert', alert);
     });
@@ -441,7 +469,7 @@ export class MonitoringSystem extends EventEmitter {
 
   private setupPerformanceEventHandlers(): void {
     if (!this.performanceProfiler) return;
-    
+
     this.performanceProfiler.on('bottleneck-detected', (bottleneck: any) => {
       this.emit('performance-bottleneck', bottleneck);
     });
@@ -450,14 +478,17 @@ export class MonitoringSystem extends EventEmitter {
   // Cleanup
   async destroy(): Promise<void> {
     await this.stop();
-    
+
     if (this.auditLogger) {
       // Close audit logger if it has a close method
-      if ('close' in this.auditLogger && typeof this.auditLogger.close === 'function') {
+      if (
+        'close' in this.auditLogger &&
+        typeof this.auditLogger.close === 'function'
+      ) {
         await (this.auditLogger as any).close();
       }
     }
-    
+
     this.removeAllListeners();
     this.monitoringSessions.clear();
   }

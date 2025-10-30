@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Ruby Protocol connection options
@@ -61,9 +61,9 @@ export class RubyProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -95,8 +95,8 @@ export class RubyProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -123,8 +123,13 @@ export class RubyProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -145,7 +150,9 @@ export class RubyProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Ruby session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Ruby session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -176,7 +183,11 @@ export class RubyProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -190,7 +201,11 @@ export class RubyProtocol extends BaseProtocol {
     const rubyProcess = spawn(rubyCommand[0], rubyCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(rubyOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(rubyOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -199,7 +214,7 @@ export class RubyProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -209,7 +224,7 @@ export class RubyProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -220,7 +235,9 @@ export class RubyProtocol extends BaseProtocol {
     });
 
     rubyProcess.on('close', (code) => {
-      this.logger.info(`Ruby process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Ruby process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -233,7 +250,11 @@ export class RubyProtocol extends BaseProtocol {
       command: rubyCommand[0],
       args: rubyCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(rubyOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(rubyOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -241,12 +262,14 @@ export class RubyProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: rubyProcess.pid
+      pid: rubyProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Ruby session ${sessionId} created for ${rubyOptions.scriptFile || rubyOptions.rakeTask || rubyOptions.irb ? 'IRB' : 'Ruby application'}`);
+    this.logger.info(
+      `Ruby session ${sessionId} created for ${rubyOptions.scriptFile || rubyOptions.rakeTask || rubyOptions.irb ? 'IRB' : 'Ruby application'}`
+    );
     this.emit('session-created', { sessionId, type: 'ruby', session });
 
     return session;
@@ -255,7 +278,7 @@ export class RubyProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -264,8 +287,8 @@ export class RubyProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -287,25 +310,30 @@ export class RubyProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Ruby session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Ruby session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const rubyProcess = this.rubyProcesses.get(sessionId);
-    return rubyProcess && !rubyProcess.killed || false;
+    return (rubyProcess && !rubyProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -316,26 +344,26 @@ export class RubyProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.rubyProcesses.size
+        connectionsActive: this.rubyProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -347,8 +375,8 @@ export class RubyProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          ruby: { available: true }
-        }
+          ruby: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -356,8 +384,8 @@ export class RubyProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Ruby not available: ${error}`],
         dependencies: {
-          ruby: { available: false }
-        }
+          ruby: { available: false },
+        },
       };
     }
   }
@@ -414,7 +442,13 @@ export class RubyProtocol extends BaseProtocol {
 
     // Debug options
     if (options.enableDebug && options.debugPort) {
-      command.push('-rdebug-ide', `--host`, '0.0.0.0', `--port`, options.debugPort.toString());
+      command.push(
+        '-rdebug-ide',
+        `--host`,
+        '0.0.0.0',
+        `--port`,
+        options.debugPort.toString()
+      );
     }
 
     // Profiling
@@ -467,7 +501,9 @@ export class RubyProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: RubyConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: RubyConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Gemfile path
@@ -522,7 +558,10 @@ export class RubyProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Ruby process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Ruby process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

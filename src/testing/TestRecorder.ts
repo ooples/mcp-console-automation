@@ -7,7 +7,11 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { TestRecording, RecordingStep, RecordingMetadata } from '../types/test-framework.js';
+import {
+  TestRecording,
+  RecordingStep,
+  RecordingMetadata,
+} from '../types/test-framework.js';
 
 export interface RecorderOptions {
   name: string;
@@ -85,7 +89,11 @@ export class TestRecorder {
     const filename = this.sanitizeFilename(this.recording.name) + '.json';
     const filepath = path.join(this.outputDir, filename);
 
-    fs.writeFileSync(filepath, JSON.stringify(this.recording, null, 2), 'utf-8');
+    fs.writeFileSync(
+      filepath,
+      JSON.stringify(this.recording, null, 2),
+      'utf-8'
+    );
 
     const result = this.recording;
     this.recording = null;
@@ -97,7 +105,11 @@ export class TestRecorder {
   /**
    * Record a create_session step
    */
-  public recordCreateSession(sessionId: string, data: any, output?: string): void {
+  public recordCreateSession(
+    sessionId: string,
+    data: any,
+    output?: string
+  ): void {
     this.addStep({
       type: 'create_session',
       timestamp: this.getRelativeTimestamp(),
@@ -111,7 +123,11 @@ export class TestRecorder {
   /**
    * Record a send_input step
    */
-  public recordSendInput(input: string, sessionId?: string, output?: string): void {
+  public recordSendInput(
+    input: string,
+    sessionId?: string,
+    output?: string
+  ): void {
     this.addStep({
       type: 'send_input',
       timestamp: this.getRelativeTimestamp(),
@@ -137,7 +153,12 @@ export class TestRecorder {
   /**
    * Record a wait_for_output step
    */
-  public recordWaitForOutput(pattern: string, timeout: number, sessionId?: string, output?: string): void {
+  public recordWaitForOutput(
+    pattern: string,
+    timeout: number,
+    sessionId?: string,
+    output?: string
+  ): void {
     this.addStep({
       type: 'wait_for_output',
       timestamp: this.getRelativeTimestamp(),
@@ -193,15 +214,19 @@ export class TestRecorder {
       return [];
     }
 
-    return fs.readdirSync(outputDir)
-      .filter(file => file.endsWith('.json'))
-      .map(file => path.basename(file, '.json'));
+    return fs
+      .readdirSync(outputDir)
+      .filter((file) => file.endsWith('.json'))
+      .map((file) => path.basename(file, '.json'));
   }
 
   /**
    * Load a recording from file
    */
-  public static loadRecording(name: string, outputDir = 'data/recordings'): TestRecording {
+  public static loadRecording(
+    name: string,
+    outputDir = 'data/recordings'
+  ): TestRecording {
     const filename = name.endsWith('.json') ? name : `${name}.json`;
     const filepath = path.join(outputDir, filename);
 
@@ -216,7 +241,10 @@ export class TestRecorder {
   /**
    * Delete a recording file
    */
-  public static deleteRecording(name: string, outputDir = 'data/recordings'): void {
+  public static deleteRecording(
+    name: string,
+    outputDir = 'data/recordings'
+  ): void {
     const filename = name.endsWith('.json') ? name : `${name}.json`;
     const filepath = path.join(outputDir, filename);
 
@@ -252,15 +280,17 @@ export class TestRecorder {
   }
 
   private sanitizeFilename(name: string): string {
-    return name
-      .replace(/[^a-z0-9_-]/gi, '_')
-      .toLowerCase();
+    return name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
   }
 
   /**
    * Get recording statistics
    */
-  public getStats(): { steps: number; duration: number; sessionId: string | null } | null {
+  public getStats(): {
+    steps: number;
+    duration: number;
+    sessionId: string | null;
+  } | null {
     if (!this.recording) {
       return null;
     }

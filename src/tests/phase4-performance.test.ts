@@ -4,7 +4,10 @@
  */
 
 import { ParallelExecutor } from '../testing/ParallelExecutor.js';
-import { TestDefinition, ParallelExecutionConfig } from '../types/test-framework.js';
+import {
+  TestDefinition,
+  ParallelExecutionConfig,
+} from '../types/test-framework.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -59,7 +62,9 @@ describe('Phase 4 Performance', () => {
       console.log(`   Speedup: ${speedup.toFixed(2)}x`);
       console.log(`   Sequential: ${sequentialDuration}ms`);
       console.log(`   Parallel: ${parallelDuration}ms`);
-      console.log(`   Time saved: ${(sequentialDuration - parallelDuration).toFixed(0)}ms`);
+      console.log(
+        `   Time saved: ${(sequentialDuration - parallelDuration).toFixed(0)}ms`
+      );
 
       // Assertions
       expect(parallelResult.totalTests).toBe(12);
@@ -83,7 +88,10 @@ describe('Phase 4 Performance', () => {
         fs.mkdirSync(benchmarkDir, { recursive: true });
       }
 
-      const benchmarkPath = path.join(benchmarkDir, 'parallel-vs-sequential.json');
+      const benchmarkPath = path.join(
+        benchmarkDir,
+        'parallel-vs-sequential.json'
+      );
       const existing = fs.existsSync(benchmarkPath)
         ? JSON.parse(fs.readFileSync(benchmarkPath, 'utf8'))
         : { runs: [] };
@@ -91,7 +99,8 @@ describe('Phase 4 Performance', () => {
       existing.runs.push(benchmarkResult);
       existing.latestRun = benchmarkResult;
       existing.averageSpeedup =
-        existing.runs.reduce((sum: number, r: any) => sum + r.speedup, 0) / existing.runs.length;
+        existing.runs.reduce((sum: number, r: any) => sum + r.speedup, 0) /
+        existing.runs.length;
 
       fs.writeFileSync(benchmarkPath, JSON.stringify(existing, null, 2));
       console.log(`\nBenchmark results saved to: ${benchmarkPath}`);
@@ -150,14 +159,18 @@ describe('Phase 4 Performance', () => {
       };
 
       console.log('\n=== Large Suite Test ===');
-      console.log(`Running ${tests.length} tests with ${config.maxWorkers} workers...`);
+      console.log(
+        `Running ${tests.length} tests with ${config.maxWorkers} workers...`
+      );
 
       const start = Date.now();
       const result = await executor.executeTests(tests, config);
       const duration = Date.now() - start;
 
       console.log(`Completed ${result.totalTests} tests in ${duration}ms`);
-      console.log(`Average: ${(duration / tests.length).toFixed(2)}ms per test`);
+      console.log(
+        `Average: ${(duration / tests.length).toFixed(2)}ms per test`
+      );
       console.log('=== Large Suite Complete ===\n');
 
       expect(result.totalTests).toBe(50);

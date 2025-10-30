@@ -8,7 +8,7 @@ import {
   ConnectionPoolConfig,
   ConnectionPoolStats,
   SSHConnectionOptions,
-  HealthCheckResult
+  HealthCheckResult,
 } from '../types/index.js';
 
 export interface CircuitBreakerState {
@@ -51,7 +51,7 @@ export class ConnectionPool extends EventEmitter {
 
   constructor(config: Partial<ConnectionPoolConfig> = {}) {
     super();
-    
+
     this.config = {
       maxConnectionsPerHost: config.maxConnectionsPerHost ?? 5,
       connectionIdleTimeout: config.connectionIdleTimeout ?? 5 * 60 * 1000, // 5 minutes
@@ -64,7 +64,7 @@ export class ConnectionPool extends EventEmitter {
       poolingStrategy: config.poolingStrategy ?? 'least-connections',
       connectionTimeout: config.connectionTimeout ?? 30 * 1000, // 30 seconds
       maxReconnectAttempts: config.maxReconnectAttempts ?? 5,
-      circuitBreakerThreshold: config.circuitBreakerThreshold ?? 3
+      circuitBreakerThreshold: config.circuitBreakerThreshold ?? 3,
     };
 
     this.logger = new Logger('ConnectionPool');
@@ -78,7 +78,7 @@ export class ConnectionPool extends EventEmitter {
       successfulHealthChecks: 0,
       failedHealthChecks: 0,
       averageResponseTime: 0,
-      predictiveFailuresPrevented: 0
+      predictiveFailuresPrevented: 0,
     };
 
     this.startHealthChecks();
@@ -92,67 +92,85 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Get or create a connection to the specified host
    */
-  async getConnection(options: SSHConnectionOptions): Promise<PooledConnection> {
+  async getConnection(
+    options: SSHConnectionOptions
+  ): Promise<PooledConnection> {
     const hostKey = `${options.host}:${options.port || 22}:${options.username}`;
-    
+
     // Check circuit breaker
     const breaker = this.circuitBreakers.get(hostKey);
     if (breaker?.isOpen) {
       if (Date.now() < breaker.nextAttemptTime) {
-        const waitTime = Math.ceil((breaker.nextAttemptTime - Date.now()) / 1000);
+        const waitTime = Math.ceil(
+          (breaker.nextAttemptTime - Date.now()) / 1000
+        );
         throw new Error(
           `Circuit breaker is OPEN for ${hostKey}. ` +
-          `Too many recent failures (${breaker.failures}). ` +
-          `Wait ${waitTime}s before retry. ` +
-          `Health score: ${breaker.healthScore}/100`
+            `Too many recent failures (${breaker.failures}). ` +
+            `Wait ${waitTime}s before retry. ` +
+            `Health score: ${breaker.healthScore}/100`
         );
       } else {
         // Transition to half-open
         breaker.state = 'half-open';
         breaker.isOpen = false;
         breaker.successCount = 0;
-        
+
         if (this.config.enableLogging) {
-          this.logger.info(`Circuit breaker ${hostKey} transitioning to half-open state`);
+          this.logger.info(
+            `Circuit breaker ${hostKey} transitioning to half-open state`
+          );
         }
       }
     }
 
     // Try to get existing healthy connection
-    const existingConnection = await this.getExistingConnection(hostKey, options);
+    const existingConnection = await this.getExistingConnection(
+      hostKey,
+      options
+    );
     if (existingConnection) {
       existingConnection.lastUsed = new Date();
       existingConnection.activeSessionCount++;
-      
+
       if (this.config.enableLogging) {
-        this.logger.debug(`Reusing existing connection ${existingConnection.id} for ${hostKey}`);
+        this.logger.debug(
+          `Reusing existing connection ${existingConnection.id} for ${hostKey}`
+        );
       }
-      
+
       return existingConnection;
     }
 
     // Check if we can create a new connection
     const hostConnections = this.connectionsByHost.get(hostKey);
-    if (hostConnections && hostConnections.size >= this.config.maxConnectionsPerHost) {
+    if (
+      hostConnections &&
+      hostConnections.size >= this.config.maxConnectionsPerHost
+    ) {
       // Try to find a less busy connection
       const connections = Array.from(hostConnections)
-        .map(id => this.connections.get(id)!)
-        .filter(conn => conn.isHealthy)
+        .map((id) => this.connections.get(id)!)
+        .filter((conn) => conn.isHealthy)
         .sort((a, b) => a.activeSessionCount - b.activeSessionCount);
-      
+
       if (connections.length > 0) {
         const connection = connections[0];
         connection.lastUsed = new Date();
         connection.activeSessionCount++;
-        
+
         if (this.config.enableLogging) {
-          this.logger.debug(`Using least busy connection ${connection.id} for ${hostKey}`);
+          this.logger.debug(
+            `Using least busy connection ${connection.id} for ${hostKey}`
+          );
         }
-        
+
         return connection;
       }
-      
-      throw new Error(`Maximum connections (${this.config.maxConnectionsPerHost}) reached for host ${hostKey}`);
+
+      throw new Error(
+        `Maximum connections (${this.config.maxConnectionsPerHost}) reached for host ${hostKey}`
+      );
     }
 
     // Create new connection
@@ -166,19 +184,29 @@ export class ConnectionPool extends EventEmitter {
     const connection = this.connections.get(connectionId);
     if (!connection) {
       if (this.config.enableLogging) {
-        this.logger.warn(`Attempted to release unknown connection ${connectionId}`);
+        this.logger.warn(
+          `Attempted to release unknown connection ${connectionId}`
+        );
       }
       return;
     }
 
-    connection.activeSessionCount = Math.max(0, connection.activeSessionCount - 1);
+    connection.activeSessionCount = Math.max(
+      0,
+      connection.activeSessionCount - 1
+    );
     connection.lastUsed = new Date();
 
     if (this.config.enableLogging) {
-      this.logger.debug(`Released connection ${connectionId}, active sessions: ${connection.activeSessionCount}`);
+      this.logger.debug(
+        `Released connection ${connectionId}, active sessions: ${connection.activeSessionCount}`
+      );
     }
 
-    this.emit('connectionReleased', { connectionId, activeSessionCount: connection.activeSessionCount });
+    this.emit('connectionReleased', {
+      connectionId,
+      activeSessionCount: connection.activeSessionCount,
+    });
   }
 
   /**
@@ -191,9 +219,12 @@ export class ConnectionPool extends EventEmitter {
     }
 
     const hostKey = `${connection.host}:${connection.port}:${connection.username}`;
-    
+
     try {
-      if (connection.connection && typeof connection.connection.end === 'function') {
+      if (
+        connection.connection &&
+        typeof connection.connection.end === 'function'
+      ) {
         connection.connection.end();
       }
     } catch (error) {
@@ -227,12 +258,12 @@ export class ConnectionPool extends EventEmitter {
    */
   async closeAllConnections(): Promise<void> {
     const connectionIds = Array.from(this.connections.keys());
-    
+
     if (this.config.enableLogging) {
       this.logger.info(`Closing ${connectionIds.length} connections`);
     }
 
-    await Promise.all(connectionIds.map(id => this.closeConnection(id)));
+    await Promise.all(connectionIds.map((id) => this.closeConnection(id)));
   }
 
   /**
@@ -241,26 +272,32 @@ export class ConnectionPool extends EventEmitter {
   getStats(): ConnectionPoolStats {
     const connections = Array.from(this.connections.values());
     const now = Date.now();
-    
+
     const connectionsByHost: Record<string, number> = {};
     this.connectionsByHost.forEach((connections, hostKey) => {
       connectionsByHost[hostKey] = connections.size;
     });
 
-    const averageConnectionAge = connections.length > 0 
-      ? connections.reduce((sum, conn) => sum + (now - conn.createdAt.getTime()), 0) / connections.length
-      : 0;
+    const averageConnectionAge =
+      connections.length > 0
+        ? connections.reduce(
+            (sum, conn) => sum + (now - conn.createdAt.getTime()),
+            0
+          ) / connections.length
+        : 0;
 
     return {
       totalConnections: connections.length,
-      activeConnections: connections.filter(c => c.activeSessionCount > 0).length,
-      idleConnections: connections.filter(c => c.activeSessionCount === 0).length,
-      healthyConnections: connections.filter(c => c.isHealthy).length,
-      unhealthyConnections: connections.filter(c => !c.isHealthy).length,
+      activeConnections: connections.filter((c) => c.activeSessionCount > 0)
+        .length,
+      idleConnections: connections.filter((c) => c.activeSessionCount === 0)
+        .length,
+      healthyConnections: connections.filter((c) => c.isHealthy).length,
+      unhealthyConnections: connections.filter((c) => !c.isHealthy).length,
       connectionsByHost,
       averageConnectionAge,
       totalReconnectAttempts: this.metrics.reconnectionAttempts,
-      lastHealthCheckAt: new Date()
+      lastHealthCheckAt: new Date(),
     };
   }
 
@@ -271,7 +308,7 @@ export class ConnectionPool extends EventEmitter {
     return {
       ...this.metrics,
       circuitBreakerStates: Object.fromEntries(this.circuitBreakers.entries()),
-      poolStats: this.getStats()
+      poolStats: this.getStats(),
     };
   }
 
@@ -288,7 +325,7 @@ export class ConnectionPool extends EventEmitter {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
     }
-    
+
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
@@ -303,10 +340,12 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Create a new SSH connection
    */
-  private async createConnection(options: SSHConnectionOptions): Promise<PooledConnection> {
+  private async createConnection(
+    options: SSHConnectionOptions
+  ): Promise<PooledConnection> {
     const connectionId = uuidv4();
     const hostKey = `${options.host}:${options.port || 22}:${options.username}`;
-    
+
     if (this.config.enableLogging) {
       this.logger.info(`Creating new connection ${connectionId} to ${hostKey}`);
     }
@@ -317,18 +356,36 @@ export class ConnectionPool extends EventEmitter {
       port: options.port || 22,
       username: options.username,
       password: options.password,
-      privateKey: options.privateKey || (options.privateKeyPath ? readFileSync(options.privateKeyPath) : undefined),
+      privateKey:
+        options.privateKey ||
+        (options.privateKeyPath
+          ? readFileSync(options.privateKeyPath)
+          : undefined),
       passphrase: options.passphrase,
       readyTimeout: options.readyTimeout || this.config.connectionTimeout,
-      keepaliveInterval: options.keepAliveInterval || this.config.keepAliveInterval,
+      keepaliveInterval:
+        options.keepAliveInterval || this.config.keepAliveInterval,
       keepaliveCountMax: options.keepAliveCountMax || 3,
       algorithms: {
-        serverHostKey: ['rsa-sha2-512', 'rsa-sha2-256', 'ssh-rsa', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'ssh-ed25519'],
+        serverHostKey: [
+          'rsa-sha2-512',
+          'rsa-sha2-256',
+          'ssh-rsa',
+          'ecdsa-sha2-nistp256',
+          'ecdsa-sha2-nistp384',
+          'ecdsa-sha2-nistp521',
+          'ssh-ed25519',
+        ],
         cipher: ['aes128-gcm', 'aes256-gcm', 'aes128-ctr', 'aes256-ctr'],
         hmac: ['hmac-sha2-256', 'hmac-sha2-512', 'hmac-sha1'],
         compress: ['none'],
-        kex: ['ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'ecdh-sha2-nistp521', 'diffie-hellman-group14-sha256']
-      }
+        kex: [
+          'ecdh-sha2-nistp256',
+          'ecdh-sha2-nistp384',
+          'ecdh-sha2-nistp521',
+          'diffie-hellman-group14-sha256',
+        ],
+      },
     };
 
     const connection: PooledConnection = {
@@ -345,16 +402,16 @@ export class ConnectionPool extends EventEmitter {
       maxReconnectAttempts: this.config.maxReconnectAttempts,
       metadata: {
         hostKey,
-        connectConfig
-      }
+        connectConfig,
+      },
     };
 
     try {
       await this.connectSSH(sshClient, connectConfig);
-      
+
       connection.isHealthy = true;
       this.connections.set(connectionId, connection);
-      
+
       // Track by host
       if (!this.connectionsByHost.has(hostKey)) {
         this.connectionsByHost.set(hostKey, new Set());
@@ -368,13 +425,14 @@ export class ConnectionPool extends EventEmitter {
       this.metrics.totalConnections++;
 
       if (this.config.enableLogging) {
-        this.logger.info(`Successfully created connection ${connectionId} to ${hostKey}`);
+        this.logger.info(
+          `Successfully created connection ${connectionId} to ${hostKey}`
+        );
       }
 
       this.emit('connectionCreated', { connectionId, hostKey });
 
       return connection;
-
     } catch (error) {
       // Handle connection failure
       this.handleConnectionFailure(hostKey, error);
@@ -385,11 +443,18 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Connect SSH client with timeout handling
    */
-  private async connectSSH(client: SSHClient, config: ConnectConfig): Promise<void> {
+  private async connectSSH(
+    client: SSHClient,
+    config: ConnectConfig
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         client.destroy();
-        reject(new Error(`Connection timeout after ${this.config.connectionTimeout}ms`));
+        reject(
+          new Error(
+            `Connection timeout after ${this.config.connectionTimeout}ms`
+          )
+        );
       }, this.config.connectionTimeout);
 
       client.on('ready', () => {
@@ -411,35 +476,38 @@ export class ConnectionPool extends EventEmitter {
    */
   private setupConnectionHandlers(connection: PooledConnection): void {
     const sshClient = connection.connection;
-    
+
     sshClient.on('error', (error: Error) => {
       connection.isHealthy = false;
-      
+
       if (this.config.enableLogging) {
         this.logger.error(`Connection ${connection.id} error:`, error);
       }
-      
+
       this.emit('connectionError', { connectionId: connection.id, error });
     });
 
     sshClient.on('close', () => {
       connection.isHealthy = false;
-      
+
       if (this.config.enableLogging) {
         this.logger.info(`Connection ${connection.id} closed`);
       }
-      
+
       this.emit('connectionClosed', { connectionId: connection.id });
-      
+
       // Attempt reconnection if there are active sessions
-      if (connection.activeSessionCount > 0 && connection.reconnectAttempts < connection.maxReconnectAttempts) {
+      if (
+        connection.activeSessionCount > 0 &&
+        connection.reconnectAttempts < connection.maxReconnectAttempts
+      ) {
         this.attemptReconnection(connection);
       }
     });
 
     sshClient.on('end', () => {
       connection.isHealthy = false;
-      
+
       if (this.config.enableLogging) {
         this.logger.info(`Connection ${connection.id} ended`);
       }
@@ -449,15 +517,18 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Get existing healthy connection using load balancing strategy
    */
-  private async getExistingConnection(hostKey: string, _options: SSHConnectionOptions): Promise<PooledConnection | null> {
+  private async getExistingConnection(
+    hostKey: string,
+    _options: SSHConnectionOptions
+  ): Promise<PooledConnection | null> {
     const hostConnections = this.connectionsByHost.get(hostKey);
     if (!hostConnections || hostConnections.size === 0) {
       return null;
     }
 
     const healthyConnections = Array.from(hostConnections)
-      .map(id => this.connections.get(id)!)
-      .filter(conn => conn && conn.isHealthy);
+      .map((id) => this.connections.get(id)!)
+      .filter((conn) => conn && conn.isHealthy);
 
     if (healthyConnections.length === 0) {
       return null;
@@ -467,13 +538,17 @@ export class ConnectionPool extends EventEmitter {
     switch (this.config.poolingStrategy) {
       case 'round-robin':
         return this.getRoundRobinConnection(hostKey, healthyConnections);
-      
+
       case 'least-connections':
-        return healthyConnections.sort((a, b) => a.activeSessionCount - b.activeSessionCount)[0];
-      
+        return healthyConnections.sort(
+          (a, b) => a.activeSessionCount - b.activeSessionCount
+        )[0];
+
       case 'random':
-        return healthyConnections[Math.floor(Math.random() * healthyConnections.length)];
-      
+        return healthyConnections[
+          Math.floor(Math.random() * healthyConnections.length)
+        ];
+
       default:
         return healthyConnections[0];
     }
@@ -482,7 +557,10 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Get connection using round-robin strategy
    */
-  private getRoundRobinConnection(hostKey: string, connections: PooledConnection[]): PooledConnection {
+  private getRoundRobinConnection(
+    hostKey: string,
+    connections: PooledConnection[]
+  ): PooledConnection {
     const currentIndex = this.roundRobinIndex.get(hostKey) || 0;
     const connection = connections[currentIndex % connections.length];
     this.roundRobinIndex.set(hostKey, (currentIndex + 1) % connections.length);
@@ -492,14 +570,20 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Handle connection failure and update circuit breaker
    */
-  private handleConnectionFailure(hostKey: string, error: Error | unknown): void {
+  private handleConnectionFailure(
+    hostKey: string,
+    error: Error | unknown
+  ): void {
     this.recordCircuitBreakerFailure(hostKey, error);
   }
 
   /**
    * Record circuit breaker failure with enhanced state management
    */
-  private recordCircuitBreakerFailure(hostKey: string, error: Error | unknown): void {
+  private recordCircuitBreakerFailure(
+    hostKey: string,
+    error: Error | unknown
+  ): void {
     let breaker = this.circuitBreakers.get(hostKey);
     if (!breaker) {
       breaker = {
@@ -510,7 +594,7 @@ export class ConnectionPool extends EventEmitter {
         successCount: 0,
         nextAttemptTime: 0,
         responseTimeHistory: [],
-        healthScore: 100
+        healthScore: 100,
       };
       this.circuitBreakers.set(hostKey, breaker);
     }
@@ -520,45 +604,59 @@ export class ConnectionPool extends EventEmitter {
     breaker.healthScore = Math.max(0, breaker.healthScore - 20);
 
     // Transition to open state if threshold exceeded
-    if (breaker.state === 'closed' && breaker.failures >= this.config.circuitBreakerThreshold) {
+    if (
+      breaker.state === 'closed' &&
+      breaker.failures >= this.config.circuitBreakerThreshold
+    ) {
       breaker.state = 'open';
       breaker.isOpen = true;
       breaker.nextAttemptTime = Date.now() + 60000; // 1 minute window
       this.metrics.circuitBreakerTrips++;
-      
+
       if (this.config.enableLogging) {
-        this.logger.warn(`Circuit breaker opened for ${hostKey} after ${breaker.failures} failures`);
+        this.logger.warn(
+          `Circuit breaker opened for ${hostKey} after ${breaker.failures} failures`
+        );
       }
-      
-      this.emit('circuitBreakerTripped', { 
-        hostKey, 
+
+      this.emit('circuitBreakerTripped', {
+        hostKey,
         failures: breaker.failures,
         state: breaker.state,
-        healthScore: breaker.healthScore
+        healthScore: breaker.healthScore,
       });
     } else if (breaker.state === 'half-open') {
       // Return to open state from half-open on failure
       breaker.state = 'open';
       breaker.isOpen = true;
       breaker.nextAttemptTime = Date.now() + 60000;
-      
+
       if (this.config.enableLogging) {
-        this.logger.warn(`Circuit breaker returned to open state for ${hostKey}`);
+        this.logger.warn(
+          `Circuit breaker returned to open state for ${hostKey}`
+        );
       }
     }
 
     if (this.config.enableLogging) {
-      this.logger.error(`Connection failure for ${hostKey} (failure #${breaker.failures}):`, error);
+      this.logger.error(
+        `Connection failure for ${hostKey} (failure #${breaker.failures}):`,
+        error
+      );
     }
   }
 
   /**
    * Attempt to reconnect a failed connection
    */
-  private async attemptReconnection(connection: PooledConnection): Promise<void> {
+  private async attemptReconnection(
+    connection: PooledConnection
+  ): Promise<void> {
     if (connection.reconnectAttempts >= connection.maxReconnectAttempts) {
       if (this.config.enableLogging) {
-        this.logger.warn(`Max reconnection attempts reached for connection ${connection.id}`);
+        this.logger.warn(
+          `Max reconnection attempts reached for connection ${connection.id}`
+        );
       }
       return;
     }
@@ -566,38 +664,48 @@ export class ConnectionPool extends EventEmitter {
     connection.reconnectAttempts++;
     this.metrics.reconnectionAttempts++;
 
-    const delay = Math.min(1000 * Math.pow(2, connection.reconnectAttempts - 1), 30000); // Exponential backoff, max 30s
-    
+    const delay = Math.min(
+      1000 * Math.pow(2, connection.reconnectAttempts - 1),
+      30000
+    ); // Exponential backoff, max 30s
+
     if (this.config.enableLogging) {
-      this.logger.info(`Attempting reconnection ${connection.reconnectAttempts}/${connection.maxReconnectAttempts} for ${connection.id} in ${delay}ms`);
+      this.logger.info(
+        `Attempting reconnection ${connection.reconnectAttempts}/${connection.maxReconnectAttempts} for ${connection.id} in ${delay}ms`
+      );
     }
 
     setTimeout(async () => {
       try {
         const newSSHClient = new SSHClient();
-        const connectConfig = connection.metadata?.connectConfig as ConnectConfig;
-        
+        const connectConfig = connection.metadata
+          ?.connectConfig as ConnectConfig;
+
         await this.connectSSH(newSSHClient, connectConfig);
-        
+
         // Replace the old connection
         connection.connection.destroy();
         connection.connection = newSSHClient;
         connection.isHealthy = true;
         connection.reconnectAttempts = 0;
-        
+
         this.setupConnectionHandlers(connection);
-        
+
         if (this.config.enableLogging) {
-          this.logger.info(`Successfully reconnected connection ${connection.id}`);
+          this.logger.info(
+            `Successfully reconnected connection ${connection.id}`
+          );
         }
-        
+
         this.emit('connectionReconnected', { connectionId: connection.id });
-        
       } catch (error) {
         if (this.config.enableLogging) {
-          this.logger.error(`Reconnection failed for connection ${connection.id}:`, error);
+          this.logger.error(
+            `Reconnection failed for connection ${connection.id}:`,
+            error
+          );
         }
-        
+
         // Try again if we haven't exceeded max attempts
         if (connection.reconnectAttempts < connection.maxReconnectAttempts) {
           await this.attemptReconnection(connection);
@@ -613,7 +721,10 @@ export class ConnectionPool extends EventEmitter {
    * Start periodic health checks
    */
   private startHealthChecks(): void {
-    if (!this.config.healthCheckInterval || this.config.healthCheckInterval <= 0) {
+    if (
+      !this.config.healthCheckInterval ||
+      this.config.healthCheckInterval <= 0
+    ) {
       return;
     }
 
@@ -627,25 +738,30 @@ export class ConnectionPool extends EventEmitter {
    */
   private async performHealthChecks(): Promise<void> {
     const connections = Array.from(this.connections.values());
-    
+
     if (this.config.enableLogging && connections.length > 0) {
-      this.logger.debug(`Performing health checks on ${connections.length} connections`);
+      this.logger.debug(
+        `Performing health checks on ${connections.length} connections`
+      );
     }
 
     const healthCheckPromises = connections.map(async (connection) => {
       const startTime = Date.now();
       const checkId = `health-${connection.id}-${Date.now()}`;
-      
+
       try {
-        const healthResult = await this.performConnectionHealthCheck(connection);
-        
+        const healthResult =
+          await this.performConnectionHealthCheck(connection);
+
         // Update connection health
-        connection.isHealthy = healthResult.status === 'healthy' || healthResult.status === 'warning';
+        connection.isHealthy =
+          healthResult.status === 'healthy' ||
+          healthResult.status === 'warning';
         connection.healthCheckAt = new Date();
-        
+
         // Store health history
         this.storeConnectionHealthHistory(connection.id, healthResult);
-        
+
         // Update metrics
         this.metrics.healthChecksPerformed++;
         if (healthResult.success) {
@@ -653,35 +769,43 @@ export class ConnectionPool extends EventEmitter {
         } else {
           this.metrics.failedHealthChecks++;
         }
-        
+
         // Update average response time
         this.updateAverageResponseTime(healthResult.responseTime);
-        
+
         // Update circuit breaker state
         this.updateCircuitBreakerHealth(connection, healthResult);
-        
+
         // Predictive failure analysis
-        const failureRisk = this.analyzeFailureRisk(connection.id, healthResult);
+        const failureRisk = this.analyzeFailureRisk(
+          connection.id,
+          healthResult
+        );
         if (failureRisk > 0.7) {
           this.emit('predictive-failure-warning', {
             connectionId: connection.id,
             risk: failureRisk,
-            recommendations: this.generateConnectionRecommendations(connection, healthResult)
+            recommendations: this.generateConnectionRecommendations(
+              connection,
+              healthResult
+            ),
           });
         }
-        
+
         // Emit health check result
         this.emit('connection-health-check', {
           connectionId: connection.id,
-          result: healthResult
+          result: healthResult,
         });
-
       } catch (error) {
         connection.isHealthy = false;
         this.metrics.failedHealthChecks++;
-        
+
         if (this.config.enableLogging) {
-          this.logger.warn(`Health check failed for connection ${connection.id}:`, error);
+          this.logger.warn(
+            `Health check failed for connection ${connection.id}:`,
+            error
+          );
         }
 
         // Create failed health result
@@ -693,16 +817,16 @@ export class ConnectionPool extends EventEmitter {
           metrics: {},
           details: {
             message: `Health check failed: ${error instanceof Error ? error.message : String(error)}`,
-            recoverable: true
+            recoverable: true,
           },
           duration: Date.now() - startTime,
           checks: {
-            'connection': {
+            connection: {
               checkStatus: 'fail',
-              message: `Health check failed: ${error instanceof Error ? error.message : String(error)}`
-            }
+              message: `Health check failed: ${error instanceof Error ? error.message : String(error)}`,
+            },
           },
-          overallScore: 0
+          overallScore: 0,
         };
 
         this.storeConnectionHealthHistory(connection.id, failedResult);
@@ -715,13 +839,15 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Perform detailed health check on a single connection
    */
-  private async performConnectionHealthCheck(connection: PooledConnection): Promise<HealthCheckResult & { success: boolean; responseTime: number }> {
+  private async performConnectionHealthCheck(
+    connection: PooledConnection
+  ): Promise<HealthCheckResult & { success: boolean; responseTime: number }> {
     const startTime = Date.now();
     const checkId = `health-${connection.id}-${Date.now()}`;
 
     try {
       const sshClient = connection.connection;
-      
+
       if (!sshClient || sshClient.destroyed) {
         return {
           checkId,
@@ -733,18 +859,18 @@ export class ConnectionPool extends EventEmitter {
             message: 'SSH client is destroyed or unavailable',
             diagnosis: 'Connection has been terminated',
             recommendations: ['Reconnect to restore functionality'],
-            recoverable: true
+            recoverable: true,
           },
           duration: Date.now() - startTime,
           checks: {
-            'connection': {
+            connection: {
               checkStatus: 'fail',
-              message: 'SSH client is destroyed or unavailable'
-            }
+              message: 'SSH client is destroyed or unavailable',
+            },
           },
           overallScore: 0,
           success: false,
-          responseTime: Date.now() - startTime
+          responseTime: Date.now() - startTime,
         };
       }
 
@@ -757,7 +883,7 @@ export class ConnectionPool extends EventEmitter {
         responseTime,
         activeSessionCount: connection.activeSessionCount,
         connectionAge: Date.now() - connection.createdAt.getTime(),
-        reconnectAttempts: connection.reconnectAttempts
+        reconnectAttempts: connection.reconnectAttempts,
       };
 
       // Determine status based on response time and connectivity
@@ -788,26 +914,37 @@ export class ConnectionPool extends EventEmitter {
         metrics,
         details: {
           message: `Connection health: ${status} (${responseTime}ms response time)`,
-          diagnosis: testResult.success ? 
-            'Connection is responsive' : 
-            `Connection failed: ${testResult.error}`,
+          diagnosis: testResult.success
+            ? 'Connection is responsive'
+            : `Connection failed: ${testResult.error}`,
           recommendations,
-          recoverable: status !== 'critical'
+          recoverable: status !== 'critical',
         },
         duration: responseTime,
         checks: {
-          'connectivity': {
-            checkStatus: status === 'healthy' ? 'pass' : status === 'warning' ? 'warn' : 'fail',
+          connectivity: {
+            checkStatus:
+              status === 'healthy'
+                ? 'pass'
+                : status === 'warning'
+                  ? 'warn'
+                  : 'fail',
             message: `Connection health: ${status}`,
             value: responseTime,
-            duration: responseTime
-          }
+            duration: responseTime,
+          },
         },
-        overallScore: status === 'healthy' ? 100 : status === 'warning' ? 75 : status === 'unhealthy' ? 50 : 0,
+        overallScore:
+          status === 'healthy'
+            ? 100
+            : status === 'warning'
+              ? 75
+              : status === 'unhealthy'
+                ? 50
+                : 0,
         success: testResult.success,
-        responseTime
+        responseTime,
       };
-
     } catch (error) {
       return {
         checkId,
@@ -818,19 +955,22 @@ export class ConnectionPool extends EventEmitter {
         details: {
           message: `Health check error: ${error instanceof Error ? error.message : String(error)}`,
           diagnosis: 'Unable to assess connection health',
-          recommendations: ['Check connection stability', 'Consider reconnection'],
-          recoverable: true
+          recommendations: [
+            'Check connection stability',
+            'Consider reconnection',
+          ],
+          recoverable: true,
         },
         duration: Date.now() - startTime,
         checks: {
-          'connectivity': {
+          connectivity: {
             checkStatus: 'fail',
-            message: `Health check error: ${error instanceof Error ? error.message : String(error)}`
-          }
+            message: `Health check error: ${error instanceof Error ? error.message : String(error)}`,
+          },
         },
         overallScore: 0,
         success: false,
-        responseTime: Date.now() - startTime
+        responseTime: Date.now() - startTime,
       };
     }
   }
@@ -838,7 +978,9 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Test actual connectivity of SSH connection
    */
-  private async testConnectionConnectivity(sshClient: SSHClient): Promise<{ success: boolean; error?: string }> {
+  private async testConnectionConnectivity(
+    sshClient: SSHClient
+  ): Promise<{ success: boolean; error?: string }> {
     return new Promise((resolve) => {
       try {
         // Simple connectivity test - attempt to create a shell
@@ -857,11 +999,10 @@ export class ConnectionPool extends EventEmitter {
         setTimeout(() => {
           resolve({ success: false, error: 'Connectivity test timeout' });
         }, 5000);
-
       } catch (error) {
-        resolve({ 
-          success: false, 
-          error: error instanceof Error ? error.message : String(error)
+        resolve({
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     });
@@ -870,7 +1011,10 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Store connection health history for trend analysis
    */
-  private storeConnectionHealthHistory(connectionId: string, result: HealthCheckResult): void {
+  private storeConnectionHealthHistory(
+    connectionId: string,
+    result: HealthCheckResult
+  ): void {
     if (!this.connectionHealthHistory.has(connectionId)) {
       this.connectionHealthHistory.set(connectionId, []);
     }
@@ -887,7 +1031,10 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Update circuit breaker with health information
    */
-  private updateCircuitBreakerHealth(connection: PooledConnection, healthResult: HealthCheckResult): void {
+  private updateCircuitBreakerHealth(
+    connection: PooledConnection,
+    healthResult: HealthCheckResult
+  ): void {
     const hostKey = `${connection.host}:${connection.port}:${connection.username}`;
     let breaker = this.circuitBreakers.get(hostKey);
 
@@ -900,13 +1047,16 @@ export class ConnectionPool extends EventEmitter {
         successCount: 0,
         nextAttemptTime: 0,
         responseTimeHistory: [],
-        healthScore: 100
+        healthScore: 100,
       };
       this.circuitBreakers.set(hostKey, breaker);
     }
 
     // Update response time history
-    if ('responseTime' in healthResult && typeof healthResult.responseTime === 'number') {
+    if (
+      'responseTime' in healthResult &&
+      typeof healthResult.responseTime === 'number'
+    ) {
       breaker.responseTimeHistory.push(healthResult.responseTime);
       if (breaker.responseTimeHistory.length > 50) {
         breaker.responseTimeHistory.shift();
@@ -921,7 +1071,9 @@ export class ConnectionPool extends EventEmitter {
 
     // Factor in response time performance
     if (breaker.responseTimeHistory.length > 0) {
-      const avgResponseTime = breaker.responseTimeHistory.reduce((a, b) => a + b, 0) / breaker.responseTimeHistory.length;
+      const avgResponseTime =
+        breaker.responseTimeHistory.reduce((a, b) => a + b, 0) /
+        breaker.responseTimeHistory.length;
       if (avgResponseTime > 5000) healthScore *= 0.8;
       else if (avgResponseTime > 2000) healthScore *= 0.9;
     }
@@ -941,14 +1093,20 @@ export class ConnectionPool extends EventEmitter {
         breaker.failures = Math.max(0, breaker.failures - 1);
       }
     } else {
-      this.recordCircuitBreakerFailure(hostKey, new Error(healthResult.details.message));
+      this.recordCircuitBreakerFailure(
+        hostKey,
+        new Error(healthResult.details.message)
+      );
     }
   }
 
   /**
    * Analyze failure risk based on connection history
    */
-  private analyzeFailureRisk(connectionId: string, currentResult: HealthCheckResult): number {
+  private analyzeFailureRisk(
+    connectionId: string,
+    currentResult: HealthCheckResult
+  ): number {
     const history = this.connectionHealthHistory.get(connectionId) || [];
     if (history.length < 5) return 0;
 
@@ -956,22 +1114,24 @@ export class ConnectionPool extends EventEmitter {
 
     // Recent failures increase risk
     const recentResults = history.slice(-10);
-    const recentFailures = recentResults.filter(r => r.status === 'unhealthy' || r.status === 'critical').length;
+    const recentFailures = recentResults.filter(
+      (r) => r.status === 'unhealthy' || r.status === 'critical'
+    ).length;
     riskScore += (recentFailures / recentResults.length) * 0.4;
 
     // Degrading response times
     if (recentResults.length >= 5) {
       const responseTimes = recentResults
-        .map(r => r.metrics.responseTime)
-        .filter(rt => typeof rt === 'number') as number[];
-      
+        .map((r) => r.metrics.responseTime)
+        .filter((rt) => typeof rt === 'number') as number[];
+
       if (responseTimes.length >= 5) {
         const recent = responseTimes.slice(-3);
         const older = responseTimes.slice(-6, -3);
-        
+
         const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
         const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
-        
+
         if (recentAvg > olderAvg * 1.5) {
           riskScore += 0.3;
         }
@@ -989,10 +1149,16 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Generate recommendations for connection health
    */
-  private generateConnectionRecommendations(connection: PooledConnection, healthResult: HealthCheckResult): string[] {
+  private generateConnectionRecommendations(
+    connection: PooledConnection,
+    healthResult: HealthCheckResult
+  ): string[] {
     const recommendations: string[] = [];
 
-    if (healthResult.status === 'critical' || healthResult.status === 'unhealthy') {
+    if (
+      healthResult.status === 'critical' ||
+      healthResult.status === 'unhealthy'
+    ) {
       recommendations.push('Connection requires immediate attention');
       recommendations.push('Consider reconnecting or replacing connection');
     }
@@ -1002,8 +1168,13 @@ export class ConnectionPool extends EventEmitter {
       recommendations.push('Investigate underlying network issues');
     }
 
-    if (healthResult.metrics.responseTime && healthResult.metrics.responseTime > 5000) {
-      recommendations.push('Slow response times detected - check network conditions');
+    if (
+      healthResult.metrics.responseTime &&
+      healthResult.metrics.responseTime > 5000
+    ) {
+      recommendations.push(
+        'Slow response times detected - check network conditions'
+      );
       recommendations.push('Consider connection pooling optimization');
     }
 
@@ -1021,8 +1192,10 @@ export class ConnectionPool extends EventEmitter {
     if (this.metrics.successfulHealthChecks === 1) {
       this.metrics.averageResponseTime = newResponseTime;
     } else {
-      this.metrics.averageResponseTime = 
-        ((this.metrics.averageResponseTime * (this.metrics.successfulHealthChecks - 1)) + newResponseTime) / 
+      this.metrics.averageResponseTime =
+        (this.metrics.averageResponseTime *
+          (this.metrics.successfulHealthChecks - 1) +
+          newResponseTime) /
         this.metrics.successfulHealthChecks;
     }
   }
@@ -1049,20 +1222,27 @@ export class ConnectionPool extends EventEmitter {
 
     this.connections.forEach((connection, connectionId) => {
       const idleTime = now - connection.lastUsed.getTime();
-      
+
       // Only clean up idle connections with no active sessions
-      if (connection.activeSessionCount === 0 && idleTime > this.config.connectionIdleTimeout) {
+      if (
+        connection.activeSessionCount === 0 &&
+        idleTime > this.config.connectionIdleTimeout
+      ) {
         connectionsToClose.push(connectionId);
       }
     });
 
     if (connectionsToClose.length > 0) {
       if (this.config.enableLogging) {
-        this.logger.info(`Cleaning up ${connectionsToClose.length} idle connections`);
+        this.logger.info(
+          `Cleaning up ${connectionsToClose.length} idle connections`
+        );
       }
 
-      await Promise.all(connectionsToClose.map(id => this.closeConnection(id)));
-      
+      await Promise.all(
+        connectionsToClose.map((id) => this.closeConnection(id))
+      );
+
       this.emit('connectionsCleanedUp', { count: connectionsToClose.length });
     }
   }

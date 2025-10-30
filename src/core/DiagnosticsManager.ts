@@ -194,14 +194,16 @@ export class DiagnosticsManager extends EventEmitter {
   private isRecording = true;
   private verboseMode = false;
 
-  constructor(private config: {
-    enableDiagnostics?: boolean;
-    verboseLogging?: boolean;
-    persistDiagnostics?: boolean;
-    diagnosticsPath?: string;
-    maxEventHistory?: number;
-    metricsIntervalMs?: number;
-  } = {}) {
+  constructor(
+    private config: {
+      enableDiagnostics?: boolean;
+      verboseLogging?: boolean;
+      persistDiagnostics?: boolean;
+      diagnosticsPath?: string;
+      maxEventHistory?: number;
+      metricsIntervalMs?: number;
+    } = {}
+  ) {
     super();
     this.logger = new Logger('DiagnosticsManager');
     this.diagnosticsDir = config.diagnosticsPath || './diagnostics';
@@ -247,11 +249,11 @@ export class DiagnosticsManager extends EventEmitter {
     const diagnosticEvent: DiagnosticEvent = {
       id: this.generateEventId(),
       timestamp: new Date(),
-      ...event
+      ...event,
     };
 
     this.events.push(diagnosticEvent);
-    
+
     // Trim old events
     if (this.events.length > this.maxEventsStored) {
       this.events = this.events.slice(-this.maxEventsStored);
@@ -271,13 +273,17 @@ export class DiagnosticsManager extends EventEmitter {
 
   private logEvent(event: DiagnosticEvent) {
     const logMessage = `[${event.category}] ${event.operation}: ${event.message}`;
-    
-    if (this.verboseMode || event.level === 'error' || event.level === 'fatal') {
+
+    if (
+      this.verboseMode ||
+      event.level === 'error' ||
+      event.level === 'fatal'
+    ) {
       const logData = {
         sessionId: event.sessionId,
         data: event.data,
         metadata: event.metadata,
-        stack: event.stack
+        stack: event.stack,
       };
 
       switch (event.level) {
@@ -302,7 +308,10 @@ export class DiagnosticsManager extends EventEmitter {
   }
 
   // Session lifecycle tracking
-  startSessionDiagnostics(sessionId: string, metadata?: Record<string, any>): void {
+  startSessionDiagnostics(
+    sessionId: string,
+    metadata?: Record<string, any>
+  ): void {
     const diagnostics: SessionDiagnostics = {
       sessionId,
       createdAt: new Date(),
@@ -314,7 +323,7 @@ export class DiagnosticsManager extends EventEmitter {
       resourceUsage: this.getCurrentResourceMetrics(),
       stateTransitions: [],
       commandQueue: this.createEmptyCommandQueueDiagnostics(),
-      healthChecks: []
+      healthChecks: [],
     };
 
     this.sessionDiagnostics.set(sessionId, diagnostics);
@@ -325,11 +334,15 @@ export class DiagnosticsManager extends EventEmitter {
       operation: 'session_start',
       sessionId,
       message: `Session ${sessionId} diagnostics started`,
-      data: metadata
+      data: metadata,
     });
   }
 
-  updateSessionState(sessionId: string, newState: SessionDiagnostics['state'], trigger: string): void {
+  updateSessionState(
+    sessionId: string,
+    newState: SessionDiagnostics['state'],
+    trigger: string
+  ): void {
     const diagnostics = this.sessionDiagnostics.get(sessionId);
     if (!diagnostics) {
       this.recordEvent({
@@ -337,14 +350,14 @@ export class DiagnosticsManager extends EventEmitter {
         category: 'session',
         operation: 'state_update_failed',
         sessionId,
-        message: `Cannot update state for unknown session ${sessionId}`
+        message: `Cannot update state for unknown session ${sessionId}`,
       });
       return;
     }
 
     const oldState = diagnostics.state;
     const transitionStart = Date.now();
-    
+
     diagnostics.state = newState;
     diagnostics.lastActivity = new Date();
 
@@ -353,7 +366,7 @@ export class DiagnosticsManager extends EventEmitter {
       toState: newState,
       timestamp: new Date(),
       trigger,
-      duration: Date.now() - transitionStart
+      duration: Date.now() - transitionStart,
     };
 
     diagnostics.stateTransitions.push(transition);
@@ -364,20 +377,24 @@ export class DiagnosticsManager extends EventEmitter {
       operation: 'state_transition',
       sessionId,
       message: `Session state: ${oldState} -> ${newState}`,
-      data: { transition, trigger }
+      data: { transition, trigger },
     });
   }
 
   // Operation tracking
-  startOperation(sessionId: string, operationName: string, input?: any): string {
+  startOperation(
+    sessionId: string,
+    operationName: string,
+    input?: any
+  ): string {
     const operationId = this.generateOperationId();
-    
+
     const trace: OperationTrace = {
       operationId,
       operationName,
       startTime: new Date(),
       status: 'running',
-      input
+      input,
     };
 
     this.operationTraces.set(operationId, trace);
@@ -395,13 +412,18 @@ export class DiagnosticsManager extends EventEmitter {
       operation: 'start',
       sessionId,
       message: `Starting operation: ${operationName}`,
-      data: { operationId, input }
+      data: { operationId, input },
     });
 
     return operationId;
   }
 
-  endOperation(operationId: string, status: 'completed' | 'failed' | 'timeout', output?: any, error?: string): void {
+  endOperation(
+    operationId: string,
+    status: 'completed' | 'failed' | 'timeout',
+    output?: any,
+    error?: string
+  ): void {
     const trace = this.operationTraces.get(operationId);
     if (!trace) {
       this.logger.warn(`Cannot end unknown operation: ${operationId}`);
@@ -423,14 +445,19 @@ export class DiagnosticsManager extends EventEmitter {
       operation: 'end',
       message: `Operation ${trace.operationName} ${status}`,
       data: { operationId, duration: trace.duration, status, error },
-      duration: trace.duration
+      duration: trace.duration,
     });
   }
 
   // Error tracking
-  recordError(sessionId: string, error: Error | string, context: Record<string, any>, impact: ErrorTrace['impact'] = 'medium'): string {
+  recordError(
+    sessionId: string,
+    error: Error | string,
+    context: Record<string, any>,
+    impact: ErrorTrace['impact'] = 'medium'
+  ): string {
     const errorId = this.generateErrorId();
-    
+
     const errorTrace: ErrorTrace = {
       errorId,
       timestamp: new Date(),
@@ -439,7 +466,7 @@ export class DiagnosticsManager extends EventEmitter {
       stack: error instanceof Error ? error.stack : undefined,
       context,
       recoveryAttempted: false,
-      impact
+      impact,
     };
 
     const diagnostics = this.sessionDiagnostics.get(sessionId);
@@ -455,7 +482,7 @@ export class DiagnosticsManager extends EventEmitter {
       sessionId,
       message: errorTrace.errorMessage,
       data: { errorId, context },
-      stack: errorTrace.stack
+      stack: errorTrace.stack,
     });
 
     // Check if we need to raise an alert
@@ -465,7 +492,8 @@ export class DiagnosticsManager extends EventEmitter {
         category: 'error',
         message: `High impact error in session ${sessionId}: ${errorTrace.errorMessage}`,
         affectedSessions: [sessionId],
-        suggestedAction: 'Investigate immediately and consider session recovery'
+        suggestedAction:
+          'Investigate immediately and consider session recovery',
       });
     }
 
@@ -475,18 +503,18 @@ export class DiagnosticsManager extends EventEmitter {
   recordRecoveryAttempt(errorId: string, success: boolean): void {
     // Find the error across all sessions
     for (const diagnostics of this.sessionDiagnostics.values()) {
-      const error = diagnostics.errors.find(e => e.errorId === errorId);
+      const error = diagnostics.errors.find((e) => e.errorId === errorId);
       if (error) {
         error.recoveryAttempted = true;
         error.recoverySuccess = success;
-        
+
         this.recordEvent({
           level: success ? 'info' : 'warn',
           category: 'recovery',
           operation: 'recovery_attempt',
           sessionId: diagnostics.sessionId,
           message: `Recovery ${success ? 'successful' : 'failed'} for error ${errorId}`,
-          data: { errorId, success }
+          data: { errorId, success },
         });
         break;
       }
@@ -494,16 +522,20 @@ export class DiagnosticsManager extends EventEmitter {
   }
 
   // Performance monitoring
-  recordPerformanceMetric(sessionId: string, metricName: string, value: number): void {
+  recordPerformanceMetric(
+    sessionId: string,
+    metricName: string,
+    value: number
+  ): void {
     const key = `${sessionId}:${metricName}`;
-    
+
     if (!this.performanceData.has(key)) {
       this.performanceData.set(key, []);
     }
-    
+
     const values = this.performanceData.get(key)!;
     values.push(value);
-    
+
     // Keep only recent values (last 1000)
     if (values.length > 1000) {
       values.shift();
@@ -517,7 +549,7 @@ export class DiagnosticsManager extends EventEmitter {
         operation: 'slow_response',
         sessionId,
         message: `Slow response time detected: ${value}ms`,
-        data: { metric: metricName, value }
+        data: { metric: metricName, value },
       });
     }
   }
@@ -532,31 +564,36 @@ export class DiagnosticsManager extends EventEmitter {
     if (!diagnostics) return;
 
     const metrics = diagnostics.performance;
-    
+
     // Update metrics
     metrics.totalOperations++;
     if (operation.status === 'failed') {
       metrics.failedOperations++;
     }
-    
+
     // Update response times
-    const responseTimes = this.performanceData.get(`${sessionId}:response_time`) || [];
+    const responseTimes =
+      this.performanceData.get(`${sessionId}:response_time`) || [];
     responseTimes.push(operation.duration);
-    
+
     if (responseTimes.length > 0) {
-      metrics.avgResponseTime = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
+      metrics.avgResponseTime =
+        responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
       metrics.maxResponseTime = Math.max(...responseTimes);
       metrics.minResponseTime = Math.min(...responseTimes);
-      
+
       // Calculate percentiles
       const sorted = [...responseTimes].sort((a, b) => a - b);
       metrics.latencyP50 = this.getPercentile(sorted, 50);
       metrics.latencyP95 = this.getPercentile(sorted, 95);
       metrics.latencyP99 = this.getPercentile(sorted, 99);
     }
-    
-    metrics.successRate = ((metrics.totalOperations - metrics.failedOperations) / metrics.totalOperations) * 100;
-    
+
+    metrics.successRate =
+      ((metrics.totalOperations - metrics.failedOperations) /
+        metrics.totalOperations) *
+      100;
+
     // Calculate throughput (operations per second)
     const sessionAge = Date.now() - diagnostics.createdAt.getTime();
     metrics.throughput = (metrics.totalOperations / sessionAge) * 1000;
@@ -568,7 +605,12 @@ export class DiagnosticsManager extends EventEmitter {
   }
 
   // Health checks
-  recordHealthCheck(sessionId: string, checkType: string, status: HealthCheckResult['status'], details: Record<string, any>): void {
+  recordHealthCheck(
+    sessionId: string,
+    checkType: string,
+    status: HealthCheckResult['status'],
+    details: Record<string, any>
+  ): void {
     const diagnostics = this.sessionDiagnostics.get(sessionId);
     if (!diagnostics) return;
 
@@ -577,11 +619,11 @@ export class DiagnosticsManager extends EventEmitter {
       checkType,
       status,
       details,
-      recommendations: this.generateHealthRecommendations(status, details)
+      recommendations: this.generateHealthRecommendations(status, details),
     };
 
     diagnostics.healthChecks.push(healthCheck);
-    
+
     // Keep only recent health checks
     if (diagnostics.healthChecks.length > 100) {
       diagnostics.healthChecks = diagnostics.healthChecks.slice(-100);
@@ -594,12 +636,15 @@ export class DiagnosticsManager extends EventEmitter {
         operation: 'health_check_failed',
         sessionId,
         message: `Health check failed: ${checkType}`,
-        data: { status, details }
+        data: { status, details },
       });
     }
   }
 
-  private generateHealthRecommendations(status: HealthCheckResult['status'], details: Record<string, any>): string[] {
+  private generateHealthRecommendations(
+    status: HealthCheckResult['status'],
+    details: Record<string, any>
+  ): string[] {
     const recommendations: string[] = [];
 
     if (status === 'unhealthy') {
@@ -631,16 +676,21 @@ export class DiagnosticsManager extends EventEmitter {
   }
 
   // Alert management
-  private raiseAlert(alert: Omit<DiagnosticAlert, 'alertId' | 'timestamp' | 'autoResolved' | 'resolvedAt'>): void {
+  private raiseAlert(
+    alert: Omit<
+      DiagnosticAlert,
+      'alertId' | 'timestamp' | 'autoResolved' | 'resolvedAt'
+    >
+  ): void {
     const diagnosticAlert: DiagnosticAlert = {
       alertId: this.generateAlertId(),
       timestamp: new Date(),
       autoResolved: false,
-      ...alert
+      ...alert,
     };
 
     this.alerts.push(diagnosticAlert);
-    
+
     // Keep only recent alerts
     if (this.alerts.length > 100) {
       this.alerts = this.alerts.slice(-100);
@@ -649,11 +699,16 @@ export class DiagnosticsManager extends EventEmitter {
     this.emit('diagnostic-alert', diagnosticAlert);
 
     this.recordEvent({
-      level: alert.severity === 'critical' ? 'fatal' : alert.severity === 'error' ? 'error' : 'warn',
+      level:
+        alert.severity === 'critical'
+          ? 'fatal'
+          : alert.severity === 'error'
+            ? 'error'
+            : 'warn',
       category: 'alert',
       operation: 'alert_raised',
       message: alert.message,
-      data: { alertId: diagnosticAlert.alertId, severity: alert.severity }
+      data: { alertId: diagnosticAlert.alertId, severity: alert.severity },
     });
   }
 
@@ -665,15 +720,14 @@ export class DiagnosticsManager extends EventEmitter {
         category: 'system',
         message: `Fatal error detected: ${event.message}`,
         affectedSessions: event.sessionId ? [event.sessionId] : undefined,
-        suggestedAction: 'Immediate investigation required'
+        suggestedAction: 'Immediate investigation required',
       });
     }
 
     // Check for error patterns
     if (event.level === 'error') {
       const recentErrors = this.events.filter(
-        e => e.level === 'error' && 
-        e.timestamp.getTime() > Date.now() - 60000 // Last minute
+        (e) => e.level === 'error' && e.timestamp.getTime() > Date.now() - 60000 // Last minute
       );
 
       if (recentErrors.length > 10) {
@@ -681,7 +735,7 @@ export class DiagnosticsManager extends EventEmitter {
           severity: 'warning',
           category: 'error_rate',
           message: `High error rate detected: ${recentErrors.length} errors in last minute`,
-          suggestedAction: 'Review error logs and consider system health check'
+          suggestedAction: 'Review error logs and consider system health check',
         });
       }
     }
@@ -689,8 +743,9 @@ export class DiagnosticsManager extends EventEmitter {
     // Check for session issues
     if (event.category === 'session' && event.message.includes('not found')) {
       const sessionLostEvents = this.events.filter(
-        e => e.message.includes('not found') &&
-        e.timestamp.getTime() > Date.now() - 300000 // Last 5 minutes
+        (e) =>
+          e.message.includes('not found') &&
+          e.timestamp.getTime() > Date.now() - 300000 // Last 5 minutes
       );
 
       if (sessionLostEvents.length > 5) {
@@ -698,7 +753,7 @@ export class DiagnosticsManager extends EventEmitter {
           severity: 'error',
           category: 'session_management',
           message: `Multiple session loss events detected: ${sessionLostEvents.length} in last 5 minutes`,
-          suggestedAction: 'Check session manager and consider restart'
+          suggestedAction: 'Check session manager and consider restart',
         });
       }
     }
@@ -716,10 +771,10 @@ export class DiagnosticsManager extends EventEmitter {
       systemInfo: this.getSystemDiagnostics(),
       sessions: Array.from(this.sessionDiagnostics.values()),
       recentEvents: this.events.slice(-100), // Last 100 events
-      alerts: this.alerts.filter(a => !a.autoResolved),
+      alerts: this.alerts.filter((a) => !a.autoResolved),
       recommendations: this.generateSystemRecommendations(),
       performanceSummary: this.calculateOverallPerformance(),
-      errorSummary: this.generateErrorSummary()
+      errorSummary: this.generateErrorSummary(),
     };
 
     // Persist report if configured
@@ -732,23 +787,23 @@ export class DiagnosticsManager extends EventEmitter {
 
   private getSystemDiagnostics(): SystemDiagnostics {
     const sessions = Array.from(this.sessionDiagnostics.values());
-    
+
     return {
       version: '1.0.0',
       uptime: process.uptime(),
       platform: process.platform,
       nodeVersion: process.version,
       totalSessions: sessions.length,
-      activeSessions: sessions.filter(s => s.state === 'active').length,
-      failedSessions: sessions.filter(s => s.state === 'error').length,
+      activeSessions: sessions.filter((s) => s.state === 'active').length,
+      failedSessions: sessions.filter((s) => s.state === 'error').length,
       systemResources: this.getCurrentResourceMetrics(),
-      configuration: this.config
+      configuration: this.config,
     };
   }
 
   private getCurrentResourceMetrics(): ResourceMetrics {
     const memUsage = process.memoryUsage();
-    
+
     return {
       cpuUsage: process.cpuUsage().user / 1000000, // Convert to seconds
       memoryUsage: memUsage.heapUsed / 1024 / 1024, // MB
@@ -756,7 +811,10 @@ export class DiagnosticsManager extends EventEmitter {
       outputBufferSize: 0, // Would need to be tracked
       commandQueueSize: 0, // Would need to be tracked
       activeHandlers: this.listenerCount('diagnostic-event'),
-      fileDescriptors: process.platform === 'win32' ? undefined : process.getActiveResourcesInfo?.()?.length
+      fileDescriptors:
+        process.platform === 'win32'
+          ? undefined
+          : process.getActiveResourcesInfo?.()?.length,
     };
   }
 
@@ -771,22 +829,28 @@ export class DiagnosticsManager extends EventEmitter {
       throughput: 0,
       latencyP50: 0,
       latencyP95: 0,
-      latencyP99: 0
+      latencyP99: 0,
     };
 
     const sessions = Array.from(this.sessionDiagnostics.values());
-    
+
     if (sessions.length === 0) {
       return allMetrics;
     }
 
     // Aggregate metrics from all sessions
-    sessions.forEach(session => {
+    sessions.forEach((session) => {
       const metrics = session.performance;
       allMetrics.totalOperations += metrics.totalOperations;
       allMetrics.failedOperations += metrics.failedOperations;
-      allMetrics.maxResponseTime = Math.max(allMetrics.maxResponseTime, metrics.maxResponseTime);
-      allMetrics.minResponseTime = Math.min(allMetrics.minResponseTime, metrics.minResponseTime);
+      allMetrics.maxResponseTime = Math.max(
+        allMetrics.maxResponseTime,
+        metrics.maxResponseTime
+      );
+      allMetrics.minResponseTime = Math.min(
+        allMetrics.minResponseTime,
+        metrics.minResponseTime
+      );
       allMetrics.avgResponseTime += metrics.avgResponseTime;
       allMetrics.throughput += metrics.throughput;
     });
@@ -794,7 +858,12 @@ export class DiagnosticsManager extends EventEmitter {
     // Average the averages
     allMetrics.avgResponseTime /= sessions.length;
     allMetrics.throughput /= sessions.length;
-    allMetrics.successRate = ((allMetrics.totalOperations - allMetrics.failedOperations) / allMetrics.totalOperations) * 100;
+    allMetrics.successRate =
+      allMetrics.totalOperations > 0
+        ? ((allMetrics.totalOperations - allMetrics.failedOperations) /
+            allMetrics.totalOperations) *
+          100
+        : 100;
 
     return allMetrics;
   }
@@ -806,16 +875,18 @@ export class DiagnosticsManager extends EventEmitter {
 
     // Collect all errors
     this.sessionDiagnostics.forEach((diagnostics, sessionId) => {
-      diagnostics.errors.forEach(error => {
+      diagnostics.errors.forEach((error) => {
         allErrors.push(error);
-        errorsByType[error.errorType] = (errorsByType[error.errorType] || 0) + 1;
+        errorsByType[error.errorType] =
+          (errorsByType[error.errorType] || 0) + 1;
         errorsBySession[sessionId] = (errorsBySession[sessionId] || 0) + 1;
       });
     });
 
     // Calculate top errors
-    const errorCounts: Record<string, { count: number; lastOccurred: Date }> = {};
-    allErrors.forEach(error => {
+    const errorCounts: Record<string, { count: number; lastOccurred: Date }> =
+      {};
+    allErrors.forEach((error) => {
       const key = error.errorMessage;
       if (!errorCounts[key]) {
         errorCounts[key] = { count: 0, lastOccurred: error.timestamp };
@@ -832,10 +903,13 @@ export class DiagnosticsManager extends EventEmitter {
       .slice(0, 10);
 
     // Determine trend
-    const recentErrors = allErrors.filter(e => e.timestamp.getTime() > Date.now() - 3600000); // Last hour
-    const olderErrors = allErrors.filter(e => 
-      e.timestamp.getTime() > Date.now() - 7200000 && 
-      e.timestamp.getTime() <= Date.now() - 3600000
+    const recentErrors = allErrors.filter(
+      (e) => e.timestamp.getTime() > Date.now() - 3600000
+    ); // Last hour
+    const olderErrors = allErrors.filter(
+      (e) =>
+        e.timestamp.getTime() > Date.now() - 7200000 &&
+        e.timestamp.getTime() <= Date.now() - 3600000
     ); // Previous hour
 
     let errorTrend: ErrorSummary['errorTrend'] = 'stable';
@@ -850,7 +924,7 @@ export class DiagnosticsManager extends EventEmitter {
       errorsByType,
       errorsBySession,
       topErrors,
-      errorTrend
+      errorTrend,
     };
   }
 
@@ -862,41 +936,55 @@ export class DiagnosticsManager extends EventEmitter {
 
     // Check error trends
     if (errorSummary.errorTrend === 'increasing') {
-      recommendations.push('Error rate is increasing - investigate recent changes');
+      recommendations.push(
+        'Error rate is increasing - investigate recent changes'
+      );
     }
 
     if (errorSummary.totalErrors > 100) {
-      recommendations.push('High error count detected - review error logs and consider system health check');
+      recommendations.push(
+        'High error count detected - review error logs and consider system health check'
+      );
     }
 
     // Check performance
     if (performance.avgResponseTime > 1000) {
-      recommendations.push('Average response time is high - check network and system resources');
+      recommendations.push(
+        'Average response time is high - check network and system resources'
+      );
     }
 
     if (performance.successRate < 95) {
-      recommendations.push('Success rate below 95% - investigate failing operations');
+      recommendations.push(
+        'Success rate below 95% - investigate failing operations'
+      );
     }
 
     // Check sessions
-    const staleSessions = sessions.filter(s => 
-      s.state === 'idle' && 
-      Date.now() - s.lastActivity.getTime() > 3600000 // 1 hour
+    const staleSessions = sessions.filter(
+      (s) =>
+        s.state === 'idle' && Date.now() - s.lastActivity.getTime() > 3600000 // 1 hour
     );
 
     if (staleSessions.length > 0) {
-      recommendations.push(`${staleSessions.length} idle sessions detected - consider cleanup`);
+      recommendations.push(
+        `${staleSessions.length} idle sessions detected - consider cleanup`
+      );
     }
 
-    const erroredSessions = sessions.filter(s => s.state === 'error');
+    const erroredSessions = sessions.filter((s) => s.state === 'error');
     if (erroredSessions.length > 0) {
-      recommendations.push(`${erroredSessions.length} sessions in error state - consider recovery or restart`);
+      recommendations.push(
+        `${erroredSessions.length} sessions in error state - consider recovery or restart`
+      );
     }
 
     // Check resource usage
     const resources = this.getCurrentResourceMetrics();
     if (resources.memoryUsage / resources.memoryLimit > 0.8) {
-      recommendations.push('High memory usage detected - consider increasing memory limit or cleaning up sessions');
+      recommendations.push(
+        'High memory usage detected - consider increasing memory limit or cleaning up sessions'
+      );
     }
 
     return recommendations;
@@ -936,7 +1024,7 @@ export class DiagnosticsManager extends EventEmitter {
 
   private findSessionForOperation(operationId: string): string | undefined {
     for (const [sessionId, diagnostics] of this.sessionDiagnostics) {
-      if (diagnostics.operations.some(op => op.operationId === operationId)) {
+      if (diagnostics.operations.some((op) => op.operationId === operationId)) {
         return sessionId;
       }
     }
@@ -954,7 +1042,7 @@ export class DiagnosticsManager extends EventEmitter {
       throughput: 0,
       latencyP50: 0,
       latencyP95: 0,
-      latencyP99: 0
+      latencyP99: 0,
     };
   }
 
@@ -965,7 +1053,7 @@ export class DiagnosticsManager extends EventEmitter {
       averageWaitTime: 0,
       droppedCommands: 0,
       retriedCommands: 0,
-      queueState: 'idle'
+      queueState: 'idle',
     };
   }
 
@@ -981,7 +1069,7 @@ export class DiagnosticsManager extends EventEmitter {
       if (diagnostics.state === 'active' || diagnostics.state === 'ready') {
         const resources = this.getCurrentResourceMetrics();
         diagnostics.resourceUsage = resources;
-        
+
         // Record as event for tracking
         this.recordEvent({
           level: 'trace',
@@ -989,7 +1077,7 @@ export class DiagnosticsManager extends EventEmitter {
           operation: 'collect',
           sessionId,
           message: 'Metrics collected',
-          data: resources
+          data: resources,
         });
       }
     });
@@ -1004,9 +1092,8 @@ export class DiagnosticsManager extends EventEmitter {
     return Array.from(this.sessionDiagnostics.values());
   }
 
-
   getActiveAlerts(): DiagnosticAlert[] {
-    return this.alerts.filter(a => !a.autoResolved);
+    return this.alerts.filter((a) => !a.autoResolved);
   }
 
   getErrorsForSession(sessionId: string): ErrorTrace[] {
@@ -1017,7 +1104,9 @@ export class DiagnosticsManager extends EventEmitter {
   getPerformanceMetrics(sessionId?: string): PerformanceMetrics {
     if (sessionId) {
       const diagnostics = this.sessionDiagnostics.get(sessionId);
-      return diagnostics ? diagnostics.performance : this.createEmptyPerformanceMetrics();
+      return diagnostics
+        ? diagnostics.performance
+        : this.createEmptyPerformanceMetrics();
     }
     return this.calculateOverallPerformance();
   }
@@ -1044,7 +1133,7 @@ export class DiagnosticsManager extends EventEmitter {
       category: 'performance',
       operation: operation,
       message: `Operation completed in ${duration}ms`,
-      duration: duration
+      duration: duration,
     });
   }
 
@@ -1057,7 +1146,7 @@ export class DiagnosticsManager extends EventEmitter {
       stack: error.stack,
       context: context || {},
       recoveryAttempted: false,
-      impact: this.assessErrorImpact(error)
+      impact: this.assessErrorImpact(error),
     };
 
     // Add to session diagnostics if sessionId is in context
@@ -1076,11 +1165,13 @@ export class DiagnosticsManager extends EventEmitter {
       sessionId: context?.sessionId,
       message: error.message || String(error),
       data: errorTrace,
-      stack: error.stack
+      stack: error.stack,
     });
   }
 
-  private assessErrorImpact(error: any): 'low' | 'medium' | 'high' | 'critical' {
+  private assessErrorImpact(
+    error: any
+  ): 'low' | 'medium' | 'high' | 'critical' {
     if (error.message?.includes('Session not found')) return 'high';
     if (error.message?.includes('timeout')) return 'medium';
     if (error.message?.includes('ECONNREFUSED')) return 'critical';
@@ -1090,16 +1181,18 @@ export class DiagnosticsManager extends EventEmitter {
   getMetrics(): DiagnosticMetrics {
     return {
       totalSessions: this.sessionDiagnostics.size,
-      failedSessions: Array.from(this.sessionDiagnostics.values()).filter(s => s.state === 'error').length,
+      failedSessions: Array.from(this.sessionDiagnostics.values()).filter(
+        (s) => s.state === 'error'
+      ).length,
       averageResponseTime: this.calculateAverageResponseTime(),
       successRate: this.calculateSuccessRate(),
-      sessions: this.getSessionMetrics()
+      sessions: this.getSessionMetrics(),
     };
   }
 
   private calculateAverageResponseTime(): number {
     const allDurations: number[] = [];
-    this.performanceData.forEach(durations => {
+    this.performanceData.forEach((durations) => {
       allDurations.push(...durations);
     });
     if (allDurations.length === 0) return 0;
@@ -1109,8 +1202,9 @@ export class DiagnosticsManager extends EventEmitter {
   private calculateSuccessRate(): number {
     const total = this.operationTraces.size;
     if (total === 0) return 100;
-    const successful = Array.from(this.operationTraces.values())
-      .filter(op => op.status === 'completed').length;
+    const successful = Array.from(this.operationTraces.values()).filter(
+      (op) => op.status === 'completed'
+    ).length;
     return (successful / total) * 100;
   }
 
@@ -1121,7 +1215,7 @@ export class DiagnosticsManager extends EventEmitter {
         state: diag.state,
         operationCount: diag.operations.length,
         errorCount: diag.errors.length,
-        performance: diag.performance
+        performance: diag.performance,
       };
     });
     return metrics;
@@ -1129,13 +1223,13 @@ export class DiagnosticsManager extends EventEmitter {
 
   getRecentErrors(count: number = 10): any[] {
     return this.events
-      .filter(e => e.level === 'error')
+      .filter((e) => e.level === 'error')
       .slice(-count)
-      .map(e => ({
+      .map((e) => ({
         timestamp: e.timestamp,
         message: e.message,
         sessionId: e.sessionId,
-        data: e.data
+        data: e.data,
       }));
   }
 
@@ -1143,29 +1237,32 @@ export class DiagnosticsManager extends EventEmitter {
     let events = this.events;
 
     if (sessionId) {
-      events = events.filter(e => e.sessionId === sessionId);
+      events = events.filter((e) => e.sessionId === sessionId);
     }
 
     return events.slice(-count);
   }
 
-  async getHealthStatus(): Promise<{ healthy: boolean; checks: Record<string, any> }> {
+  async getHealthStatus(): Promise<{
+    healthy: boolean;
+    checks: Record<string, any>;
+  }> {
     const checks: Record<string, any> = {
       sessions: {
         healthy: this.sessionDiagnostics.size < 40,
-        message: `${this.sessionDiagnostics.size}/50 sessions`
+        message: `${this.sessionDiagnostics.size}/50 sessions`,
       },
       errors: {
         healthy: this.getRecentErrors(10).length < 5,
-        message: `${this.getRecentErrors(10).length} recent errors`
+        message: `${this.getRecentErrors(10).length} recent errors`,
       },
       memory: {
         healthy: process.memoryUsage().heapUsed < 500 * 1024 * 1024,
-        message: `${Math.floor(process.memoryUsage().heapUsed / 1024 / 1024)}MB used`
-      }
+        message: `${Math.floor(process.memoryUsage().heapUsed / 1024 / 1024)}MB used`,
+      },
     };
 
-    const healthy = Object.values(checks).every(c => c.healthy);
+    const healthy = Object.values(checks).every((c) => c.healthy);
     return { healthy, checks };
   }
 
@@ -1187,13 +1284,15 @@ export class DiagnosticsManager extends EventEmitter {
 
   setRecording(enabled: boolean): void {
     this.isRecording = enabled;
-    this.logger.info(`Diagnostic recording ${enabled ? 'enabled' : 'disabled'}`);
+    this.logger.info(
+      `Diagnostic recording ${enabled ? 'enabled' : 'disabled'}`
+    );
   }
 
   clearDiagnostics(sessionId?: string): void {
     if (sessionId) {
       this.sessionDiagnostics.delete(sessionId);
-      this.events = this.events.filter(e => e.sessionId !== sessionId);
+      this.events = this.events.filter((e) => e.sessionId !== sessionId);
       this.logger.info(`Cleared diagnostics for session ${sessionId}`);
     } else {
       this.sessionDiagnostics.clear();
@@ -1211,12 +1310,12 @@ export class DiagnosticsManager extends EventEmitter {
       clearInterval(this.metricsInterval);
       this.metricsInterval = null;
     }
-    
+
     // Generate final report if configured
     if (this.config.persistDiagnostics && this.sessionDiagnostics.size > 0) {
       this.generateDiagnosticReport();
     }
-    
+
     this.removeAllListeners();
     this.logger.info('DiagnosticsManager cleaned up');
   }

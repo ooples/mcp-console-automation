@@ -1,12 +1,17 @@
 import { BaseProtocol } from '../core/BaseProtocol.js';
-import { SSHAdapter, SSHOptions, createSSHSession, createSSHSessionWithHandlers } from '../core/SSHAdapter.js';
+import {
+  SSHAdapter,
+  SSHOptions,
+  createSSHSession,
+  createSSHSessionWithHandlers,
+} from '../core/SSHAdapter.js';
 import { ProtocolCapabilities, SessionState } from '../core/IProtocol.js';
 import {
   ConsoleSession,
   ConsoleOutput,
   SessionOptions,
   SSHConnectionOptions,
-  ConsoleType
+  ConsoleType,
 } from '../types/index.js';
 
 /**
@@ -87,14 +92,14 @@ export class SSHProtocol extends BaseProtocol {
         // Ignore debug errors
       }
     };
-    
+
     debugLog('=== SSHProtocol.doCreateSession CALLED ===');
     debugLog(`sessionId: ${sessionId}`);
     debugLog(`sessionState.isOneShot: ${sessionState.isOneShot}`);
     debugLog(`options.command: "${options.command}"`);
     debugLog(`options.args: ${JSON.stringify(options.args)}`);
     debugLog(`has sshOptions: ${!!options.sshOptions}`);
-    
+
     try {
       // Validate SSH options
       if (!options.sshOptions) {
@@ -125,12 +130,16 @@ export class SSHProtocol extends BaseProtocol {
       this.sessionAdapters.set(sessionId, adapter);
 
       // SSH always needs connection, regardless of one-shot or persistent
-      debugLog(`CONNECTING for ${sessionState.isOneShot ? 'one-shot' : 'persistent'} session`);
-      debugLog(`SSH Options: ${JSON.stringify({
-        host: sshOptions.host,
-        hasPassword: !!sshOptions.password,
-        hasPrivateKey: !!sshOptions.privateKey
-      })}`);
+      debugLog(
+        `CONNECTING for ${sessionState.isOneShot ? 'one-shot' : 'persistent'} session`
+      );
+      debugLog(
+        `SSH Options: ${JSON.stringify({
+          host: sshOptions.host,
+          hasPassword: !!sshOptions.password,
+          hasPrivateKey: !!sshOptions.privateKey,
+        })}`
+      );
       await adapter.connect(sshOptions);
       debugLog('>>> adapter.connect() COMPLETED <<<');
 
@@ -148,16 +157,19 @@ export class SSHProtocol extends BaseProtocol {
         executionState: 'idle',
         activeCommands: new Map(),
         lastActivity: new Date(),
-        pid: undefined // SSH sessions don't have local PIDs
+        pid: undefined, // SSH sessions don't have local PIDs
       };
 
       this.sessions.set(sessionId, session);
       this.outputBuffers.set(sessionId, []);
 
-      debugLog(`SSH session ${sessionId} created successfully (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
-      this.logger.info(`SSH session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
+      debugLog(
+        `SSH session ${sessionId} created successfully (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`
+      );
+      this.logger.info(
+        `SSH session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`
+      );
       return session;
-
     } catch (error) {
       try {
         console.error(`[SSH-DEBUG] ERROR in doCreateSession: ${error}`);
@@ -178,7 +190,11 @@ export class SSHProtocol extends BaseProtocol {
     }
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const adapter = this.sessionAdapters.get(sessionId);
     const sessionState = await this.getSessionState(sessionId);
 
@@ -217,8 +233,11 @@ export class SSHProtocol extends BaseProtocol {
         }, 1000); // Give time for output to be captured
       }
 
-      this.emit('commandExecuted', { sessionId, command: fullCommand, timestamp: new Date() });
-
+      this.emit('commandExecuted', {
+        sessionId,
+        command: fullCommand,
+        timestamp: new Date(),
+      });
     } catch (error) {
       this.logger.error(`Failed to execute SSH command: ${error}`);
       throw error;
@@ -241,7 +260,6 @@ export class SSHProtocol extends BaseProtocol {
       }
 
       this.emit('inputSent', { sessionId, input, timestamp: new Date() });
-
     } catch (error) {
       this.logger.error(`Failed to send SSH input: ${error}`);
       throw error;
@@ -299,7 +317,10 @@ export class SSHProtocol extends BaseProtocol {
 
         this.addToOutputBuffer(sessionId, output);
       } catch (error) {
-        this.logger.error(`Error handling SSH data for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error handling SSH data for session ${sessionId}:`,
+          error
+        );
       }
     });
 
@@ -315,7 +336,10 @@ export class SSHProtocol extends BaseProtocol {
 
         this.addToOutputBuffer(sessionId, output);
       } catch (handlerError) {
-        this.logger.error(`Error handling SSH error for session ${sessionId}:`, handlerError);
+        this.logger.error(
+          `Error handling SSH error for session ${sessionId}:`,
+          handlerError
+        );
         // Log original error too in case handler fails
         this.logger.error(`Original SSH error:`, error);
       }
@@ -325,7 +349,10 @@ export class SSHProtocol extends BaseProtocol {
       try {
         this.markSessionComplete(sessionId, code);
       } catch (error) {
-        this.logger.error(`Error handling SSH close for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error handling SSH close for session ${sessionId}:`,
+          error
+        );
       }
     });
 
@@ -337,43 +364,63 @@ export class SSHProtocol extends BaseProtocol {
           session.executionState = 'idle';
         }
       } catch (error) {
-        this.logger.error(`Error handling SSH connected for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error handling SSH connected for session ${sessionId}:`,
+          error
+        );
       }
     });
 
     adapter.on('error-recovered', (data) => {
       try {
-        this.logger.info(`SSH session ${sessionId} error recovered: ${JSON.stringify(data)}`);
+        this.logger.info(
+          `SSH session ${sessionId} error recovered: ${JSON.stringify(data)}`
+        );
       } catch (error) {
-        this.logger.error(`Error logging SSH recovery for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error logging SSH recovery for session ${sessionId}:`,
+          error
+        );
       }
     });
 
     adapter.on('degradation-enabled', (data) => {
       try {
-        this.logger.warn(`SSH session ${sessionId} degraded mode: ${JSON.stringify(data)}`);
+        this.logger.warn(
+          `SSH session ${sessionId} degraded mode: ${JSON.stringify(data)}`
+        );
       } catch (error) {
-        this.logger.error(`Error logging SSH degradation for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error logging SSH degradation for session ${sessionId}:`,
+          error
+        );
       }
     });
 
     // CRITICAL: Add handler for new safety events from improved SSHAdapter
     adapter.on('connection-failed', (data) => {
       try {
-        this.logger.error(`SSH session ${sessionId} connection failed: ${JSON.stringify(data)}`);
+        this.logger.error(
+          `SSH session ${sessionId} connection failed: ${JSON.stringify(data)}`
+        );
         // Mark session as failed so it can be cleaned up
         const session = this.sessions.get(sessionId);
         if (session) {
           session.status = 'failed';
         }
       } catch (error) {
-        this.logger.error(`Error handling SSH connection failure for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error handling SSH connection failure for session ${sessionId}:`,
+          error
+        );
       }
     });
 
     adapter.on('connection-restored', (data) => {
       try {
-        this.logger.info(`SSH session ${sessionId} connection restored: ${JSON.stringify(data)}`);
+        this.logger.info(
+          `SSH session ${sessionId} connection restored: ${JSON.stringify(data)}`
+        );
         // Update session status
         const session = this.sessions.get(sessionId);
         if (session) {
@@ -381,7 +428,10 @@ export class SSHProtocol extends BaseProtocol {
           session.executionState = 'idle';
         }
       } catch (error) {
-        this.logger.error(`Error handling SSH connection restoration for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error handling SSH connection restoration for session ${sessionId}:`,
+          error
+        );
       }
     });
   }

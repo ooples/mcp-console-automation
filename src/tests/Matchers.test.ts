@@ -30,7 +30,9 @@ describe('Matchers', () => {
   describe('toMatch', () => {
     it('should match with regex pattern', () => {
       expect(matchers.toMatch('hello123', /\d+/)).toBe(true);
-      expect(matchers.toMatch('test@example.com', /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/)).toBe(true);
+      expect(
+        matchers.toMatch('test@example.com', /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/)
+      ).toBe(true);
     });
 
     it('should match with string pattern', () => {
@@ -63,8 +65,12 @@ describe('Matchers', () => {
     });
 
     it('should handle nested structures', () => {
-      expect(matchers.toDeepEqual({ a: { b: { c: 1 } } }, { a: { b: { c: 1 } } })).toBe(true);
-      expect(matchers.toDeepEqual([{ a: 1 }, { b: 2 }], [{ a: 1 }, { b: 2 }])).toBe(true);
+      expect(
+        matchers.toDeepEqual({ a: { b: { c: 1 } } }, { a: { b: { c: 1 } } })
+      ).toBe(true);
+      expect(
+        matchers.toDeepEqual([{ a: 1 }, { b: 2 }], [{ a: 1 }, { b: 2 }])
+      ).toBe(true);
     });
 
     it('should handle Date objects', () => {
@@ -189,17 +195,37 @@ describe('Matchers', () => {
 
   describe('toThrow', () => {
     it('should return true when function throws', () => {
-      expect(matchers.toThrow(() => { throw new Error('test'); })).toBe(true);
-      expect(matchers.toThrow(() => { return 'ok'; })).toBe(false);
+      expect(
+        matchers.toThrow(() => {
+          throw new Error('test');
+        })
+      ).toBe(true);
+      expect(
+        matchers.toThrow(() => {
+          return 'ok';
+        })
+      ).toBe(false);
     });
 
     it('should match error message with string', () => {
-      expect(matchers.toThrow(() => { throw new Error('test error'); }, 'test')).toBe(true);
-      expect(matchers.toThrow(() => { throw new Error('test error'); }, 'other')).toBe(false);
+      expect(
+        matchers.toThrow(() => {
+          throw new Error('test error');
+        }, 'test')
+      ).toBe(true);
+      expect(
+        matchers.toThrow(() => {
+          throw new Error('test error');
+        }, 'other')
+      ).toBe(false);
     });
 
     it('should match error message with regex', () => {
-      expect(matchers.toThrow(() => { throw new Error('test error 123'); }, /\d+/)).toBe(true);
+      expect(
+        matchers.toThrow(() => {
+          throw new Error('test error 123');
+        }, /\d+/)
+      ).toBe(true);
     });
   });
 
@@ -213,7 +239,9 @@ describe('Matchers', () => {
     });
 
     it('should match custom error pattern string', () => {
-      expect(matchers.toContainError('Custom error occurred', 'custom')).toBe(true);
+      expect(matchers.toContainError('Custom error occurred', 'custom')).toBe(
+        true
+      );
     });
 
     it('should match custom error pattern regex', () => {
@@ -229,7 +257,9 @@ describe('Matchers', () => {
     });
 
     it('should throw error for non-function pattern', () => {
-      expect(() => matchers.toMatchPattern(5, 'not a function' as any)).toThrow();
+      expect(() =>
+        matchers.toMatchPattern(5, 'not a function' as any)
+      ).toThrow();
     });
   });
 
@@ -323,7 +353,9 @@ describe('Matchers', () => {
     });
 
     it('should deeply compare property values', () => {
-      expect(matchers.toHavePropertyValue({ a: { b: 1 } }, 'a', { b: 1 })).toBe(true);
+      expect(matchers.toHavePropertyValue({ a: { b: 1 } }, 'a', { b: 1 })).toBe(
+        true
+      );
     });
   });
 
@@ -346,8 +378,12 @@ describe('Matchers', () => {
     });
 
     it('should check string contains all substrings', () => {
-      expect(matchers.toContainAll('hello world', ['hello', 'world'])).toBe(true);
-      expect(matchers.toContainAll('hello world', ['hello', 'foo'])).toBe(false);
+      expect(matchers.toContainAll('hello world', ['hello', 'world'])).toBe(
+        true
+      );
+      expect(matchers.toContainAll('hello world', ['hello', 'foo'])).toBe(
+        false
+      );
     });
   });
 

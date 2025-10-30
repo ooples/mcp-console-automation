@@ -18,7 +18,8 @@ export class SnapshotManager {
   private snapshotsDir: string;
 
   constructor(snapshotsDir?: string) {
-    this.snapshotsDir = snapshotsDir || path.join(process.cwd(), 'data', 'snapshots');
+    this.snapshotsDir =
+      snapshotsDir || path.join(process.cwd(), 'data', 'snapshots');
     this.ensureSnapshotsDir();
   }
 
@@ -59,7 +60,10 @@ export class SnapshotManager {
   /**
    * Save snapshot to disk
    */
-  async save(snapshot: SessionSnapshot, options: SnapshotOptions = {}): Promise<string> {
+  async save(
+    snapshot: SessionSnapshot,
+    options: SnapshotOptions = {}
+  ): Promise<string> {
     const { pretty = true } = options;
 
     const filename = this.generateFilename(snapshot);
@@ -95,7 +99,10 @@ export class SnapshotManager {
   /**
    * Load snapshot by session ID and timestamp
    */
-  async loadBySessionId(sessionId: string, timestamp?: number): Promise<SessionSnapshot> {
+  async loadBySessionId(
+    sessionId: string,
+    timestamp?: number
+  ): Promise<SessionSnapshot> {
     const snapshots = await this.listSnapshots(sessionId);
 
     if (snapshots.length === 0) {
@@ -115,7 +122,9 @@ export class SnapshotManager {
       }
     }
 
-    throw new Error(`No snapshot found for session ${sessionId} at timestamp ${timestamp}`);
+    throw new Error(
+      `No snapshot found for session ${sessionId} at timestamp ${timestamp}`
+    );
   }
 
   /**
@@ -125,18 +134,18 @@ export class SnapshotManager {
     const files = await fs.promises.readdir(this.snapshotsDir);
 
     const snapshotFiles = files
-      .filter(f => f.endsWith('.json'))
-      .map(f => path.join(this.snapshotsDir, f));
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => path.join(this.snapshotsDir, f));
 
     if (!sessionId) {
       // Sort by modification time (newest first)
       const withStats = await Promise.all(
-        snapshotFiles.map(async f => ({
+        snapshotFiles.map(async (f) => ({
           file: f,
           mtime: (await fs.promises.stat(f)).mtime.getTime(),
         }))
       );
-      return withStats.sort((a, b) => b.mtime - a.mtime).map(s => s.file);
+      return withStats.sort((a, b) => b.mtime - a.mtime).map((s) => s.file);
     }
 
     // Filter by session ID
@@ -155,13 +164,15 @@ export class SnapshotManager {
 
     // Sort by timestamp (newest first)
     const withTimestamps = await Promise.all(
-      filtered.map(async f => {
+      filtered.map(async (f) => {
         const snapshot = await this.load(f);
         return { file: f, timestamp: snapshot.timestamp };
       })
     );
 
-    return withTimestamps.sort((a, b) => b.timestamp - a.timestamp).map(s => s.file);
+    return withTimestamps
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map((s) => s.file);
   }
 
   /**
@@ -176,7 +187,7 @@ export class SnapshotManager {
    */
   async deleteBySessionId(sessionId: string): Promise<number> {
     const snapshots = await this.listSnapshots(sessionId);
-    await Promise.all(snapshots.map(s => this.delete(s)));
+    await Promise.all(snapshots.map((s) => this.delete(s)));
     return snapshots.length;
   }
 
@@ -185,7 +196,7 @@ export class SnapshotManager {
    */
   async deleteAll(): Promise<number> {
     const snapshots = await this.listSnapshots();
-    await Promise.all(snapshots.map(s => this.delete(s)));
+    await Promise.all(snapshots.map((s) => this.delete(s)));
     return snapshots.length;
   }
 
@@ -233,8 +244,10 @@ export class SnapshotManager {
       totalSnapshots: snapshots.length,
       totalSize,
       sessions: sessionIds.size,
-      oldestTimestamp: oldestTimestamp === Infinity ? undefined : oldestTimestamp,
-      newestTimestamp: newestTimestamp === -Infinity ? undefined : newestTimestamp,
+      oldestTimestamp:
+        oldestTimestamp === Infinity ? undefined : oldestTimestamp,
+      newestTimestamp:
+        newestTimestamp === -Infinity ? undefined : newestTimestamp,
     };
   }
 
@@ -264,7 +277,7 @@ export class SnapshotManager {
     for (const [sessionId, files] of sessionMap.entries()) {
       // Sort by timestamp (newest first)
       const sorted = await Promise.all(
-        files.map(async f => {
+        files.map(async (f) => {
           const snapshot = await this.load(f);
           return { file: f, timestamp: snapshot.timestamp };
         })
@@ -286,7 +299,10 @@ export class SnapshotManager {
    * Generate filename for snapshot
    */
   private generateFilename(snapshot: SessionSnapshot): string {
-    const sanitizedSessionId = snapshot.sessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const sanitizedSessionId = snapshot.sessionId.replace(
+      /[^a-zA-Z0-9_-]/g,
+      '_'
+    );
     return `${sanitizedSessionId}-${snapshot.timestamp}.json`;
   }
 
@@ -304,7 +320,10 @@ export class SnapshotManager {
   /**
    * Export snapshot to different format
    */
-  async export(snapshot: SessionSnapshot, format: 'json' | 'yaml' | 'text'): Promise<string> {
+  async export(
+    snapshot: SessionSnapshot,
+    format: 'json' | 'yaml' | 'text'
+  ): Promise<string> {
     switch (format) {
       case 'json':
         return JSON.stringify(snapshot, null, 2);
@@ -331,7 +350,7 @@ export class SnapshotManager {
     lines.push(`timestamp: ${snapshot.timestamp}`);
     lines.push(`hash: ${snapshot.hash}`);
     lines.push('output: |');
-    snapshot.output.split('\n').forEach(line => {
+    snapshot.output.split('\n').forEach((line) => {
       lines.push(`  ${line}`);
     });
     lines.push('state:');
@@ -349,7 +368,11 @@ export class SnapshotManager {
     const lines: string[] = [];
 
     for (const [key, value] of Object.entries(obj)) {
-      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
         lines.push(`${spaces}${key}:`);
         lines.push(this.objectToYAML(value, indent + 2));
       } else {

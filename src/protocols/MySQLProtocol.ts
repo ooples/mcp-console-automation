@@ -4,12 +4,12 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
   SessionState,
-  ErrorContext
+  ErrorContext,
 } from '../core/IProtocol.js';
 
 // MySQL Client connection options
@@ -67,8 +67,8 @@ export class MySQLProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -79,7 +79,9 @@ export class MySQLProtocol extends BaseProtocol {
       // Check if mysql client is available
       await this.checkMySQLClientAvailability();
       this.isInitialized = true;
-      this.logger.info('MySQL protocol initialized with session management fixes');
+      this.logger.info(
+        'MySQL protocol initialized with session management fixes'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize MySQL protocol', error);
       throw error;
@@ -95,8 +97,13 @@ export class MySQLProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -107,7 +114,9 @@ export class MySQLProtocol extends BaseProtocol {
     }
 
     mysqlProcess.stdin.write(input);
-    this.logger.debug(`Sent input to MySQL session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to MySQL session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -130,7 +139,11 @@ export class MySQLProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -144,7 +157,7 @@ export class MySQLProtocol extends BaseProtocol {
     const mysqlProcess = spawn(mysqlCommand[0], mysqlCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd,
-      env: { ...process.env, ...options.env }
+      env: { ...process.env, ...options.env },
     });
 
     // Set up output handling
@@ -153,7 +166,7 @@ export class MySQLProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -163,7 +176,7 @@ export class MySQLProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -174,7 +187,9 @@ export class MySQLProtocol extends BaseProtocol {
     });
 
     mysqlProcess.on('close', (code) => {
-      this.logger.info(`MySQL process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `MySQL process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -194,12 +209,14 @@ export class MySQLProtocol extends BaseProtocol {
       type: this.type,
       streaming: options.streaming,
       executionState: 'idle',
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`MySQL session ${sessionId} created for ${mysqlOptions.host || 'localhost'}:${mysqlOptions.port || 3306}`);
+    this.logger.info(
+      `MySQL session ${sessionId} created for ${mysqlOptions.host || 'localhost'}:${mysqlOptions.port || 3306}`
+    );
     this.emit('session-created', { sessionId, type: 'mysql', session });
 
     return session;
@@ -213,12 +230,16 @@ export class MySQLProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('MySQL client not found. Please install MySQL client.'));
+          reject(
+            new Error('MySQL client not found. Please install MySQL client.')
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('MySQL client not found. Please install MySQL client.'));
+        reject(
+          new Error('MySQL client not found. Please install MySQL client.')
+        );
       });
     });
   }
@@ -273,7 +294,10 @@ export class MySQLProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing MySQL process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing MySQL process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

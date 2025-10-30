@@ -9,7 +9,10 @@ import { ChildProcess } from 'child_process';
 export class SessionValidator {
   private logger: Logger;
   private sessionReadyMap: Map<string, Promise<boolean>> = new Map();
-  private sessionHealthMap: Map<string, { lastChecked: Date; healthy: boolean }> = new Map();
+  private sessionHealthMap: Map<
+    string,
+    { lastChecked: Date; healthy: boolean }
+  > = new Map();
   private readonly HEALTH_CHECK_INTERVAL = 1000; // 1 second
 
   constructor() {
@@ -20,7 +23,7 @@ export class SessionValidator {
    * Validate that a session is ready for operations
    */
   async validateSessionReady(
-    sessionId: string, 
+    sessionId: string,
     session: ConsoleSession,
     process?: ChildProcess
   ): Promise<boolean> {
@@ -31,7 +34,11 @@ export class SessionValidator {
     }
 
     // Create validation promise
-    const validationPromise = this.performValidation(sessionId, session, process);
+    const validationPromise = this.performValidation(
+      sessionId,
+      session,
+      process
+    );
     this.sessionReadyMap.set(sessionId, validationPromise);
 
     try {
@@ -51,8 +58,14 @@ export class SessionValidator {
     this.logger.debug(`Validating session ${sessionId}`);
 
     // Check basic session properties
-    if (!session || session.status === 'stopped' || session.status === 'crashed') {
-      this.logger.warn(`Session ${sessionId} is not in a valid state: ${session?.status}`);
+    if (
+      !session ||
+      session.status === 'stopped' ||
+      session.status === 'crashed'
+    ) {
+      this.logger.warn(
+        `Session ${sessionId} is not in a valid state: ${session?.status}`
+      );
       return false;
     }
 
@@ -78,7 +91,7 @@ export class SessionValidator {
     // Mark session as healthy
     this.sessionHealthMap.set(sessionId, {
       lastChecked: new Date(),
-      healthy: true
+      healthy: true,
     });
 
     this.logger.debug(`Session ${sessionId} validation successful`);
@@ -90,9 +103,12 @@ export class SessionValidator {
     return age < 5000; // Less than 5 seconds old
   }
 
-  private async waitForInitialization(sessionId: string, process: ChildProcess): Promise<void> {
+  private async waitForInitialization(
+    sessionId: string,
+    process: ChildProcess
+  ): Promise<void> {
     this.logger.debug(`Waiting for session ${sessionId} to initialize...`);
-    
+
     return new Promise((resolve) => {
       let initialized = false;
       const timeout = setTimeout(() => {
@@ -146,7 +162,7 @@ export class SessionValidator {
   markSessionUnhealthy(sessionId: string): void {
     this.sessionHealthMap.set(sessionId, {
       lastChecked: new Date(),
-      healthy: false
+      healthy: false,
     });
     this.logger.warn(`Session ${sessionId} marked as unhealthy`);
   }
@@ -168,15 +184,16 @@ export class SessionValidator {
     unhealthySessions: number;
     pendingValidations: number;
   } {
-    const healthy = Array.from(this.sessionHealthMap.values())
-      .filter(h => h.healthy).length;
+    const healthy = Array.from(this.sessionHealthMap.values()).filter(
+      (h) => h.healthy
+    ).length;
     const unhealthy = this.sessionHealthMap.size - healthy;
 
     return {
       totalSessions: this.sessionHealthMap.size,
       healthySessions: healthy,
       unhealthySessions: unhealthy,
-      pendingValidations: this.sessionReadyMap.size
+      pendingValidations: this.sessionReadyMap.size,
     };
   }
 }

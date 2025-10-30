@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // ILO Protocol connection options
@@ -24,8 +24,23 @@ interface ILOConnectionOptions {
   sshKey?: string;
   args?: string[];
   sshPassphrase?: string;
-  operation?: 'console' | 'power' | 'virtual-media' | 'health' | 'firmware' | 'storage' | 'network' | 'webui';
-  powerAction?: 'on' | 'off' | 'reset' | 'cold-boot' | 'warm-boot' | 'nmi' | 'power-cycle';
+  operation?:
+    | 'console'
+    | 'power'
+    | 'virtual-media'
+    | 'health'
+    | 'firmware'
+    | 'storage'
+    | 'network'
+    | 'webui';
+  powerAction?:
+    | 'on'
+    | 'off'
+    | 'reset'
+    | 'cold-boot'
+    | 'warm-boot'
+    | 'nmi'
+    | 'power-cycle';
   consoleType?: 'ilo' | 'ssh' | 'telnet' | 'web';
   enableVSP?: boolean; // Virtual Serial Port
   vspPort?: number;
@@ -47,7 +62,15 @@ interface ILOConnectionOptions {
   timeout?: number;
   retries?: number;
   enableLogs?: boolean;
-  logLevel?: 'emergency' | 'alert' | 'critical' | 'error' | 'warning' | 'notice' | 'info' | 'debug';
+  logLevel?:
+    | 'emergency'
+    | 'alert'
+    | 'critical'
+    | 'error'
+    | 'warning'
+    | 'notice'
+    | 'info'
+    | 'debug';
   eventFilters?: string[];
   enableFAN?: boolean;
   enableThermal?: boolean;
@@ -87,9 +110,9 @@ export class ILOProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -121,8 +144,8 @@ export class ILOProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -149,8 +172,13 @@ export class ILOProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -171,7 +199,9 @@ export class ILOProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to ILO session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to ILO session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -202,12 +232,17 @@ export class ILOProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
-    const iloOptions = (options as any).iloOptions || {} as ILOConnectionOptions;
+    const iloOptions =
+      (options as any).iloOptions || ({} as ILOConnectionOptions);
 
     // Validate required ILO parameters
     if (!iloOptions.iloHost) {
@@ -221,7 +256,11 @@ export class ILOProtocol extends BaseProtocol {
     const iloProcess = spawn(iloCommand[0], iloCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(iloOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(iloOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -230,7 +269,7 @@ export class ILOProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -240,7 +279,7 @@ export class ILOProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -251,7 +290,9 @@ export class ILOProtocol extends BaseProtocol {
     });
 
     iloProcess.on('close', (code) => {
-      this.logger.info(`ILO process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `ILO process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -264,7 +305,11 @@ export class ILOProtocol extends BaseProtocol {
       command: iloCommand[0],
       args: iloCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(iloOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(iloOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -272,12 +317,14 @@ export class ILOProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: iloProcess.pid
+      pid: iloProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`ILO session ${sessionId} created for host ${iloOptions.iloHost} operation ${iloOptions.operation || 'console'}`);
+    this.logger.info(
+      `ILO session ${sessionId} created for host ${iloOptions.iloHost} operation ${iloOptions.operation || 'console'}`
+    );
     this.emit('session-created', { sessionId, type: 'ilo', session });
 
     return session;
@@ -286,7 +333,7 @@ export class ILOProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -295,8 +342,8 @@ export class ILOProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -318,25 +365,30 @@ export class ILOProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in ILO session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in ILO session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const iloProcess = this.iloProcesses.get(sessionId);
-    return iloProcess && !iloProcess.killed || false;
+    return (iloProcess && !iloProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -347,26 +399,26 @@ export class ILOProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.iloProcesses.size
+        connectionsActive: this.iloProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -378,8 +430,8 @@ export class ILOProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          ilo: { available: true }
-        }
+          ilo: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -387,8 +439,8 @@ export class ILOProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `ILO tools not available: ${error}`],
         dependencies: {
-          ilo: { available: false }
-        }
+          ilo: { available: false },
+        },
       };
     }
   }
@@ -401,12 +453,20 @@ export class ILOProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('SSH client not found. Please install openssh-client package.'));
+          reject(
+            new Error(
+              'SSH client not found. Please install openssh-client package.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('SSH client not found. Please install openssh-client package.'));
+        reject(
+          new Error(
+            'SSH client not found. Please install openssh-client package.'
+          )
+        );
       });
     });
   }
@@ -427,7 +487,9 @@ export class ILOProtocol extends BaseProtocol {
             command.push('-i', options.sshKey);
           }
           command.push('-o', 'StrictHostKeyChecking=no');
-          command.push(`${options.username || 'Administrator'}@${options.iloHost}`);
+          command.push(
+            `${options.username || 'Administrator'}@${options.iloHost}`
+          );
           command.push('vsp');
         } else {
           // SSH to ILO
@@ -443,7 +505,9 @@ export class ILOProtocol extends BaseProtocol {
           } else {
             command.push('-o', 'StrictHostKeyChecking=no');
           }
-          command.push(`${options.username || 'Administrator'}@${options.iloHost}`);
+          command.push(
+            `${options.username || 'Administrator'}@${options.iloHost}`
+          );
         }
         break;
 
@@ -457,7 +521,9 @@ export class ILOProtocol extends BaseProtocol {
           command.push('-i', options.sshKey);
         }
         command.push('-o', 'StrictHostKeyChecking=no');
-        command.push(`${options.username || 'Administrator'}@${options.iloHost}`);
+        command.push(
+          `${options.username || 'Administrator'}@${options.iloHost}`
+        );
 
         switch (options.powerAction) {
           case 'on':
@@ -494,7 +560,9 @@ export class ILOProtocol extends BaseProtocol {
           command.push('-i', options.sshKey);
         }
         command.push('-o', 'StrictHostKeyChecking=no');
-        command.push(`${options.username || 'Administrator'}@${options.iloHost}`);
+        command.push(
+          `${options.username || 'Administrator'}@${options.iloHost}`
+        );
 
         if (options.virtualMediaImage) {
           command.push('vm', 'cdrom', 'insert', options.virtualMediaImage);
@@ -513,7 +581,9 @@ export class ILOProtocol extends BaseProtocol {
           command.push('-i', options.sshKey);
         }
         command.push('-o', 'StrictHostKeyChecking=no');
-        command.push(`${options.username || 'Administrator'}@${options.iloHost}`);
+        command.push(
+          `${options.username || 'Administrator'}@${options.iloHost}`
+        );
 
         if (options.healthCommand) {
           command.push(options.healthCommand);
@@ -532,7 +602,9 @@ export class ILOProtocol extends BaseProtocol {
           command.push('-i', options.sshKey);
         }
         command.push('-o', 'StrictHostKeyChecking=no');
-        command.push(`${options.username || 'Administrator'}@${options.iloHost}`);
+        command.push(
+          `${options.username || 'Administrator'}@${options.iloHost}`
+        );
 
         if (options.firmwareFile) {
           command.push('update', 'firmware', options.firmwareFile);
@@ -551,7 +623,9 @@ export class ILOProtocol extends BaseProtocol {
           command.push('-i', options.sshKey);
         }
         command.push('-o', 'StrictHostKeyChecking=no');
-        command.push(`${options.username || 'Administrator'}@${options.iloHost}`);
+        command.push(
+          `${options.username || 'Administrator'}@${options.iloHost}`
+        );
         command.push('show', 'storage');
         break;
 
@@ -565,7 +639,9 @@ export class ILOProtocol extends BaseProtocol {
           command.push('-i', options.sshKey);
         }
         command.push('-o', 'StrictHostKeyChecking=no');
-        command.push(`${options.username || 'Administrator'}@${options.iloHost}`);
+        command.push(
+          `${options.username || 'Administrator'}@${options.iloHost}`
+        );
         command.push('show', 'network');
         break;
 
@@ -594,7 +670,9 @@ export class ILOProtocol extends BaseProtocol {
           command.push('-i', options.sshKey);
         }
         command.push('-o', 'StrictHostKeyChecking=no');
-        command.push(`${options.username || 'Administrator'}@${options.iloHost}`);
+        command.push(
+          `${options.username || 'Administrator'}@${options.iloHost}`
+        );
         break;
     }
 
@@ -606,7 +684,9 @@ export class ILOProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: ILOConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: ILOConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // ILO environment variables
@@ -738,7 +818,10 @@ export class ILOProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing ILO process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing ILO process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // VMware Protocol connection options
@@ -21,7 +21,25 @@ interface VMwareConnectionOptions extends SessionOptions {
   vmName?: string;
   vmxPath?: string;
   datastore?: string;
-  operation?: 'start' | 'stop' | 'pause' | 'unpause' | 'suspend' | 'reset' | 'list' | 'clone' | 'snapshot' | 'delete' | 'register' | 'unregister' | 'upgrade' | 'migrate' | 'export' | 'import' | 'console' | 'monitor';
+  operation?:
+    | 'start'
+    | 'stop'
+    | 'pause'
+    | 'unpause'
+    | 'suspend'
+    | 'reset'
+    | 'list'
+    | 'clone'
+    | 'snapshot'
+    | 'delete'
+    | 'register'
+    | 'unregister'
+    | 'upgrade'
+    | 'migrate'
+    | 'export'
+    | 'import'
+    | 'console'
+    | 'monitor';
 
   // VMware Tools and CLI
   vmrunPath?: string;
@@ -30,7 +48,16 @@ interface VMwareConnectionOptions extends SessionOptions {
   vmtoolsTimeout?: number;
 
   // VM Control Options
-  vmType?: 'ws' | 'fusion' | 'player' | 'server1' | 'server' | 'esx' | 'embeddedEsx' | 'hosted' | 'gsx';
+  vmType?:
+    | 'ws'
+    | 'fusion'
+    | 'player'
+    | 'server1'
+    | 'server'
+    | 'esx'
+    | 'embeddedEsx'
+    | 'hosted'
+    | 'gsx';
   startMode?: 'gui' | 'nogui';
   enableGuestIsolation?: boolean;
   enableDragDrop?: boolean;
@@ -267,9 +294,9 @@ export class VMwareProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -301,8 +328,8 @@ export class VMwareProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: false // VMware has limited FreeBSD support
-      }
+        freebsd: false, // VMware has limited FreeBSD support
+      },
     };
   }
 
@@ -313,7 +340,9 @@ export class VMwareProtocol extends BaseProtocol {
       // Check if VMware tools are available
       await this.checkVMwareAvailability();
       this.isInitialized = true;
-      this.logger.info('VMware protocol initialized with enterprise virtualization features');
+      this.logger.info(
+        'VMware protocol initialized with enterprise virtualization features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize VMware protocol', error);
       throw error;
@@ -329,8 +358,13 @@ export class VMwareProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -351,7 +385,9 @@ export class VMwareProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to VMware session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to VMware session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -382,7 +418,11 @@ export class VMwareProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -401,7 +441,11 @@ export class VMwareProtocol extends BaseProtocol {
     const vmwareProcess = spawn(vmwareCommand[0], vmwareCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(vmwareOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(vmwareOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -410,7 +454,7 @@ export class VMwareProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -420,18 +464,23 @@ export class VMwareProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     vmwareProcess.on('error', (error) => {
-      this.logger.error(`VMware process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `VMware process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     vmwareProcess.on('close', (code) => {
-      this.logger.info(`VMware process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `VMware process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -444,7 +493,11 @@ export class VMwareProtocol extends BaseProtocol {
       command: vmwareCommand[0],
       args: vmwareCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(vmwareOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(vmwareOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -452,13 +505,19 @@ export class VMwareProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: vmwareProcess.pid
+      pid: vmwareProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`VMware session ${sessionId} created for VM ${vmwareOptions.vmName || vmwareOptions.vmxPath}`);
-    this.emit('session-created', { sessionId, type: 'virtualization', session });
+    this.logger.info(
+      `VMware session ${sessionId} created for VM ${vmwareOptions.vmName || vmwareOptions.vmxPath}`
+    );
+    this.emit('session-created', {
+      sessionId,
+      type: 'virtualization',
+      session,
+    });
 
     return session;
   }
@@ -466,7 +525,7 @@ export class VMwareProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -475,8 +534,8 @@ export class VMwareProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -498,25 +557,30 @@ export class VMwareProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in VMware session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in VMware session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const vmwareProcess = this.vmwareProcesses.get(sessionId);
-    return vmwareProcess && !vmwareProcess.killed || false;
+    return (vmwareProcess && !vmwareProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -527,26 +591,26 @@ export class VMwareProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.vmwareProcesses.size
+        connectionsActive: this.vmwareProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -558,8 +622,8 @@ export class VMwareProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          vmware: { available: true }
-        }
+          vmware: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -567,8 +631,8 @@ export class VMwareProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `VMware not available: ${error}`],
         dependencies: {
-          vmware: { available: false }
-        }
+          vmware: { available: false },
+        },
       };
     }
   }
@@ -576,16 +640,16 @@ export class VMwareProtocol extends BaseProtocol {
   private async checkVMwareAvailability(): Promise<void> {
     return new Promise((resolve, reject) => {
       // Try vmrun first (most common)
-      const testProcess = spawn('vmrun', ['-T', 'ws', 'list'], { stdio: 'pipe' });
+      const testProcess = spawn('vmrun', ['-T', 'ws', 'list'], {
+        stdio: 'pipe',
+      });
 
       testProcess.on('close', (code) => {
         if (code === 0) {
           resolve();
         } else {
           // Try alternative VMware tools
-          this.tryAlternativeVMwareTools()
-            .then(resolve)
-            .catch(reject);
+          this.tryAlternativeVMwareTools().then(resolve).catch(reject);
         }
       });
 
@@ -593,7 +657,13 @@ export class VMwareProtocol extends BaseProtocol {
         // Try alternative VMware tools
         this.tryAlternativeVMwareTools()
           .then(resolve)
-          .catch(() => reject(new Error('VMware tools not found. Please install VMware Workstation, Player, or vSphere CLI.')));
+          .catch(() =>
+            reject(
+              new Error(
+                'VMware tools not found. Please install VMware Workstation, Player, or vSphere CLI.'
+              )
+            )
+          );
       });
     });
   }
@@ -742,7 +812,9 @@ export class VMwareProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: VMwareConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: VMwareConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // VMware environment variables
@@ -803,7 +875,10 @@ export class VMwareProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing VMware process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing VMware process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

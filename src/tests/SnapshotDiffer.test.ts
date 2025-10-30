@@ -13,7 +13,11 @@ describe('SnapshotDiffer', () => {
     differ = new SnapshotDiffer();
   });
 
-  const createSnapshot = (id: string, output: string, state: any = {}): SessionSnapshot => ({
+  const createSnapshot = (
+    id: string,
+    output: string,
+    state: any = {}
+  ): SessionSnapshot => ({
     sessionId: id,
     timestamp: Date.now(),
     output,
@@ -74,9 +78,11 @@ describe('SnapshotDiffer', () => {
       const detailed = differ.compareDetailed(snap1, snap2);
 
       expect(detailed.outputDiff.length).toBeGreaterThan(0);
-      expect(detailed.outputDiff.some(d => d.type === 'unchanged')).toBe(true);
-      expect(detailed.outputDiff.some(d => d.type === 'removed')).toBe(true);
-      expect(detailed.outputDiff.some(d => d.type === 'added')).toBe(true);
+      expect(detailed.outputDiff.some((d) => d.type === 'unchanged')).toBe(
+        true
+      );
+      expect(detailed.outputDiff.some((d) => d.type === 'removed')).toBe(true);
+      expect(detailed.outputDiff.some((d) => d.type === 'added')).toBe(true);
     });
 
     it('should detect object state diff', () => {
@@ -86,7 +92,7 @@ describe('SnapshotDiffer', () => {
       const detailed = differ.compareDetailed(snap1, snap2);
 
       expect(detailed.stateDiff.added).toContain('c');
-      expect(detailed.stateDiff.modified.some(m => m.key === 'b')).toBe(true);
+      expect(detailed.stateDiff.modified.some((m) => m.key === 'b')).toBe(true);
     });
 
     it('should handle nested state', () => {
@@ -110,8 +116,14 @@ describe('SnapshotDiffer', () => {
     });
 
     it('should return 0 for completely different snapshots', () => {
-      const snap1 = createSnapshot('test', 'line1\nline2\nline3', { a: 1, b: 2 });
-      const snap2 = createSnapshot('test', 'lineA\nlineB\nlineC', { x: 9, y: 10 });
+      const snap1 = createSnapshot('test', 'line1\nline2\nline3', {
+        a: 1,
+        b: 2,
+      });
+      const snap2 = createSnapshot('test', 'lineA\nlineB\nlineC', {
+        x: 9,
+        y: 10,
+      });
 
       const similarity = differ.calculateSimilarity(snap1, snap2);
 
@@ -176,7 +188,10 @@ describe('SnapshotDiffer', () => {
 
   describe('getSummary', () => {
     it('should provide summary statistics', () => {
-      const snap1 = createSnapshot('test', 'line1\nline2\nline3', { a: 1, b: 2 });
+      const snap1 = createSnapshot('test', 'line1\nline2\nline3', {
+        a: 1,
+        b: 2,
+      });
       const snap2 = createSnapshot('test', 'line1\nline4', { a: 1, c: 3 });
 
       const detailed = differ.compareDetailed(snap1, snap2);

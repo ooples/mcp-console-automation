@@ -21,9 +21,13 @@ import {
   RDPMonitorConfig,
   ConsoleOutput,
   SessionOptions,
-  ConsoleSession
+  ConsoleSession,
 } from '../types/index.js';
-import { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
+import {
+  IProtocol,
+  ProtocolCapabilities,
+  ProtocolHealthStatus,
+} from '../core/ProtocolFactory.js';
 import { Logger } from '../utils/logger.js';
 
 // Import node-rdpjs-2 dynamically to handle potential missing dependency
@@ -35,18 +39,27 @@ try {
 }
 
 export interface RDPProtocolEvents {
-  'connected': (session: RDPSession) => void;
-  'disconnected': (sessionId: string, reason?: string) => void;
-  'error': (sessionId: string, error: Error) => void;
-  'output': (output: ConsoleOutput) => void;
+  connected: (session: RDPSession) => void;
+  disconnected: (sessionId: string, reason?: string) => void;
+  error: (sessionId: string, error: Error) => void;
+  output: (output: ConsoleOutput) => void;
   'screen-update': (sessionId: string, imageData: Buffer) => void;
   'clipboard-data': (sessionId: string, data: string, format: string) => void;
-  'file-transfer-progress': (sessionId: string, progress: FileTransferProgress) => void;
+  'file-transfer-progress': (
+    sessionId: string,
+    progress: FileTransferProgress
+  ) => void;
   'audio-data': (sessionId: string, audioBuffer: Buffer) => void;
-  'session-recording-update': (sessionId: string, recordingPath: string) => void;
+  'session-recording-update': (
+    sessionId: string,
+    recordingPath: string
+  ) => void;
   'gateway-authenticated': (sessionId: string, gatewayInfo: any) => void;
   'smart-card-request': (sessionId: string, request: SmartCardRequest) => void;
-  'performance-metrics': (sessionId: string, metrics: RDPPerformanceMetrics) => void;
+  'performance-metrics': (
+    sessionId: string,
+    metrics: RDPPerformanceMetrics
+  ) => void;
 }
 
 export interface FileTransferProgress {
@@ -107,7 +120,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
   constructor() {
     super();
     this.logger = new Logger('RDPProtocol');
-    
+
     this.capabilities = {
       supportsStreaming: true,
       supportsFileTransfer: true,
@@ -160,10 +173,10 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
         },
       },
     };
-    
+
     // Initialize RDP-specific capabilities
     this.rdpCapabilities = this.detectCapabilities();
-    
+
     this.logger.info('RDP Protocol initialized');
   }
 
@@ -173,9 +186,19 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
   private detectCapabilities(): RDPCapabilities {
     const isWindows = process.platform === 'win32';
     const hasNodeRdp = rdp !== undefined;
-    
+
     return {
-      protocolVersions: ['RDP 8.1', 'RDP 10', 'RDP 10.1', 'RDP 10.2', 'RDP 10.3', 'RDP 10.4', 'RDP 10.5', 'RDP 10.6', 'RDP 10.7'],
+      protocolVersions: [
+        'RDP 8.1',
+        'RDP 10',
+        'RDP 10.1',
+        'RDP 10.2',
+        'RDP 10.3',
+        'RDP 10.4',
+        'RDP 10.5',
+        'RDP 10.6',
+        'RDP 10.7',
+      ],
       maxResolution: { width: 7680, height: 4320 }, // 8K support
       supportedColorDepths: [8, 15, 16, 24, 32],
       compressionSupported: true,
@@ -194,16 +217,22 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
       nlaSupported: true,
       credSSPSupported: isWindows,
       gatewaySupported: true,
-      sessionRecordingSupported: true
+      sessionRecordingSupported: true,
     };
   }
 
   /**
    * Create a new RDP session
    */
-  async createRDPSession(sessionId: string, options: RDPConnectionOptions): Promise<RDPSession> {
+  async createRDPSession(
+    sessionId: string,
+    options: RDPConnectionOptions
+  ): Promise<RDPSession> {
     try {
-      this.logger.info(`Creating RDP session ${sessionId}`, { host: options.host, port: options.port });
+      this.logger.info(`Creating RDP session ${sessionId}`, {
+        host: options.host,
+        port: options.port,
+      });
 
       const session: RDPSession = {
         sessionId,
@@ -218,7 +247,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
         status: 'connecting',
         displaySize: {
           width: options.width || 1920,
-          height: options.height || 1080
+          height: options.height || 1080,
         },
         colorDepth: options.colorDepth || 32,
         compressionLevel: options.compressionLevel || 'medium',
@@ -235,7 +264,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
         packetsSent: 0,
         errorCount: 0,
         warnings: [],
-        metadata: {}
+        metadata: {},
       };
 
       this.sessions.set(sessionId, session);
@@ -249,7 +278,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
 
       // Setup session monitoring
       this.setupSessionMonitoring(sessionId);
-      
+
       // Setup session recording if enabled
       if (options.enableSessionRecording) {
         this.setupSessionRecording(sessionId, options);
@@ -257,7 +286,6 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
 
       this.emit('connected', session);
       return session;
-
     } catch (error) {
       this.logger.error(`Failed to create RDP session ${sessionId}`, error);
       const session = this.sessions.get(sessionId);
@@ -273,7 +301,10 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
   /**
    * Create RDP session using node-rdpjs-2
    */
-  private async createNativeRDPSession(sessionId: string, options: RDPConnectionOptions): Promise<void> {
+  private async createNativeRDPSession(
+    sessionId: string,
+    options: RDPConnectionOptions
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         const clientConfig = this.buildClientConfig(options);
@@ -321,7 +352,6 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
 
         this.connections.set(sessionId, client);
         client.connect();
-
       } catch (error) {
         reject(error);
       }
@@ -331,7 +361,10 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
   /**
    * Create fallback RDP session using system tools (mstsc.exe or xfreerdp)
    */
-  private async createFallbackSession(sessionId: string, options: RDPConnectionOptions): Promise<void> {
+  private async createFallbackSession(
+    sessionId: string,
+    options: RDPConnectionOptions
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         const isWindows = process.platform === 'win32';
@@ -343,7 +376,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
           const rdpFile = this.generateRDPFile(sessionId, options);
           command = 'mstsc';
           args = [rdpFile];
-          
+
           if (options.fullScreen) {
             args.push('/f');
           }
@@ -362,11 +395,14 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
           args = this.buildXFreeRDPArgs(options);
         }
 
-        this.logger.info(`Starting fallback RDP process for session ${sessionId}`, { command, args });
-        
+        this.logger.info(
+          `Starting fallback RDP process for session ${sessionId}`,
+          { command, args }
+        );
+
         const childProcess = spawn(command, args, {
           stdio: ['pipe', 'pipe', 'pipe'],
-          env: { ...process.env, DISPLAY: ':0' }
+          env: { ...process.env, DISPLAY: ':0' },
         });
 
         childProcess.stdout?.on('data', (data: Buffer) => {
@@ -389,7 +425,10 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
         });
 
         process.on('error', (error: Error) => {
-          this.logger.error(`RDP process error for session ${sessionId}`, error);
+          this.logger.error(
+            `RDP process error for session ${sessionId}`,
+            error
+          );
           reject(error);
         });
 
@@ -398,7 +437,6 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
         });
 
         this.fallbackProcesses.set(sessionId, childProcess);
-
       } catch (error) {
         reject(error);
       }
@@ -415,40 +453,40 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
       username: options.username,
       password: options.password,
       domain: options.domain || '',
-      
+
       // Display settings
       width: options.width || 1920,
       height: options.height || 1080,
       colorDepth: options.colorDepth || 32,
-      
+
       // Security settings
       enableNLA: options.enableNLA !== false,
       enableTLS: options.enableTLS !== false,
       enableCredSSP: options.enableCredSSP === true,
-      
+
       // Performance settings
       enableBitmapCaching: options.enableBitmapCaching !== false,
       enableGlyphCaching: options.enableGlyphCaching !== false,
       compressionLevel: this.mapCompressionLevel(options.compressionLevel),
-      
+
       // Audio settings
       enableAudio: options.audioMode !== 'disabled',
       audioMode: options.audioMode || 'local',
       audioQuality: options.audioQuality || 'medium',
-      
+
       // Clipboard and file transfer
       enableClipboard: options.enableClipboard !== false,
       enableFileTransfer: options.enableFileTransfer === true,
       enableDriveRedirection: options.enableDriveRedirection === true,
-      
+
       // Advanced settings
       keyboardLayout: options.keyboardLayout || 'en-US',
       keyboardHook: options.keyboardHook || 'enabled',
       enableUnicodeKeyboard: options.enableUnicodeKeyboard !== false,
-      
+
       // Timeout settings
       timeout: options.timeout || 30000,
-      keepAliveInterval: options.keepAliveInterval || 30000
+      keepAliveInterval: options.keepAliveInterval || 30000,
     };
 
     // Add certificate authentication if provided
@@ -465,20 +503,23 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
   /**
    * Generate RDP file for mstsc.exe
    */
-  private generateRDPFile(sessionId: string, options: RDPConnectionOptions): string {
+  private generateRDPFile(
+    sessionId: string,
+    options: RDPConnectionOptions
+  ): string {
     const rdpDir = join(process.cwd(), 'temp', 'rdp');
     if (!existsSync(rdpDir)) {
       mkdirSync(rdpDir, { recursive: true });
     }
 
     const rdpFilePath = join(rdpDir, `${sessionId}.rdp`);
-    
+
     let rdpContent = '';
-    
+
     // Basic connection settings
     rdpContent += `full address:s:${options.host}:${options.port || 3389}\n`;
     rdpContent += `username:s:${options.username}\n`;
-    
+
     if (options.domain) {
       rdpContent += `domain:s:${options.domain}\n`;
     }
@@ -575,7 +616,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
     // Basic connection
     args.push(`/v:${options.host}:${options.port || 3389}`);
     args.push(`/u:${options.username}`);
-    
+
     if (options.password) {
       args.push(`/p:${options.password}`);
     }
@@ -620,7 +661,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
     if (options.enableDriveRedirection) {
       args.push('/drive:home,/home');
       if (options.redirectedDrives) {
-        options.redirectedDrives.forEach(drive => {
+        options.redirectedDrives.forEach((drive) => {
           args.push(`/drive:${drive},${drive}`);
         });
       }
@@ -703,7 +744,10 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
   /**
    * Setup session recording
    */
-  private setupSessionRecording(sessionId: string, options: RDPConnectionOptions): void {
+  private setupSessionRecording(
+    sessionId: string,
+    options: RDPConnectionOptions
+  ): void {
     if (!options.recordingPath) return;
 
     try {
@@ -720,21 +764,30 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
         format: options.recordingFormat || 'mp4',
         quality: options.recordingQuality || 'medium',
         frameCount: 0,
-        duration: 0
+        duration: 0,
       };
 
       this.sessionRecordings.set(sessionId, recordingInfo);
-      this.logger.info(`Session recording started for ${sessionId}`, recordingInfo);
-
+      this.logger.info(
+        `Session recording started for ${sessionId}`,
+        recordingInfo
+      );
     } catch (error) {
-      this.logger.error(`Failed to setup session recording for ${sessionId}`, error);
+      this.logger.error(
+        `Failed to setup session recording for ${sessionId}`,
+        error
+      );
     }
   }
 
   /**
    * Setup gateway connection
    */
-  private setupGatewayConnection(client: any, sessionId: string, options: RDPConnectionOptions): void {
+  private setupGatewayConnection(
+    client: any,
+    sessionId: string,
+    options: RDPConnectionOptions
+  ): void {
     const gatewayConfig: RDPGatewayConfig = {
       hostname: options.gatewayHostname!,
       port: options.gatewayPort || 443,
@@ -742,13 +795,16 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
       password: options.gatewayPassword,
       domain: options.gatewayDomain,
       accessToken: options.gatewayAccessToken,
-      enableAuth: options.enableGatewayAuth !== false
+      enableAuth: options.enableGatewayAuth !== false,
     };
 
     client.setupGateway(gatewayConfig);
-    
+
     client.on('gateway-authenticated', (info: any) => {
-      this.logger.info(`RDP Gateway authenticated for session ${sessionId}`, info);
+      this.logger.info(
+        `RDP Gateway authenticated for session ${sessionId}`,
+        info
+      );
       this.emit('gateway-authenticated', sessionId, info);
     });
   }
@@ -756,9 +812,13 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
   /**
    * Setup smart card authentication
    */
-  private setupSmartCardAuth(client: any, sessionId: string, options: RDPConnectionOptions): void {
+  private setupSmartCardAuth(
+    client: any,
+    sessionId: string,
+    options: RDPConnectionOptions
+  ): void {
     client.enableSmartCard(true);
-    
+
     client.on('smart-card-request', (request: SmartCardRequest) => {
       this.logger.info(`Smart card request for session ${sessionId}`, request);
       this.emit('smart-card-request', sessionId, request);
@@ -779,14 +839,14 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
       // Convert bitmap to image buffer
       const canvas = createCanvas(bitmap.width, bitmap.height);
       const ctx = canvas.getContext('2d');
-      
+
       // Create ImageData from bitmap
       const imageData = ctx.createImageData(bitmap.width, bitmap.height);
       imageData.data.set(bitmap.data);
       ctx.putImageData(imageData, 0, 0);
-      
+
       const imageBuffer = canvas.toBuffer('image/png');
-      
+
       this.emit('screen-update', sessionId, imageBuffer);
 
       // Update recording if active
@@ -796,16 +856,22 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
         recording.duration = Date.now() - recording.startTime.getTime();
         // Add frame to recording (implementation depends on recording format)
       }
-
     } catch (error) {
-      this.logger.error(`Error handling screen update for session ${sessionId}`, error);
+      this.logger.error(
+        `Error handling screen update for session ${sessionId}`,
+        error
+      );
     }
   }
 
   /**
    * Handle clipboard data
    */
-  private handleClipboardData(sessionId: string, data: string, format: string): void {
+  private handleClipboardData(
+    sessionId: string,
+    data: string,
+    format: string
+  ): void {
     this.clipboardBuffer.set(sessionId, data);
     this.emit('clipboard-data', sessionId, data, format);
   }
@@ -815,7 +881,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
    */
   private handleSessionClose(sessionId: string, reason?: string): void {
     this.logger.info(`RDP session ${sessionId} closed`, { reason });
-    
+
     const session = this.sessions.get(sessionId);
     if (session) {
       session.status = 'disconnected';
@@ -825,20 +891,24 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
 
     // Cleanup resources
     this.cleanup(sessionId);
-    
+
     this.emit('disconnected', sessionId, reason);
   }
 
   /**
    * Handle process output for fallback sessions
    */
-  private handleProcessOutput(sessionId: string, data: string, type: 'stdout' | 'stderr'): void {
+  private handleProcessOutput(
+    sessionId: string,
+    data: string,
+    type: 'stdout' | 'stderr'
+  ): void {
     const output: ConsoleOutput = {
       sessionId,
       type,
       data,
       timestamp: new Date(),
-      raw: data
+      raw: data,
     };
 
     this.emit('output', output);
@@ -858,8 +928,10 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
    * Handle process exit for fallback sessions
    */
   private handleProcessExit(sessionId: string, code: number | null): void {
-    this.logger.info(`RDP process exited for session ${sessionId}`, { exitCode: code });
-    
+    this.logger.info(`RDP process exited for session ${sessionId}`, {
+      exitCode: code,
+    });
+
     const session = this.sessions.get(sessionId);
     if (session) {
       session.status = code === 0 ? 'disconnected' : 'failed';
@@ -888,7 +960,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
       compressionRatio: Math.random() * 0.5 + 0.3, // 30-80%
       cpuUsage: Math.random() * 50 + 10, // 10-60%
       memoryUsage: Math.random() * 1000000000 + 100000000, // 100MB-1GB
-      networkUtilization: Math.random() * 0.8 + 0.1 // 10-90%
+      networkUtilization: Math.random() * 0.8 + 0.1, // 10-90%
     };
 
     this.emit('performance-metrics', sessionId, metrics);
@@ -923,7 +995,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
    */
   async sendKeySequence(sessionId: string, keys: string[]): Promise<void> {
     const connection = this.connections.get(sessionId);
-    
+
     if (connection && connection.sendKeySequence) {
       connection.sendKeySequence(keys);
     } else {
@@ -934,9 +1006,13 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
   /**
    * Send clipboard data to remote session
    */
-  async sendClipboardData(sessionId: string, data: string, format: string = 'text'): Promise<void> {
+  async sendClipboardData(
+    sessionId: string,
+    data: string,
+    format: string = 'text'
+  ): Promise<void> {
     const connection = this.connections.get(sessionId);
-    
+
     if (connection && connection.setClipboard) {
       connection.setClipboard(data, format);
     } else {
@@ -947,7 +1023,12 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
   /**
    * Start file transfer
    */
-  async startFileTransfer(sessionId: string, localPath: string, remotePath: string, direction: 'upload' | 'download'): Promise<string> {
+  async startFileTransfer(
+    sessionId: string,
+    localPath: string,
+    remotePath: string,
+    direction: 'upload' | 'download'
+  ): Promise<string> {
     const transferId = uuidv4();
     const connection = this.connections.get(sessionId);
 
@@ -961,7 +1042,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
       bytesTransferred: 0,
       totalBytes: 0,
       direction,
-      status: 'pending'
+      status: 'pending',
     };
 
     let transfers = this.fileTransfers.get(sessionId) || [];
@@ -970,18 +1051,22 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
 
     try {
       progress.status = 'in-progress';
-      
-      const result = await connection.transferFile(localPath, remotePath, direction, (bytesTransferred: number, totalBytes: number) => {
-        progress.bytesTransferred = bytesTransferred;
-        progress.totalBytes = totalBytes;
-        this.emit('file-transfer-progress', sessionId, progress);
-      });
+
+      const result = await connection.transferFile(
+        localPath,
+        remotePath,
+        direction,
+        (bytesTransferred: number, totalBytes: number) => {
+          progress.bytesTransferred = bytesTransferred;
+          progress.totalBytes = totalBytes;
+          this.emit('file-transfer-progress', sessionId, progress);
+        }
+      );
 
       progress.status = 'completed';
       this.emit('file-transfer-progress', sessionId, progress);
-      
-      return transferId;
 
+      return transferId;
     } catch (error) {
       progress.status = 'failed';
       progress.error = (error as Error).message;
@@ -1049,7 +1134,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
     // Clear connections
     this.connections.delete(sessionId);
     this.fallbackProcesses.delete(sessionId);
-    
+
     // Clear buffers
     this.clipboardBuffer.delete(sessionId);
     this.fileTransfers.delete(sessionId);
@@ -1060,20 +1145,29 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
    */
   private mapCompressionLevel(level?: string): number {
     switch (level) {
-      case 'none': return 0;
-      case 'low': return 1;
-      case 'medium': return 2;
-      case 'high': return 3;
-      default: return 2;
+      case 'none':
+        return 0;
+      case 'low':
+        return 1;
+      case 'medium':
+        return 2;
+      case 'high':
+        return 3;
+      default:
+        return 2;
     }
   }
 
   private mapAudioMode(mode?: string): number {
     switch (mode) {
-      case 'local': return 0;
-      case 'remote': return 1;
-      case 'disabled': return 2;
-      default: return 0;
+      case 'local':
+        return 0;
+      case 'remote':
+        return 1;
+      case 'disabled':
+        return 2;
+      default:
+        return 0;
     }
   }
 
@@ -1084,7 +1178,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
 
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
     const sessionId = `rdp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     if (!options.rdpOptions) {
       throw new Error('RDP options are required');
     }
@@ -1111,9 +1205,18 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
     return session;
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     // RDP doesn't execute commands directly, but we can emit events
-    this.emit('commandExecuted', { sessionId, command, args, timestamp: new Date() });
+    this.emit('commandExecuted', {
+      sessionId,
+      command,
+      args,
+      timestamp: new Date(),
+    });
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
@@ -1133,7 +1236,7 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
     this.healthStatus.lastChecked = new Date();
     this.healthStatus.metrics.activeSessions = this.sessions.size;
     this.healthStatus.isHealthy = this.healthStatus.errors.length === 0;
-    
+
     return { ...this.healthStatus };
   }
 
@@ -1146,11 +1249,11 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
    */
   async destroy(): Promise<void> {
     this.logger.info('Destroying RDP Protocol');
-    
+
     // Disconnect all sessions
     const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map(id => this.disconnectSession(id)));
-    
+    await Promise.all(sessionIds.map((id) => this.disconnectSession(id)));
+
     // Clear all data structures
     this.sessions.clear();
     this.connections.clear();
@@ -1158,11 +1261,11 @@ export class RDPProtocol extends EventEmitter implements IProtocol {
     this.sessionRecordings.clear();
     this.clipboardBuffer.clear();
     this.fileTransfers.clear();
-    
+
     // Clear all intervals
-    this.performanceMonitors.forEach(monitor => clearInterval(monitor));
+    this.performanceMonitors.forEach((monitor) => clearInterval(monitor));
     this.performanceMonitors.clear();
-    
+
     this.removeAllListeners();
   }
 }

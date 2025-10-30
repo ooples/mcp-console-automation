@@ -1,8 +1,8 @@
-# MCP Console Automation Server
+# Console Automation MCP Server
 
 **Production-Ready** Model Context Protocol (MCP) server that enables AI assistants to fully interact with console applications, monitor output, detect errors, and automate terminal workflows - similar to how Playwright works for web browsers.
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/ooples/mcp-console-automation)
+[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)](https://github.com/ooples/console-automation-mcp)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org)
 
@@ -86,23 +86,23 @@ This server is **fully production-ready** with:
 
 ### Windows (PowerShell as Administrator)
 ```powershell
-git clone https://github.com/ooples/mcp-console-automation.git
-cd mcp-console-automation
+git clone https://github.com/ooples/console-automation-mcp.git
+cd console-automation-mcp
 .\install.ps1 -Target claude  # or google, openai, custom, all
 ```
 
 ### macOS/Linux
 ```bash
-git clone https://github.com/ooples/mcp-console-automation.git
-cd mcp-console-automation
+git clone https://github.com/ooples/console-automation-mcp.git
+cd console-automation-mcp
 chmod +x install.sh
 ./install.sh --target claude  # or google, openai, custom, all
 ```
 
 ### Manual Installation
 ```bash
-git clone https://github.com/ooples/mcp-console-automation.git
-cd mcp-console-automation
+git clone https://github.com/ooples/console-automation-mcp.git
+cd console-automation-mcp
 npm install --production
 npm run build
 ```
@@ -134,11 +134,14 @@ Add to your Claude Desktop configuration file:
 ### For other MCP clients
 
 ```bash
-# Start the server
+# Start the server with new name
+console-automation-mcp --log-level info
+
+# Or with backward compatible name
 mcp-console --log-level info
 
 # Or with npx
-npx @mcp/console-automation --log-level info
+npx console-automation-mcp --log-level info
 ```
 
 ## Available Tools (40 Total)
@@ -453,7 +456,7 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues, questions, or suggestions, please open an issue on GitHub:
-https://github.com/ooples/mcp-console-automation/issues
+https://github.com/ooples/console-automation-mcp/issues
 
 ## Roadmap
 

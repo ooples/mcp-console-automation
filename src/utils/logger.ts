@@ -8,25 +8,27 @@ export class Logger {
 
   constructor(context: string) {
     // Detect if we're running as an MCP server (stdio transport)
-    const isMCPServer = process.env.MCP_SERVER_MODE === 'true' ||
-                       process.argv.includes('--mcp-server') ||
-                       this.detectStdioMCPMode();
+    const isMCPServer =
+      process.env.MCP_SERVER_MODE === 'true' ||
+      process.argv.includes('--mcp-server') ||
+      this.detectStdioMCPMode();
 
     const transports: winston.transport[] = [];
 
     // CRITICAL: Never log to console/stdout/stderr in MCP mode to avoid stdio corruption
     if (!isMCPServer) {
-      transports.push(new winston.transports.Console({
-        format: winston.format.combine(
-          winston.format.colorize(),
-          winston.format.simple()
-        )
-      }));
+      transports.push(
+        new winston.transports.Console({
+          format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+          ),
+        })
+      );
     }
 
     // Always use file logging for MCP servers
     if (isMCPServer || process.env.NODE_ENV === 'production') {
-
       const logDir = path.join(process.cwd(), 'logs');
       if (!fs.existsSync(logDir)) {
         fs.mkdirSync(logDir, { recursive: true });
@@ -39,14 +41,14 @@ export class Logger {
           format: winston.format.combine(
             winston.format.timestamp(),
             winston.format.json()
-          )
+          ),
         }),
         new winston.transports.File({
           filename: path.join(logDir, 'mcp-combined.log'),
           format: winston.format.combine(
             winston.format.timestamp(),
             winston.format.json()
-          )
+          ),
         })
       );
     }
@@ -62,7 +64,7 @@ export class Logger {
       defaultMeta: { service: 'mcp-console', context, mcpMode: isMCPServer },
       transports,
       // CRITICAL: Prevent any console output in MCP mode
-      silent: isMCPServer && transports.length === 0
+      silent: isMCPServer && transports.length === 0,
     });
   }
 

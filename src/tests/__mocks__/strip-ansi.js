@@ -1,5 +1,4 @@
-// Mock for strip-ansi ESM package
+// Mock for strip-ansi package - CommonJS format for Jest
 module.exports = function stripAnsi(str) {
   return str.replace(/\x1b\[[0-9;]*m/g, '');
 };
-module.exports.default = module.exports;

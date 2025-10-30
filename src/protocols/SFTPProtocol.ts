@@ -10,7 +10,7 @@ import PQueue from 'p-queue';
 import { v4 as uuidv4 } from 'uuid';
 
 // Type alias for ssh2-sftp-client FileInfoType
-type FileInfoType = "d" | "-" | "l";
+type FileInfoType = 'd' | '-' | 'l';
 
 import {
   SFTPTransferOptions,
@@ -25,7 +25,7 @@ import {
   SFTPSyncResult,
   SFTPConnectionState,
   SCPTransferOptions,
-  FileTransferSession
+  FileTransferSession,
 } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 import { RetryManager } from '../core/RetryManager.js';
@@ -33,7 +33,7 @@ import { ErrorRecovery } from '../core/ErrorRecovery.js';
 
 /**
  * Production-ready SFTP/SCP Protocol Implementation
- * 
+ *
  * Features:
  * - Full SFTP subsystem support on top of SSH
  * - Concurrent file transfers with intelligent queuing
@@ -78,18 +78,18 @@ export class SFTPProtocol extends EventEmitter {
       transferQueue: {
         maxSize: 100,
         priorityLevels: 4,
-        timeoutMs: 300000
+        timeoutMs: 300000,
       },
       bandwidth: {
-        adaptiveThrottling: true
+        adaptiveThrottling: true,
       },
       compressionLevel: 6,
       keepAlive: {
         enabled: true,
         interval: 30000,
-        maxMissed: 3
+        maxMissed: 3,
       },
-      ...options
+      ...options,
     };
 
     this.logger = new Logger(`SFTPProtocol-${sessionId}`);
@@ -100,12 +100,12 @@ export class SFTPProtocol extends EventEmitter {
     this.transferQueue = new PQueue({
       concurrency: this.options.maxConcurrentTransfers || 3,
       timeout: this.options.transferQueue?.timeoutMs || 300000,
-      throwOnTimeout: true
+      throwOnTimeout: true,
     });
 
     this.batchQueue = new PQueue({
       concurrency: 2,
-      timeout: 600000
+      timeout: 600000,
     });
 
     // Initialize state tracking
@@ -114,7 +114,9 @@ export class SFTPProtocol extends EventEmitter {
     this.resumeData = new Map();
 
     // Initialize bandwidth controller
-    this.bandwidthController = new BandwidthController(this.options.bandwidth || {});
+    this.bandwidthController = new BandwidthController(
+      this.options.bandwidth || {}
+    );
 
     // Initialize connection state
     this.connectionState = {
@@ -128,8 +130,8 @@ export class SFTPProtocol extends EventEmitter {
         limits: {
           maxPacketLength: 32768,
           maxReadLength: 32768,
-          maxWriteLength: 32768
-        }
+          maxWriteLength: 32768,
+        },
       },
       activeTransfers: 0,
       queuedTransfers: 0,
@@ -137,8 +139,8 @@ export class SFTPProtocol extends EventEmitter {
         totalUploads: 0,
         totalDownloads: 0,
         totalBytes: 0,
-        averageSpeed: 0
-      }
+        averageSpeed: 0,
+      },
     };
 
     // Initialize operation interfaces
@@ -173,7 +175,7 @@ export class SFTPProtocol extends EventEmitter {
           sessionId: this.sessionId,
           operationName: 'sftp_connect',
           strategyName: 'sftp',
-          context: { host: this.options.host, port: this.options.port }
+          context: { host: this.options.host, port: this.options.port },
         }
       );
 
@@ -187,7 +189,6 @@ export class SFTPProtocol extends EventEmitter {
 
       this.emit('connected', this.connectionState);
       this.logger.info('SFTP connection established successfully');
-
     } catch (error) {
       this.isConnecting = false;
       this.logger.error('Failed to establish SFTP connection:', error);
@@ -265,7 +266,7 @@ export class SFTPProtocol extends EventEmitter {
       percentage: 0,
       speed: 0,
       eta: 0,
-      startTime: new Date()
+      startTime: new Date(),
     };
 
     this.activeTransfers.set(transferId, progress);
@@ -299,7 +300,7 @@ export class SFTPProtocol extends EventEmitter {
       percentage: 0,
       speed: 0,
       eta: 0,
-      startTime: new Date()
+      startTime: new Date(),
     };
 
     this.activeTransfers.set(transferId, progress);
@@ -315,13 +316,18 @@ export class SFTPProtocol extends EventEmitter {
   /**
    * Execute batch transfer operations
    */
-  async batchTransfer(transfers: SFTPTransferOptions[]): Promise<SFTPBatchTransfer> {
+  async batchTransfer(
+    transfers: SFTPTransferOptions[]
+  ): Promise<SFTPBatchTransfer> {
     const batchId = uuidv4();
     const batch: SFTPBatchTransfer = {
       batchId,
       sessionId: this.sessionId,
       transfers,
-      concurrency: Math.min(transfers.length, this.options.maxConcurrentTransfers || 3),
+      concurrency: Math.min(
+        transfers.length,
+        this.options.maxConcurrentTransfers || 3
+      ),
       status: 'pending',
       progress: [],
       totalTransfers: transfers.length,
@@ -331,7 +337,7 @@ export class SFTPProtocol extends EventEmitter {
       transferredBytes: 0,
       overallProgress: 0,
       startTime: new Date(),
-      errors: []
+      errors: [],
     };
 
     this.activeBatches.set(batchId, batch);
@@ -366,16 +372,16 @@ export class SFTPProtocol extends EventEmitter {
         directoriesDeleted: 0,
         totalBytes: 0,
         transferTime: 0,
-        conflicts: 0
+        conflicts: 0,
       },
       details: {
         transferred: [],
         skipped: [],
         deleted: [],
-        conflicts: []
+        conflicts: [],
       },
       errors: [],
-      warnings: []
+      warnings: [],
     };
 
     const startTime = Date.now();
@@ -387,7 +393,10 @@ export class SFTPProtocol extends EventEmitter {
 
       // Analyze directory structures
       const localFiles = await this.analyzeDirectory(localPath, options);
-      const remoteFiles = await this.analyzeRemoteDirectory(remotePath, options);
+      const remoteFiles = await this.analyzeRemoteDirectory(
+        remotePath,
+        options
+      );
 
       // Generate sync plan
       const syncPlan = this.generateSyncPlan(localFiles, remoteFiles, options);
@@ -397,9 +406,10 @@ export class SFTPProtocol extends EventEmitter {
 
       result.summary.transferTime = Date.now() - startTime;
       this.emit('sync-completed', result);
-
     } catch (error) {
-      result.errors.push(error instanceof Error ? error.message : String(error));
+      result.errors.push(
+        error instanceof Error ? error.message : String(error)
+      );
       this.emit('sync-error', { syncId, error });
       throw error;
     }
@@ -419,7 +429,7 @@ export class SFTPProtocol extends EventEmitter {
     const progress: SFTPTransferProgress = {
       ...resumeInfo,
       status: 'resumed',
-      startTime: new Date()
+      startTime: new Date(),
     };
 
     this.activeTransfers.set(transferId, progress);
@@ -484,13 +494,13 @@ export class SFTPProtocol extends EventEmitter {
 
       this.sshClient!.on('ready', async () => {
         clearTimeout(timeout);
-        
+
         try {
           // Initialize SFTP subsystem
           await this.sftpClient!.connect({
             sock: this.sshClient!,
             // Pass through SSH connection options
-            ...this.options
+            ...this.options,
           } as any);
 
           // Get server information
@@ -509,7 +519,9 @@ export class SFTPProtocol extends EventEmitter {
       // Convert SFTPSessionOptions to ssh2 ConnectConfig
       const connectConfig = {
         ...this.options,
-        debug: this.options.debug ? (info: string) => console.log(`SSH Debug: ${info}`) : undefined
+        debug: this.options.debug
+          ? (info: string) => console.log(`SSH Debug: ${info}`)
+          : undefined,
       };
       this.sshClient!.connect(connectConfig);
     });
@@ -571,7 +583,7 @@ export class SFTPProtocol extends EventEmitter {
       const transferOptions = this.convertTransferOptions(options);
       transferOptions.writeStreamOptions = {
         ...transferOptions.writeStreamOptions,
-        ...progressTracker
+        ...progressTracker,
       };
       await this.sftpClient.put(
         progress.source,
@@ -582,7 +594,10 @@ export class SFTPProtocol extends EventEmitter {
       // Verify transfer if requested
       if (options.checksumVerification) {
         progress.status = 'verifying';
-        const verified = await this.verifyTransfer(progress.source, progress.destination);
+        const verified = await this.verifyTransfer(
+          progress.source,
+          progress.destination
+        );
         progress.checksumMatch = verified;
       }
 
@@ -592,7 +607,6 @@ export class SFTPProtocol extends EventEmitter {
 
       this.updateConnectionStats('upload', progress.totalBytes);
       this.emit('transfer-completed', progress);
-
     } catch (error) {
       progress.status = 'failed';
       progress.error = error instanceof Error ? error.message : String(error);
@@ -642,7 +656,7 @@ export class SFTPProtocol extends EventEmitter {
       const transferOptions = this.convertTransferOptions(options);
       transferOptions.readStreamOptions = {
         ...transferOptions.readStreamOptions,
-        ...progressTracker
+        ...progressTracker,
       };
       await this.sftpClient.get(
         progress.source,
@@ -653,7 +667,10 @@ export class SFTPProtocol extends EventEmitter {
       // Verify transfer if requested
       if (options.checksumVerification) {
         progress.status = 'verifying';
-        const verified = await this.verifyTransfer(progress.destination, progress.source);
+        const verified = await this.verifyTransfer(
+          progress.destination,
+          progress.source
+        );
         progress.checksumMatch = verified;
       }
 
@@ -663,7 +680,6 @@ export class SFTPProtocol extends EventEmitter {
 
       this.updateConnectionStats('download', progress.totalBytes);
       this.emit('transfer-completed', progress);
-
     } catch (error) {
       progress.status = 'failed';
       progress.error = error instanceof Error ? error.message : String(error);
@@ -702,7 +718,7 @@ export class SFTPProtocol extends EventEmitter {
       }
 
       // Execute transfers
-      const promises = batch.transfers.map(transfer =>
+      const promises = batch.transfers.map((transfer) =>
         concurrentQueue.add(async () => {
           try {
             const progress = await this.executeTransfer(transfer);
@@ -712,7 +728,9 @@ export class SFTPProtocol extends EventEmitter {
             this.updateBatchProgress(batch);
           } catch (error) {
             batch.failedTransfers++;
-            batch.errors.push(error instanceof Error ? error.message : String(error));
+            batch.errors.push(
+              error instanceof Error ? error.message : String(error)
+            );
             this.updateBatchProgress(batch);
           }
         })
@@ -723,7 +741,6 @@ export class SFTPProtocol extends EventEmitter {
       batch.status = batch.failedTransfers > 0 ? 'failed' : 'completed';
       batch.endTime = new Date();
       this.emit('batch-completed', batch);
-
     } catch (error) {
       batch.status = 'failed';
       batch.endTime = new Date();
@@ -734,10 +751,12 @@ export class SFTPProtocol extends EventEmitter {
     }
   }
 
-  private async executeTransfer(transfer: SFTPTransferOptions): Promise<SFTPTransferProgress> {
+  private async executeTransfer(
+    transfer: SFTPTransferOptions
+  ): Promise<SFTPTransferProgress> {
     // Determine operation type based on paths
     const isUpload = this.isLocalPath(transfer.source);
-    
+
     if (isUpload) {
       return this.uploadFile(transfer.source, transfer.destination, transfer);
     } else {
@@ -753,37 +772,49 @@ export class SFTPProtocol extends EventEmitter {
     return {
       // For writable streams (uploads)
       transform: new Transform({
-        transform(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null, data?: any) => void) {
+        transform(
+          chunk: Buffer,
+          encoding: BufferEncoding,
+          callback: (error?: Error | null, data?: any) => void
+        ) {
           progress.transferredBytes += chunk.length;
-          
+
           const now = Date.now();
-          if (now - lastUpdate > 1000) { // Update every second
+          if (now - lastUpdate > 1000) {
+            // Update every second
             const elapsed = (now - startTime) / 1000;
             const bytesSinceLastUpdate = progress.transferredBytes - lastBytes;
             const timeSinceLastUpdate = (now - lastUpdate) / 1000;
-            
-            progress.percentage = (progress.transferredBytes / progress.totalBytes) * 100;
+
+            progress.percentage =
+              (progress.transferredBytes / progress.totalBytes) * 100;
             progress.speed = bytesSinceLastUpdate / timeSinceLastUpdate;
-            progress.eta = progress.speed > 0 ? 
-              (progress.totalBytes - progress.transferredBytes) / progress.speed : 0;
-            
+            progress.eta =
+              progress.speed > 0
+                ? (progress.totalBytes - progress.transferredBytes) /
+                  progress.speed
+                : 0;
+
             lastUpdate = now;
             lastBytes = progress.transferredBytes;
-            
+
             this.emit('transfer-progress', progress);
           }
-          
+
           callback(null, chunk);
-        }
+        },
       }),
 
       // For readable streams (downloads)
       highWaterMark: 64 * 1024, // 64KB chunks
-      objectMode: false
+      objectMode: false,
     };
   }
 
-  private async verifyTransfer(localPath: string, remotePath: string): Promise<boolean> {
+  private async verifyTransfer(
+    localPath: string,
+    remotePath: string
+  ): Promise<boolean> {
     try {
       const localChecksum = await this.calculateFileChecksum(localPath);
       const remoteChecksum = await this.calculateRemoteChecksum(remotePath);
@@ -794,24 +825,32 @@ export class SFTPProtocol extends EventEmitter {
     }
   }
 
-  private async calculateFileChecksum(filePath: string, algorithm: string = 'sha256'): Promise<string> {
+  private async calculateFileChecksum(
+    filePath: string,
+    algorithm: string = 'sha256'
+  ): Promise<string> {
     const hash = createHash(algorithm);
     const stream = createReadStream(filePath);
-    
+
     for await (const chunk of stream) {
       hash.update(chunk);
     }
-    
+
     return hash.digest('hex');
   }
 
-  private async calculateRemoteChecksum(remotePath: string, algorithm: string = 'sha256'): Promise<string> {
+  private async calculateRemoteChecksum(
+    remotePath: string,
+    algorithm: string = 'sha256'
+  ): Promise<string> {
     // This would require executing a checksum command on the remote server
     // Implementation depends on server capabilities
     throw new Error('Remote checksum calculation not implemented');
   }
 
-  private convertTransferOptions(options: Partial<SFTPTransferOptions>): SFTPClient.TransferOptions {
+  private convertTransferOptions(
+    options: Partial<SFTPTransferOptions>
+  ): SFTPClient.TransferOptions {
     return {
       writeStreamOptions: {
         flags: options.overwrite ? 'w' : 'a', // ssh2-sftp-client only supports 'w' or 'a'
@@ -819,7 +858,7 @@ export class SFTPProtocol extends EventEmitter {
       },
       readStreamOptions: {
         flags: 'r',
-      }
+      },
     };
   }
 
@@ -839,11 +878,19 @@ export class SFTPProtocol extends EventEmitter {
         }
       },
 
-      list: async (path: string, detailed?: boolean): Promise<SFTPDirectoryListing> => {
+      list: async (
+        path: string,
+        detailed?: boolean
+      ): Promise<SFTPDirectoryListing> => {
         if (!this.sftpClient) throw new Error('SFTP client not connected');
-        
-        const items = await this.sftpClient.list(path, detailed ? undefined : ((item: SFTPClient.FileInfo) => item.type !== 'd'));
-        
+
+        const items = await this.sftpClient.list(
+          path,
+          detailed
+            ? undefined
+            : (item: SFTPClient.FileInfo) => item.type !== 'd'
+        );
+
         const listing: SFTPDirectoryListing = {
           path,
           files: [],
@@ -851,7 +898,7 @@ export class SFTPProtocol extends EventEmitter {
           symlinks: [],
           totalSize: 0,
           totalFiles: 0,
-          totalDirectories: 0
+          totalDirectories: 0,
         };
 
         for (const item of items) {
@@ -867,7 +914,7 @@ export class SFTPProtocol extends EventEmitter {
             mtime: new Date(item.modifyTime || 0),
             isReadable: true, // Would need to check actual permissions
             isWritable: true,
-            isExecutable: false
+            isExecutable: false,
           };
 
           if (fileInfo.type === 'file') {
@@ -898,17 +945,25 @@ export class SFTPProtocol extends EventEmitter {
       chown: async (path: string, uid: number, gid: number) => {
         if (!this.sftpClient) throw new Error('SFTP client not connected');
         // Note: chown might not be supported by all SFTP servers
-        throw new Error('chown not implemented - not universally supported by SFTP servers');
+        throw new Error(
+          'chown not implemented - not universally supported by SFTP servers'
+        );
       },
 
       stat: async (path: string): Promise<SFTPFileInfo> => {
         if (!this.sftpClient) throw new Error('SFTP client not connected');
         const stats = await this.sftpClient.stat(path);
-        
+
         return {
           path,
           name: basename(path),
-          type: stats.isDirectory ? 'directory' : stats.isFile ? 'file' : stats.isSymbolicLink ? 'symlink' : 'special',
+          type: stats.isDirectory
+            ? 'directory'
+            : stats.isFile
+              ? 'file'
+              : stats.isSymbolicLink
+                ? 'symlink'
+                : 'special',
           size: stats.size,
           mode: stats.mode || 0,
           uid: stats.uid || 0,
@@ -917,7 +972,7 @@ export class SFTPProtocol extends EventEmitter {
           mtime: new Date(stats.modifyTime || 0),
           isReadable: true,
           isWritable: true,
-          isExecutable: false
+          isExecutable: false,
         };
       },
 
@@ -936,24 +991,39 @@ export class SFTPProtocol extends EventEmitter {
         if (!this.sftpClient) throw new Error('SFTP client not connected');
         // Not directly supported by ssh2-sftp-client
         throw new Error('symlink not implemented');
-      }
+      },
     };
   }
 
   private createFileOperations(): SFTPFileOperations {
     return {
-      upload: async (localPath: string, remotePath: string, options?: Partial<SFTPTransferOptions>) => {
+      upload: async (
+        localPath: string,
+        remotePath: string,
+        options?: Partial<SFTPTransferOptions>
+      ) => {
         return this.uploadFile(localPath, remotePath, options || {});
       },
 
-      download: async (remotePath: string, localPath: string, options?: Partial<SFTPTransferOptions>) => {
+      download: async (
+        remotePath: string,
+        localPath: string,
+        options?: Partial<SFTPTransferOptions>
+      ) => {
         return this.downloadFile(remotePath, localPath, options || {});
       },
 
-      copy: async (sourcePath: string, destinationPath: string, options?: Partial<SFTPTransferOptions>) => {
+      copy: async (
+        sourcePath: string,
+        destinationPath: string,
+        options?: Partial<SFTPTransferOptions>
+      ) => {
         // SFTP doesn't support server-side copy, so we download then upload
-        const tempPath = join(this.options.tempDirectory || '/tmp', `sftp-copy-${uuidv4()}`);
-        
+        const tempPath = join(
+          this.options.tempDirectory || '/tmp',
+          `sftp-copy-${uuidv4()}`
+        );
+
         try {
           await this.downloadFile(sourcePath, tempPath, options);
           return await this.uploadFile(tempPath, destinationPath, options);
@@ -990,22 +1060,28 @@ export class SFTPProtocol extends EventEmitter {
         // Compare file sizes and timestamps
         const localStats = await fs.stat(localPath);
         const remoteStats = await this.sftpClient!.stat(remotePath);
-        
+
         const differences: string[] = [];
-        
+
         if (localStats.size !== remoteStats.size) {
-          differences.push(`Size: local=${localStats.size}, remote=${remoteStats.size}`);
+          differences.push(
+            `Size: local=${localStats.size}, remote=${remoteStats.size}`
+          );
         }
-        
-        if (Math.abs(localStats.mtime.getTime() - remoteStats.modifyTime) > 1000) {
-          differences.push(`Modified time: local=${localStats.mtime}, remote=${new Date(remoteStats.modifyTime)}`);
+
+        if (
+          Math.abs(localStats.mtime.getTime() - remoteStats.modifyTime) > 1000
+        ) {
+          differences.push(
+            `Modified time: local=${localStats.mtime}, remote=${new Date(remoteStats.modifyTime)}`
+          );
         }
-        
+
         return {
           identical: differences.length === 0,
-          differences
+          differences,
         };
-      }
+      },
     };
   }
 
@@ -1068,32 +1144,49 @@ export class SFTPProtocol extends EventEmitter {
 
     // Test basic connectivity
     await this.sftpClient.list('/');
-    
+
     // Update connection state
     this.connectionState.lastActivity = new Date();
     this.emit('health-check-passed', this.getConnectionState());
   }
 
-  private getPriority(priority?: 'low' | 'normal' | 'high' | 'critical'): number {
+  private getPriority(
+    priority?: 'low' | 'normal' | 'high' | 'critical'
+  ): number {
     switch (priority) {
-      case 'critical': return 4;
-      case 'high': return 3;
-      case 'normal': return 2;
-      case 'low': return 1;
-      default: return 2;
+      case 'critical':
+        return 4;
+      case 'high':
+        return 3;
+      case 'normal':
+        return 2;
+      case 'low':
+        return 1;
+      default:
+        return 2;
     }
   }
 
-  private mapFileType(type: string): 'file' | 'directory' | 'symlink' | 'special' {
+  private mapFileType(
+    type: string
+  ): 'file' | 'directory' | 'symlink' | 'special' {
     switch (type) {
-      case 'd': return 'directory';
-      case 'l': return 'symlink';
-      case '-': return 'file';
-      default: return 'special';
+      case 'd':
+        return 'directory';
+      case 'l':
+        return 'symlink';
+      case '-':
+        return 'file';
+      default:
+        return 'special';
     }
   }
 
-  private parseRights(rights: { user: string; group: string; other: string }): number {
+  private parseRights(rights: {
+    user: string;
+    group: string;
+    other: string;
+  }): number {
     const parsePermission = (perm: string): number => {
       let result = 0;
       if (perm.includes('r')) result += 4;
@@ -1109,42 +1202,60 @@ export class SFTPProtocol extends EventEmitter {
     return parseInt(`${user}${group}${other}`, 8);
   }
 
-  private updateConnectionStats(operation: 'upload' | 'download', bytes: number): void {
+  private updateConnectionStats(
+    operation: 'upload' | 'download',
+    bytes: number
+  ): void {
     if (operation === 'upload') {
       this.connectionState.transferStats.totalUploads++;
     } else {
       this.connectionState.transferStats.totalDownloads++;
     }
-    
+
     this.connectionState.transferStats.totalBytes += bytes;
-    
+
     // Calculate average speed (simplified)
-    const totalTransfers = this.connectionState.transferStats.totalUploads + 
-                          this.connectionState.transferStats.totalDownloads;
-    const totalTime = (Date.now() - this.connectionState.connectionTime.getTime()) / 1000;
-    
+    const totalTransfers =
+      this.connectionState.transferStats.totalUploads +
+      this.connectionState.transferStats.totalDownloads;
+    const totalTime =
+      (Date.now() - this.connectionState.connectionTime.getTime()) / 1000;
+
     if (totalTime > 0) {
-      this.connectionState.transferStats.averageSpeed = 
+      this.connectionState.transferStats.averageSpeed =
         this.connectionState.transferStats.totalBytes / totalTime;
     }
   }
 
   private updateBatchProgress(batch: SFTPBatchTransfer): void {
-    batch.overallProgress = (batch.completedTransfers / batch.totalTransfers) * 100;
+    batch.overallProgress =
+      (batch.completedTransfers / batch.totalTransfers) * 100;
     this.emit('batch-progress', batch);
   }
 
   private isLocalPath(path: string): boolean {
     // Simple heuristic to determine if path is local
-    return !path.includes('@') && (path.startsWith('/') || path.match(/^[A-Za-z]:/) !== null);
+    return (
+      !path.includes('@') &&
+      (path.startsWith('/') || path.match(/^[A-Za-z]:/) !== null)
+    );
   }
 
   private isRetryableError(error: any): boolean {
-    const retryableErrors = ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED'];
-    return retryableErrors.includes(error.code) || error.message.includes('timeout');
+    const retryableErrors = [
+      'ECONNRESET',
+      'ETIMEDOUT',
+      'ENOTFOUND',
+      'ECONNREFUSED',
+    ];
+    return (
+      retryableErrors.includes(error.code) || error.message.includes('timeout')
+    );
   }
 
-  private async getTransferSize(transfer: SFTPTransferOptions): Promise<number> {
+  private async getTransferSize(
+    transfer: SFTPTransferOptions
+  ): Promise<number> {
     try {
       if (this.isLocalPath(transfer.source)) {
         const stats = await fs.stat(transfer.source);
@@ -1159,12 +1270,18 @@ export class SFTPProtocol extends EventEmitter {
   }
 
   // Placeholder methods for sync functionality
-  private async analyzeDirectory(path: string, options: SFTPSyncOptions): Promise<SFTPFileInfo[]> {
+  private async analyzeDirectory(
+    path: string,
+    options: SFTPSyncOptions
+  ): Promise<SFTPFileInfo[]> {
     // Implementation would recursively analyze local directory
     return [];
   }
 
-  private async analyzeRemoteDirectory(path: string, options: SFTPSyncOptions): Promise<SFTPFileInfo[]> {
+  private async analyzeRemoteDirectory(
+    path: string,
+    options: SFTPSyncOptions
+  ): Promise<SFTPFileInfo[]> {
     // Implementation would recursively analyze remote directory
     return [];
   }
@@ -1178,11 +1295,18 @@ export class SFTPProtocol extends EventEmitter {
     return {};
   }
 
-  private async executeSyncPlan(plan: any, result: SFTPSyncResult, options: SFTPSyncOptions): Promise<void> {
+  private async executeSyncPlan(
+    plan: any,
+    result: SFTPSyncResult,
+    options: SFTPSyncOptions
+  ): Promise<void> {
     // Implementation would execute the sync plan
   }
 
-  private async executeResume(progress: SFTPTransferProgress, resumeInfo: any): Promise<SFTPTransferProgress> {
+  private async executeResume(
+    progress: SFTPTransferProgress,
+    resumeInfo: any
+  ): Promise<SFTPTransferProgress> {
     // Implementation would resume interrupted transfer
     throw new Error('Resume not implemented yet');
   }
@@ -1197,7 +1321,7 @@ class BandwidthController {
   private adaptiveThrottling: boolean;
   private currentUploadSpeed: number = 0;
   private currentDownloadSpeed: number = 0;
-  
+
   constructor(options: any) {
     this.uploadLimit = options.uploadLimit || 0;
     this.downloadLimit = options.downloadLimit || 0;
@@ -1207,14 +1331,17 @@ class BandwidthController {
   async throttleUpload(bytes: number): Promise<void> {
     if (this.uploadLimit > 0 && this.currentUploadSpeed > this.uploadLimit) {
       const delay = (bytes / this.uploadLimit) * 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
   async throttleDownload(bytes: number): Promise<void> {
-    if (this.downloadLimit > 0 && this.currentDownloadSpeed > this.downloadLimit) {
+    if (
+      this.downloadLimit > 0 &&
+      this.currentDownloadSpeed > this.downloadLimit
+    ) {
       const delay = (bytes / this.downloadLimit) * 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 

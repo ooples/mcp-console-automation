@@ -19,7 +19,7 @@ import {
   ConditionConfig,
   TriggerCondition,
   WorkflowExecution,
-  ExecutionTrigger
+  ExecutionTrigger,
 } from '../types/workflow.js';
 import { Logger } from '../utils/logger.js';
 import { WorkflowEngine } from './WorkflowEngine.js';
@@ -79,18 +79,18 @@ export class TriggerManager extends EventEmitter {
   registerTrigger(workflowId: string, trigger: WorkflowTrigger): void {
     const triggerId = `${workflowId}:${trigger.id}`;
     this.triggers.set(triggerId, { ...trigger, id: triggerId });
-    
+
     if (!this.triggerExecutions.has(triggerId)) {
       this.triggerExecutions.set(triggerId, []);
     }
-    
+
     if (!this.triggerMetrics.has(triggerId)) {
       this.triggerMetrics.set(triggerId, {
         totalExecutions: 0,
         successfulExecutions: 0,
         failedExecutions: 0,
         skippedExecutions: 0,
-        averageExecutionTime: 0
+        averageExecutionTime: 0,
       });
     }
 
@@ -141,26 +141,34 @@ export class TriggerManager extends EventEmitter {
   /**
    * Activate schedule-based trigger using cron
    */
-  private activateScheduleTrigger(workflowId: string, triggerId: string, trigger: WorkflowTrigger): void {
+  private activateScheduleTrigger(
+    workflowId: string,
+    triggerId: string,
+    trigger: WorkflowTrigger
+  ): void {
     const schedule = trigger.config.schedule!;
-    
+
     if (!cron.validate(schedule.cron)) {
       throw new Error(`Invalid cron expression: ${schedule.cron}`);
     }
 
-    const task = cron.schedule(schedule.cron, async () => {
-      await this.executeTrigger(workflowId, triggerId, {
-        type: 'schedule',
-        cron: schedule.cron,
-        timezone: schedule.timezone
-      });
-    }, {
-      scheduled: true,
-      timezone: schedule.timezone || 'UTC'
-    });
+    const task = cron.schedule(
+      schedule.cron,
+      async () => {
+        await this.executeTrigger(workflowId, triggerId, {
+          type: 'schedule',
+          cron: schedule.cron,
+          timezone: schedule.timezone,
+        });
+      },
+      {
+        scheduled: true,
+        timezone: schedule.timezone || 'UTC',
+      }
+    );
 
     this.cronJobs.set(triggerId, task);
-    
+
     // Update metrics with next execution time
     const metrics = this.triggerMetrics.get(triggerId)!;
     const nextRun = task.getStatus().nextExecution;
@@ -168,13 +176,19 @@ export class TriggerManager extends EventEmitter {
       metrics.nextExecution = nextRun;
     }
 
-    this.logger.info(`Schedule trigger activated: ${triggerId} with cron ${schedule.cron}`);
+    this.logger.info(
+      `Schedule trigger activated: ${triggerId} with cron ${schedule.cron}`
+    );
   }
 
   /**
    * Activate event-based trigger
    */
-  private activateEventTrigger(workflowId: string, triggerId: string, trigger: WorkflowTrigger): void {
+  private activateEventTrigger(
+    workflowId: string,
+    triggerId: string,
+    trigger: WorkflowTrigger
+  ): void {
     if (!trigger.config.events) return;
 
     for (const eventConfig of trigger.config.events) {
@@ -185,16 +199,20 @@ export class TriggerManager extends EventEmitter {
             type: 'event',
             source: eventConfig.source,
             eventType: eventConfig.type,
-            data: eventData
+            data: eventData,
           });
         }
       };
 
       const listenerId = `${triggerId}:${eventConfig.source}:${eventConfig.type}`;
       this.eventListeners.set(listenerId, listener);
-      
+
       // Subscribe to events from the specified source
-      this.subscribeToEventSource(eventConfig.source, eventConfig.type, listener);
+      this.subscribeToEventSource(
+        eventConfig.source,
+        eventConfig.type,
+        listener
+      );
     }
 
     this.logger.info(`Event trigger activated: ${triggerId}`);
@@ -203,63 +221,79 @@ export class TriggerManager extends EventEmitter {
   /**
    * Activate webhook-based trigger
    */
-  private activateWebhookTrigger(workflowId: string, triggerId: string, trigger: WorkflowTrigger): void {
+  private activateWebhookTrigger(
+    workflowId: string,
+    triggerId: string,
+    trigger: WorkflowTrigger
+  ): void {
     const webhook = trigger.config.webhook!;
-    
+
     // Register webhook endpoint
     this.registerWebhookEndpoint(workflowId, triggerId, webhook);
-    
-    this.logger.info(`Webhook trigger activated: ${triggerId} at ${webhook.path}`);
+
+    this.logger.info(
+      `Webhook trigger activated: ${triggerId} at ${webhook.path}`
+    );
   }
 
   /**
    * Activate file watch trigger
    */
-  private activateFileWatchTrigger(workflowId: string, triggerId: string, trigger: WorkflowTrigger): void {
+  private activateFileWatchTrigger(
+    workflowId: string,
+    triggerId: string,
+    trigger: WorkflowTrigger
+  ): void {
     const fileWatch = trigger.config.fileWatch!;
     const watchers: fs.FSWatcher[] = [];
 
     for (const watchPath of fileWatch.paths) {
       try {
-        const watcher = fs.watch(watchPath, { recursive: fileWatch.recursive }, async (eventType, filename) => {
-          if (!filename) return;
+        const watcher = fs.watch(
+          watchPath,
+          { recursive: fileWatch.recursive },
+          async (eventType, filename) => {
+            if (!filename) return;
 
-          // Check if file matches patterns
-          if (fileWatch.patterns.length > 0) {
-            const matches = fileWatch.patterns.some(pattern => 
-              new RegExp(pattern).test(filename)
-            );
-            if (!matches) return;
-          }
+            // Check if file matches patterns
+            if (fileWatch.patterns.length > 0) {
+              const matches = fileWatch.patterns.some((pattern) =>
+                new RegExp(pattern).test(filename)
+              );
+              if (!matches) return;
+            }
 
-          // Check if event type is monitored
-          if (!fileWatch.events.includes(eventType as any)) return;
+            // Check if event type is monitored
+            if (!fileWatch.events.includes(eventType as any)) return;
 
-          // Apply debounce if configured
-          if (fileWatch.debounce) {
-            clearTimeout(this.conditionCheckers.get(`${triggerId}:debounce`));
-            const timeout = setTimeout(async () => {
+            // Apply debounce if configured
+            if (fileWatch.debounce) {
+              clearTimeout(this.conditionCheckers.get(`${triggerId}:debounce`));
+              const timeout = setTimeout(async () => {
+                await this.executeTrigger(workflowId, triggerId, {
+                  type: 'file_watch',
+                  path: watchPath,
+                  filename,
+                  eventType,
+                });
+              }, fileWatch.debounce);
+              this.conditionCheckers.set(`${triggerId}:debounce`, timeout);
+            } else {
               await this.executeTrigger(workflowId, triggerId, {
                 type: 'file_watch',
                 path: watchPath,
                 filename,
-                eventType
+                eventType,
               });
-            }, fileWatch.debounce);
-            this.conditionCheckers.set(`${triggerId}:debounce`, timeout);
-          } else {
-            await this.executeTrigger(workflowId, triggerId, {
-              type: 'file_watch',
-              path: watchPath,
-              filename,
-              eventType
-            });
+            }
           }
-        });
+        );
 
         watchers.push(watcher);
       } catch (error: any) {
-        this.logger.error(`Failed to watch path ${watchPath}: ${error.message}`);
+        this.logger.error(
+          `Failed to watch path ${watchPath}: ${error.message}`
+        );
       }
     }
 
@@ -267,66 +301,88 @@ export class TriggerManager extends EventEmitter {
       this.fileWatchers.set(triggerId, watchers[0]); // Store first watcher for cleanup
     }
 
-    this.logger.info(`File watch trigger activated: ${triggerId} watching ${fileWatch.paths.length} paths`);
+    this.logger.info(
+      `File watch trigger activated: ${triggerId} watching ${fileWatch.paths.length} paths`
+    );
   }
 
   /**
    * Activate condition-based trigger
    */
-  private activateConditionTrigger(workflowId: string, triggerId: string, trigger: WorkflowTrigger): void {
+  private activateConditionTrigger(
+    workflowId: string,
+    triggerId: string,
+    trigger: WorkflowTrigger
+  ): void {
     const condition = trigger.config.condition!;
     let checkCount = 0;
 
     const checkCondition = async () => {
       try {
         const result = await this.evaluateCondition(condition.expression);
-        
+
         if (result) {
           await this.executeTrigger(workflowId, triggerId, {
             type: 'condition',
             expression: condition.expression,
-            result
+            result,
           });
-          
+
           // Stop checking if condition is met (one-time trigger)
           clearInterval(intervalId);
           this.conditionCheckers.delete(triggerId);
         } else {
           checkCount++;
           if (condition.maxChecks && checkCount >= condition.maxChecks) {
-            this.logger.info(`Condition trigger stopped after ${checkCount} checks: ${triggerId}`);
+            this.logger.info(
+              `Condition trigger stopped after ${checkCount} checks: ${triggerId}`
+            );
             clearInterval(intervalId);
             this.conditionCheckers.delete(triggerId);
           }
         }
       } catch (error: any) {
-        this.logger.error(`Error evaluating condition for ${triggerId}: ${error.message}`);
+        this.logger.error(
+          `Error evaluating condition for ${triggerId}: ${error.message}`
+        );
       }
     };
 
     const intervalId = setInterval(checkCondition, condition.checkInterval);
     this.conditionCheckers.set(triggerId, intervalId);
 
-    this.logger.info(`Condition trigger activated: ${triggerId} checking every ${condition.checkInterval}ms`);
+    this.logger.info(
+      `Condition trigger activated: ${triggerId} checking every ${condition.checkInterval}ms`
+    );
   }
 
   /**
    * Activate dependency-based trigger
    */
-  private activateDependencyTrigger(workflowId: string, triggerId: string, trigger: WorkflowTrigger): void {
+  private activateDependencyTrigger(
+    workflowId: string,
+    triggerId: string,
+    trigger: WorkflowTrigger
+  ): void {
     // Listen for workflow completion events
-    this.workflowEngine.on('execution-status-changed', async (executionId: string, status: string) => {
-      if (status === 'completed') {
-        const execution = this.workflowEngine.getExecution(executionId);
-        if (execution && this.matchesDependencyConditions(execution, trigger.conditions)) {
-          await this.executeTrigger(workflowId, triggerId, {
-            type: 'dependency',
-            dependentExecutionId: executionId,
-            dependentWorkflowId: execution.workflowId
-          });
+    this.workflowEngine.on(
+      'execution-status-changed',
+      async (executionId: string, status: string) => {
+        if (status === 'completed') {
+          const execution = this.workflowEngine.getExecution(executionId);
+          if (
+            execution &&
+            this.matchesDependencyConditions(execution, trigger.conditions)
+          ) {
+            await this.executeTrigger(workflowId, triggerId, {
+              type: 'dependency',
+              dependentExecutionId: executionId,
+              dependentWorkflowId: execution.workflowId,
+            });
+          }
         }
       }
-    });
+    );
 
     this.logger.info(`Dependency trigger activated: ${triggerId}`);
   }
@@ -334,10 +390,20 @@ export class TriggerManager extends EventEmitter {
   /**
    * Execute a trigger and start workflow
    */
-  private async executeTrigger(workflowId: string, triggerId: string, triggerData: any): Promise<void> {
+  private async executeTrigger(
+    workflowId: string,
+    triggerId: string,
+    triggerData: any
+  ): Promise<void> {
     const trigger = this.triggers.get(triggerId);
     if (!trigger || !trigger.enabled) {
-      this.recordTriggerExecution(triggerId, triggerData, 'skipped', undefined, 'Trigger disabled or not found');
+      this.recordTriggerExecution(
+        triggerId,
+        triggerData,
+        'skipped',
+        undefined,
+        'Trigger disabled or not found'
+      );
       return;
     }
 
@@ -345,11 +411,22 @@ export class TriggerManager extends EventEmitter {
     const startTime = Date.now();
 
     try {
-      this.logger.info(`Executing trigger: ${triggerId} for workflow: ${workflowId}`);
+      this.logger.info(
+        `Executing trigger: ${triggerId} for workflow: ${workflowId}`
+      );
 
       // Check trigger conditions
-      if (trigger.conditions && !this.evaluateTriggerConditions(triggerData, trigger.conditions)) {
-        this.recordTriggerExecution(triggerId, triggerData, 'skipped', undefined, 'Trigger conditions not met');
+      if (
+        trigger.conditions &&
+        !this.evaluateTriggerConditions(triggerData, trigger.conditions)
+      ) {
+        this.recordTriggerExecution(
+          triggerId,
+          triggerData,
+          'skipped',
+          undefined,
+          'Trigger conditions not met'
+        );
         return;
       }
 
@@ -360,13 +437,18 @@ export class TriggerManager extends EventEmitter {
           environment: 'production',
           user: 'system',
           inputs: triggerData,
-          metadata: { triggerId, triggerType: trigger.type }
+          metadata: { triggerId, triggerType: trigger.type },
         },
         triggerData
       );
 
       const duration = Date.now() - startTime;
-      this.recordTriggerExecution(triggerId, triggerData, 'executed', workflowExecutionId);
+      this.recordTriggerExecution(
+        triggerId,
+        triggerData,
+        'executed',
+        workflowExecutionId
+      );
       this.updateTriggerMetrics(triggerId, true, duration);
 
       this.emit('trigger-executed', {
@@ -374,21 +456,28 @@ export class TriggerManager extends EventEmitter {
         workflowId,
         workflowExecutionId,
         triggerData,
-        duration
+        duration,
       });
-
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      this.recordTriggerExecution(triggerId, triggerData, 'failed', undefined, error.message);
+      this.recordTriggerExecution(
+        triggerId,
+        triggerData,
+        'failed',
+        undefined,
+        error.message
+      );
       this.updateTriggerMetrics(triggerId, false, duration);
 
-      this.logger.error(`Trigger execution failed: ${triggerId} - ${error.message}`);
+      this.logger.error(
+        `Trigger execution failed: ${triggerId} - ${error.message}`
+      );
       this.emit('trigger-failed', {
         triggerId,
         workflowId,
         triggerData,
         error: error.message,
-        duration
+        duration,
       });
     }
   }
@@ -410,24 +499,28 @@ export class TriggerManager extends EventEmitter {
       data,
       workflowExecutionId,
       status,
-      error
+      error,
     };
 
     const executions = this.triggerExecutions.get(triggerId) || [];
     executions.push(execution);
-    
+
     // Keep only last 1000 executions per trigger
     if (executions.length > 1000) {
       executions.splice(0, executions.length - 1000);
     }
-    
+
     this.triggerExecutions.set(triggerId, executions);
   }
 
   /**
    * Update trigger metrics
    */
-  private updateTriggerMetrics(triggerId: string, success: boolean, duration: number): void {
+  private updateTriggerMetrics(
+    triggerId: string,
+    success: boolean,
+    duration: number
+  ): void {
     const metrics = this.triggerMetrics.get(triggerId);
     if (!metrics) return;
 
@@ -437,12 +530,14 @@ export class TriggerManager extends EventEmitter {
     } else {
       metrics.failedExecutions++;
     }
-    
+
     metrics.lastExecution = new Date();
-    
+
     // Update average execution time
-    metrics.averageExecutionTime = 
-      (metrics.averageExecutionTime * (metrics.totalExecutions - 1) + duration) / metrics.totalExecutions;
+    metrics.averageExecutionTime =
+      (metrics.averageExecutionTime * (metrics.totalExecutions - 1) +
+        duration) /
+      metrics.totalExecutions;
   }
 
   /**
@@ -451,20 +546,26 @@ export class TriggerManager extends EventEmitter {
   private setupWebhookServer(): void {
     // This would typically be an Express.js server
     // For simplicity, we'll emit webhook events
-    this.logger.info(`Webhook server would be running on port ${this.webhookPort}`);
+    this.logger.info(
+      `Webhook server would be running on port ${this.webhookPort}`
+    );
   }
 
   /**
    * Register webhook endpoint
    */
-  private registerWebhookEndpoint(workflowId: string, triggerId: string, webhook: WebhookConfig): void {
+  private registerWebhookEndpoint(
+    workflowId: string,
+    triggerId: string,
+    webhook: WebhookConfig
+  ): void {
     // Register the webhook path and associate it with the trigger
     this.emit('webhook-registered', {
       workflowId,
       triggerId,
       path: webhook.path,
       method: webhook.method,
-      authentication: webhook.authentication
+      authentication: webhook.authentication,
     });
   }
 
@@ -485,7 +586,10 @@ export class TriggerManager extends EventEmitter {
   /**
    * Check if event data matches filters
    */
-  private matchesEventFilters(eventData: any, filters?: Record<string, any>): boolean {
+  private matchesEventFilters(
+    eventData: any,
+    filters?: Record<string, any>
+  ): boolean {
     if (!filters) return true;
 
     for (const [key, expectedValue] of Object.entries(filters)) {
@@ -501,7 +605,10 @@ export class TriggerManager extends EventEmitter {
   /**
    * Evaluate trigger conditions
    */
-  private evaluateTriggerConditions(data: any, conditions: TriggerCondition[]): boolean {
+  private evaluateTriggerConditions(
+    data: any,
+    conditions: TriggerCondition[]
+  ): boolean {
     for (const condition of conditions) {
       let value: any;
 
@@ -536,7 +643,10 @@ export class TriggerManager extends EventEmitter {
   /**
    * Check if execution matches dependency conditions
    */
-  private matchesDependencyConditions(execution: WorkflowExecution, conditions?: TriggerCondition[]): boolean {
+  private matchesDependencyConditions(
+    execution: WorkflowExecution,
+    conditions?: TriggerCondition[]
+  ): boolean {
     if (!conditions) return true;
     return this.evaluateTriggerConditions(execution, conditions);
   }
@@ -544,13 +654,17 @@ export class TriggerManager extends EventEmitter {
   /**
    * Subscribe to event source
    */
-  private subscribeToEventSource(source: string, eventType: string, listener: EventListener): void {
+  private subscribeToEventSource(
+    source: string,
+    eventType: string,
+    listener: EventListener
+  ): void {
     // This would connect to external event sources like:
     // - Message queues (RabbitMQ, Kafka)
     // - Cloud events (AWS EventBridge, Azure Event Grid)
     // - Database change streams
     // - Custom event emitters
-    
+
     this.logger.info(`Subscribed to event source: ${source}:${eventType}`);
   }
 
@@ -559,16 +673,26 @@ export class TriggerManager extends EventEmitter {
    */
   private compareValues(actual: any, operator: string, expected: any): boolean {
     switch (operator) {
-      case 'eq': return actual === expected;
-      case 'ne': return actual !== expected;
-      case 'gt': return actual > expected;
-      case 'lt': return actual < expected;
-      case 'gte': return actual >= expected;
-      case 'lte': return actual <= expected;
-      case 'contains': return String(actual).includes(String(expected));
-      case 'matches': return new RegExp(expected).test(String(actual));
-      case 'exists': return actual !== undefined && actual !== null;
-      default: return false;
+      case 'eq':
+        return actual === expected;
+      case 'ne':
+        return actual !== expected;
+      case 'gt':
+        return actual > expected;
+      case 'lt':
+        return actual < expected;
+      case 'gte':
+        return actual >= expected;
+      case 'lte':
+        return actual <= expected;
+      case 'contains':
+        return String(actual).includes(String(expected));
+      case 'matches':
+        return new RegExp(expected).test(String(actual));
+      case 'exists':
+        return actual !== undefined && actual !== null;
+      default:
+        return false;
     }
   }
 
@@ -687,7 +811,7 @@ export class TriggerManager extends EventEmitter {
         environment: 'manual',
         user: 'manual',
         inputs: data || {},
-        metadata: { triggerId: 'manual', triggerType: 'manual' }
+        metadata: { triggerId: 'manual', triggerType: 'manual' },
       },
       data
     );
@@ -696,15 +820,20 @@ export class TriggerManager extends EventEmitter {
   /**
    * Clean up old trigger executions
    */
-  cleanup(olderThanHours: number = 168): void { // Default: 1 week
-    const cutoff = Date.now() - (olderThanHours * 60 * 60 * 1000);
+  cleanup(olderThanHours: number = 168): void {
+    // Default: 1 week
+    const cutoff = Date.now() - olderThanHours * 60 * 60 * 1000;
 
     for (const [triggerId, executions] of this.triggerExecutions.entries()) {
-      const filtered = executions.filter(exec => exec.timestamp.getTime() > cutoff);
+      const filtered = executions.filter(
+        (exec) => exec.timestamp.getTime() > cutoff
+      );
       this.triggerExecutions.set(triggerId, filtered);
     }
 
-    this.logger.info(`Cleaned up trigger executions older than ${olderThanHours} hours`);
+    this.logger.info(
+      `Cleaned up trigger executions older than ${olderThanHours} hours`
+    );
   }
 
   /**

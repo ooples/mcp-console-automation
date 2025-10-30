@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Rust Protocol connection options
@@ -72,9 +72,9 @@ export class RustProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -106,8 +106,8 @@ export class RustProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -134,8 +134,13 @@ export class RustProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -156,7 +161,9 @@ export class RustProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Rust session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Rust session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -187,7 +194,11 @@ export class RustProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -201,7 +212,11 @@ export class RustProtocol extends BaseProtocol {
     const rustProcess = spawn(rustCommand[0], rustCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(rustOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(rustOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -210,7 +225,7 @@ export class RustProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -220,7 +235,7 @@ export class RustProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -231,7 +246,9 @@ export class RustProtocol extends BaseProtocol {
     });
 
     rustProcess.on('close', (code) => {
-      this.logger.info(`Rust process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Rust process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -244,7 +261,11 @@ export class RustProtocol extends BaseProtocol {
       command: rustCommand[0],
       args: rustCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(rustOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(rustOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -252,12 +273,14 @@ export class RustProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: rustProcess.pid
+      pid: rustProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Rust session ${sessionId} created for ${rustOptions.sourceFile || rustOptions.package || rustOptions.cratePath || 'Rust application'}`);
+    this.logger.info(
+      `Rust session ${sessionId} created for ${rustOptions.sourceFile || rustOptions.package || rustOptions.cratePath || 'Rust application'}`
+    );
     this.emit('session-created', { sessionId, type: 'rust', session });
 
     return session;
@@ -266,7 +289,7 @@ export class RustProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -275,8 +298,8 @@ export class RustProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -298,25 +321,30 @@ export class RustProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Rust session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Rust session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const rustProcess = this.rustProcesses.get(sessionId);
-    return rustProcess && !rustProcess.killed || false;
+    return (rustProcess && !rustProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -327,26 +355,26 @@ export class RustProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.rustProcesses.size
+        connectionsActive: this.rustProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -359,8 +387,8 @@ export class RustProtocol extends BaseProtocol {
         ...baseStatus,
         dependencies: {
           rust: { available: true },
-          cargo: { available: true }
-        }
+          cargo: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -369,8 +397,8 @@ export class RustProtocol extends BaseProtocol {
         errors: [...baseStatus.errors, `Rust not available: ${error}`],
         dependencies: {
           rust: { available: false },
-          cargo: { available: false }
-        }
+          cargo: { available: false },
+        },
       };
     }
   }
@@ -384,12 +412,18 @@ export class RustProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Rust toolchain not found. Please install Rust via rustup.'));
+          reject(
+            new Error(
+              'Rust toolchain not found. Please install Rust via rustup.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('Rust toolchain not found. Please install Rust via rustup.'));
+        reject(
+          new Error('Rust toolchain not found. Please install Rust via rustup.')
+        );
       });
     });
   }
@@ -448,7 +482,6 @@ export class RustProtocol extends BaseProtocol {
 
       // Source file
       command.push(options.sourceFile);
-
     } else {
       // Cargo-based project
       if (options.cargoPath) {
@@ -525,7 +558,9 @@ export class RustProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: RustConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: RustConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Rust toolchain selection
@@ -584,7 +619,10 @@ export class RustProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Rust process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Rust process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

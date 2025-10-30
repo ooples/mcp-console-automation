@@ -4,12 +4,12 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
   SessionState,
-  ErrorContext
+  ErrorContext,
 } from '../core/IProtocol.js';
 
 // Cassandra Client connection options
@@ -67,8 +67,8 @@ export class CassandraProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -79,7 +79,9 @@ export class CassandraProtocol extends BaseProtocol {
       // Check if cqlsh client is available
       await this.checkCassandraClientAvailability();
       this.isInitialized = true;
-      this.logger.info('Cassandra protocol initialized with session management fixes');
+      this.logger.info(
+        'Cassandra protocol initialized with session management fixes'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize Cassandra protocol', error);
       throw error;
@@ -95,19 +97,28 @@ export class CassandraProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
     const cassandraProcess = this.cassandraProcesses.get(sessionId);
     if (!cassandraProcess || !cassandraProcess.stdin) {
-      throw new Error(`No active Cassandra connection for session: ${sessionId}`);
+      throw new Error(
+        `No active Cassandra connection for session: ${sessionId}`
+      );
     }
 
     cassandraProcess.stdin.write(input);
-    this.logger.debug(`Sent input to Cassandra session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Cassandra session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -130,7 +141,11 @@ export class CassandraProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -141,11 +156,15 @@ export class CassandraProtocol extends BaseProtocol {
     const cassandraCommand = this.buildCassandraCommand(cassandraOptions);
 
     // Spawn cqlsh process
-    const cassandraProcess = spawn(cassandraCommand[0], cassandraCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: options.cwd,
-      env: { ...process.env, ...options.env }
-    });
+    const cassandraProcess = spawn(
+      cassandraCommand[0],
+      cassandraCommand.slice(1),
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: options.cwd,
+        env: { ...process.env, ...options.env },
+      }
+    );
 
     // Set up output handling
     cassandraProcess.stdout?.on('data', (data) => {
@@ -153,7 +172,7 @@ export class CassandraProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -163,18 +182,23 @@ export class CassandraProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     cassandraProcess.on('error', (error) => {
-      this.logger.error(`Cassandra process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Cassandra process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     cassandraProcess.on('close', (code) => {
-      this.logger.info(`Cassandra process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Cassandra process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -194,12 +218,14 @@ export class CassandraProtocol extends BaseProtocol {
       type: this.type,
       streaming: options.streaming,
       executionState: 'idle',
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Cassandra session ${sessionId} created for ${cassandraOptions.host || 'localhost'}:${cassandraOptions.port || 9042}`);
+    this.logger.info(
+      `Cassandra session ${sessionId} created for ${cassandraOptions.host || 'localhost'}:${cassandraOptions.port || 9042}`
+    );
     this.emit('session-created', { sessionId, type: 'cassandra', session });
 
     return session;
@@ -213,12 +239,20 @@ export class CassandraProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Cassandra CQL shell (cqlsh) not found. Please install Cassandra CQL shell.'));
+          reject(
+            new Error(
+              'Cassandra CQL shell (cqlsh) not found. Please install Cassandra CQL shell.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('Cassandra CQL shell (cqlsh) not found. Please install Cassandra CQL shell.'));
+        reject(
+          new Error(
+            'Cassandra CQL shell (cqlsh) not found. Please install Cassandra CQL shell.'
+          )
+        );
       });
     });
   }
@@ -270,7 +304,10 @@ export class CassandraProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Cassandra process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Cassandra process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

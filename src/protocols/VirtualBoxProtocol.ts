@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // VirtualBox Protocol connection options
@@ -20,7 +20,23 @@ interface VirtualBoxConnectionOptions extends SessionOptions {
   // Basic VM Configuration
   vmName?: string;
   vmUuid?: string;
-  operation?: 'start' | 'stop' | 'pause' | 'resume' | 'reset' | 'poweroff' | 'savestate' | 'list' | 'showvminfo' | 'clone' | 'snapshot' | 'import' | 'export' | 'manage' | 'console' | 'connect';
+  operation?:
+    | 'start'
+    | 'stop'
+    | 'pause'
+    | 'resume'
+    | 'reset'
+    | 'poweroff'
+    | 'savestate'
+    | 'list'
+    | 'showvminfo'
+    | 'clone'
+    | 'snapshot'
+    | 'import'
+    | 'export'
+    | 'manage'
+    | 'console'
+    | 'connect';
 
   // VM Control Options
   vmType?: 'gui' | 'headless' | 'separate' | 'sdl';
@@ -49,14 +65,29 @@ interface VirtualBoxConnectionOptions extends SessionOptions {
 
   // Network Configuration
   networkAdapter?: number;
-  networkType?: 'none' | 'null' | 'nat' | 'natnetwork' | 'bridged' | 'intnet' | 'hostonly' | 'generic';
+  networkType?:
+    | 'none'
+    | 'null'
+    | 'nat'
+    | 'natnetwork'
+    | 'bridged'
+    | 'intnet'
+    | 'hostonly'
+    | 'generic';
   networkName?: string;
   macAddress?: string;
   enableCable?: boolean;
 
   // Audio Configuration
   audioController?: 'none' | 'ac97' | 'hda' | 'sb16';
-  audioDriver?: 'none' | 'pulse' | 'alsa' | 'oss' | 'coreaudio' | 'directsound' | 'was';
+  audioDriver?:
+    | 'none'
+    | 'pulse'
+    | 'alsa'
+    | 'oss'
+    | 'coreaudio'
+    | 'directsound'
+    | 'was';
 
   // USB Configuration
   enableUsb?: boolean;
@@ -118,7 +149,13 @@ interface VirtualBoxConnectionOptions extends SessionOptions {
   enableHardwareVirt?: boolean;
   enableLargePages?: boolean;
   enablePageFusion?: boolean;
-  paravirtProvider?: 'none' | 'default' | 'legacy' | 'minimal' | 'hyperv' | 'kvm';
+  paravirtProvider?:
+    | 'none'
+    | 'default'
+    | 'legacy'
+    | 'minimal'
+    | 'hyperv'
+    | 'kvm';
 
   // Remote Display
   enableVnc?: boolean;
@@ -242,9 +279,9 @@ export class VirtualBoxProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -276,8 +313,8 @@ export class VirtualBoxProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -288,7 +325,9 @@ export class VirtualBoxProtocol extends BaseProtocol {
       // Check if VirtualBox is available
       await this.checkVirtualBoxAvailability();
       this.isInitialized = true;
-      this.logger.info('VirtualBox protocol initialized with virtualization features');
+      this.logger.info(
+        'VirtualBox protocol initialized with virtualization features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize VirtualBox protocol', error);
       throw error;
@@ -304,8 +343,13 @@ export class VirtualBoxProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -326,7 +370,9 @@ export class VirtualBoxProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to VirtualBox session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to VirtualBox session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -352,12 +398,19 @@ export class VirtualBoxProtocol extends BaseProtocol {
       this.logger.info(`VirtualBox session ${sessionId} closed`);
       this.emit('session-closed', sessionId);
     } catch (error) {
-      this.logger.error(`Error closing VirtualBox session ${sessionId}:`, error);
+      this.logger.error(
+        `Error closing VirtualBox session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -376,7 +429,11 @@ export class VirtualBoxProtocol extends BaseProtocol {
     const vboxProcess = spawn(vboxCommand[0], vboxCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(vboxOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(vboxOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -385,7 +442,7 @@ export class VirtualBoxProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -395,18 +452,23 @@ export class VirtualBoxProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     vboxProcess.on('error', (error) => {
-      this.logger.error(`VirtualBox process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `VirtualBox process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     vboxProcess.on('close', (code) => {
-      this.logger.info(`VirtualBox process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `VirtualBox process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -419,7 +481,11 @@ export class VirtualBoxProtocol extends BaseProtocol {
       command: vboxCommand[0],
       args: vboxCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(vboxOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(vboxOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -427,13 +493,19 @@ export class VirtualBoxProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: vboxProcess.pid
+      pid: vboxProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`VirtualBox session ${sessionId} created for VM ${vboxOptions.vmName || vboxOptions.vmUuid}`);
-    this.emit('session-created', { sessionId, type: 'virtualization', session });
+    this.logger.info(
+      `VirtualBox session ${sessionId} created for VM ${vboxOptions.vmName || vboxOptions.vmUuid}`
+    );
+    this.emit('session-created', {
+      sessionId,
+      type: 'virtualization',
+      session,
+    });
 
     return session;
   }
@@ -441,7 +513,7 @@ export class VirtualBoxProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -450,8 +522,8 @@ export class VirtualBoxProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -473,25 +545,30 @@ export class VirtualBoxProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in VirtualBox session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in VirtualBox session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const vboxProcess = this.vboxProcesses.get(sessionId);
-    return vboxProcess && !vboxProcess.killed || false;
+    return (vboxProcess && !vboxProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -502,26 +579,26 @@ export class VirtualBoxProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.vboxProcesses.size
+        connectionsActive: this.vboxProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -533,8 +610,8 @@ export class VirtualBoxProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          virtualbox: { available: true }
-        }
+          virtualbox: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -542,8 +619,8 @@ export class VirtualBoxProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `VirtualBox not available: ${error}`],
         dependencies: {
-          virtualbox: { available: false }
-        }
+          virtualbox: { available: false },
+        },
       };
     }
   }
@@ -556,17 +633,27 @@ export class VirtualBoxProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('VirtualBox VBoxManage tool not found. Please install VirtualBox.'));
+          reject(
+            new Error(
+              'VirtualBox VBoxManage tool not found. Please install VirtualBox.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('VirtualBox VBoxManage tool not found. Please install VirtualBox.'));
+        reject(
+          new Error(
+            'VirtualBox VBoxManage tool not found. Please install VirtualBox.'
+          )
+        );
       });
     });
   }
 
-  private buildVirtualBoxCommand(options: VirtualBoxConnectionOptions): string[] {
+  private buildVirtualBoxCommand(
+    options: VirtualBoxConnectionOptions
+  ): string[] {
     const command = [];
 
     // VirtualBox executable
@@ -713,7 +800,9 @@ export class VirtualBoxProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: VirtualBoxConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: VirtualBoxConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // VirtualBox environment variables
@@ -756,7 +845,10 @@ export class VirtualBoxProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing VirtualBox process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing VirtualBox process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

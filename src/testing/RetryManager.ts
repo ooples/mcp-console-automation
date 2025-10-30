@@ -174,7 +174,9 @@ export class RetryManager {
   /**
    * Create a retry strategy based on common patterns
    */
-  static createStrategy(type: 'aggressive' | 'conservative' | 'network'): RetryConfig {
+  static createStrategy(
+    type: 'aggressive' | 'conservative' | 'network'
+  ): RetryConfig {
     switch (type) {
       case 'aggressive':
         return {

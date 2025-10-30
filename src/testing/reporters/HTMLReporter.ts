@@ -28,7 +28,10 @@ export class HTMLReporter extends TestReporter {
     // Try to load template, fall back to inline if not available
     let template: string;
     try {
-      const templatePath = path.join(__dirname, '../templates/report-template.html');
+      const templatePath = path.join(
+        __dirname,
+        '../templates/report-template.html'
+      );
       template = await fs.readFile(templatePath, 'utf-8');
     } catch {
       template = this.getInlineTemplate();
@@ -36,7 +39,7 @@ export class HTMLReporter extends TestReporter {
 
     // Generate suite HTML
     const suitesHtml = suiteResults
-      .map(suiteResult => this.generateSuiteHtml(suiteResult))
+      .map((suiteResult) => this.generateSuiteHtml(suiteResult))
       .join('\n');
 
     // Replace template variables
@@ -50,14 +53,26 @@ export class HTMLReporter extends TestReporter {
       .replace('{{SKIPPED}}', summary.skipped.toString())
       .replace('{{DURATION}}', this.formatDuration(summary.duration))
       .replace('{{PASS_RATE}}', (summary.passRate * 100).toFixed(1))
-      .replace('{{PASS_RATE_CLASS}}', summary.passRate >= 0.8 ? 'success' : summary.passRate >= 0.5 ? 'warning' : 'error')
+      .replace(
+        '{{PASS_RATE_CLASS}}',
+        summary.passRate >= 0.8
+          ? 'success'
+          : summary.passRate >= 0.5
+            ? 'warning'
+            : 'error'
+      )
       .replace('{{SUITES}}', suitesHtml);
 
     return html;
   }
 
   private generateSuiteHtml(suiteResult: any): string {
-    const statusClass = suiteResult.failed > 0 ? 'error' : suiteResult.skipped > 0 ? 'warning' : 'success';
+    const statusClass =
+      suiteResult.failed > 0
+        ? 'error'
+        : suiteResult.skipped > 0
+          ? 'warning'
+          : 'success';
 
     const testsHtml = suiteResult.tests
       .map((testResult: any) => this.generateTestHtml(testResult))
@@ -119,12 +134,16 @@ export class HTMLReporter extends TestReporter {
           </div>
         </div>
         ${testResult.test.description ? `<div class="test-description">${this.escapeHtml(testResult.test.description)}</div>` : ''}
-        ${assertionsHtml || errorHtml ? `
+        ${
+          assertionsHtml || errorHtml
+            ? `
           <div class="test-body">
             ${assertionsHtml}
             ${errorHtml}
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     `;
   }

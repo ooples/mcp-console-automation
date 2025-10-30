@@ -22,14 +22,19 @@ export class SimpleCommandExecutor {
    * Best for: Simple commands that complete quickly
    * Limitations: No streaming output, blocks until completion
    */
-  async executeSyncCommand(command: string, args: string[] = [], options: {
-    cwd?: string;
-    env?: Record<string, string>;
-    timeout?: number;
-    encoding?: BufferEncoding;
-  } = {}): Promise<{ output: string; exitCode: number }> {
+  async executeSyncCommand(
+    command: string,
+    args: string[] = [],
+    options: {
+      cwd?: string;
+      env?: Record<string, string>;
+      timeout?: number;
+      encoding?: BufferEncoding;
+    } = {}
+  ): Promise<{ output: string; exitCode: number }> {
     try {
-      const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
+      const fullCommand =
+        args.length > 0 ? `${command} ${args.join(' ')}` : command;
 
       const output = execSync(fullCommand, {
         cwd: options.cwd || process.cwd(),
@@ -41,13 +46,15 @@ export class SimpleCommandExecutor {
 
       return {
         output: output.toString(),
-        exitCode: 0
+        exitCode: 0,
       };
     } catch (error: any) {
       // execSync throws on non-zero exit codes
       return {
-        output: error.stdout ? error.stdout.toString() + error.stderr?.toString() : error.message,
-        exitCode: error.status || 1
+        output: error.stdout
+          ? error.stdout.toString() + error.stderr?.toString()
+          : error.message,
+        exitCode: error.status || 1,
       };
     }
   }
@@ -57,14 +64,19 @@ export class SimpleCommandExecutor {
    * Best for: Commands that may take longer but don't need streaming
    * Benefits: Non-blocking, timeout support, better error handling
    */
-  async executeAsyncCommand(command: string, args: string[] = [], options: {
-    cwd?: string;
-    env?: Record<string, string>;
-    timeout?: number;
-    maxBuffer?: number;
-  } = {}): Promise<{ output: string; exitCode: number }> {
+  async executeAsyncCommand(
+    command: string,
+    args: string[] = [],
+    options: {
+      cwd?: string;
+      env?: Record<string, string>;
+      timeout?: number;
+      maxBuffer?: number;
+    } = {}
+  ): Promise<{ output: string; exitCode: number }> {
     try {
-      const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
+      const fullCommand =
+        args.length > 0 ? `${command} ${args.join(' ')}` : command;
 
       const { stdout, stderr } = await execAsync(fullCommand, {
         cwd: options.cwd || process.cwd(),
@@ -75,12 +87,12 @@ export class SimpleCommandExecutor {
 
       return {
         output: stdout + stderr,
-        exitCode: 0
+        exitCode: 0,
       };
     } catch (error: any) {
       return {
         output: (error.stdout || '') + (error.stderr || '') || error.message,
-        exitCode: error.code || 1
+        exitCode: error.code || 1,
       };
     }
   }
@@ -90,12 +102,16 @@ export class SimpleCommandExecutor {
    * Best for: Long-running commands that produce output over time
    * Benefits: Real-time output, process control, streaming
    */
-  async executeStreamingCommand(command: string, args: string[] = [], options: {
-    cwd?: string;
-    env?: Record<string, string>;
-    timeout?: number;
-    onOutput?: (data: string, isError: boolean) => void;
-  } = {}): Promise<{ output: string; exitCode: number }> {
+  async executeStreamingCommand(
+    command: string,
+    args: string[] = [],
+    options: {
+      cwd?: string;
+      env?: Record<string, string>;
+      timeout?: number;
+      onOutput?: (data: string, isError: boolean) => void;
+    } = {}
+  ): Promise<{ output: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
       let output = '';
       let timeoutHandle: NodeJS.Timeout | null = null;
@@ -136,7 +152,7 @@ export class SimpleCommandExecutor {
         if (timeoutHandle) clearTimeout(timeoutHandle);
         resolve({
           output,
-          exitCode: exitCode || 0
+          exitCode: exitCode || 0,
         });
       });
     });
@@ -147,15 +163,22 @@ export class SimpleCommandExecutor {
    * Best for: Simple SSH commands without persistent sessions
    * Benefits: No session management, direct execution
    */
-  async executeSSHCommand(command: string, sshOptions: SSHConnectionOptions, options: {
-    timeout?: number;
-    args?: string[];
-  } = {}): Promise<{ output: string; exitCode: number }> {
+  async executeSSHCommand(
+    command: string,
+    sshOptions: SSHConnectionOptions,
+    options: {
+      timeout?: number;
+      args?: string[];
+    } = {}
+  ): Promise<{ output: string; exitCode: number }> {
     // Build SSH command
     const sshArgs: string[] = [
-      '-o', 'ConnectTimeout=10',
-      '-o', 'ServerAliveInterval=60',
-      '-o', 'ServerAliveCountMax=3',
+      '-o',
+      'ConnectTimeout=10',
+      '-o',
+      'ServerAliveInterval=60',
+      '-o',
+      'ServerAliveCountMax=3',
     ];
 
     // Add port if specified
@@ -176,9 +199,10 @@ export class SimpleCommandExecutor {
     sshArgs.push(connectionString);
 
     // Add the command to execute
-    const fullCommand = options.args && options.args.length > 0
-      ? `${command} ${options.args.join(' ')}`
-      : command;
+    const fullCommand =
+      options.args && options.args.length > 0
+        ? `${command} ${options.args.join(' ')}`
+        : command;
     sshArgs.push(fullCommand);
 
     // Execute using spawn for better control
@@ -191,7 +215,11 @@ export class SimpleCommandExecutor {
    * Alternative 5: Smart command executor that chooses the best method
    * Automatically selects the most appropriate execution method based on context
    */
-  async executeSmartCommand(command: string, args: string[] = [], options: Partial<SessionOptions> = {}): Promise<{
+  async executeSmartCommand(
+    command: string,
+    args: string[] = [],
+    options: Partial<SessionOptions> = {}
+  ): Promise<{
     output: string;
     exitCode: number;
     method: string;
@@ -199,24 +227,37 @@ export class SimpleCommandExecutor {
     // SSH commands
     if (options.sshOptions) {
       try {
-        const result = await this.executeSSHCommand(command, options.sshOptions, {
-          timeout: options.timeout,
-          args,
-        });
+        const result = await this.executeSSHCommand(
+          command,
+          options.sshOptions,
+          {
+            timeout: options.timeout,
+            args,
+          }
+        );
         return { ...result, method: 'ssh' };
       } catch (error: any) {
         // Fallback to error result
         return {
           output: `SSH execution failed: ${error.message}`,
           exitCode: 1,
-          method: 'ssh-failed'
+          method: 'ssh-failed',
         };
       }
     }
 
     // Long-running or interactive commands
-    const interactiveCommands = ['docker', 'kubectl', 'npm', 'node', 'python', 'pip'];
-    const isInteractive = interactiveCommands.some(cmd => command.toLowerCase().includes(cmd));
+    const interactiveCommands = [
+      'docker',
+      'kubectl',
+      'npm',
+      'node',
+      'python',
+      'pip',
+    ];
+    const isInteractive = interactiveCommands.some((cmd) =>
+      command.toLowerCase().includes(cmd)
+    );
 
     if (isInteractive || (options.timeout && options.timeout > 30000)) {
       const result = await this.executeStreamingCommand(command, args, {

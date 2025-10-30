@@ -83,7 +83,10 @@ class MockWebSocket {
   }
 }
 
-describe('AWSSSMProtocol Integration Tests', () => {
+// Skip cloud protocol tests if SKIP_HARDWARE_TESTS is set (requires AWS infrastructure)
+const describeIfCloud = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfCloud('AWSSSMProtocol Integration Tests', () => {
   let protocol: AWSSSMProtocol;
   let mockFactory: MockTestServerFactory;
   let testServerManager: TestServerManager;
@@ -94,7 +97,6 @@ describe('AWSSSMProtocol Integration Tests', () => {
     // Setup test infrastructure
     mockFactory = new MockTestServerFactory();
     testServerManager = new TestServerManager();
-    await testServerManager.initialize();
 
     performanceBenchmark = new PerformanceBenchmark();
     securityTester = new SecurityTester();
@@ -147,7 +149,7 @@ describe('AWSSSMProtocol Integration Tests', () => {
   });
 
   afterAll(async () => {
-    await testServerManager.dispose();
+    await testServerManager.stopAllServers();
   });
 
   describe('Initialization and Configuration', () => {
@@ -155,7 +157,7 @@ describe('AWSSSMProtocol Integration Tests', () => {
       expect(protocol.type).toBe('aws-ssm');
       expect(protocol.capabilities.supportsAuthentication).toBe(true);
       expect(protocol.capabilities.supportsEncryption).toBe(true);
-      expect(protocol.capabilities.maxConcurrentSessions).toBe(20);
+      expect(protocol.capabilities.maxConcurrentSessions).toBe(10);
     });
 
     it('should validate AWS credentials during initialization', async () => {

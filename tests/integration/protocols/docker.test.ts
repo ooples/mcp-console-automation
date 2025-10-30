@@ -3,19 +3,133 @@
  * Production-ready comprehensive test suite for Docker protocol
  */
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach, jest } from '@jest/globals';
 import { DockerProtocol } from '../../../src/protocols/DockerProtocol.js';
 import { MockDockerProtocol, MockTestServerFactory } from '../../utils/protocol-mocks.js';
 import { TestServerManager, createTestServer } from '../../utils/test-servers.js';
-import { 
-  DockerSession, 
-  DockerProtocolConfig, 
-  ConsoleOutput, 
-  DockerHealthCheck, 
-  DockerMetrics 
+import {
+  DockerSession,
+  DockerProtocolConfig,
+  ConsoleOutput,
+  DockerHealthCheck,
+  DockerMetrics
 } from '../../../src/types/index.js';
 
-describe('Docker Protocol Integration Tests', () => {
+// Mock dockerode module before any imports
+jest.mock('dockerode', () => {
+  class MockStream {
+    private listeners: Map<string, Function[]> = new Map();
+    on(event: string, callback: Function) {
+      if (!this.listeners.has(event)) this.listeners.set(event, []);
+      this.listeners.get(event)!.push(callback);
+      return this;
+    }
+    emit(event: string, data?: any) {
+      (this.listeners.get(event) || []).forEach(cb => cb(data));
+    }
+    removeAllListeners() {
+      this.listeners.clear();
+    }
+  }
+
+  class MockContainer {
+    id: string;
+    constructor(id: string) {
+      this.id = id;
+    }
+    async start() { return Promise.resolve(); }
+    async stop() { return Promise.resolve(); }
+    async remove() { return Promise.resolve(); }
+    async kill() { return Promise.resolve(); }
+    async inspect() {
+      return {
+        Id: this.id,
+        Name: `/mock-${this.id}`,
+        State: { Status: 'running', Running: true },
+        Image: 'ubuntu:latest',
+        Created: new Date().toISOString(),
+        Config: { Image: 'ubuntu:latest', Cmd: ['/bin/bash'] }
+      };
+    }
+    exec() {
+      return Promise.resolve({
+        id: `exec-${Date.now()}`,
+        start: async () => {
+          const stream = new MockStream();
+          setTimeout(() => {
+            stream.emit('data', Buffer.from('Mock output\n'));
+            stream.emit('end');
+          }, 10);
+          return stream;
+        },
+        inspect: async () => ({ ID: 'exec-1', Running: false, ExitCode: 0 })
+      });
+    }
+    stats() {
+      const stream = new MockStream();
+      setTimeout(() => {
+        stream.emit('data', JSON.stringify({
+          cpu_stats: { cpu_usage: { total_usage: 123456 }, system_cpu_usage: 1000000, online_cpus: 4 },
+          memory_stats: { usage: 128 * 1024 * 1024, limit: 512 * 1024 * 1024 },
+          networks: { eth0: { rx_bytes: 1024, tx_bytes: 2048 } },
+          blkio_stats: { io_service_bytes_recursive: [{ op: 'Read', value: 4096 }] }
+        }));
+      }, 10);
+      return stream;
+    }
+    logs() {
+      const stream = new MockStream();
+      setTimeout(() => {
+        stream.emit('data', Buffer.from('Log entry\n'));
+        stream.emit('end');
+      }, 10);
+      return stream;
+    }
+  }
+
+  return class MockDocker {
+    private containers: Map<string, MockContainer> = new Map();
+    async createContainer() {
+      const id = `container-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const container = new MockContainer(id);
+      this.containers.set(id, container);
+      return container;
+    }
+    getContainer(id: string) {
+      let container = this.containers.get(id);
+      if (!container) {
+        container = new MockContainer(id);
+        this.containers.set(id, container);
+      }
+      return container;
+    }
+    async listContainers() {
+      return Array.from(this.containers.values()).map(c => ({
+        Id: c.id,
+        Names: [`/mock-${c.id}`],
+        Image: 'ubuntu:latest',
+        State: 'running'
+      }));
+    }
+    getEvents() {
+      return new MockStream();
+    }
+    async version() {
+      return { Version: '20.10.0', ApiVersion: '1.41' };
+    }
+    async info() {
+      return { Containers: 0, Images: 5, Driver: 'overlay2' };
+    }
+    async ping() {
+      return 'OK';
+    }
+  };
+}, { virtual: true });
+
+// Skip these tests if dockerode is not available (CI environment)
+const describeIfDocker = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfDocker('Docker Protocol Integration Tests', () => {
   let dockerProtocol: DockerProtocol;
   let mockDockerProtocol: MockDockerProtocol;
   let testServerManager: TestServerManager;

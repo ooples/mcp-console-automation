@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // SPICE Protocol connection options
@@ -121,7 +121,13 @@ interface SPICEConnectionOptions extends SessionOptions {
   serverKeyFile?: string;
   serverCaCertFile?: string;
   serverCertSubject?: string;
-  serverImageCompressionType?: 'auto_glz' | 'auto_lz' | 'quic' | 'glz' | 'lz' | 'off';
+  serverImageCompressionType?:
+    | 'auto_glz'
+    | 'auto_lz'
+    | 'quic'
+    | 'glz'
+    | 'lz'
+    | 'off';
   serverJpegWanCompressionType?: 'auto' | 'never' | 'always';
   serverZlibGlzWanCompressionType?: 'auto' | 'never' | 'always';
   serverStreamingVideoMode?: 'filter' | 'all' | 'off';
@@ -190,9 +196,9 @@ export class SPICEProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -224,8 +230,8 @@ export class SPICEProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -236,7 +242,9 @@ export class SPICEProtocol extends BaseProtocol {
       // Check if SPICE client is available
       await this.checkSpiceAvailability();
       this.isInitialized = true;
-      this.logger.info('SPICE protocol initialized with production remote computing features');
+      this.logger.info(
+        'SPICE protocol initialized with production remote computing features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize SPICE protocol', error);
       throw error;
@@ -252,8 +260,13 @@ export class SPICEProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -274,7 +287,9 @@ export class SPICEProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to SPICE session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to SPICE session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -305,7 +320,11 @@ export class SPICEProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -319,7 +338,11 @@ export class SPICEProtocol extends BaseProtocol {
     const spiceProcess = spawn(spiceCommand[0], spiceCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(spiceOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(spiceOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -328,7 +351,7 @@ export class SPICEProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -338,7 +361,7 @@ export class SPICEProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -349,7 +372,9 @@ export class SPICEProtocol extends BaseProtocol {
     });
 
     spiceProcess.on('close', (code) => {
-      this.logger.info(`SPICE process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `SPICE process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -362,7 +387,11 @@ export class SPICEProtocol extends BaseProtocol {
       command: spiceCommand[0],
       args: spiceCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(spiceOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(spiceOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -370,12 +399,14 @@ export class SPICEProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: spiceProcess.pid
+      pid: spiceProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`SPICE session ${sessionId} created for host ${spiceOptions.host || 'localhost'}:${spiceOptions.port || 5900}`);
+    this.logger.info(
+      `SPICE session ${sessionId} created for host ${spiceOptions.host || 'localhost'}:${spiceOptions.port || 5900}`
+    );
     this.emit('session-created', { sessionId, type: 'spice', session });
 
     return session;
@@ -384,7 +415,7 @@ export class SPICEProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -393,8 +424,8 @@ export class SPICEProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -416,25 +447,30 @@ export class SPICEProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in SPICE session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in SPICE session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const spiceProcess = this.spiceProcesses.get(sessionId);
-    return spiceProcess && !spiceProcess.killed || false;
+    return (spiceProcess && !spiceProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -445,26 +481,26 @@ export class SPICEProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.spiceProcesses.size
+        connectionsActive: this.spiceProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -476,8 +512,8 @@ export class SPICEProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          spice: { available: true }
-        }
+          spice: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -485,8 +521,8 @@ export class SPICEProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `SPICE not available: ${error}`],
         dependencies: {
-          spice: { available: false }
-        }
+          spice: { available: false },
+        },
       };
     }
   }
@@ -508,7 +544,11 @@ export class SPICEProtocol extends BaseProtocol {
             if (attempts < clients.length) {
               tryClient(clients[attempts]);
             } else {
-              reject(new Error('No SPICE client found. Please install virt-viewer, remote-viewer, or spicy.'));
+              reject(
+                new Error(
+                  'No SPICE client found. Please install virt-viewer, remote-viewer, or spicy.'
+                )
+              );
             }
           }
         });
@@ -518,7 +558,11 @@ export class SPICEProtocol extends BaseProtocol {
           if (attempts < clients.length) {
             tryClient(clients[attempts]);
           } else {
-            reject(new Error('No SPICE client found. Please install virt-viewer, remote-viewer, or spicy.'));
+            reject(
+              new Error(
+                'No SPICE client found. Please install virt-viewer, remote-viewer, or spicy.'
+              )
+            );
           }
         });
       };
@@ -545,7 +589,8 @@ export class SPICEProtocol extends BaseProtocol {
     // Connection string
     if (options.host && options.port) {
       const protocol = options.enableTLS ? 'spice' : 'spice';
-      const port = options.enableTLS && options.tlsPort ? options.tlsPort : options.port;
+      const port =
+        options.enableTLS && options.tlsPort ? options.tlsPort : options.port;
       command.push(`${protocol}://${options.host}:${port}`);
     }
 
@@ -643,11 +688,17 @@ export class SPICEProtocol extends BaseProtocol {
     }
 
     if (options.jpegWanCompressionType) {
-      command.push('--spice-jpeg-wan-compression', options.jpegWanCompressionType);
+      command.push(
+        '--spice-jpeg-wan-compression',
+        options.jpegWanCompressionType
+      );
     }
 
     if (options.zlibGlzWanCompressionType) {
-      command.push('--spice-zlib-glz-wan-compression', options.zlibGlzWanCompressionType);
+      command.push(
+        '--spice-zlib-glz-wan-compression',
+        options.zlibGlzWanCompressionType
+      );
     }
 
     if (options.streamingVideoMode) {
@@ -655,7 +706,10 @@ export class SPICEProtocol extends BaseProtocol {
     }
 
     if (options.playbackCompressionMode) {
-      command.push('--spice-playback-compression', options.playbackCompressionMode);
+      command.push(
+        '--spice-playback-compression',
+        options.playbackCompressionMode
+      );
     }
 
     // Advanced Options
@@ -672,7 +726,7 @@ export class SPICEProtocol extends BaseProtocol {
     }
 
     if (options.spiceDisableEffects) {
-      options.spiceDisableEffects.forEach(effect => {
+      options.spiceDisableEffects.forEach((effect) => {
         command.push('--spice-disable-effects', effect);
       });
     }
@@ -697,13 +751,19 @@ export class SPICEProtocol extends BaseProtocol {
 
     // Connection Management
     if (options.connectionTimeout) {
-      command.push('--spice-connection-timeout', options.connectionTimeout.toString());
+      command.push(
+        '--spice-connection-timeout',
+        options.connectionTimeout.toString()
+      );
     }
 
     // Multi-monitor Configuration
     if (options.monitors) {
       options.monitors.forEach((monitor, index) => {
-        command.push('--spice-monitor-config', `${monitor.id}:${monitor.x}:${monitor.y}:${monitor.width}:${monitor.height}`);
+        command.push(
+          '--spice-monitor-config',
+          `${monitor.id}:${monitor.x}:${monitor.y}:${monitor.width}:${monitor.height}`
+        );
       });
     }
 
@@ -733,7 +793,9 @@ export class SPICEProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: SPICEConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: SPICEConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // SPICE environment variables
@@ -766,7 +828,10 @@ export class SPICEProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing SPICE process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing SPICE process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

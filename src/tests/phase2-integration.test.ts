@@ -64,7 +64,7 @@ describe('Phase 2 Integration Test', () => {
       ];
 
       const results = await assertionEngine.evaluateAll(assertions);
-      expect(results.every(r => r.passed)).toBe(true);
+      expect(results.every((r) => r.passed)).toBe(true);
 
       // 3. Capture second snapshot (different output)
       const snapshot2 = await snapshotManager.capture(
@@ -97,7 +97,9 @@ describe('Phase 2 Integration Test', () => {
       assertionEngine.registerMatcher({
         name: 'containsTestResult',
         fn: (actual, expected) => {
-          return actual.includes('Test passed') || actual.includes('Test failed');
+          return (
+            actual.includes('Test passed') || actual.includes('Test failed')
+          );
         },
         description: 'Checks if output contains test result',
       });
@@ -136,7 +138,7 @@ describe('Phase 2 Integration Test', () => {
         );
         snapshots.push(snapshot);
         await snapshotManager.save(snapshot);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
       // List snapshots for this session
@@ -202,7 +204,7 @@ Exit code: 1
       const { passed, results } = await assertionEngine.checkAll(assertions);
       expect(passed).toBe(true);
       expect(results.length).toBe(3);
-      expect(results.every(r => r.passed)).toBe(true);
+      expect(results.every((r) => r.passed)).toBe(true);
     });
 
     it('should handle snapshot cleanup workflow', async () => {
@@ -215,7 +217,7 @@ Exit code: 1
           {}
         );
         await snapshotManager.save(snapshot);
-        await new Promise(resolve => setTimeout(resolve, 5));
+        await new Promise((resolve) => setTimeout(resolve, 5));
       }
 
       // Verify all created
@@ -274,7 +276,9 @@ Exit code: 1
       fs.writeFileSync(filepath, JSON.stringify(content));
 
       // Should fail to load due to hash mismatch
-      await expect(snapshotManager.load(filepath)).rejects.toThrow('hash mismatch');
+      await expect(snapshotManager.load(filepath)).rejects.toThrow(
+        'hash mismatch'
+      );
     });
 
     it('should handle complex assertion scenarios', async () => {
@@ -327,7 +331,7 @@ Total time: 5.6s
       ];
 
       const results = await assertionEngine.evaluateAll(assertions);
-      const allPassed = results.every(r => r.passed);
+      const allPassed = results.every((r) => r.passed);
       expect(allPassed).toBe(true);
 
       // Verify we can save and reload
@@ -363,7 +367,12 @@ Total time: 5.6s
 
     it('should handle very long output gracefully', async () => {
       const longOutput = 'line\n'.repeat(10000);
-      const snapshot = await snapshotManager.capture('long-test', longOutput, {}, {});
+      const snapshot = await snapshotManager.capture(
+        'long-test',
+        longOutput,
+        {},
+        {}
+      );
 
       const assertion: Assertion = {
         type: 'output_contains',

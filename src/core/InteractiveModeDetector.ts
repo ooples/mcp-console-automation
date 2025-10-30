@@ -4,27 +4,57 @@
 export class InteractiveModeDetector {
   // Common interactive programs that need direct input
   private static readonly INTERACTIVE_PROGRAMS = [
-    'nano', 'vim', 'vi', 'emacs', 'pico', 'joe', 'jed',
-    'less', 'more', 'man',
-    'top', 'htop', 'iotop', 'iftop', 'nethogs',
-    'mysql', 'psql', 'sqlite3', 'mongo',
-    'python', 'python3', 'node', 'irb', 'php -a',
-    'ssh', 'telnet', 'ftp', 'sftp',
-    'screen', 'tmux',
-    'gdb', 'pdb', 'lldb',
-    'crontab -e', 'visudo',
-    'apt-get install', 'yum install', 'pacman',
-    'passwd', 'su', 'sudo -S'
+    'nano',
+    'vim',
+    'vi',
+    'emacs',
+    'pico',
+    'joe',
+    'jed',
+    'less',
+    'more',
+    'man',
+    'top',
+    'htop',
+    'iotop',
+    'iftop',
+    'nethogs',
+    'mysql',
+    'psql',
+    'sqlite3',
+    'mongo',
+    'python',
+    'python3',
+    'node',
+    'irb',
+    'php -a',
+    'ssh',
+    'telnet',
+    'ftp',
+    'sftp',
+    'screen',
+    'tmux',
+    'gdb',
+    'pdb',
+    'lldb',
+    'crontab -e',
+    'visudo',
+    'apt-get install',
+    'yum install',
+    'pacman',
+    'passwd',
+    'su',
+    'sudo -S',
   ];
 
   // Terminal control sequences that indicate interactive mode
   private static readonly INTERACTIVE_SEQUENCES = [
-    /\x1b\[2J/,        // Clear screen
-    /\x1b\[H/,         // Move cursor home
-    /\x1b\[\d+;\d+H/,  // Move cursor to position
-    /\x1b\[\?1049h/,   // Alternative screen buffer (used by vim, less, etc)
-    /\x1b\[6n/,        // Request cursor position
-    /\x1b\[\d+m/,      // Set graphics mode
+    /\x1b\[2J/, // Clear screen
+    /\x1b\[H/, // Move cursor home
+    /\x1b\[\d+;\d+H/, // Move cursor to position
+    /\x1b\[\?1049h/, // Alternative screen buffer (used by vim, less, etc)
+    /\x1b\[6n/, // Request cursor position
+    /\x1b\[\d+m/, // Set graphics mode
   ];
 
   private interactiveSessions: Set<string> = new Set();
@@ -35,13 +65,15 @@ export class InteractiveModeDetector {
    */
   isInteractiveCommand(command: string): boolean {
     const cmdLower = command.toLowerCase().trim();
-    
+
     // Check for exact matches or command starts with interactive program
-    return InteractiveModeDetector.INTERACTIVE_PROGRAMS.some(prog => {
-      return cmdLower === prog || 
-             cmdLower.startsWith(prog + ' ') ||
-             cmdLower.includes('/' + prog + ' ') ||
-             cmdLower.endsWith('/' + prog);
+    return InteractiveModeDetector.INTERACTIVE_PROGRAMS.some((prog) => {
+      return (
+        cmdLower === prog ||
+        cmdLower.startsWith(prog + ' ') ||
+        cmdLower.includes('/' + prog + ' ') ||
+        cmdLower.endsWith('/' + prog)
+      );
     });
   }
 
@@ -50,9 +82,10 @@ export class InteractiveModeDetector {
    */
   detectInteractiveMode(sessionId: string, output: string): boolean {
     // Check for terminal control sequences
-    const hasControlSequences = InteractiveModeDetector.INTERACTIVE_SEQUENCES.some(
-      pattern => pattern.test(output)
-    );
+    const hasControlSequences =
+      InteractiveModeDetector.INTERACTIVE_SEQUENCES.some((pattern) =>
+        pattern.test(output)
+      );
 
     if (hasControlSequences) {
       this.interactiveSessions.add(sessionId);
@@ -61,17 +94,17 @@ export class InteractiveModeDetector {
 
     // Check for common interactive prompts
     const interactivePrompts = [
-      /\(END\)$/,           // less/more
-      /^:/,                 // vi command mode  
-      /\[yes\/no\]/i,       // confirmation prompts
-      /password:/i,         // password prompts
-      /\(y\/n\)/i,          // yes/no prompts
-      /Press any key/i,     // pause prompts
-      /\x1b\[\d+;\d+r/,     // Set scrolling region (used by editors)
+      /\(END\)$/, // less/more
+      /^:/, // vi command mode
+      /\[yes\/no\]/i, // confirmation prompts
+      /password:/i, // password prompts
+      /\(y\/n\)/i, // yes/no prompts
+      /Press any key/i, // pause prompts
+      /\x1b\[\d+;\d+r/, // Set scrolling region (used by editors)
     ];
 
-    const hasInteractivePrompt = interactivePrompts.some(
-      pattern => pattern.test(output)
+    const hasInteractivePrompt = interactivePrompts.some((pattern) =>
+      pattern.test(output)
     );
 
     if (hasInteractivePrompt) {
@@ -87,7 +120,7 @@ export class InteractiveModeDetector {
    */
   trackCommand(sessionId: string, command: string): void {
     this.sessionCommands.set(sessionId, command);
-    
+
     // If it's an interactive command, mark session as interactive
     if (this.isInteractiveCommand(command)) {
       this.interactiveSessions.add(sessionId);
@@ -115,16 +148,16 @@ export class InteractiveModeDetector {
   detectInteractiveExit(sessionId: string, output: string): boolean {
     // Common patterns that indicate return to shell prompt
     const exitPatterns = [
-      /\$ $/,                    // Bash prompt
-      /# $/,                     // Root prompt
-      /> $/,                     // Generic prompt
-      /\x1b\[\?1049l/,           // Exit alternative screen buffer
-      /logout|exit|bye/i,        // Exit commands
+      /\$ $/, // Bash prompt
+      /# $/, // Root prompt
+      /> $/, // Generic prompt
+      /\x1b\[\?1049l/, // Exit alternative screen buffer
+      /logout|exit|bye/i, // Exit commands
       /Process exited/i,
     ];
 
-    const hasExited = exitPatterns.some(pattern => pattern.test(output));
-    
+    const hasExited = exitPatterns.some((pattern) => pattern.test(output));
+
     if (hasExited && this.interactiveSessions.has(sessionId)) {
       this.interactiveSessions.delete(sessionId);
       return true;

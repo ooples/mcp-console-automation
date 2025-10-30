@@ -10,7 +10,7 @@ import {
   // WaitResult,
   ErrorContext,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from './IProtocol.js';
 import {
   ConsoleType,
@@ -31,6 +31,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
   protected sessions: Map<string, ConsoleSession> = new Map();
   protected outputBuffers: Map<string, ConsoleOutput[]> = new Map();
   protected isInitialized: boolean = false;
+  private initializationTime: number = Date.now();
 
   // Session management fixes
   private sessionTypes: Map<string, 'oneshot' | 'persistent'> = new Map();
@@ -46,7 +47,11 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
   abstract dispose(): Promise<void>;
   abstract createSession(options: SessionOptions): Promise<ConsoleSession>;
   abstract closeSession(sessionId: string): Promise<void>;
-  abstract executeCommand(sessionId: string, command: string, args?: string[]): Promise<void>;
+  abstract executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void>;
   abstract sendInput(sessionId: string, input: string): Promise<void>;
 
   /**
@@ -56,35 +61,19 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
   protected isOneShotCommand(options: SessionOptions): boolean {
     // First check if isOneShot is explicitly set in options
     if (options.isOneShot !== undefined) {
-      const result = options.isOneShot;
-      try {
-        console.error(`[SSH-DEBUG] BaseProtocol.isOneShotCommand: using explicit isOneShot flag = ${result}`);
-      } catch (e) {
-        // Ignore debug errors
-      }
-      return result;
+      return options.isOneShot;
     }
 
     const command = options.command?.toLowerCase() || '';
     const args = options.args || [];
 
-    // DEBUG: Log what we're checking
-    try {
-      // Use dynamic import for debugging
-      const _debugFile = 'C:\\Users\\yolan\\source\\repos\\mcp-console-automation\\ssh-debug.log';
-      const timestamp = new Date().toISOString();
-      const msg = `[${timestamp}] BaseProtocol.isOneShotCommand: command="${command}", args=${JSON.stringify(args)}\n`;
-      // Use console.error which goes to stderr (not redirected by MCP)
-      console.error(`[SSH-DEBUG] ${msg}`);
-    } catch (e) {
-      // Ignore debug errors
-    }
-
     // PowerShell one-shot patterns
     if (command === 'powershell' || command === 'pwsh') {
-      return args.includes('-Command') ||
-             args.includes('-c') ||
-             args.some(arg => arg.toLowerCase().startsWith('-command'));
+      return (
+        args.includes('-Command') ||
+        args.includes('-c') ||
+        args.some((arg) => arg.toLowerCase().startsWith('-command'))
+      );
     }
 
     // CMD one-shot patterns
@@ -100,7 +89,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
     // SSH with direct commands
     if (command === 'ssh') {
       // If there's a command after the connection params, it's one-shot
-      const hostArgIndex = args.findIndex(arg => !arg.startsWith('-'));
+      const hostArgIndex = args.findIndex((arg) => !arg.startsWith('-'));
       return hostArgIndex >= 0 && hostArgIndex < args.length - 1;
     }
 
@@ -114,13 +103,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       return args.includes('exec') && args.includes('--');
     }
 
-    const result = false;
-    try {
-      console.error(`[SSH-DEBUG] BaseProtocol.isOneShotCommand result: ${result} (defaulting to persistent)`);
-    } catch (e) {
-      // Ignore debug errors  
-    }
-    return result;
+    return false;
   }
 
   /**
@@ -141,15 +124,18 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       isOneShot,
       isPersistent: !isOneShot,
       createdAt: new Date(),
-      lastActivity: new Date()
+      lastActivity: new Date(),
     };
 
     this.sessionStates.set(sessionId, sessionState);
 
-    this.logger.info(`Creating ${isOneShot ? 'one-shot' : 'persistent'} session ${sessionId}`, {
-      command: options.command,
-      args: options.args
-    });
+    this.logger.info(
+      `Creating ${isOneShot ? 'one-shot' : 'persistent'} session ${sessionId}`,
+      {
+        command: options.command,
+        args: options.args,
+      }
+    );
 
     return this.doCreateSession(sessionId, options, sessionState);
   }
@@ -171,7 +157,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
     const sessionType = this.sessionTypes.get(sessionId);
 
     if (since) {
-      return buffer.filter(output => output.timestamp >= since);
+      return buffer.filter((output) => output.timestamp >= since);
     }
 
     // For one-shot sessions, wait a bit for output to be captured
@@ -185,7 +171,10 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
   /**
    * Wait for one-shot command output with timeout
    */
-  private async waitForOneShotOutput(sessionId: string, maxWaitMs: number = 5000): Promise<void> {
+  private async waitForOneShotOutput(
+    sessionId: string,
+    maxWaitMs: number = 5000
+  ): Promise<void> {
     const startTime = Date.now();
     const sessionState = this.sessionStates.get(sessionId);
 
@@ -198,7 +187,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       }
 
       // Wait a bit before checking again
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }
 
@@ -232,14 +221,19 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
   /**
    * Check if one-shot session should be marked as complete
    */
-  private checkOneShotCompletion(sessionId: string, output: ConsoleOutput): void {
+  private checkOneShotCompletion(
+    sessionId: string,
+    output: ConsoleOutput
+  ): void {
     // Look for completion indicators in output
     const text = output.data.toLowerCase();
 
     // Common completion patterns
-    if (text.includes('command not found') ||
-        text.includes('error:') ||
-        output.type === 'stderr') {
+    if (
+      text.includes('command not found') ||
+      text.includes('error:') ||
+      output.type === 'stderr'
+    ) {
       this.markSessionComplete(sessionId, 1); // Error exit
     }
   }
@@ -283,7 +277,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return this.getAllSessions().filter(session =>
+    return this.getAllSessions().filter((session) =>
       ['running', 'initializing'].includes(session.status)
     );
   }
@@ -310,17 +304,23 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
         totalSessions,
         averageLatency: 0, // Subclasses should implement
         successRate: 1.0, // Subclasses should implement
-        uptime: Date.now() - (this.isInitialized ? 0 : Date.now())
+        uptime: this.isInitialized ? Date.now() - this.initializationTime : 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
   /**
    * Default error handling
    */
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Protocol error in ${context.operation || 'unknown'}:`, error);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Protocol error in ${context.operation || 'unknown'}:`,
+      error
+    );
 
     const startTime = Date.now();
     let recovered = false;
@@ -343,35 +343,47 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       strategy,
       attempts: 1,
       duration: Date.now() - startTime,
-      error: recovered ? undefined : error.message
+      error: recovered ? undefined : error.message,
     };
   }
 
   protected isStreamError(error: Error): boolean {
-    return error.message.includes('stream') || error.message.includes('destroyed');
+    return (
+      error.message.includes('stream') || error.message.includes('destroyed')
+    );
   }
 
   protected isConnectionError(error: Error): boolean {
-    return error.message.includes('connection') || error.message.includes('connect');
+    return (
+      error.message.includes('connection') || error.message.includes('connect')
+    );
   }
 
   protected isSessionError(error: Error): boolean {
-    return error.message.includes('session') || error.message.includes('process');
+    return (
+      error.message.includes('session') || error.message.includes('process')
+    );
   }
 
-  protected async attemptReconnection(_context: ErrorContext): Promise<boolean> {
+  protected async attemptReconnection(
+    _context: ErrorContext
+  ): Promise<boolean> {
     // Subclasses can override this for protocol-specific reconnection logic
     return false;
   }
 
-  protected async attemptSessionRestart(context: ErrorContext): Promise<boolean> {
+  protected async attemptSessionRestart(
+    context: ErrorContext
+  ): Promise<boolean> {
     if (context.sessionId) {
       return await this.recoverSession(context.sessionId);
     }
     return false;
   }
 
-  protected async attemptStreamRestart(context: ErrorContext): Promise<boolean> {
+  protected async attemptStreamRestart(
+    context: ErrorContext
+  ): Promise<boolean> {
     // For stream errors, usually need to recreate the session
     if (context.sessionId) {
       return await this.recoverSession(context.sessionId);
@@ -399,7 +411,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
         cwd: session.cwd,
         env: session.env,
         consoleType: session.type,
-        streaming: session.streaming
+        streaming: session.streaming,
       });
 
       this.logger.info(`Session ${sessionId} recovered successfully`);
@@ -418,26 +430,26 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       memory: {
         used: process.memoryUsage().heapUsed,
         available: process.memoryUsage().heapTotal,
-        peak: process.memoryUsage().heapUsed
+        peak: process.memoryUsage().heapUsed,
       },
       cpu: {
         usage: 0, // Would need OS-specific implementation
-        load: []
+        load: [],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.getActiveSessions().length
+        connectionsActive: this.getActiveSessions().length,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.getActiveSessions().length,
         total: this.getSessionCount(),
-        peak: this.getSessionCount()
-      }
+        peak: this.getSessionCount(),
+      },
     };
   }
 
@@ -449,9 +461,13 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
 
     // Close all sessions
     const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id).catch(err =>
-      this.logger.error(`Failed to close session ${id}:`, err)
-    )));
+    await Promise.all(
+      sessionIds.map((id) =>
+        this.closeSession(id).catch((err) =>
+          this.logger.error(`Failed to close session ${id}:`, err)
+        )
+      )
+    );
 
     // Clear all data
     this.sessions.clear();

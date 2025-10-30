@@ -2,7 +2,13 @@ import { EventEmitter } from 'events';
 import { Logger } from '../utils/logger.js';
 
 export interface ErrorClassification {
-  type: 'transient' | 'permanent' | 'authentication' | 'network' | 'resource' | 'configuration';
+  type:
+    | 'transient'
+    | 'permanent'
+    | 'authentication'
+    | 'network'
+    | 'resource'
+    | 'configuration';
   severity: 'low' | 'medium' | 'high' | 'critical';
   category: string;
   recoverable: boolean;
@@ -42,7 +48,10 @@ export class ErrorRecovery extends EventEmitter {
   private recoveryStrategies: Map<string, RecoveryStrategy>;
   private errorHistory: Map<string, ErrorContext[]>;
   private recoveryAttempts: Map<string, { count: number; lastAttempt: number }>;
-  private degradationStates: Map<string, { level: number; startTime: number; features: string[] }>;
+  private degradationStates: Map<
+    string,
+    { level: number; startTime: number; features: string[] }
+  >;
 
   // Error classification patterns
   private static readonly ERROR_PATTERNS = {
@@ -58,7 +67,7 @@ export class ErrorRecovery extends EventEmitter {
       /busy/i,
       /unavailable/i,
       /connection reset/i,
-      /network is unreachable/i
+      /network is unreachable/i,
     ],
     permanent: [
       /not found/i,
@@ -66,7 +75,7 @@ export class ErrorRecovery extends EventEmitter {
       /invalid command/i,
       /syntax error/i,
       /compilation failed/i,
-      /malformed/i
+      /malformed/i,
     ],
     authentication: [
       /authentication failed/i,
@@ -80,7 +89,7 @@ export class ErrorRecovery extends EventEmitter {
       /password.*wrong/i,
       /invalid.*password/i,
       /bad.*password/i,
-      /authentication.*timeout/i
+      /authentication.*timeout/i,
     ],
     network: [
       /connection refused/i,
@@ -89,7 +98,7 @@ export class ErrorRecovery extends EventEmitter {
       /connection timed out/i,
       /name resolution failed/i,
       /dns lookup failed/i,
-      /socket error/i
+      /socket error/i,
     ],
     resource: [
       /out of memory/i,
@@ -98,15 +107,15 @@ export class ErrorRecovery extends EventEmitter {
       /resource busy/i,
       /too many open files/i,
       /no space left/i,
-      /memory allocation failed/i
+      /memory allocation failed/i,
     ],
     configuration: [
       /configuration error/i,
       /config file not found/i,
       /invalid configuration/i,
       /missing parameter/i,
-      /bad parameter/i
-    ]
+      /bad parameter/i,
+    ],
   };
 
   constructor() {
@@ -124,7 +133,11 @@ export class ErrorRecovery extends EventEmitter {
     // Network recovery strategy
     this.recoveryStrategies.set('network', {
       name: 'Network Recovery',
-      applicableErrors: (error) => this.matchesPattern(error.message, ErrorRecovery.ERROR_PATTERNS.network),
+      applicableErrors: (error) =>
+        this.matchesPattern(
+          error.message,
+          ErrorRecovery.ERROR_PATTERNS.network
+        ),
       maxRecoveryAttempts: 3,
       cooldownMs: 30000,
       actions: [
@@ -135,7 +148,8 @@ export class ErrorRecovery extends EventEmitter {
             // Implementation would ping the host
             return true; // Placeholder
           },
-          userGuidance: 'Check if the target host is reachable from your network'
+          userGuidance:
+            'Check if the target host is reachable from your network',
         },
         {
           name: 'flush_dns',
@@ -144,7 +158,7 @@ export class ErrorRecovery extends EventEmitter {
             // Implementation would flush DNS
             return true; // Placeholder
           },
-          userGuidance: 'DNS cache has been cleared. Try connecting again.'
+          userGuidance: 'DNS cache has been cleared. Try connecting again.',
         },
         {
           name: 'reset_network_stack',
@@ -153,18 +167,22 @@ export class ErrorRecovery extends EventEmitter {
             // Implementation would reset network
             return true; // Placeholder
           },
-          userGuidance: 'Network stack reset. Please retry your operation.'
-        }
+          userGuidance: 'Network stack reset. Please retry your operation.',
+        },
       ],
       fallbackAction: {
         name: 'network_degradation',
         description: 'Switch to degraded network mode',
         execute: async (context) => {
-          this.enableDegradedMode(context.sessionId, 'network', ['reduce_timeout', 'disable_keepalive']);
+          this.enableDegradedMode(context.sessionId, 'network', [
+            'reduce_timeout',
+            'disable_keepalive',
+          ]);
           return true;
         },
-        userGuidance: 'Operating in degraded network mode. Some features may be limited.'
-      }
+        userGuidance:
+          'Operating in degraded network mode. Some features may be limited.',
+      },
     });
 
     // SSH connection recovery strategy
@@ -183,51 +201,74 @@ export class ErrorRecovery extends EventEmitter {
           name: 'retry_ssh_connection',
           description: 'Retry SSH connection with same credentials',
           execute: async (context) => {
-            this.logger.info(`Retrying SSH connection for session ${context.sessionId}`);
+            this.logger.info(
+              `Retrying SSH connection for session ${context.sessionId}`
+            );
             // Signal to retry with existing credentials
-            this.emit('retry-connection', { sessionId: context.sessionId, method: 'same_credentials' });
+            this.emit('retry-connection', {
+              sessionId: context.sessionId,
+              method: 'same_credentials',
+            });
             return true;
           },
-          userGuidance: 'Retrying SSH connection with existing credentials'
+          userGuidance: 'Retrying SSH connection with existing credentials',
         },
         {
           name: 'recreate_ssh_connection',
           description: 'Create new SSH connection with fresh authentication',
           execute: async (context) => {
-            this.logger.info(`Recreating SSH connection for session ${context.sessionId}`);
+            this.logger.info(
+              `Recreating SSH connection for session ${context.sessionId}`
+            );
             // Signal to recreate connection
-            this.emit('recreate-connection', { sessionId: context.sessionId, method: 'fresh_auth' });
+            this.emit('recreate-connection', {
+              sessionId: context.sessionId,
+              method: 'fresh_auth',
+            });
             return true;
           },
-          userGuidance: 'Recreating SSH connection with fresh authentication'
+          userGuidance: 'Recreating SSH connection with fresh authentication',
         },
         {
           name: 'check_ssh_connectivity',
-          description: 'Verify SSH service availability and network connectivity',
+          description:
+            'Verify SSH service availability and network connectivity',
           execute: async (context) => {
-            this.logger.info(`Checking SSH connectivity for session ${context.sessionId}`);
+            this.logger.info(
+              `Checking SSH connectivity for session ${context.sessionId}`
+            );
             // Signal to perform connectivity checks
             this.emit('connectivity-check', { sessionId: context.sessionId });
             return true;
           },
-          userGuidance: 'Checking SSH service availability and network connectivity'
-        }
+          userGuidance:
+            'Checking SSH service availability and network connectivity',
+        },
       ],
       fallbackAction: {
         name: 'ssh_degraded_mode',
         description: 'Switch to SSH degraded mode with increased timeouts',
         execute: async (context) => {
-          this.enableDegradedMode(context.sessionId, 'ssh', ['increase_timeout', 'reduce_keepalive', 'simple_commands_only']);
+          this.enableDegradedMode(context.sessionId, 'ssh', [
+            'increase_timeout',
+            'reduce_keepalive',
+            'simple_commands_only',
+          ]);
           return true;
         },
-        userGuidance: 'SSH operating in degraded mode with increased timeouts and reduced features.'
-      }
+        userGuidance:
+          'SSH operating in degraded mode with increased timeouts and reduced features.',
+      },
     });
 
     // Authentication recovery strategy
     this.recoveryStrategies.set('auth', {
       name: 'Authentication Recovery',
-      applicableErrors: (error) => this.matchesPattern(error.message, ErrorRecovery.ERROR_PATTERNS.authentication),
+      applicableErrors: (error) =>
+        this.matchesPattern(
+          error.message,
+          ErrorRecovery.ERROR_PATTERNS.authentication
+        ),
       maxRecoveryAttempts: 1,
       cooldownMs: 60000,
       actions: [
@@ -238,24 +279,32 @@ export class ErrorRecovery extends EventEmitter {
             // Implementation would refresh credentials
             return false; // Usually requires user action
           },
-          userGuidance: 'Please verify your credentials and permissions'
-        }
+          userGuidance: 'Please verify your credentials and permissions',
+        },
       ],
       fallbackAction: {
         name: 'prompt_reauth',
         description: 'Prompt for re-authentication',
         execute: async (context) => {
-          this.emit('require-reauth', { sessionId: context.sessionId, reason: context.error.message });
+          this.emit('require-reauth', {
+            sessionId: context.sessionId,
+            reason: context.error.message,
+          });
           return false;
         },
-        userGuidance: 'Authentication required. Please re-enter your credentials.'
-      }
+        userGuidance:
+          'Authentication required. Please re-enter your credentials.',
+      },
     });
 
     // Resource recovery strategy
     this.recoveryStrategies.set('resource', {
       name: 'Resource Recovery',
-      applicableErrors: (error) => this.matchesPattern(error.message, ErrorRecovery.ERROR_PATTERNS.resource),
+      applicableErrors: (error) =>
+        this.matchesPattern(
+          error.message,
+          ErrorRecovery.ERROR_PATTERNS.resource
+        ),
       maxRecoveryAttempts: 2,
       cooldownMs: 45000,
       actions: [
@@ -266,41 +315,52 @@ export class ErrorRecovery extends EventEmitter {
             // Implementation would cleanup resources
             return true; // Placeholder
           },
-          userGuidance: 'System resources have been cleaned up'
+          userGuidance: 'System resources have been cleaned up',
         },
         {
           name: 'reduce_memory_usage',
           description: 'Reduce memory consumption',
           execute: async (context) => {
-            this.enableDegradedMode(context.sessionId, 'resource', ['reduce_buffer_size', 'limit_concurrent_ops']);
+            this.enableDegradedMode(context.sessionId, 'resource', [
+              'reduce_buffer_size',
+              'limit_concurrent_ops',
+            ]);
             return true;
           },
-          userGuidance: 'Operating in resource-conserving mode'
-        }
+          userGuidance: 'Operating in resource-conserving mode',
+        },
       ],
       fallbackAction: {
         name: 'minimal_mode',
         description: 'Switch to minimal resource mode',
         execute: async (context) => {
-          this.enableDegradedMode(context.sessionId, 'resource', ['minimal_features', 'basic_operations_only']);
+          this.enableDegradedMode(context.sessionId, 'resource', [
+            'minimal_features',
+            'basic_operations_only',
+          ]);
           return true;
         },
-        userGuidance: 'Operating in minimal mode to conserve resources'
-      }
+        userGuidance: 'Operating in minimal mode to conserve resources',
+      },
     });
   }
 
   /**
    * Classify an error to determine its type and characteristics
    */
-  classifyError(error: Error, context?: Partial<ErrorContext>): ErrorClassification {
+  classifyError(
+    error: Error,
+    context?: Partial<ErrorContext>
+  ): ErrorClassification {
     const message = error.message.toLowerCase();
-    
+
     // Determine type
     let type: ErrorClassification['type'] = 'permanent';
     let category = 'unknown';
-    
-    for (const [errorType, patterns] of Object.entries(ErrorRecovery.ERROR_PATTERNS)) {
+
+    for (const [errorType, patterns] of Object.entries(
+      ErrorRecovery.ERROR_PATTERNS
+    )) {
       if (this.matchesPattern(error.message, patterns)) {
         type = errorType as ErrorClassification['type'];
         category = errorType;
@@ -310,7 +370,11 @@ export class ErrorRecovery extends EventEmitter {
 
     // Determine severity
     let severity: ErrorClassification['severity'] = 'medium';
-    if (message.includes('critical') || message.includes('fatal') || message.includes('crash')) {
+    if (
+      message.includes('critical') ||
+      message.includes('fatal') ||
+      message.includes('crash')
+    ) {
       severity = 'critical';
     } else if (message.includes('warning') || message.includes('deprecated')) {
       severity = 'low';
@@ -319,11 +383,19 @@ export class ErrorRecovery extends EventEmitter {
     }
 
     // Determine characteristics
-    const recoverable = type === 'transient' || type === 'network' || type === 'resource';
-    const userActionRequired = type === 'authentication' || type === 'configuration' || 
-                              (type === 'permanent' && !message.includes('temporary'));
-    const retryable = type === 'transient' || type === 'network' || 
-                      (type === 'resource' && !message.includes('quota exceeded'));
+    const recoverable =
+      type === 'transient' ||
+      type === 'network' ||
+      type === 'resource' ||
+      type === 'authentication';
+    const userActionRequired =
+      type === 'authentication' ||
+      type === 'configuration' ||
+      type === 'permanent';
+    const retryable =
+      type === 'transient' ||
+      type === 'network' ||
+      (type === 'resource' && !message.includes('quota exceeded'));
 
     return {
       type,
@@ -331,7 +403,7 @@ export class ErrorRecovery extends EventEmitter {
       category,
       recoverable,
       userActionRequired,
-      retryable
+      retryable,
     };
   }
 
@@ -352,45 +424,56 @@ export class ErrorRecovery extends EventEmitter {
 
     // Check if recovery is possible
     if (!classification.recoverable) {
-      this.logger.info(`Error not recoverable for session ${context.sessionId}: ${context.error.message}`);
+      this.logger.info(
+        `Error not recoverable for session ${context.sessionId}: ${context.error.message}`
+      );
       return {
         recovered: false,
         actions: [],
         userGuidance: [this.getErrorGuidance(classification, context)],
-        degradationEnabled: false
+        degradationEnabled: false,
       };
     }
 
-    // Check cooldown period
+    // Find applicable recovery strategy first to check its cooldown
+    const strategy = this.findRecoveryStrategy(context.error);
+    if (!strategy) {
+      this.logger.info(
+        `No recovery strategy found for error: ${context.error.message}`
+      );
+      return {
+        recovered: false,
+        actions: [],
+        userGuidance: [this.getErrorGuidance(classification, context)],
+        degradationEnabled: false,
+      };
+    }
+
+    // Check cooldown period with strategy-specific cooldown
     const recoveryKey = `${context.sessionId}-${classification.category}`;
     const lastAttempt = this.recoveryAttempts.get(recoveryKey);
-    
-    if (lastAttempt && Date.now() - lastAttempt.lastAttempt < 30000) {
+
+    if (
+      lastAttempt &&
+      Date.now() - lastAttempt.lastAttempt < (strategy.cooldownMs || 30000)
+    ) {
       this.logger.info(`Recovery in cooldown for session ${context.sessionId}`);
       return {
         recovered: false,
         actions: [],
-        userGuidance: ['Recovery is in cooldown period. Please wait before retrying.'],
-        degradationEnabled: false
-      };
-    }
-
-    // Find applicable recovery strategy
-    const strategy = this.findRecoveryStrategy(context.error);
-    if (!strategy) {
-      this.logger.info(`No recovery strategy found for error: ${context.error.message}`);
-      return {
-        recovered: false,
-        actions: [],
-        userGuidance: [this.getErrorGuidance(classification, context)],
-        degradationEnabled: false
+        userGuidance: [
+          'Recovery is in cooldown period. Please wait before retrying.',
+        ],
+        degradationEnabled: false,
       };
     }
 
     // Check recovery attempt limits
     if (lastAttempt && lastAttempt.count >= strategy.maxRecoveryAttempts) {
-      this.logger.info(`Max recovery attempts reached for session ${context.sessionId}`);
-      
+      this.logger.info(
+        `Max recovery attempts reached for session ${context.sessionId}`
+      );
+
       // Try fallback action
       if (strategy.fallbackAction) {
         try {
@@ -398,8 +481,11 @@ export class ErrorRecovery extends EventEmitter {
           return {
             recovered: fallbackResult,
             actions: [strategy.fallbackAction.name],
-            userGuidance: [strategy.fallbackAction.userGuidance || 'Fallback recovery attempted'],
-            degradationEnabled: true
+            userGuidance: [
+              strategy.fallbackAction.userGuidance ||
+                'Fallback recovery attempted',
+            ],
+            degradationEnabled: true,
           };
         } catch (fallbackError) {
           this.logger.error(`Fallback recovery failed: ${fallbackError}`);
@@ -409,18 +495,20 @@ export class ErrorRecovery extends EventEmitter {
       return {
         recovered: false,
         actions: [],
-        userGuidance: ['Maximum recovery attempts exceeded. Manual intervention required.'],
-        degradationEnabled: false
+        userGuidance: [
+          'Maximum recovery attempts exceeded. Manual intervention required.',
+        ],
+        degradationEnabled: false,
       };
     }
 
     // Execute recovery actions
     const results = await this.executeRecoveryActions(strategy, context);
-    
+
     // Update recovery attempts
     this.recoveryAttempts.set(recoveryKey, {
       count: (lastAttempt?.count || 0) + 1,
-      lastAttempt: Date.now()
+      lastAttempt: Date.now(),
     });
 
     return results;
@@ -440,16 +528,18 @@ export class ErrorRecovery extends EventEmitter {
     let recovered = false;
     let degradationEnabled = false;
 
-    this.logger.info(`Executing recovery strategy '${strategy.name}' for session ${context.sessionId}`);
+    this.logger.info(
+      `Executing recovery strategy '${strategy.name}' for session ${context.sessionId}`
+    );
 
     // Try each recovery action
     for (const action of strategy.actions) {
       try {
         this.logger.debug(`Executing recovery action: ${action.name}`);
-        
+
         const actionResult = await action.execute(context);
         executedActions.push(action.name);
-        
+
         if (action.userGuidance) {
           userGuidance.push(action.userGuidance);
         }
@@ -459,7 +549,9 @@ export class ErrorRecovery extends EventEmitter {
           break;
         }
       } catch (actionError) {
-        this.logger.error(`Recovery action ${action.name} failed: ${actionError}`);
+        this.logger.error(
+          `Recovery action ${action.name} failed: ${actionError}`
+        );
         userGuidance.push(`Recovery action failed: ${action.description}`);
       }
     }
@@ -467,20 +559,24 @@ export class ErrorRecovery extends EventEmitter {
     // If actions didn't work, try fallback
     if (!recovered && strategy.fallbackAction) {
       try {
-        this.logger.debug(`Executing fallback action: ${strategy.fallbackAction.name}`);
-        
+        this.logger.debug(
+          `Executing fallback action: ${strategy.fallbackAction.name}`
+        );
+
         const fallbackResult = await strategy.fallbackAction.execute(context);
         executedActions.push(strategy.fallbackAction.name);
-        
+
         if (strategy.fallbackAction.userGuidance) {
           userGuidance.push(strategy.fallbackAction.userGuidance);
         }
-        
+
         degradationEnabled = true;
         recovered = fallbackResult;
       } catch (fallbackError) {
         this.logger.error(`Fallback action failed: ${fallbackError}`);
-        userGuidance.push('All recovery attempts failed. Manual intervention required.');
+        userGuidance.push(
+          'All recovery attempts failed. Manual intervention required.'
+        );
       }
     }
 
@@ -489,10 +585,15 @@ export class ErrorRecovery extends EventEmitter {
       strategy: strategy.name,
       actions: executedActions,
       recovered,
-      degradationEnabled
+      degradationEnabled,
     });
 
-    return { recovered, actions: executedActions, userGuidance, degradationEnabled };
+    return {
+      recovered,
+      actions: executedActions,
+      userGuidance,
+      degradationEnabled,
+    };
   }
 
   private findRecoveryStrategy(error: Error): RecoveryStrategy | undefined {
@@ -505,60 +606,76 @@ export class ErrorRecovery extends EventEmitter {
   }
 
   private matchesPattern(message: string, patterns: RegExp[]): boolean {
-    return patterns.some(pattern => pattern.test(message));
+    return patterns.some((pattern) => pattern.test(message));
   }
 
   private addToHistory(context: ErrorContext): void {
     const history = this.errorHistory.get(context.sessionId) || [];
     history.push({ ...context, timestamp: Date.now() });
-    
+
     // Keep only last 10 errors
     if (history.length > 10) {
       history.shift();
     }
-    
+
     this.errorHistory.set(context.sessionId, history);
   }
 
-  private getErrorGuidance(classification: ErrorClassification, context: ErrorContext): string {
+  private getErrorGuidance(
+    classification: ErrorClassification,
+    context: ErrorContext
+  ): string {
     const baseGuidance = {
-      transient: 'This appears to be a temporary issue. Please try again in a few moments.',
-      permanent: 'This error requires manual correction. Please check your configuration and inputs.',
-      authentication: 'Please verify your credentials and permissions for this operation.',
-      network: 'Check your network connection and ensure the target is accessible.',
-      resource: 'System resources may be exhausted. Try closing other applications or waiting briefly.',
-      configuration: 'Please check your configuration settings and ensure all required parameters are provided.'
+      transient:
+        'This appears to be a temporary issue. Please try again in a few moments.',
+      permanent:
+        'This error requires manual correction. Please check your configuration and inputs.',
+      authentication:
+        'Please verify your credentials and permissions for this operation.',
+      network:
+        'Check your network connection and ensure the target is accessible.',
+      resource:
+        'System resources may be exhausted. Try closing other applications or waiting briefly.',
+      configuration:
+        'Please check your configuration settings and ensure all required parameters are provided.',
     };
 
-    let guidance = baseGuidance[classification.type] || 'Please review the error details and try again.';
-    
+    let guidance =
+      baseGuidance[classification.type] ||
+      'Please review the error details and try again.';
+
     if (classification.severity === 'critical') {
-      guidance += ' This is a critical error that may require immediate attention.';
+      guidance +=
+        ' This is a critical error that may require immediate attention.';
     }
 
     return guidance;
   }
 
-  private enableDegradedMode(sessionId: string, reason: string, features: string[]): void {
+  private enableDegradedMode(
+    sessionId: string,
+    reason: string,
+    features: string[]
+  ): void {
     const existingState = this.degradationStates.get(sessionId);
     const level = (existingState?.level || 0) + 1;
-    
+
     this.degradationStates.set(sessionId, {
       level,
       startTime: Date.now(),
-      features: [...(existingState?.features || []), ...features]
+      features: [...(existingState?.features || []), ...features],
     });
 
     this.logger.warn(
       `Session ${sessionId} entering degraded mode (level ${level}) due to ${reason}. ` +
-      `Features: ${features.join(', ')}`
+        `Features: ${features.join(', ')}`
     );
 
     this.emit('degradation-enabled', {
       sessionId,
       reason,
       level,
-      features
+      features,
     });
   }
 
@@ -572,7 +689,9 @@ export class ErrorRecovery extends EventEmitter {
   /**
    * Get degradation state for a session
    */
-  getDegradationState(sessionId: string): { level: number; startTime: number; features: string[] } | null {
+  getDegradationState(
+    sessionId: string
+  ): { level: number; startTime: number; features: string[] } | null {
     return this.degradationStates.get(sessionId) || null;
   }
 
@@ -583,7 +702,7 @@ export class ErrorRecovery extends EventEmitter {
     if (this.degradationStates.has(sessionId)) {
       this.degradationStates.delete(sessionId);
       this.logger.info(`Session ${sessionId} restored from degraded mode`);
-      
+
       this.emit('degradation-restored', { sessionId });
       return true;
     }
@@ -600,28 +719,31 @@ export class ErrorRecovery extends EventEmitter {
   /**
    * Get error aggregation data
    */
-  getErrorAggregation(timeWindowMs: number = 300000): Record<string, {
-    count: number;
-    sessions: string[];
-    lastOccurrence: number;
-    classification: ErrorClassification;
-  }> {
+  getErrorAggregation(timeWindowMs: number = 300000): Record<
+    string,
+    {
+      count: number;
+      sessions: string[];
+      lastOccurrence: number;
+      classification: ErrorClassification;
+    }
+  > {
     const now = Date.now();
     const cutoff = now - timeWindowMs;
     const aggregation: Record<string, any> = {};
 
     this.errorHistory.forEach((history, sessionId) => {
-      history.forEach(context => {
+      history.forEach((context) => {
         if (context.timestamp < cutoff) return;
 
         const key = `${context.classification?.category || 'unknown'}-${context.error.message}`;
-        
+
         if (!aggregation[key]) {
           aggregation[key] = {
             count: 0,
             sessions: [],
             lastOccurrence: 0,
-            classification: context.classification
+            classification: context.classification,
           };
         }
 
@@ -629,7 +751,10 @@ export class ErrorRecovery extends EventEmitter {
         if (!aggregation[key].sessions.includes(sessionId)) {
           aggregation[key].sessions.push(sessionId);
         }
-        aggregation[key].lastOccurrence = Math.max(aggregation[key].lastOccurrence, context.timestamp);
+        aggregation[key].lastOccurrence = Math.max(
+          aggregation[key].lastOccurrence,
+          context.timestamp
+        );
       });
     });
 
@@ -658,13 +783,13 @@ export class ErrorRecovery extends EventEmitter {
     let recoveredErrors = 0;
     const errorsByType: Record<string, number> = {};
 
-    this.errorHistory.forEach(history => {
-      history.forEach(context => {
+    this.errorHistory.forEach((history) => {
+      history.forEach((context) => {
         totalErrors++;
         if (context.classification?.recoverable) {
           recoveredErrors++;
         }
-        
+
         const type = context.classification?.type || 'unknown';
         errorsByType[type] = (errorsByType[type] || 0) + 1;
       });
@@ -675,7 +800,7 @@ export class ErrorRecovery extends EventEmitter {
       recoveredErrors,
       activeDegradedSessions: this.degradationStates.size,
       strategiesAvailable: this.recoveryStrategies.size,
-      errorsByType
+      errorsByType,
     };
   }
 
@@ -687,7 +812,7 @@ export class ErrorRecovery extends EventEmitter {
 
     // Clean error history
     this.errorHistory.forEach((history, sessionId) => {
-      const filtered = history.filter(context => context.timestamp > cutoff);
+      const filtered = history.filter((context) => context.timestamp > cutoff);
       if (filtered.length === 0) {
         this.errorHistory.delete(sessionId);
       } else {

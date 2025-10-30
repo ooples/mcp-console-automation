@@ -2,7 +2,7 @@ name: Codex Auto-Fix on Failure
 
 on:
   workflow_run:
-    workflows: ["test", "publish", "release", "mcp-registry-publish", "CI", "Build"]
+    workflows: ["CI", "Quality Gates", "Commit Lint"]
     types: [completed]
 
 permissions:
@@ -31,24 +31,32 @@ jobs:
         with:
           ref: ${{ env.FAILED_HEAD_SHA }}
           fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm i; fi
       - name: Run Codex
         uses: openai/codex-action@main
         id: codex
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt: >-
-            You are working in a Node.js repository with GitHub Actions. Read the repository,
-            run the tests, identify the minimal change needed to make the pipeline pass, implement only that change, and stop.
-            Do not refactor unrelated code. Keep changes small and surgical.
+            You are working in a Node.js project with Jest tests and GitHub Actions.
+            Read the repository, run the test suite, identify the minimal change needed
+            to make all tests pass, implement only that change, and stop.
+            Do not refactor unrelated code or files. Keep changes small and surgical.
           sandbox: workspace-write
-      - name: Verify tests (best-effort)
-        run: |
-          if [ -f package.json ]; then npm test --silent || true; fi
+      - name: Verify tests
+        run: npm test --silent
       - name: Create pull request with fixes
         if: success()
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: "fix(ci): auto-fix failing CI via Codex"
+          commit-message: "fix(ci): auto-fix failing tests via codex"
           branch: codex/auto-fix-${{ github.event.workflow_run.run_id }}
           base: ${{ env.FAILED_HEAD_BRANCH }}
           title: "Auto-fix failing CI via Codex"

@@ -60,7 +60,7 @@ export interface RecoveryAttempt {
   };
 }
 
-export type RecoveryStrategy = 
+export type RecoveryStrategy =
   | 'restart'
   | 'reconnect'
   | 'restore'
@@ -110,13 +110,13 @@ export class SessionRecovery extends EventEmitter {
     sessionsRestored: 0,
     bytesRestored: 0,
     strategiesUsed: new Map<RecoveryStrategy, number>(),
-    lastRecovery: null as Date | null
+    lastRecovery: null as Date | null,
   };
 
   constructor(config?: Partial<RecoveryConfig>) {
     super();
     this.logger = new Logger('SessionRecovery');
-    
+
     this.config = {
       enabled: config?.enabled ?? true,
       maxRecoveryAttempts: config?.maxRecoveryAttempts || 3,
@@ -129,7 +129,7 @@ export class SessionRecovery extends EventEmitter {
       enablePersistentSession: config?.enablePersistentSession ?? true,
       snapshotInterval: config?.snapshotInterval || 30000,
       recoveryTimeout: config?.recoveryTimeout || 120000,
-      enableRecoveryMetrics: config?.enableRecoveryMetrics ?? true
+      enableRecoveryMetrics: config?.enableRecoveryMetrics ?? true,
     };
 
     this.logger.info('SessionRecovery initialized with config:', this.config);
@@ -183,7 +183,9 @@ export class SessionRecovery extends EventEmitter {
 
     // Wait for active recoveries to complete
     if (this.activeRecoveries.size > 0) {
-      this.logger.info(`Waiting for ${this.activeRecoveries.size} active recoveries to complete...`);
+      this.logger.info(
+        `Waiting for ${this.activeRecoveries.size} active recoveries to complete...`
+      );
       const timeout = setTimeout(() => {
         this.logger.warn('Timeout waiting for active recoveries');
       }, 30000);
@@ -206,12 +208,18 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Register a session for recovery monitoring
    */
-  async registerSession(sessionId: string, sessionState: SessionState, sessionOptions: SessionOptions): Promise<void> {
+  async registerSession(
+    sessionId: string,
+    sessionState: SessionState,
+    sessionOptions: SessionOptions
+  ): Promise<void> {
     if (!this.config.enabled) {
       return;
     }
 
-    this.logger.info(`Registering session ${sessionId} for recovery monitoring`);
+    this.logger.info(
+      `Registering session ${sessionId} for recovery monitoring`
+    );
 
     // Create initial snapshot
     const snapshot: RecoverySnapshot = {
@@ -219,10 +227,10 @@ export class SessionRecovery extends EventEmitter {
       timestamp: new Date(),
       sessionState: { ...sessionState },
       sessionOptions: { ...sessionOptions },
-      environment: { ...sessionOptions.env || {} },
+      environment: { ...(sessionOptions.env || {}) },
       workingDirectory: sessionOptions.cwd || process.cwd(),
       commandHistory: [],
-      outputBuffer: []
+      outputBuffer: [],
     };
 
     this.sessionSnapshots.set(sessionId, snapshot);
@@ -245,7 +253,9 @@ export class SessionRecovery extends EventEmitter {
    * Unregister a session from recovery monitoring
    */
   async unregisterSession(sessionId: string): Promise<void> {
-    this.logger.info(`Unregistering session ${sessionId} from recovery monitoring`);
+    this.logger.info(
+      `Unregistering session ${sessionId} from recovery monitoring`
+    );
 
     // Clear snapshot timer
     const timer = this.snapshotTimers.get(sessionId);
@@ -260,7 +270,10 @@ export class SessionRecovery extends EventEmitter {
     // Remove persisted snapshot
     if (this.config.persistenceEnabled) {
       try {
-        const snapshotPath = path.join(this.config.persistencePath, `${sessionId}.snapshot.json`);
+        const snapshotPath = path.join(
+          this.config.persistencePath,
+          `${sessionId}.snapshot.json`
+        );
         await fs.unlink(snapshotPath);
       } catch (error) {
         // Ignore if file doesn't exist
@@ -274,8 +287,19 @@ export class SessionRecovery extends EventEmitter {
    * Update session snapshot with new state
    */
   async updateSessionSnapshot(
-    sessionId: string, 
-    updates: Partial<Pick<RecoverySnapshot, 'sessionState' | 'environment' | 'workingDirectory' | 'commandHistory' | 'outputBuffer' | 'errorContext' | 'interactiveState'>>
+    sessionId: string,
+    updates: Partial<
+      Pick<
+        RecoverySnapshot,
+        | 'sessionState'
+        | 'environment'
+        | 'workingDirectory'
+        | 'commandHistory'
+        | 'outputBuffer'
+        | 'errorContext'
+        | 'interactiveState'
+      >
+    >
   ): Promise<void> {
     const snapshot = this.sessionSnapshots.get(sessionId);
     if (!snapshot) {
@@ -297,66 +321,92 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Attempt to recover a failed session
    */
-  async recoverSession(sessionId: string, failureReason?: string): Promise<boolean> {
+  async recoverSession(
+    sessionId: string,
+    failureReason?: string
+  ): Promise<boolean> {
     if (!this.config.enabled || this.activeRecoveries.has(sessionId)) {
       return false;
     }
 
     const snapshot = this.sessionSnapshots.get(sessionId);
     if (!snapshot) {
-      this.logger.warn(`No snapshot found for session ${sessionId} - cannot recover`);
+      this.logger.warn(
+        `No snapshot found for session ${sessionId} - cannot recover`
+      );
       return false;
     }
 
     const existingAttempts = this.recoveryAttempts.get(sessionId) || [];
     if (existingAttempts.length >= this.config.maxRecoveryAttempts) {
-      this.logger.warn(`Max recovery attempts (${this.config.maxRecoveryAttempts}) reached for session ${sessionId}`);
-      this.emit('recovery-max-attempts', { sessionId, attempts: existingAttempts.length });
+      this.logger.warn(
+        `Max recovery attempts (${this.config.maxRecoveryAttempts}) reached for session ${sessionId}`
+      );
+      this.emit('recovery-max-attempts', {
+        sessionId,
+        attempts: existingAttempts.length,
+      });
       return false;
     }
 
     this.activeRecoveries.add(sessionId);
     const attemptNumber = existingAttempts.length + 1;
-    
-    this.logger.info(`Starting recovery attempt ${attemptNumber}/${this.config.maxRecoveryAttempts} for session ${sessionId}`);
+
+    this.logger.info(
+      `Starting recovery attempt ${attemptNumber}/${this.config.maxRecoveryAttempts} for session ${sessionId}`
+    );
 
     try {
       // Generate recovery plan
-      const recoveryPlan = await this.generateRecoveryPlan(sessionId, failureReason);
-      
-      this.emit('recovery-started', { 
-        sessionId, 
-        attemptNumber, 
+      const recoveryPlan = await this.generateRecoveryPlan(
+        sessionId,
+        failureReason
+      );
+
+      this.emit('recovery-started', {
+        sessionId,
+        attemptNumber,
         plan: recoveryPlan,
-        failureReason 
+        failureReason,
       });
 
       // Execute recovery strategies
-      const success = await this.executeRecoveryPlan(sessionId, recoveryPlan, attemptNumber);
-      
+      const success = await this.executeRecoveryPlan(
+        sessionId,
+        recoveryPlan,
+        attemptNumber
+      );
+
       if (success) {
         this.stats.successfulRecoveries++;
         this.stats.lastRecovery = new Date();
-        this.logger.info(`Successfully recovered session ${sessionId} on attempt ${attemptNumber}`);
-        
-        this.emit('recovery-success', { 
-          sessionId, 
+        this.logger.info(
+          `Successfully recovered session ${sessionId} on attempt ${attemptNumber}`
+        );
+
+        this.emit('recovery-success', {
+          sessionId,
           attemptNumber,
-          plan: recoveryPlan
+          plan: recoveryPlan,
         });
       } else {
         this.stats.failedRecoveries++;
-        this.logger.warn(`Failed to recover session ${sessionId} on attempt ${attemptNumber}`);
-        
+        this.logger.warn(
+          `Failed to recover session ${sessionId} on attempt ${attemptNumber}`
+        );
+
         // Schedule next attempt with exponential backoff
         if (attemptNumber < this.config.maxRecoveryAttempts) {
           const delay = Math.min(
-            this.config.recoveryDelay * Math.pow(this.config.backoffMultiplier, attemptNumber - 1),
+            this.config.recoveryDelay *
+              Math.pow(this.config.backoffMultiplier, attemptNumber - 1),
             this.config.maxBackoffDelay
           );
-          
-          this.logger.info(`Scheduling next recovery attempt for session ${sessionId} in ${delay}ms`);
-          
+
+          this.logger.info(
+            `Scheduling next recovery attempt for session ${sessionId} in ${delay}ms`
+          );
+
           setTimeout(() => {
             this.recoverSession(sessionId, failureReason);
           }, delay);
@@ -364,19 +414,20 @@ export class SessionRecovery extends EventEmitter {
       }
 
       return success;
-
     } catch (error) {
-      this.logger.error(`Recovery attempt ${attemptNumber} failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Recovery attempt ${attemptNumber} failed for session ${sessionId}:`,
+        error
+      );
       this.stats.failedRecoveries++;
-      
-      this.emit('recovery-error', { 
-        sessionId, 
-        attemptNumber,
-        error: error instanceof Error ? error.message : String(error)
-      });
-      
-      return false;
 
+      this.emit('recovery-error', {
+        sessionId,
+        attemptNumber,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return false;
     } finally {
       this.activeRecoveries.delete(sessionId);
       this.stats.totalRecoveryAttempts++;
@@ -386,30 +437,41 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Generate intelligent recovery plan based on failure analysis
    */
-  private async generateRecoveryPlan(sessionId: string, failureReason?: string): Promise<RecoveryPlan> {
+  private async generateRecoveryPlan(
+    sessionId: string,
+    failureReason?: string
+  ): Promise<RecoveryPlan> {
     const snapshot = this.sessionSnapshots.get(sessionId)!;
     const sessionType = snapshot.sessionOptions.sshOptions ? 'ssh' : 'local';
-    
+
     let strategies: RecoveryStrategy[] = [];
     let priority: 'high' | 'medium' | 'low' = 'medium';
     let estimatedTime = 30000; // 30 seconds default
-    
+
     // Analyze failure reason to determine best recovery strategy
     const reason = failureReason?.toLowerCase();
-    
+
     if (this.config.enableSmartRecovery && failureReason && reason) {
-      
       if (reason.includes('network') || reason.includes('connection')) {
-        strategies = sessionType === 'ssh' 
-          ? ['reconnect', 'restart', 'migrate', 'fallback']
-          : ['restart', 'restore', 'fallback'];
+        strategies =
+          sessionType === 'ssh'
+            ? ['reconnect', 'restart', 'migrate', 'fallback']
+            : ['restart', 'restore', 'fallback'];
         priority = 'high';
         estimatedTime = sessionType === 'ssh' ? 45000 : 15000;
-        
-      } else if (reason.includes('timeout') || reason.includes('unresponsive')) {
+      } else if (
+        reason.includes('timeout') ||
+        reason.includes('unresponsive')
+      ) {
         // Enhanced timeout handling with interactive prompt awareness
         if (reason.includes('prompt') || reason.includes('interactive')) {
-          strategies = ['prompt-interrupt', 'prompt-reset', 'session-refresh', 'restart', 'fallback'];
+          strategies = [
+            'prompt-interrupt',
+            'prompt-reset',
+            'session-refresh',
+            'restart',
+            'fallback',
+          ];
           priority = 'high';
           estimatedTime = 15000;
         } else {
@@ -417,52 +479,59 @@ export class SessionRecovery extends EventEmitter {
           priority = 'high';
           estimatedTime = 20000;
         }
-        
       } else if (reason.includes('memory') || reason.includes('resource')) {
         strategies = ['migrate', 'restart', 'fallback'];
         priority = 'medium';
         estimatedTime = 60000;
-        
       } else if (reason.includes('permission') || reason.includes('auth')) {
         strategies = ['reconnect', 'restore', 'fallback'];
         priority = 'low';
         estimatedTime = 30000;
-        
       } else {
         // Generic failure
-        strategies = sessionType === 'ssh'
-          ? ['reconnect', 'restart', 'restore', 'fallback']
-          : ['restart', 'restore', 'replicate', 'fallback'];
+        strategies =
+          sessionType === 'ssh'
+            ? ['reconnect', 'restart', 'restore', 'fallback']
+            : ['restart', 'restore', 'replicate', 'fallback'];
       }
     } else {
       // Default recovery strategies
-      strategies = sessionType === 'ssh'
-        ? ['reconnect', 'restart', 'restore', 'fallback']
-        : ['restart', 'restore', 'fallback'];
+      strategies =
+        sessionType === 'ssh'
+          ? ['reconnect', 'restart', 'restore', 'fallback']
+          : ['restart', 'restore', 'fallback'];
     }
 
     const requiredResources = [
       'cpu',
       sessionType === 'ssh' ? 'network' : 'local-process',
-      'memory'
+      'memory',
     ];
 
     const fallbackOptions = [
       'Create new session with restored state',
       'Notify user of session failure',
-      'Archive session for manual recovery'
+      'Archive session for manual recovery',
     ];
 
     // Add interactive context if dealing with prompt/timeout issues
     let interactiveContext: RecoveryPlan['interactiveContext'];
-    if (reason && (reason.includes('timeout') || reason.includes('prompt') || reason.includes('interactive'))) {
+    if (
+      reason &&
+      (reason.includes('timeout') ||
+        reason.includes('prompt') ||
+        reason.includes('interactive'))
+    ) {
       const interactiveState = snapshot.interactiveState;
       interactiveContext = {
         promptTimeout: reason.includes('timeout'),
-        commandInProgress: interactiveState?.pendingCommands.length > 0 || false,
+        commandInProgress:
+          interactiveState?.pendingCommands.length > 0 || false,
         lastKnownPrompt: interactiveState?.promptType,
-        unresponsiveTime: interactiveState?.sessionUnresponsive ? 
-          (Date.now() - (interactiveState.lastSuccessfulCommand?.getTime() || Date.now())) : undefined
+        unresponsiveTime: interactiveState?.sessionUnresponsive
+          ? Date.now() -
+            (interactiveState.lastSuccessfulCommand?.getTime() || Date.now())
+          : undefined,
       };
     }
 
@@ -473,16 +542,20 @@ export class SessionRecovery extends EventEmitter {
       estimatedTime,
       requiredResources,
       fallbackOptions,
-      interactiveContext
+      interactiveContext,
     };
   }
 
   /**
    * Execute recovery plan using the specified strategies
    */
-  private async executeRecoveryPlan(sessionId: string, plan: RecoveryPlan, attemptNumber: number): Promise<boolean> {
+  private async executeRecoveryPlan(
+    sessionId: string,
+    plan: RecoveryPlan,
+    attemptNumber: number
+  ): Promise<boolean> {
     const startTime = Date.now();
-    
+
     const attempt: RecoveryAttempt = {
       sessionId,
       attemptNumber,
@@ -492,8 +565,8 @@ export class SessionRecovery extends EventEmitter {
       metrics: {
         duration: 0,
         resourcesUsed: 0,
-        dataRestored: 0
-      }
+        dataRestored: 0,
+      },
     };
 
     // Store attempt
@@ -505,29 +578,40 @@ export class SessionRecovery extends EventEmitter {
     // Try each strategy in order
     for (const strategy of plan.strategies) {
       attempt.strategy = strategy;
-      this.stats.strategiesUsed.set(strategy, (this.stats.strategiesUsed.get(strategy) || 0) + 1);
-      
-      this.logger.info(`Attempting recovery strategy '${strategy}' for session ${sessionId}`);
-      
+      this.stats.strategiesUsed.set(
+        strategy,
+        (this.stats.strategiesUsed.get(strategy) || 0) + 1
+      );
+
+      this.logger.info(
+        `Attempting recovery strategy '${strategy}' for session ${sessionId}`
+      );
+
       try {
         const success = await this.executeRecoveryStrategy(sessionId, strategy);
-        
+
         if (success) {
           attempt.success = true;
           attempt.endTime = new Date();
           attempt.metrics.duration = Date.now() - startTime;
-          
+
           // Update average recovery time
           this.updateAverageRecoveryTime(attempt.metrics.duration);
-          
-          this.logger.info(`Recovery strategy '${strategy}' succeeded for session ${sessionId}`);
+
+          this.logger.info(
+            `Recovery strategy '${strategy}' succeeded for session ${sessionId}`
+          );
           return true;
         } else {
-          this.logger.warn(`Recovery strategy '${strategy}' failed for session ${sessionId}`);
+          this.logger.warn(
+            `Recovery strategy '${strategy}' failed for session ${sessionId}`
+          );
         }
-        
       } catch (error) {
-        this.logger.error(`Recovery strategy '${strategy}' error for session ${sessionId}:`, error);
+        this.logger.error(
+          `Recovery strategy '${strategy}' error for session ${sessionId}:`,
+          error
+        );
       }
     }
 
@@ -542,41 +626,44 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Execute a specific recovery strategy
    */
-  private async executeRecoveryStrategy(sessionId: string, strategy: RecoveryStrategy): Promise<boolean> {
+  private async executeRecoveryStrategy(
+    sessionId: string,
+    strategy: RecoveryStrategy
+  ): Promise<boolean> {
     const snapshot = this.sessionSnapshots.get(sessionId);
     if (!snapshot) return false;
 
     switch (strategy) {
       case 'restart':
         return await this.executeRestartStrategy(sessionId, snapshot);
-        
+
       case 'reconnect':
         return await this.executeReconnectStrategy(sessionId, snapshot);
-        
+
       case 'restore':
         return await this.executeRestoreStrategy(sessionId, snapshot);
-        
+
       case 'replicate':
         return await this.executeReplicateStrategy(sessionId, snapshot);
-        
+
       case 'migrate':
         return await this.executeMigrateStrategy(sessionId, snapshot);
-        
+
       case 'fallback':
         return await this.executeFallbackStrategy(sessionId, snapshot);
-        
+
       case 'prompt-interrupt':
         return await this.executePromptInterruptStrategy(sessionId, snapshot);
-        
+
       case 'prompt-reset':
         return await this.executePromptResetStrategy(sessionId, snapshot);
-        
+
       case 'session-refresh':
         return await this.executeSessionRefreshStrategy(sessionId, snapshot);
-        
+
       case 'command-retry':
         return await this.executeCommandRetryStrategy(sessionId, snapshot);
-        
+
       default:
         this.logger.warn(`Unknown recovery strategy: ${strategy}`);
         return false;
@@ -586,12 +673,15 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Restart the session with the same configuration
    */
-  private async executeRestartStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executeRestartStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'restart',
-        message: 'Restarting session with same configuration'
+        message: 'Restarting session with same configuration',
       });
 
       // Request session restart with original options
@@ -600,14 +690,16 @@ export class SessionRecovery extends EventEmitter {
         sessionOptions: snapshot.sessionOptions,
         restoreState: {
           workingDirectory: snapshot.workingDirectory,
-          environment: snapshot.environment
-        }
+          environment: snapshot.environment,
+        },
       });
 
       return true; // Assume success - actual verification would come from session manager
-      
     } catch (error) {
-      this.logger.error(`Restart strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Restart strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -615,28 +707,33 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Reconnect to existing session (SSH only)
    */
-  private async executeReconnectStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executeReconnectStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     if (!snapshot.sessionOptions.sshOptions) {
       return false; // Not applicable for local sessions
     }
 
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'reconnect',
-        message: 'Attempting to reconnect to SSH session'
+        message: 'Attempting to reconnect to SSH session',
       });
 
       // Request SSH reconnection
       this.emit('ssh-reconnect-request', {
         sessionId,
-        sshOptions: snapshot.sessionOptions.sshOptions
+        sshOptions: snapshot.sessionOptions.sshOptions,
       });
 
       return true;
-      
     } catch (error) {
-      this.logger.error(`Reconnect strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Reconnect strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -644,12 +741,15 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Restore session state from snapshot
    */
-  private async executeRestoreStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executeRestoreStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'restore',
-        message: 'Restoring session from snapshot data'
+        message: 'Restoring session from snapshot data',
       });
 
       // Restore session state
@@ -659,17 +759,19 @@ export class SessionRecovery extends EventEmitter {
           sessionState: snapshot.sessionState,
           environment: snapshot.environment,
           workingDirectory: snapshot.workingDirectory,
-          commandHistory: snapshot.commandHistory
-        }
+          commandHistory: snapshot.commandHistory,
+        },
       });
 
       this.stats.sessionsRestored++;
       this.stats.bytesRestored += this.estimateSnapshotSize(snapshot);
 
       return true;
-      
     } catch (error) {
-      this.logger.error(`Restore strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Restore strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -677,28 +779,33 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Replicate session on different resources
    */
-  private async executeReplicateStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executeReplicateStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'replicate',
-        message: 'Replicating session on alternative resources'
+        message: 'Replicating session on alternative resources',
       });
 
       // Create new session with replicated state
       const newSessionId = `${sessionId}-replica-${Date.now()}`;
-      
+
       this.emit('session-replicate-request', {
         originalSessionId: sessionId,
         newSessionId,
         sessionOptions: snapshot.sessionOptions,
-        restoreState: snapshot
+        restoreState: snapshot,
       });
 
       return true;
-      
     } catch (error) {
-      this.logger.error(`Replicate strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Replicate strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -706,12 +813,15 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Migrate session to different host/resource
    */
-  private async executeMigrateStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executeMigrateStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'migrate',
-        message: 'Migrating session to alternative host'
+        message: 'Migrating session to alternative host',
       });
 
       // Request session migration
@@ -720,14 +830,16 @@ export class SessionRecovery extends EventEmitter {
         currentSnapshot: snapshot,
         migrationOptions: {
           preferredHosts: [], // Would be populated based on configuration
-          resourceRequirements: snapshot.sessionOptions
-        }
+          resourceRequirements: snapshot.sessionOptions,
+        },
       });
 
       return true;
-      
     } catch (error) {
-      this.logger.error(`Migrate strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Migrate strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -735,17 +847,25 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Execute fallback strategy (last resort)
    */
-  private async executeFallbackStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executeFallbackStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'fallback',
-        message: 'Executing fallback recovery - notifying user and archiving session'
+        message:
+          'Executing fallback recovery - notifying user and archiving session',
       });
 
       // Archive session data for manual recovery
       if (this.config.persistenceEnabled) {
-        const archivePath = path.join(this.config.persistencePath, 'failed-sessions', `${sessionId}-${Date.now()}.archive.json`);
+        const archivePath = path.join(
+          this.config.persistencePath,
+          'failed-sessions',
+          `${sessionId}-${Date.now()}.archive.json`
+        );
         await fs.mkdir(path.dirname(archivePath), { recursive: true });
         await fs.writeFile(archivePath, JSON.stringify(snapshot, null, 2));
       }
@@ -754,14 +874,19 @@ export class SessionRecovery extends EventEmitter {
       this.emit('recovery-fallback', {
         sessionId,
         snapshot,
-        message: 'Session could not be automatically recovered. Data has been archived for manual recovery.',
-        archiveLocation: this.config.persistenceEnabled ? 'failed-sessions' : null
+        message:
+          'Session could not be automatically recovered. Data has been archived for manual recovery.',
+        archiveLocation: this.config.persistenceEnabled
+          ? 'failed-sessions'
+          : null,
       });
 
       return true; // Fallback always "succeeds" by definition
-      
     } catch (error) {
-      this.logger.error(`Fallback strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Fallback strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -772,13 +897,13 @@ export class SessionRecovery extends EventEmitter {
   private startPeriodicSnapshots(sessionId: string): void {
     const timer = setInterval(() => {
       // Request updated session state
-      this.emit('snapshot-request', { 
+      this.emit('snapshot-request', {
         sessionId,
         callback: (updates?: Partial<RecoverySnapshot>) => {
           if (updates) {
             this.updateSessionSnapshot(sessionId, updates);
           }
-        }
+        },
       });
     }, this.config.snapshotInterval);
 
@@ -792,10 +917,16 @@ export class SessionRecovery extends EventEmitter {
     if (!this.config.persistenceEnabled) return;
 
     try {
-      const snapshotPath = path.join(this.config.persistencePath, `${snapshot.sessionId}.snapshot.json`);
+      const snapshotPath = path.join(
+        this.config.persistencePath,
+        `${snapshot.sessionId}.snapshot.json`
+      );
       await fs.writeFile(snapshotPath, JSON.stringify(snapshot, null, 2));
     } catch (error) {
-      this.logger.error(`Failed to persist snapshot for session ${snapshot.sessionId}:`, error);
+      this.logger.error(
+        `Failed to persist snapshot for session ${snapshot.sessionId}:`,
+        error
+      );
     }
   }
 
@@ -807,30 +938,32 @@ export class SessionRecovery extends EventEmitter {
 
     try {
       const files = await fs.readdir(this.config.persistencePath);
-      const snapshotFiles = files.filter(f => f.endsWith('.snapshot.json'));
+      const snapshotFiles = files.filter((f) => f.endsWith('.snapshot.json'));
 
       for (const file of snapshotFiles) {
         try {
           const filePath = path.join(this.config.persistencePath, file);
           const content = await fs.readFile(filePath, 'utf-8');
           const snapshot: RecoverySnapshot = JSON.parse(content);
-          
+
           // Convert date strings back to Date objects
           snapshot.timestamp = new Date(snapshot.timestamp);
           if (snapshot.errorContext) {
-            snapshot.errorContext.errorTimestamp = new Date(snapshot.errorContext.errorTimestamp);
+            snapshot.errorContext.errorTimestamp = new Date(
+              snapshot.errorContext.errorTimestamp
+            );
           }
-          
+
           this.sessionSnapshots.set(snapshot.sessionId, snapshot);
-          this.logger.debug(`Loaded snapshot for session ${snapshot.sessionId}`);
-          
+          this.logger.debug(
+            `Loaded snapshot for session ${snapshot.sessionId}`
+          );
         } catch (error) {
           this.logger.error(`Failed to load snapshot from ${file}:`, error);
         }
       }
 
       this.logger.info(`Loaded ${snapshotFiles.length} persisted snapshots`);
-      
     } catch (error) {
       this.logger.error('Failed to load persisted snapshots:', error);
     }
@@ -841,7 +974,9 @@ export class SessionRecovery extends EventEmitter {
    */
   private async persistAllSnapshots(): Promise<void> {
     const snapshots = Array.from(this.sessionSnapshots.values());
-    await Promise.all(snapshots.map(snapshot => this.persistSnapshot(snapshot)));
+    await Promise.all(
+      snapshots.map((snapshot) => this.persistSnapshot(snapshot))
+    );
     this.logger.info(`Persisted ${snapshots.length} snapshots`);
   }
 
@@ -859,8 +994,10 @@ export class SessionRecovery extends EventEmitter {
     if (this.stats.successfulRecoveries === 1) {
       this.stats.averageRecoveryTime = duration;
     } else {
-      this.stats.averageRecoveryTime = 
-        ((this.stats.averageRecoveryTime * (this.stats.successfulRecoveries - 1)) + duration) / 
+      this.stats.averageRecoveryTime =
+        (this.stats.averageRecoveryTime *
+          (this.stats.successfulRecoveries - 1) +
+          duration) /
         this.stats.successfulRecoveries;
     }
   }
@@ -874,10 +1011,14 @@ export class SessionRecovery extends EventEmitter {
       activeRecoveries: this.activeRecoveries.size,
       registeredSessions: this.sessionSnapshots.size,
       strategiesUsed: Object.fromEntries(this.stats.strategiesUsed),
-      successRate: this.stats.totalRecoveryAttempts > 0 ? 
-        (this.stats.successfulRecoveries / this.stats.totalRecoveryAttempts) * 100 : 0,
+      successRate:
+        this.stats.totalRecoveryAttempts > 0
+          ? (this.stats.successfulRecoveries /
+              this.stats.totalRecoveryAttempts) *
+            100
+          : 0,
       config: this.config,
-      isRunning: this.isRunning
+      isRunning: this.isRunning,
     };
   }
 
@@ -903,18 +1044,21 @@ export class SessionRecovery extends EventEmitter {
    * Utility method for delays
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
    * Execute prompt interrupt strategy - interrupt stuck interactive prompts
    */
-  private async executePromptInterruptStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executePromptInterruptStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'prompt-interrupt',
-        message: 'Interrupting stuck interactive prompt'
+        message: 'Interrupting stuck interactive prompt',
       });
 
       // Send interrupt signals to break out of stuck prompts
@@ -922,13 +1066,15 @@ export class SessionRecovery extends EventEmitter {
         sessionId,
         interruptType: 'prompt',
         signals: ['SIGINT', 'CTRL_C', 'ESC'],
-        interactiveState: snapshot.interactiveState
+        interactiveState: snapshot.interactiveState,
       });
 
       return true;
-      
     } catch (error) {
-      this.logger.error(`Prompt interrupt strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Prompt interrupt strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -936,12 +1082,15 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Execute prompt reset strategy - reset prompt state and clear buffers
    */
-  private async executePromptResetStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executePromptResetStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'prompt-reset',
-        message: 'Resetting prompt state and clearing buffers'
+        message: 'Resetting prompt state and clearing buffers',
       });
 
       // Clear output buffers and reset prompt detection
@@ -951,18 +1100,20 @@ export class SessionRecovery extends EventEmitter {
           'clear-output-buffer',
           'reset-prompt-detector',
           'flush-pending-commands',
-          'reinitialize-prompt-patterns'
+          'reinitialize-prompt-patterns',
         ],
         preserveState: {
           workingDirectory: snapshot.workingDirectory,
-          environment: snapshot.environment
-        }
+          environment: snapshot.environment,
+        },
       });
 
       return true;
-      
     } catch (error) {
-      this.logger.error(`Prompt reset strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Prompt reset strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -970,12 +1121,15 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Execute session refresh strategy - refresh session without full restart
    */
-  private async executeSessionRefreshStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executeSessionRefreshStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'session-refresh',
-        message: 'Refreshing session state without full restart'
+        message: 'Refreshing session state without full restart',
       });
 
       // Send refresh command (like newline or space) to re-establish communication
@@ -985,17 +1139,19 @@ export class SessionRecovery extends EventEmitter {
           'send-newline',
           'check-responsiveness',
           'verify-prompt',
-          'restore-context'
+          'restore-context',
         ],
         timeout: 10000,
         fallbackToRestart: true,
-        preserveState: snapshot.interactiveState
+        preserveState: snapshot.interactiveState,
       });
 
       return true;
-      
     } catch (error) {
-      this.logger.error(`Session refresh strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Session refresh strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -1003,17 +1159,22 @@ export class SessionRecovery extends EventEmitter {
   /**
    * Execute command retry strategy - retry failed commands with exponential backoff
    */
-  private async executeCommandRetryStrategy(sessionId: string, snapshot: RecoverySnapshot): Promise<boolean> {
+  private async executeCommandRetryStrategy(
+    sessionId: string,
+    snapshot: RecoverySnapshot
+  ): Promise<boolean> {
     try {
-      this.emit('recovery-strategy-attempt', { 
-        sessionId, 
+      this.emit('recovery-strategy-attempt', {
+        sessionId,
         strategy: 'command-retry',
-        message: 'Retrying failed commands with intelligent backoff'
+        message: 'Retrying failed commands with intelligent backoff',
       });
 
       const interactiveState = snapshot.interactiveState;
       if (!interactiveState?.pendingCommands.length) {
-        this.logger.info(`No pending commands to retry for session ${sessionId}`);
+        this.logger.info(
+          `No pending commands to retry for session ${sessionId}`
+        );
         return true; // Success - nothing to retry
       }
 
@@ -1026,19 +1187,21 @@ export class SessionRecovery extends EventEmitter {
           baseDelay: 1000,
           backoffMultiplier: 2,
           maxDelay: 10000,
-          jitter: true
+          jitter: true,
         },
         verification: {
           checkPrompt: true,
           timeoutPerCommand: 15000,
-          verifyOutput: true
-        }
+          verifyOutput: true,
+        },
       });
 
       return true;
-      
     } catch (error) {
-      this.logger.error(`Command retry strategy failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Command retry strategy failed for session ${sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -1061,7 +1224,7 @@ export class SessionRecovery extends EventEmitter {
         isInteractive: false,
         pendingCommands: [],
         sessionUnresponsive: false,
-        timeoutCount: 0
+        timeoutCount: 0,
       };
     }
 
@@ -1074,7 +1237,10 @@ export class SessionRecovery extends EventEmitter {
       await this.persistSnapshot(snapshot);
     }
 
-    this.emit('interactive-state-updated', { sessionId, interactiveState: snapshot.interactiveState });
+    this.emit('interactive-state-updated', {
+      sessionId,
+      interactiveState: snapshot.interactiveState,
+    });
   }
 
   /**
@@ -1095,14 +1261,16 @@ export class SessionRecovery extends EventEmitter {
 
     // Check for timeout conditions
     if (state.sessionUnresponsive) {
-      const unresponsiveTime = state.lastSuccessfulCommand ? 
-        now - state.lastSuccessfulCommand.getTime() : 0;
-      
-      if (unresponsiveTime > 30000) { // 30 seconds
+      const unresponsiveTime = state.lastSuccessfulCommand
+        ? now - state.lastSuccessfulCommand.getTime()
+        : 0;
+
+      if (unresponsiveTime > 30000) {
+        // 30 seconds
         return {
           shouldTrigger: true,
           reason: 'Session unresponsive for extended period',
-          urgency: 'high'
+          urgency: 'high',
         };
       }
     }
@@ -1112,32 +1280,35 @@ export class SessionRecovery extends EventEmitter {
       return {
         shouldTrigger: true,
         reason: 'Multiple consecutive timeouts detected',
-        urgency: 'high'
+        urgency: 'high',
       };
     }
 
     // Check for stuck interactive prompts
     if (state.isInteractive && state.lastPromptDetected) {
       const promptAge = now - state.lastPromptDetected.getTime();
-      if (promptAge > 60000) { // 1 minute
+      if (promptAge > 60000) {
+        // 1 minute
         return {
           shouldTrigger: true,
           reason: 'Interactive prompt appears stuck',
-          urgency: 'medium'
+          urgency: 'medium',
         };
       }
     }
 
     // Check for pending commands that haven't been processed
     if (state.pendingCommands.length > 0) {
-      const commandAge = state.lastSuccessfulCommand ? 
-        now - state.lastSuccessfulCommand.getTime() : now;
-      
-      if (commandAge > 45000) { // 45 seconds
+      const commandAge = state.lastSuccessfulCommand
+        ? now - state.lastSuccessfulCommand.getTime()
+        : now;
+
+      if (commandAge > 45000) {
+        // 45 seconds
         return {
           shouldTrigger: true,
           reason: 'Pending commands not processing',
-          urgency: 'medium'
+          urgency: 'medium',
         };
       }
     }
@@ -1157,25 +1328,38 @@ export class SessionRecovery extends EventEmitter {
     successfulPromptResets: number;
   } {
     const snapshots = Array.from(this.sessionSnapshots.values());
-    const interactiveSessions = snapshots.filter(s => s.interactiveState?.isInteractive);
-    
-    const sessionsWithTimeouts = interactiveSessions.filter(s => s.interactiveState!.timeoutCount > 0);
-    const unresponsiveSessions = interactiveSessions.filter(s => s.interactiveState!.sessionUnresponsive);
-    
-    const totalTimeouts = interactiveSessions.reduce((sum, s) => sum + (s.interactiveState!.timeoutCount || 0), 0);
-    const averageTimeoutCount = interactiveSessions.length > 0 ? totalTimeouts / interactiveSessions.length : 0;
-    
+    const interactiveSessions = snapshots.filter(
+      (s) => s.interactiveState?.isInteractive
+    );
+
+    const sessionsWithTimeouts = interactiveSessions.filter(
+      (s) => s.interactiveState!.timeoutCount > 0
+    );
+    const unresponsiveSessions = interactiveSessions.filter(
+      (s) => s.interactiveState!.sessionUnresponsive
+    );
+
+    const totalTimeouts = interactiveSessions.reduce(
+      (sum, s) => sum + (s.interactiveState!.timeoutCount || 0),
+      0
+    );
+    const averageTimeoutCount =
+      interactiveSessions.length > 0
+        ? totalTimeouts / interactiveSessions.length
+        : 0;
+
     // Get strategy usage stats
-    const promptInterrupts = this.stats.strategiesUsed.get('prompt-interrupt') || 0;
+    const promptInterrupts =
+      this.stats.strategiesUsed.get('prompt-interrupt') || 0;
     const promptResets = this.stats.strategiesUsed.get('prompt-reset') || 0;
-    
+
     return {
       totalInteractiveSessions: interactiveSessions.length,
       sessionsWithTimeouts: sessionsWithTimeouts.length,
       unresponsiveSessions: unresponsiveSessions.length,
       averageTimeoutCount,
       successfulPromptInterrupts: promptInterrupts,
-      successfulPromptResets: promptResets
+      successfulPromptResets: promptResets,
     };
   }
 

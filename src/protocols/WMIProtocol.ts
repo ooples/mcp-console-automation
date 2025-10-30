@@ -5,12 +5,12 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   SessionState,
   ProtocolCapabilities,
-  ProtocolHealthStatus
+  ProtocolHealthStatus,
 } from '../core/IProtocol.js';
 import { Logger } from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -24,7 +24,14 @@ export interface WMIConnectionOptions {
   username?: string;
   password?: string;
   domain?: string;
-  authLevel?: 'default' | 'none' | 'connect' | 'call' | 'pkt' | 'pktIntegrity' | 'pktPrivacy';
+  authLevel?:
+    | 'default'
+    | 'none'
+    | 'connect'
+    | 'call'
+    | 'pkt'
+    | 'pktIntegrity'
+    | 'pktPrivacy';
   impersonationLevel?: 'anonymous' | 'identify' | 'impersonate' | 'delegate';
   timeout?: number;
   locale?: string;
@@ -116,8 +123,8 @@ export class WMIProtocol extends BaseProtocol {
         windows: true,
         linux: true, // via wmic or PowerShell Core
         macos: false,
-        freebsd: false
-      }
+        freebsd: false,
+      },
     };
 
     this.healthStatus = {
@@ -130,18 +137,18 @@ export class WMIProtocol extends BaseProtocol {
         totalSessions: 0,
         averageLatency: 0,
         successRate: 1.0,
-        uptime: 0
+        uptime: 0,
       },
       dependencies: {
         wmic: {
           available: false,
-          version: 'checking...'
+          version: 'checking...',
         },
         powershell: {
           available: false,
-          version: 'checking...'
-        }
-      }
+          version: 'checking...',
+        },
+      },
     };
 
     this.isInitialized = true;
@@ -162,7 +169,10 @@ export class WMIProtocol extends BaseProtocol {
         await new Promise((resolve, reject) => {
           wmicCheck.on('exit', (code) => {
             if (code === 0) {
-              this.healthStatus.dependencies.wmic = { available: true, version: 'system' };
+              this.healthStatus.dependencies.wmic = {
+                available: true,
+                version: 'system',
+              };
               resolve(undefined);
             } else {
               reject(new Error('WMIC not found'));
@@ -172,17 +182,27 @@ export class WMIProtocol extends BaseProtocol {
         });
       } catch {
         this.logger.warn('WMIC not available');
-        this.healthStatus.dependencies.wmic = { available: false, version: 'not installed' };
+        this.healthStatus.dependencies.wmic = {
+          available: false,
+          version: 'not installed',
+        };
       }
     }
 
     // Check for PowerShell with WMI cmdlets
     try {
-      const psCheck = spawn('powershell', ['-Command', 'Get-WmiObject -List | Select-Object -First 1'], { shell: true });
+      const psCheck = spawn(
+        'powershell',
+        ['-Command', 'Get-WmiObject -List | Select-Object -First 1'],
+        { shell: true }
+      );
       await new Promise((resolve, reject) => {
         psCheck.on('exit', (code) => {
           if (code === 0) {
-            this.healthStatus.dependencies.powershell = { available: true, version: 'system' };
+            this.healthStatus.dependencies.powershell = {
+              available: true,
+              version: 'system',
+            };
             resolve(undefined);
           } else {
             reject(new Error('PowerShell WMI not available'));
@@ -191,7 +211,10 @@ export class WMIProtocol extends BaseProtocol {
         psCheck.on('error', reject);
       });
     } catch {
-      this.healthStatus.dependencies.powershell = { available: false, version: 'not installed' };
+      this.healthStatus.dependencies.powershell = {
+        available: false,
+        version: 'not installed',
+      };
     }
 
     this.isInitialized = true;
@@ -202,7 +225,10 @@ export class WMIProtocol extends BaseProtocol {
    */
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
     const sessionId = `wmi-${Date.now()}-${uuidv4().substring(0, 8)}`;
-    const sessionState = await this.createSessionWithTypeDetection(sessionId, options);
+    const sessionState = await this.createSessionWithTypeDetection(
+      sessionId,
+      options
+    );
     return sessionState;
   }
 
@@ -221,12 +247,13 @@ export class WMIProtocol extends BaseProtocol {
       password: options.wmiPassword,
       domain: options.wmiDomain,
       authLevel: (options.wmiAuthLevel as any) || 'pktPrivacy',
-      impersonationLevel: (options.wmiImpersonationLevel as any) || 'impersonate',
+      impersonationLevel:
+        (options.wmiImpersonationLevel as any) || 'impersonate',
       timeout: options.wmiTimeout || 30000,
       locale: options.wmiLocale || 'MS_409',
       enablePrivileges: options.wmiEnablePrivileges !== false,
       useKerberos: options.wmiUseKerberos || false,
-      useNTLMv2: options.wmiUseNTLMv2 !== false
+      useNTLMv2: options.wmiUseNTLMv2 !== false,
     };
 
     const wmiSession: WMISession = {
@@ -235,7 +262,7 @@ export class WMIProtocol extends BaseProtocol {
       isConnected: false,
       lastActivity: new Date(),
       queryHistory: [],
-      monitoringIntervals: new Map()
+      monitoringIntervals: new Map(),
     };
 
     this.wmiSessions.set(sessionId, wmiSession);
@@ -262,8 +289,8 @@ export class WMIProtocol extends BaseProtocol {
         metadata: {
           wmiOptions,
           namespace: wmiOptions.namespace,
-          host: wmiOptions.host
-        }
+          host: wmiOptions.host,
+        },
       };
 
       this.sessions.set(sessionId, session);
@@ -275,7 +302,7 @@ export class WMIProtocol extends BaseProtocol {
         type: 'stdout',
         data: `WMI session established to ${wmiOptions.host}\\${wmiOptions.namespace}\n`,
         timestamp: new Date(),
-        raw: ''
+        raw: '',
       });
 
       return session;
@@ -293,7 +320,7 @@ export class WMIProtocol extends BaseProtocol {
       // Simple query to test connection
       await this.executeWMIQuery(session, {
         query: 'SELECT Name FROM Win32_ComputerSystem',
-        namespace: session.connectionOptions.namespace
+        namespace: session.connectionOptions.namespace,
       });
     } catch (error) {
       throw new Error(`Failed to connect to WMI: ${error}`);
@@ -303,7 +330,10 @@ export class WMIProtocol extends BaseProtocol {
   /**
    * Execute WMI query
    */
-  async executeWMIQuery(session: WMISession, options: WMIQueryOptions): Promise<any> {
+  async executeWMIQuery(
+    session: WMISession,
+    options: WMIQueryOptions
+  ): Promise<any> {
     const { query, namespace, format = 'json', timeout } = options;
 
     // Record query in history
@@ -311,7 +341,7 @@ export class WMIProtocol extends BaseProtocol {
       query,
       timestamp: new Date(),
       result: undefined as any,
-      error: undefined as string | undefined
+      error: undefined as string | undefined,
     };
     session.queryHistory.push(historyEntry);
 
@@ -323,7 +353,12 @@ export class WMIProtocol extends BaseProtocol {
         result = await this.executeWMIC(session, query, namespace, format);
       } else if (this.healthStatus.dependencies.powershell?.available) {
         // Use PowerShell
-        result = await this.executePowerShellWMI(session, query, namespace, format);
+        result = await this.executePowerShellWMI(
+          session,
+          query,
+          namespace,
+          format
+        );
       } else {
         throw new Error('No WMI provider available');
       }
@@ -334,7 +369,8 @@ export class WMIProtocol extends BaseProtocol {
 
       return parsed;
     } catch (error) {
-      historyEntry.error = error instanceof Error ? error.message : String(error);
+      historyEntry.error =
+        error instanceof Error ? error.message : String(error);
       throw error;
     }
   }
@@ -352,7 +388,10 @@ export class WMIProtocol extends BaseProtocol {
       const args: string[] = [];
 
       // Add connection parameters
-      if (session.connectionOptions.host && session.connectionOptions.host !== 'localhost') {
+      if (
+        session.connectionOptions.host &&
+        session.connectionOptions.host !== 'localhost'
+      ) {
         args.push('/node:' + session.connectionOptions.host);
       }
 
@@ -371,7 +410,14 @@ export class WMIProtocol extends BaseProtocol {
       // Add query
       if (query.toUpperCase().startsWith('SELECT')) {
         // WQL query
-        args.push('path', 'Win32_ComputerSystem', 'where', this.extractWhereClause(query), 'get', this.extractSelectFields(query));
+        args.push(
+          'path',
+          'Win32_ComputerSystem',
+          'where',
+          this.extractWhereClause(query),
+          'get',
+          this.extractSelectFields(query)
+        );
       } else {
         // Direct class/method call
         args.push(...query.split(' '));
@@ -388,7 +434,7 @@ export class WMIProtocol extends BaseProtocol {
 
       const wmicProcess = spawn('wmic', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env }
+        env: { ...process.env },
       });
 
       let stdout = '';
@@ -434,13 +480,19 @@ export class WMIProtocol extends BaseProtocol {
           psCommand += ` -Namespace "${namespace}"`;
         }
 
-        if (session.connectionOptions.host && session.connectionOptions.host !== 'localhost') {
+        if (
+          session.connectionOptions.host &&
+          session.connectionOptions.host !== 'localhost'
+        ) {
           psCommand += ` -ComputerName "${session.connectionOptions.host}"`;
         }
 
         if (session.connectionOptions.username) {
           // Create credential object
-          psCommand = `$cred = New-Object System.Management.Automation.PSCredential("${session.connectionOptions.username}", (ConvertTo-SecureString "${session.connectionOptions.password}" -AsPlainText -Force)); ` + psCommand + ' -Credential $cred';
+          psCommand =
+            `$cred = New-Object System.Management.Automation.PSCredential("${session.connectionOptions.username}", (ConvertTo-SecureString "${session.connectionOptions.password}" -AsPlainText -Force)); ` +
+            psCommand +
+            ' -Credential $cred';
         }
 
         // Format output
@@ -460,7 +512,7 @@ export class WMIProtocol extends BaseProtocol {
 
       const psProcess = spawn('powershell', ['-Command', psCommand], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env }
+        env: { ...process.env },
       });
 
       let stdout = '';
@@ -478,7 +530,9 @@ export class WMIProtocol extends BaseProtocol {
         if (code === 0) {
           resolve(stdout);
         } else {
-          reject(new Error(`PowerShell WMI failed with code ${code}: ${stderr}`));
+          reject(
+            new Error(`PowerShell WMI failed with code ${code}: ${stderr}`)
+          );
         }
       });
 
@@ -513,14 +567,14 @@ export class WMIProtocol extends BaseProtocol {
    * Parse CSV format
    */
   private parseCSV(csv: string): any[] {
-    const lines = csv.split('\n').filter(line => line.trim());
+    const lines = csv.split('\n').filter((line) => line.trim());
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const headers = lines[0].split(',').map((h) => h.trim().replace(/"/g, ''));
     const results: any[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+      const values = lines[i].split(',').map((v) => v.trim().replace(/"/g, ''));
       const obj: any = {};
       headers.forEach((header, index) => {
         obj[header] = values[index];
@@ -576,7 +630,11 @@ export class WMIProtocol extends BaseProtocol {
   /**
    * Execute command in session
    */
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const session = this.wmiSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -585,11 +643,15 @@ export class WMIProtocol extends BaseProtocol {
     // Parse command as WMI query or method call
     let result: any;
 
-    if (command.toUpperCase().startsWith('SELECT') || command.toUpperCase().startsWith('ASSOCIATORS') || command.toUpperCase().startsWith('REFERENCES')) {
+    if (
+      command.toUpperCase().startsWith('SELECT') ||
+      command.toUpperCase().startsWith('ASSOCIATORS') ||
+      command.toUpperCase().startsWith('REFERENCES')
+    ) {
       // WQL query
       result = await this.executeWMIQuery(session, {
         query: command,
-        format: 'json'
+        format: 'json',
       });
     } else if (command.includes('.')) {
       // Method invocation (e.g., Win32_Process.Create)
@@ -597,13 +659,13 @@ export class WMIProtocol extends BaseProtocol {
       result = await this.invokeWMIMethod(session, {
         className,
         methodName,
-        parameters: args ? this.parseMethodArgs(args) : undefined
+        parameters: args ? this.parseMethodArgs(args) : undefined,
       });
     } else {
       // Class enumeration
       result = await this.executeWMIQuery(session, {
         query: `SELECT * FROM ${command}`,
-        format: 'json'
+        format: 'json',
       });
     }
 
@@ -611,9 +673,10 @@ export class WMIProtocol extends BaseProtocol {
     this.addToOutputBuffer(sessionId, {
       sessionId,
       type: 'stdout',
-      data: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+      data:
+        typeof result === 'string' ? result : JSON.stringify(result, null, 2),
       timestamp: new Date(),
-      raw: result
+      raw: result,
     });
   }
 
@@ -644,7 +707,10 @@ export class WMIProtocol extends BaseProtocol {
   /**
    * Invoke WMI method
    */
-  async invokeWMIMethod(session: WMISession, options: WMIMethodOptions): Promise<any> {
+  async invokeWMIMethod(
+    session: WMISession,
+    options: WMIMethodOptions
+  ): Promise<any> {
     const { className, methodName, parameters, instance, namespace } = options;
 
     let command: string;
@@ -671,7 +737,10 @@ export class WMIProtocol extends BaseProtocol {
       command += ' | ConvertTo-Json';
 
       return this.executePowerShellWMI(session, command, namespace, 'json');
-    } else if (this.healthStatus.dependencies.wmic?.available && this.isWindows) {
+    } else if (
+      this.healthStatus.dependencies.wmic?.available &&
+      this.isWindows
+    ) {
       // Use WMIC
       const args = [className];
 
@@ -711,7 +780,7 @@ export class WMIProtocol extends BaseProtocol {
     this.logger.info(`Closing WMI session ${sessionId}`);
 
     // Stop all monitoring intervals
-    session.monitoringIntervals.forEach(interval => clearInterval(interval));
+    session.monitoringIntervals.forEach((interval) => clearInterval(interval));
     session.monitoringIntervals.clear();
 
     // Kill any running processes
@@ -743,8 +812,8 @@ export class WMIProtocol extends BaseProtocol {
       ...this.healthStatus,
       metrics: {
         ...baseHealth.metrics,
-        activeSessions: this.wmiSessions.size
-      }
+        activeSessions: this.wmiSessions.size,
+      },
     };
   }
 
@@ -756,7 +825,7 @@ export class WMIProtocol extends BaseProtocol {
 
     // Close all sessions
     const sessionIds = Array.from(this.wmiSessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
 
     // Clean up
     await super.cleanup();
@@ -779,16 +848,22 @@ export class WMIProtocol extends BaseProtocol {
       cpu: 'SELECT * FROM Win32_Processor',
       memory: 'SELECT * FROM Win32_PhysicalMemory',
       disk: 'SELECT * FROM Win32_DiskDrive',
-      network: 'SELECT * FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled=TRUE'
+      network:
+        'SELECT * FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled=TRUE',
     };
 
     const results: any = {};
 
     for (const [key, query] of Object.entries(queries)) {
       try {
-        results[key] = await this.executeWMIQuery(session, { query, format: 'json' });
+        results[key] = await this.executeWMIQuery(session, {
+          query,
+          format: 'json',
+        });
       } catch (error) {
-        results[key] = { error: error instanceof Error ? error.message : String(error) };
+        results[key] = {
+          error: error instanceof Error ? error.message : String(error),
+        };
       }
     }
 
@@ -816,15 +891,22 @@ export class WMIProtocol extends BaseProtocol {
 
         for (const counter of counters) {
           const query = this.buildPerformanceQuery(counter);
-          results[counter] = await this.executeWMIQuery(session, { query, format: 'json' });
+          results[counter] = await this.executeWMIQuery(session, {
+            query,
+            format: 'json',
+          });
         }
 
         this.addToOutputBuffer(sessionId, {
           sessionId,
           type: 'stdout',
-          data: JSON.stringify({ monitorId, timestamp: new Date(), counters: results }, null, 2),
+          data: JSON.stringify(
+            { monitorId, timestamp: new Date(), counters: results },
+            null,
+            2
+          ),
           timestamp: new Date(),
-          raw: results
+          raw: results,
         });
       } catch (error) {
         this.logger.error(`Performance monitoring error:`, error);
@@ -838,7 +920,10 @@ export class WMIProtocol extends BaseProtocol {
   /**
    * Stop performance monitoring
    */
-  async stopPerformanceMonitoring(sessionId: string, monitorId: string): Promise<void> {
+  async stopPerformanceMonitoring(
+    sessionId: string,
+    monitorId: string
+  ): Promise<void> {
     const session = this.wmiSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -856,13 +941,17 @@ export class WMIProtocol extends BaseProtocol {
    */
   private buildPerformanceQuery(counter: string): string {
     const counterMap: Record<string, string> = {
-      'cpu': 'SELECT PercentProcessorTime FROM Win32_PerfFormattedData_PerfOS_Processor WHERE Name="_Total"',
-      'memory': 'SELECT AvailableMBytes, PercentCommittedBytesInUse FROM Win32_PerfFormattedData_PerfOS_Memory',
-      'disk': 'SELECT DiskReadBytesPerSec, DiskWriteBytesPerSec, PercentDiskTime FROM Win32_PerfFormattedData_PerfDisk_PhysicalDisk WHERE Name="_Total"',
-      'network': 'SELECT BytesReceivedPerSec, BytesSentPerSec FROM Win32_PerfFormattedData_Tcpip_NetworkInterface'
+      cpu: 'SELECT PercentProcessorTime FROM Win32_PerfFormattedData_PerfOS_Processor WHERE Name="_Total"',
+      memory:
+        'SELECT AvailableMBytes, PercentCommittedBytesInUse FROM Win32_PerfFormattedData_PerfOS_Memory',
+      disk: 'SELECT DiskReadBytesPerSec, DiskWriteBytesPerSec, PercentDiskTime FROM Win32_PerfFormattedData_PerfDisk_PhysicalDisk WHERE Name="_Total"',
+      network:
+        'SELECT BytesReceivedPerSec, BytesSentPerSec FROM Win32_PerfFormattedData_Tcpip_NetworkInterface',
     };
 
-    return counterMap[counter] || `SELECT * FROM Win32_PerfFormattedData_${counter}`;
+    return (
+      counterMap[counter] || `SELECT * FROM Win32_PerfFormattedData_${counter}`
+    );
   }
 
   /**
@@ -876,7 +965,7 @@ export class WMIProtocol extends BaseProtocol {
 
     return this.executeWMIQuery(session, {
       query: 'SELECT Name, Version, Vendor, InstallDate FROM Win32_Product',
-      format: 'json'
+      format: 'json',
     });
   }
 
@@ -889,7 +978,8 @@ export class WMIProtocol extends BaseProtocol {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    let query = 'SELECT ProcessId, Name, ExecutablePath, CommandLine, WorkingSetSize, PageFileUsage, ThreadCount FROM Win32_Process';
+    let query =
+      'SELECT ProcessId, Name, ExecutablePath, CommandLine, WorkingSetSize, PageFileUsage, ThreadCount FROM Win32_Process';
     if (filter) {
       query += ` WHERE ${filter}`;
     }
@@ -906,7 +996,8 @@ export class WMIProtocol extends BaseProtocol {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    let query = 'SELECT Name, DisplayName, State, Status, StartMode, PathName FROM Win32_Service';
+    let query =
+      'SELECT Name, DisplayName, State, Status, StartMode, PathName FROM Win32_Service';
     if (filter) {
       query += ` WHERE ${filter}`;
     }
@@ -917,7 +1008,11 @@ export class WMIProtocol extends BaseProtocol {
   /**
    * Query event logs
    */
-  async queryEventLogs(sessionId: string, logName: string, maxRecords: number = 100): Promise<any> {
+  async queryEventLogs(
+    sessionId: string,
+    logName: string,
+    maxRecords: number = 100
+  ): Promise<any> {
     const session = this.wmiSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -931,7 +1026,11 @@ export class WMIProtocol extends BaseProtocol {
   /**
    * Start process via WMI
    */
-  async startProcess(sessionId: string, commandLine: string, workingDirectory?: string): Promise<any> {
+  async startProcess(
+    sessionId: string,
+    commandLine: string,
+    workingDirectory?: string
+  ): Promise<any> {
     const session = this.wmiSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -942,8 +1041,8 @@ export class WMIProtocol extends BaseProtocol {
       methodName: 'Create',
       parameters: {
         CommandLine: commandLine,
-        CurrentDirectory: workingDirectory || 'C:\\'
-      }
+        CurrentDirectory: workingDirectory || 'C:\\',
+      },
     });
   }
 
@@ -959,7 +1058,7 @@ export class WMIProtocol extends BaseProtocol {
     return this.invokeWMIMethod(session, {
       className: 'Win32_Process',
       methodName: 'Terminate',
-      instance: `ProcessId=${processId}`
+      instance: `ProcessId=${processId}`,
     });
   }
 }

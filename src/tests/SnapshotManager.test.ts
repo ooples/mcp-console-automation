@@ -60,7 +60,12 @@ describe('SnapshotManager', () => {
     });
 
     it('should load snapshot from disk', async () => {
-      const original = await manager.capture('test-session', 'test output', { value: 123 }, {});
+      const original = await manager.capture(
+        'test-session',
+        'test output',
+        { value: 123 },
+        {}
+      );
       const filepath = await manager.save(original);
 
       const loaded = await manager.load(filepath);
@@ -107,7 +112,7 @@ describe('SnapshotManager', () => {
       await manager.save(snap1);
 
       // Wait a bit to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       const snap2 = await manager.capture('test-session', 'output 2', {}, {});
       await manager.save(snap2);
@@ -123,12 +128,17 @@ describe('SnapshotManager', () => {
       const snap2 = await manager.capture('test-session', 'output 2', {}, {});
       await manager.save(snap2);
 
-      const loaded = await manager.loadBySessionId('test-session', snap1.timestamp);
+      const loaded = await manager.loadBySessionId(
+        'test-session',
+        snap1.timestamp
+      );
       expect(loaded.output).toBe('output 1');
     });
 
     it('should throw if session not found', async () => {
-      await expect(manager.loadBySessionId('nonexistent')).rejects.toThrow('No snapshots found');
+      await expect(manager.loadBySessionId('nonexistent')).rejects.toThrow(
+        'No snapshots found'
+      );
     });
   });
 
@@ -228,7 +238,7 @@ describe('SnapshotManager', () => {
       for (let i = 0; i < 5; i++) {
         const snap = await manager.capture('session1', `output ${i}`, {}, {});
         await manager.save(snap);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
       const deleted = await manager.cleanup(3);
@@ -245,7 +255,7 @@ describe('SnapshotManager', () => {
         const snap2 = await manager.capture('session2', `output ${i}`, {}, {});
         await manager.save(snap1);
         await manager.save(snap2);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
       await manager.cleanup(2);
@@ -259,7 +269,12 @@ describe('SnapshotManager', () => {
 
   describe('export', () => {
     it('should export as JSON', async () => {
-      const snapshot = await manager.capture('test-session', 'output', { value: 123 }, {});
+      const snapshot = await manager.capture(
+        'test-session',
+        'output',
+        { value: 123 },
+        {}
+      );
       const exported = await manager.export(snapshot, 'json');
 
       expect(exported).toContain('"sessionId"');
@@ -269,7 +284,12 @@ describe('SnapshotManager', () => {
     });
 
     it('should export as YAML', async () => {
-      const snapshot = await manager.capture('test-session', 'output', { value: 123 }, {});
+      const snapshot = await manager.capture(
+        'test-session',
+        'output',
+        { value: 123 },
+        {}
+      );
       const exported = await manager.export(snapshot, 'yaml');
 
       expect(exported).toContain('sessionId: test-session');
@@ -277,7 +297,12 @@ describe('SnapshotManager', () => {
     });
 
     it('should export as text', async () => {
-      const snapshot = await manager.capture('test-session', 'output', { value: 123 }, {});
+      const snapshot = await manager.capture(
+        'test-session',
+        'output',
+        { value: 123 },
+        {}
+      );
       const exported = await manager.export(snapshot, 'text');
 
       expect(exported).toContain('=== Session Snapshot ===');
@@ -287,7 +312,9 @@ describe('SnapshotManager', () => {
 
     it('should throw for unsupported format', async () => {
       const snapshot = await manager.capture('test-session', 'output', {}, {});
-      await expect(manager.export(snapshot, 'xml' as any)).rejects.toThrow('Unsupported');
+      await expect(manager.export(snapshot, 'xml' as any)).rejects.toThrow(
+        'Unsupported'
+      );
     });
   });
 });

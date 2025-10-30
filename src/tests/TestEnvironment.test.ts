@@ -52,9 +52,9 @@ describe('TestEnvironmentManager', () => {
     });
 
     it('should throw error for non-existent environment', async () => {
-      await expect(
-        manager.setupEnvironment('non-existent')
-      ).rejects.toThrow('not found');
+      await expect(manager.setupEnvironment('non-existent')).rejects.toThrow(
+        'not found'
+      );
     });
   });
 
@@ -115,13 +115,10 @@ describe('TestEnvironmentManager', () => {
     it('should create scoped environment', async () => {
       let envInCallback;
 
-      await manager.withEnvironment(
-        { name: 'scoped-env' },
-        async (env) => {
-          envInCallback = env;
-          expect(manager.isSetup('scoped-env')).toBe(true);
-        }
-      );
+      await manager.withEnvironment({ name: 'scoped-env' }, async (env) => {
+        envInCallback = env;
+        expect(manager.isSetup('scoped-env')).toBe(true);
+      });
 
       // Environment should be cleaned up
       expect(manager.listEnvironments()).not.toContain('scoped-env');
@@ -129,12 +126,9 @@ describe('TestEnvironmentManager', () => {
 
     it('should cleanup even on error', async () => {
       await expect(
-        manager.withEnvironment(
-          { name: 'error-env' },
-          async () => {
-            throw new Error('Test error');
-          }
-        )
+        manager.withEnvironment({ name: 'error-env' }, async () => {
+          throw new Error('Test error');
+        })
       ).rejects.toThrow('Test error');
 
       expect(manager.listEnvironments()).not.toContain('error-env');
@@ -148,7 +142,10 @@ describe('TestEnvironmentManager', () => {
         variables: { key: 'value' },
       });
 
-      const isolated = manager.createIsolatedEnvironment('base-env', 'isolated-env');
+      const isolated = manager.createIsolatedEnvironment(
+        'base-env',
+        'isolated-env'
+      );
 
       expect(isolated.name).toBe('isolated-env');
       const vars = manager.getVariables('isolated-env');

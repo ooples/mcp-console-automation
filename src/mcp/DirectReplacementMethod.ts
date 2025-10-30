@@ -1,6 +1,10 @@
 import { execSync, exec, spawn } from 'child_process';
 import { promisify } from 'util';
-import { TextContent, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import {
+  TextContent,
+  McpError,
+  ErrorCode,
+} from '@modelcontextprotocol/sdk/types.js';
 
 const execAsync = promisify(exec);
 
@@ -20,21 +24,29 @@ export async function handleExecuteCommandDirect(args: {
   sshOptions?: any;
 }) {
   if (!args.command) {
-    throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'command parameter is required'
+    );
   }
 
   try {
     // Build the full command
-    const fullCommand = args.args && args.args.length > 0
-      ? `${args.command} ${args.args.join(' ')}`
-      : args.command;
+    const fullCommand =
+      args.args && args.args.length > 0
+        ? `${args.command} ${args.args.join(' ')}`
+        : args.command;
 
     let result: { output: string; exitCode: number };
 
     // Handle SSH commands
     if (args.sshOptions) {
       // Check for Windows SSH password limitation
-      if (process.platform === 'win32' && args.sshOptions.password && !args.sshOptions.privateKeyPath) {
+      if (
+        process.platform === 'win32' &&
+        args.sshOptions.password &&
+        !args.sshOptions.privateKeyPath
+      ) {
         throw new McpError(
           ErrorCode.InvalidParams,
           'SSH password authentication is not supported on Windows. Use SSH keys instead.'
@@ -43,8 +55,10 @@ export async function handleExecuteCommandDirect(args: {
 
       // Build SSH command
       const sshArgs = [
-        '-o', 'ConnectTimeout=10',
-        '-o', 'StrictHostKeyChecking=no',
+        '-o',
+        'ConnectTimeout=10',
+        '-o',
+        'StrictHostKeyChecking=no',
       ];
 
       if (args.sshOptions.port && args.sshOptions.port !== 22) {
@@ -68,7 +82,7 @@ export async function handleExecuteCommandDirect(args: {
       } catch (error: any) {
         result = {
           output: (error.stdout || '') + (error.stderr || '') || error.message,
-          exitCode: error.code || 1
+          exitCode: error.code || 1,
         };
       }
     } else {
@@ -84,7 +98,7 @@ export async function handleExecuteCommandDirect(args: {
       } catch (error: any) {
         result = {
           output: (error.stdout || '') + (error.stderr || '') || error.message,
-          exitCode: error.code || 1
+          exitCode: error.code || 1,
         };
       }
     }
@@ -94,25 +108,32 @@ export async function handleExecuteCommandDirect(args: {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            ...(args.sessionId && { sessionId: args.sessionId }),
-            command: args.command,
-            args: args.args,
-            output: result.output,
-            outputText: result.output,
-            exitCode: result.exitCode,
-            success: result.exitCode === 0,
-            executedAt: new Date().toISOString(),
-            status: result.exitCode === 0 ? 'completed' : 'failed',
-          }, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(
+            {
+              ...(args.sessionId && { sessionId: args.sessionId }),
+              command: args.command,
+              args: args.args,
+              output: result.output,
+              outputText: result.output,
+              exitCode: result.exitCode,
+              success: result.exitCode === 0,
+              executedAt: new Date().toISOString(),
+              status: result.exitCode === 0 ? 'completed' : 'failed',
+            },
+            null,
+            2
+          ),
+        } as TextContent,
+      ],
     };
   } catch (error: any) {
     if (error instanceof McpError) {
       throw error;
     }
-    throw new McpError(ErrorCode.InternalError, `Command execution failed: ${error.message}`);
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Command execution failed: ${error.message}`
+    );
   }
 }
 
@@ -129,13 +150,17 @@ export async function handleExecuteCommandSync(args: {
   timeout?: number;
 }) {
   if (!args.command) {
-    throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'command parameter is required'
+    );
   }
 
   try {
-    const fullCommand = args.args && args.args.length > 0
-      ? `${args.command} ${args.args.join(' ')}`
-      : args.command;
+    const fullCommand =
+      args.args && args.args.length > 0
+        ? `${args.command} ${args.args.join(' ')}`
+        : args.command;
 
     let result: { output: string; exitCode: number };
 
@@ -150,8 +175,10 @@ export async function handleExecuteCommandSync(args: {
       result = { output: output.toString(), exitCode: 0 };
     } catch (error: any) {
       result = {
-        output: error.stdout ? error.stdout.toString() + (error.stderr?.toString() || '') : error.message,
-        exitCode: error.status || 1
+        output: error.stdout
+          ? error.stdout.toString() + (error.stderr?.toString() || '')
+          : error.message,
+        exitCode: error.status || 1,
       };
     }
 
@@ -159,25 +186,32 @@ export async function handleExecuteCommandSync(args: {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            ...(args.sessionId && { sessionId: args.sessionId }),
-            command: args.command,
-            args: args.args,
-            output: result.output,
-            outputText: result.output,
-            exitCode: result.exitCode,
-            success: result.exitCode === 0,
-            executedAt: new Date().toISOString(),
-            method: 'synchronous'
-          }, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(
+            {
+              ...(args.sessionId && { sessionId: args.sessionId }),
+              command: args.command,
+              args: args.args,
+              output: result.output,
+              outputText: result.output,
+              exitCode: result.exitCode,
+              success: result.exitCode === 0,
+              executedAt: new Date().toISOString(),
+              method: 'synchronous',
+            },
+            null,
+            2
+          ),
+        } as TextContent,
+      ],
     };
   } catch (error: any) {
     if (error instanceof McpError) {
       throw error;
     }
-    throw new McpError(ErrorCode.InternalError, `Sync command execution failed: ${error.message}`);
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Sync command execution failed: ${error.message}`
+    );
   }
 }
 
@@ -194,12 +228,16 @@ export async function handleExecuteCommandStreaming(args: {
   timeout?: number;
 }) {
   if (!args.command) {
-    throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'command parameter is required'
+    );
   }
 
   return new Promise((resolve, reject) => {
     let output = '';
-    const chunks: Array<{ data: string; timestamp: string; isError: boolean }> = [];
+    const chunks: Array<{ data: string; timestamp: string; isError: boolean }> =
+      [];
 
     const child = spawn(args.command, args.args || [], {
       cwd: args.cwd || process.cwd(),
@@ -212,25 +250,40 @@ export async function handleExecuteCommandStreaming(args: {
     if (args.timeout) {
       timeoutHandle = setTimeout(() => {
         child.kill('SIGTERM');
-        reject(new McpError(ErrorCode.InternalError, `Command timeout after ${args.timeout}ms`));
+        reject(
+          new McpError(
+            ErrorCode.InternalError,
+            `Command timeout after ${args.timeout}ms`
+          )
+        );
       }, args.timeout);
     }
 
     child.stdout?.on('data', (data) => {
       const text = data.toString();
       output += text;
-      chunks.push({ data: text, timestamp: new Date().toISOString(), isError: false });
+      chunks.push({
+        data: text,
+        timestamp: new Date().toISOString(),
+        isError: false,
+      });
     });
 
     child.stderr?.on('data', (data) => {
       const text = data.toString();
       output += text;
-      chunks.push({ data: text, timestamp: new Date().toISOString(), isError: true });
+      chunks.push({
+        data: text,
+        timestamp: new Date().toISOString(),
+        isError: true,
+      });
     });
 
     child.on('error', (error) => {
       if (timeoutHandle) clearTimeout(timeoutHandle);
-      reject(new McpError(ErrorCode.InternalError, `Process error: ${error.message}`));
+      reject(
+        new McpError(ErrorCode.InternalError, `Process error: ${error.message}`)
+      );
     });
 
     child.on('close', (exitCode) => {
@@ -240,21 +293,25 @@ export async function handleExecuteCommandStreaming(args: {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              ...(args.sessionId && { sessionId: args.sessionId }),
-              command: args.command,
-              args: args.args,
-              output,
-              outputText: output,
-              exitCode: exitCode || 0,
-              success: (exitCode || 0) === 0,
-              executedAt: new Date().toISOString(),
-              method: 'streaming',
-              chunks: chunks.length,
-              streamingData: chunks.slice(0, 5) // Show first 5 chunks as example
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                ...(args.sessionId && { sessionId: args.sessionId }),
+                command: args.command,
+                args: args.args,
+                output,
+                outputText: output,
+                exitCode: exitCode || 0,
+                success: (exitCode || 0) === 0,
+                executedAt: new Date().toISOString(),
+                method: 'streaming',
+                chunks: chunks.length,
+                streamingData: chunks.slice(0, 5), // Show first 5 chunks as example
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       });
     });
   });

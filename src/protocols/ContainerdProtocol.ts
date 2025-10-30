@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Containerd Protocol connection options
@@ -82,9 +82,9 @@ export class ContainerdProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -116,8 +116,8 @@ export class ContainerdProtocol extends BaseProtocol {
         windows: true, // Windows containers
         linux: true,
         macos: false, // MacOS uses Docker Desktop
-        freebsd: false
-      }
+        freebsd: false,
+      },
     };
   }
 
@@ -128,7 +128,9 @@ export class ContainerdProtocol extends BaseProtocol {
       // Check if Containerd tools are available
       await this.checkContainerdAvailability();
       this.isInitialized = true;
-      this.logger.info('Containerd protocol initialized with production features');
+      this.logger.info(
+        'Containerd protocol initialized with production features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize Containerd protocol', error);
       throw error;
@@ -144,8 +146,13 @@ export class ContainerdProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -166,7 +173,9 @@ export class ContainerdProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Containerd session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Containerd session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -192,12 +201,19 @@ export class ContainerdProtocol extends BaseProtocol {
       this.logger.info(`Containerd session ${sessionId} closed`);
       this.emit('session-closed', sessionId);
     } catch (error) {
-      this.logger.error(`Error closing Containerd session ${sessionId}:`, error);
+      this.logger.error(
+        `Error closing Containerd session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -213,11 +229,19 @@ export class ContainerdProtocol extends BaseProtocol {
     const containerdCommand = this.buildContainerdCommand(containerdOptions);
 
     // Spawn Containerd process
-    const containerdProcess = spawn(containerdCommand[0], containerdCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(containerdOptions), ...options.env }
-    });
+    const containerdProcess = spawn(
+      containerdCommand[0],
+      containerdCommand.slice(1),
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: options.cwd || process.cwd(),
+        env: {
+          ...process.env,
+          ...this.buildEnvironment(containerdOptions),
+          ...options.env,
+        },
+      }
+    );
 
     // Set up output handling
     containerdProcess.stdout?.on('data', (data) => {
@@ -225,7 +249,7 @@ export class ContainerdProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -235,18 +259,23 @@ export class ContainerdProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     containerdProcess.on('error', (error) => {
-      this.logger.error(`Containerd process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Containerd process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     containerdProcess.on('close', (code) => {
-      this.logger.info(`Containerd process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Containerd process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -259,7 +288,11 @@ export class ContainerdProtocol extends BaseProtocol {
       command: containerdCommand[0],
       args: containerdCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(containerdOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(containerdOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -267,12 +300,14 @@ export class ContainerdProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: containerdProcess.pid
+      pid: containerdProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Containerd session ${sessionId} created for image ${containerdOptions.image}`);
+    this.logger.info(
+      `Containerd session ${sessionId} created for image ${containerdOptions.image}`
+    );
     this.emit('session-created', { sessionId, type: 'containerd', session });
 
     return session;
@@ -281,7 +316,7 @@ export class ContainerdProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -290,8 +325,8 @@ export class ContainerdProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -313,25 +348,30 @@ export class ContainerdProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Containerd session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Containerd session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const containerdProcess = this.containerdProcesses.get(sessionId);
-    return containerdProcess && !containerdProcess.killed || false;
+    return (containerdProcess && !containerdProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -342,26 +382,26 @@ export class ContainerdProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.containerdProcesses.size
+        connectionsActive: this.containerdProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -373,8 +413,8 @@ export class ContainerdProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          containerd: { available: true }
-        }
+          containerd: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -382,8 +422,8 @@ export class ContainerdProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Containerd not available: ${error}`],
         dependencies: {
-          containerd: { available: false }
-        }
+          containerd: { available: false },
+        },
       };
     }
   }
@@ -396,17 +436,25 @@ export class ContainerdProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Containerd ctr tool not found. Please install containerd.'));
+          reject(
+            new Error(
+              'Containerd ctr tool not found. Please install containerd.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('Containerd ctr tool not found. Please install containerd.'));
+        reject(
+          new Error('Containerd ctr tool not found. Please install containerd.')
+        );
       });
     });
   }
 
-  private buildContainerdCommand(options: ContainerdConnectionOptions): string[] {
+  private buildContainerdCommand(
+    options: ContainerdConnectionOptions
+  ): string[] {
     const command = [];
 
     // Containerd executable
@@ -475,7 +523,7 @@ export class ContainerdProtocol extends BaseProtocol {
     }
 
     if (options.securityOpt) {
-      options.securityOpt.forEach(opt => {
+      options.securityOpt.forEach((opt) => {
         command.push('--security-opt', opt);
       });
     }
@@ -513,27 +561,27 @@ export class ContainerdProtocol extends BaseProtocol {
 
     // Volumes and mounts
     if (options.volumes) {
-      options.volumes.forEach(volume => {
+      options.volumes.forEach((volume) => {
         command.push('--volume', volume);
       });
     }
 
     if (options.mounts) {
-      options.mounts.forEach(mount => {
+      options.mounts.forEach((mount) => {
         command.push('--mount', mount);
       });
     }
 
     // Devices
     if (options.devices) {
-      options.devices.forEach(device => {
+      options.devices.forEach((device) => {
         command.push('--device', device);
       });
     }
 
     // Tmpfs
     if (options.tmpfs) {
-      options.tmpfs.forEach(tmpfs => {
+      options.tmpfs.forEach((tmpfs) => {
         command.push('--tmpfs', tmpfs);
       });
     }
@@ -567,7 +615,9 @@ export class ContainerdProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: ContainerdConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: ContainerdConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Containerd environment variables
@@ -601,7 +651,10 @@ export class ContainerdProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Containerd process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Containerd process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

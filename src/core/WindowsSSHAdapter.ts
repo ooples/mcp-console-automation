@@ -66,13 +66,15 @@ while (!$process.HasExited) {
     try {
       this.process = spawn('powershell', ['-NoProfile', '-Command', psScript], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true
+        windowsHide: true,
       });
 
       this.setupHandlers();
       await this.waitForConnection(5000);
       this.isConnected = true;
-      this.logger.info(`PowerShell SSH connection established to ${options.host}`);
+      this.logger.info(
+        `PowerShell SSH connection established to ${options.host}`
+      );
     } catch (error) {
       throw new Error(`PowerShell SSH connection failed: ${error}`);
     }
@@ -84,8 +86,10 @@ while (!$process.HasExited) {
   async connectWithPlink(options: SSHOptions): Promise<void> {
     const args = [
       '-ssh',
-      `-l`, options.username,
-      `-P`, (options.port || 22).toString()
+      `-l`,
+      options.username,
+      `-P`,
+      (options.port || 22).toString(),
     ];
 
     if (options.password) {
@@ -103,7 +107,7 @@ while (!$process.HasExited) {
       const plinkPaths = [
         'plink.exe',
         'C:\\Program Files\\PuTTY\\plink.exe',
-        'C:\\Program Files (x86)\\PuTTY\\plink.exe'
+        'C:\\Program Files (x86)\\PuTTY\\plink.exe',
       ];
 
       let plinkFound = false;
@@ -111,13 +115,15 @@ while (!$process.HasExited) {
         try {
           this.process = spawn(plinkPath, args, {
             stdio: ['pipe', 'pipe', 'pipe'],
-            windowsHide: true
+            windowsHide: true,
           });
 
           this.setupHandlers();
           await this.waitForConnection(5000);
           this.isConnected = true;
-          this.logger.info(`Plink SSH connection established to ${options.host}`);
+          this.logger.info(
+            `Plink SSH connection established to ${options.host}`
+          );
           plinkFound = true;
           break;
         } catch (e) {
@@ -126,7 +132,9 @@ while (!$process.HasExited) {
       }
 
       if (!plinkFound) {
-        throw new Error('Plink (PuTTY) not found. Please install PuTTY for password authentication on Windows.');
+        throw new Error(
+          'Plink (PuTTY) not found. Please install PuTTY for password authentication on Windows.'
+        );
       }
     } catch (error) {
       throw new Error(`Plink SSH connection failed: ${error}`);
@@ -170,8 +178,9 @@ while (!$process.HasExited) {
     // All methods failed
     throw new Error(
       'SSH password authentication failed on Windows. ' +
-      'Please install PuTTY (plink) or use SSH key authentication instead.\n' +
-      'Errors: ' + errors.map(e => e.message).join('; ')
+        'Please install PuTTY (plink) or use SSH key authentication instead.\n' +
+        'Errors: ' +
+        errors.map((e) => e.message).join('; ')
     );
   }
 
@@ -203,7 +212,7 @@ while (!$process.HasExited) {
     try {
       this.process = spawn('ssh', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true
+        windowsHide: true,
       });
 
       this.setupHandlers();

@@ -4,7 +4,11 @@
  * Generates Markdown test reports suitable for documentation and README files.
  */
 
-import { TestReport, TestSuiteResult, TestResult } from '../../types/test-framework.js';
+import {
+  TestReport,
+  TestSuiteResult,
+  TestResult,
+} from '../../types/test-framework.js';
 import { TestReporter } from '../TestReporter.js';
 
 export class MarkdownReporter extends TestReporter {
@@ -50,7 +54,8 @@ export class MarkdownReporter extends TestReporter {
   }
 
   private generateSuiteMarkdown(suiteResult: TestSuiteResult): string {
-    const { suite, totalTests, passed, failed, skipped, duration } = suiteResult;
+    const { suite, totalTests, passed, failed, skipped, duration } =
+      suiteResult;
 
     const statusEmoji = failed > 0 ? '❌' : skipped > 0 ? '⚠️' : '✅';
 
@@ -59,7 +64,7 @@ export class MarkdownReporter extends TestReporter {
     md += `**Stats:** ${passed}/${totalTests} passed | Duration: ${this.formatDuration(duration)}\n\n`;
 
     if (suite.tags && suite.tags.length > 0) {
-      md += `**Tags:** ${suite.tags.map(t => `\`${t}\``).join(', ')}\n\n`;
+      md += `**Tags:** ${suite.tags.map((t) => `\`${t}\``).join(', ')}\n\n`;
     }
 
     // Tests table
@@ -73,7 +78,9 @@ export class MarkdownReporter extends TestReporter {
     md += '\n';
 
     // Failed test details
-    const failedTests = suiteResult.tests.filter(t => t.status === 'fail' || t.status === 'timeout');
+    const failedTests = suiteResult.tests.filter(
+      (t) => t.status === 'fail' || t.status === 'timeout'
+    );
     if (failedTests.length > 0) {
       md += '#### Failed Tests\n\n';
       for (const testResult of failedTests) {
@@ -90,9 +97,12 @@ export class MarkdownReporter extends TestReporter {
     const statusEmoji = this.getStatusEmoji(status);
     const statusText = status.toUpperCase();
 
-    const passedAssertions = assertions.filter(a => a.passed).length;
+    const passedAssertions = assertions.filter((a) => a.passed).length;
     const totalAssertions = assertions.length;
-    const details = totalAssertions > 0 ? `${passedAssertions}/${totalAssertions} assertions` : '-';
+    const details =
+      totalAssertions > 0
+        ? `${passedAssertions}/${totalAssertions} assertions`
+        : '-';
 
     return `| ${test.name} | ${statusEmoji} ${statusText} | ${this.formatDuration(duration)} | ${details} |\n`;
   }
@@ -117,7 +127,7 @@ export class MarkdownReporter extends TestReporter {
     }
 
     // Failed assertions
-    const failedAssertions = assertions.filter(a => !a.passed);
+    const failedAssertions = assertions.filter((a) => !a.passed);
     if (failedAssertions.length > 0) {
       md += '**Failed Assertions:**\n\n';
       for (const assertion of failedAssertions) {

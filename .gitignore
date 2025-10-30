@@ -19,6 +19,7 @@ build/
 *~
 .DS_Store
 Thumbs.db
+.claude/
 
 # Environment and Security
 .env
@@ -62,3 +63,51 @@ desktop.ini
 !.yarn/plugins
 !.yarn/sdks
 !.yarn/versions
+
+# Git worktrees (cause CI build failures)
+worktrees/
+
+# Prevent clutter - NO investigation/report/analysis files
+*-FINDINGS.md
+*-INVESTIGATION.md
+*-REPORT.md
+*-ANALYSIS.md
+*-plan.md
+*_REPORT.md
+*_SUMMARY.md
+*_ANALYSIS.md
+AGENT_*.md
+SUMMARY.md
+INVESTIGATION.md
+
+# Prevent clutter - NO one-off test/debug scripts in root
+test-*.ps1
+test-*.js
+test-*.mjs
+test-*.ts
+test-*.cjs
+debug-*.ps1
+debug-*.js
+debug-*.log
+verify-*.ps1
+verify-*.ts
+validate-*.js
+quick-*.js
+run-*.ps1
+compile-*.ps1
+setup-*.ps1
+configure-*.ps1
+switch-*.mjs
+update-*.mjs
+
+# Prevent clutter - NO generated JSON/temp files in root
+*-report.json
+*-debug.json
+verification-*.json
+verification-*.txt
+hang-*.json
+pagination-*.json
+final-*.json
+ultra-*.json
+sessions.json
+*.tgz

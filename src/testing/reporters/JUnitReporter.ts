@@ -4,7 +4,11 @@
  * Generates JUnit XML test reports for CI/CD integration.
  */
 
-import { TestReport, TestSuiteResult, TestResult } from '../../types/test-framework.js';
+import {
+  TestReport,
+  TestSuiteResult,
+  TestResult,
+} from '../../types/test-framework.js';
 import { TestReporter } from '../TestReporter.js';
 
 export class JUnitReporter extends TestReporter {
@@ -35,10 +39,11 @@ ${testsuites.join('\n')}
   }
 
   private generateTestSuiteXml(suiteResult: TestSuiteResult): string {
-    const { suite, totalTests, passed, failed, skipped, duration, startTime } = suiteResult;
+    const { suite, totalTests, passed, failed, skipped, duration, startTime } =
+      suiteResult;
 
     const testcases = suiteResult.tests
-      .map(testResult => this.generateTestCaseXml(testResult))
+      .map((testResult) => this.generateTestCaseXml(testResult))
       .join('\n    ');
 
     return `  <testsuite name="${this.escapeXml(suite.name)}" tests="${totalTests}" failures="${failed}" skipped="${skipped}" time="${(duration / 1000).toFixed(3)}" timestamp="${new Date(startTime).toISOString()}">
@@ -53,10 +58,11 @@ ${testsuites.join('\n')}
 
     // Add failure information
     if (status === 'fail' && error) {
-      const failedAssertions = assertions.filter(a => !a.passed);
-      const message = failedAssertions.length > 0
-        ? failedAssertions.map(a => a.message).join('; ')
-        : error.message;
+      const failedAssertions = assertions.filter((a) => !a.passed);
+      const message =
+        failedAssertions.length > 0
+          ? failedAssertions.map((a) => a.message).join('; ')
+          : error.message;
 
       body += `\n      <failure message="${this.escapeXml(message)}" type="${this.escapeXml(error.name || 'AssertionError')}">`;
       if (error.stack) {
@@ -81,10 +87,10 @@ ${testsuites.join('\n')}
     }
 
     // Add system-err with assertion details
-    const failedAssertions = assertions.filter(a => !a.passed);
+    const failedAssertions = assertions.filter((a) => !a.passed);
     if (failedAssertions.length > 0) {
       const assertionDetails = failedAssertions
-        .map(a => `${a.message}${a.stack ? '\n' + a.stack : ''}`)
+        .map((a) => `${a.message}${a.stack ? '\n' + a.stack : ''}`)
         .join('\n---\n');
       body += `\n      <system-err><![CDATA[${assertionDetails}]]></system-err>`;
     }

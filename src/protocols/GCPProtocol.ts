@@ -5,12 +5,12 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
   SessionState as BaseSessionState,
-  ErrorContext
+  ErrorContext,
 } from '../core/IProtocol.js';
 
 // Google Cloud SDK imports - made optional to handle missing dependencies
@@ -27,7 +27,9 @@ try {
   OAuth2Client = authModule.OAuth2Client;
   UserRefreshClient = authModule.UserRefreshClient;
 } catch (error) {
-  console.warn('google-auth-library not available, GCP authentication functionality will be disabled');
+  console.warn(
+    'google-auth-library not available, GCP authentication functionality will be disabled'
+  );
 }
 
 try {
@@ -36,27 +38,35 @@ try {
   InstancesClient = computeModule.InstancesClient;
   ZonesClient = computeModule.ZonesClient;
 } catch (error) {
-  console.warn('@google-cloud/compute not available, Compute Engine functionality will be disabled');
+  console.warn(
+    '@google-cloud/compute not available, Compute Engine functionality will be disabled'
+  );
 }
 
 try {
   const osLoginModule = require('@google-cloud/os-login');
   OSLoginServiceClient = osLoginModule.OSLoginServiceClient;
 } catch (error) {
-  console.warn('@google-cloud/os-login not available, OS Login functionality will be disabled');
+  console.warn(
+    '@google-cloud/os-login not available, OS Login functionality will be disabled'
+  );
 }
 
 try {
   const tunnelModule = require('tunnel-ssh');
   createTunnel = tunnelModule.createTunnel;
 } catch (error) {
-  console.warn('tunnel-ssh not available, SSH tunneling functionality will be disabled');
+  console.warn(
+    'tunnel-ssh not available, SSH tunneling functionality will be disabled'
+  );
 }
 
 try {
   gcpMetadata = require('gcp-metadata');
 } catch (error) {
-  console.warn('gcp-metadata not available, metadata service functionality will be disabled');
+  console.warn(
+    'gcp-metadata not available, metadata service functionality will be disabled'
+  );
 }
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -70,7 +80,7 @@ import {
   GCPRateLimitInfo,
   GCPServiceAccountInfo,
   GCPIAMPolicy,
-  ConsoleEvent
+  ConsoleEvent,
 } from '../types/index.js';
 
 // Type interfaces for GCP SDK types when not available
@@ -80,7 +90,11 @@ interface GoogleAuthLike {
 }
 
 interface InstancesClientLike {
-  get(params: { project: string; zone: string; instance: string }): Promise<[any]>;
+  get(params: {
+    project: string;
+    zone: string;
+    instance: string;
+  }): Promise<[any]>;
 }
 
 interface OSLoginServiceClientLike {
@@ -118,42 +132,42 @@ export class GCPProtocol extends BaseProtocol {
   private computeClient!: InstancesClientLike;
   private osLoginClient!: OSLoginServiceClientLike;
   private zonesClient!: ZonesClientLike;
-  
+
   // Session management
   private cloudShellSessions = new Map<string, GCPCloudShellSession>();
   private computeSessions = new Map<string, GCPComputeSession>();
   private gkeSessions = new Map<string, GCPGKESession>();
-  
+
   // Connection pools
   private sshConnections = new Map<string, ChildProcess>();
   private webSocketConnections = new Map<string, WebSocket>();
   private iapTunnels = new Map<string, any>();
-  
+
   // Rate limiting and quota management
   private rateLimiters = new Map<string, GCPRateLimitInfo>();
   private quotaUsage = new Map<string, GCPQuotaInfo>();
-  
+
   // Authentication cache
   private tokenCache = new Map<string, GCPTokenInfo>();
   private serviceAccountCache = new Map<string, GCPServiceAccountInfo>();
-  
+
   // Cloud Shell API endpoints
   private readonly CLOUD_SHELL_API = 'https://cloudshell.googleapis.com';
   private readonly CLOUD_SHELL_SCOPES = [
     'https://www.googleapis.com/auth/cloud-platform',
-    'https://www.googleapis.com/auth/cloudshell'
+    'https://www.googleapis.com/auth/cloudshell',
   ];
-  
+
   // Compute Engine scopes
   private readonly COMPUTE_SCOPES = [
     'https://www.googleapis.com/auth/compute',
-    'https://www.googleapis.com/auth/cloud-platform'
+    'https://www.googleapis.com/auth/cloud-platform',
   ];
-  
+
   // OS Login scopes
   private readonly OSLOGIN_SCOPES = [
     'https://www.googleapis.com/auth/compute.oslogin',
-    'https://www.googleapis.com/auth/cloud-platform'
+    'https://www.googleapis.com/auth/cloud-platform',
   ];
 
   constructor() {
@@ -184,8 +198,8 @@ export class GCPProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -195,7 +209,9 @@ export class GCPProtocol extends BaseProtocol {
     try {
       await this.initializeClients();
       this.isInitialized = true;
-      this.logger.info('GCP protocol initialized with session management fixes');
+      this.logger.info(
+        'GCP protocol initialized with session management fixes'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize GCP protocol', error);
       throw error;
@@ -242,14 +258,15 @@ export class GCPProtocol extends BaseProtocol {
         isPersistent: true,
         createdAt: new Date(),
         lastActivity: new Date(),
-        metadata: { error: 'Session not found' }
+        metadata: { error: 'Session not found' },
       });
     }
 
     const sshConnection = this.sshConnections.get(sessionId);
     const webSocket = this.webSocketConnections.get(sessionId);
-    const connected = (sshConnection && !sshConnection.killed) ||
-                     (webSocket && webSocket.readyState === WebSocket.OPEN);
+    const connected =
+      (sshConnection && !sshConnection.killed) ||
+      (webSocket && webSocket.readyState === WebSocket.OPEN);
 
     const state: BaseSessionState = {
       sessionId,
@@ -259,11 +276,17 @@ export class GCPProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity || new Date(),
       metadata: {
-        gcpProjectId: cloudShellSession?.projectId || computeSession?.vmProject || gkeSession?.clusterProject,
-        sessionType: cloudShellSession ? 'cloud-shell' :
-                    computeSession ? 'compute' : 'gke',
-        tunnelConnected: connected
-      }
+        gcpProjectId:
+          cloudShellSession?.projectId ||
+          computeSession?.vmProject ||
+          gkeSession?.clusterProject,
+        sessionType: cloudShellSession
+          ? 'cloud-shell'
+          : computeSession
+            ? 'compute'
+            : 'gke',
+        tunnelConnected: connected,
+      },
     };
 
     return Promise.resolve(state);
@@ -297,12 +320,18 @@ export class GCPProtocol extends BaseProtocol {
 
       return false;
     } catch (error) {
-      this.logger.error(`Failed to reconnect GCP session ${context.sessionId}:`, error);
+      this.logger.error(
+        `Failed to reconnect GCP session ${context.sessionId}:`,
+        error
+      );
       return false;
     }
   }
 
-  private async reconnectCloudShell(sessionId: string, session: GCPCloudShellSession): Promise<void> {
+  private async reconnectCloudShell(
+    sessionId: string,
+    session: GCPCloudShellSession
+  ): Promise<void> {
     // Close existing WebSocket
     const existingWs = this.webSocketConnections.get(sessionId);
     if (existingWs) {
@@ -314,7 +343,10 @@ export class GCPProtocol extends BaseProtocol {
     this.logger.info(`Reconnected Cloud Shell session ${sessionId}`);
   }
 
-  private async reconnectCompute(sessionId: string, session: GCPComputeSession): Promise<void> {
+  private async reconnectCompute(
+    sessionId: string,
+    session: GCPComputeSession
+  ): Promise<void> {
     // Close existing SSH connection
     const existingSsh = this.sshConnections.get(sessionId);
     if (existingSsh) {
@@ -326,7 +358,10 @@ export class GCPProtocol extends BaseProtocol {
     this.logger.info(`Reconnected Compute session ${sessionId}`);
   }
 
-  private async reconnectGKE(sessionId: string, session: GCPGKESession): Promise<void> {
+  private async reconnectGKE(
+    sessionId: string,
+    session: GCPGKESession
+  ): Promise<void> {
     // Close existing kubectl connection
     const existingKubectl = this.sshConnections.get(sessionId);
     if (existingKubectl) {
@@ -342,12 +377,21 @@ export class GCPProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: BaseSessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: BaseSessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -381,7 +425,7 @@ export class GCPProtocol extends BaseProtocol {
       type: this.type,
       streaming: options.streaming,
       executionState: 'idle',
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     this.sessions.set(sessionId, session);
@@ -391,7 +435,6 @@ export class GCPProtocol extends BaseProtocol {
 
     return session;
   }
-
 
   /**
    * Set up GCP-specific event handlers
@@ -414,25 +457,25 @@ export class GCPProtocol extends BaseProtocol {
         scopes: [
           ...this.CLOUD_SHELL_SCOPES,
           ...this.COMPUTE_SCOPES,
-          ...this.OSLOGIN_SCOPES
-        ]
+          ...this.OSLOGIN_SCOPES,
+        ],
       });
 
       if (InstancesClient) {
         this.computeClient = new InstancesClient({
-          auth: this.auth
+          auth: this.auth,
         });
       }
-      
+
       if (OSLoginServiceClient) {
         this.osLoginClient = new OSLoginServiceClient({
-          auth: this.auth
+          auth: this.auth,
         });
       }
-      
+
       if (ZonesClient) {
         this.zonesClient = new ZonesClient({
-          auth: this.auth
+          auth: this.auth,
         });
       }
 
@@ -451,26 +494,35 @@ export class GCPProtocol extends BaseProtocol {
     options: GCPConnectionOptions
   ): Promise<GCPCloudShellSession> {
     try {
-      const projectId = options.projectId || await this.getDefaultProjectId();
+      const projectId = options.projectId || (await this.getDefaultProjectId());
       const region = options.region || 'us-central1';
       const shellType = options.cloudShellType || 'bash';
-      
+
       // Get authentication token
       const authClient = await this.getAuthenticatedClient(options);
       const tokenInfo = await this.getTokenInfo(authClient);
-      
+
       // Check and enforce quotas
       await this.checkCloudShellQuota(projectId);
-      
+
       // Create or get existing Cloud Shell environment
-      const environment = await this.createCloudShellEnvironment(projectId, options);
-      
+      const environment = await this.createCloudShellEnvironment(
+        projectId,
+        options
+      );
+
       // Get WebSocket URL for the shell
-      const webSocketUrl = await this.getCloudShellWebSocketUrl(environment.name, tokenInfo.accessToken);
-      
+      const webSocketUrl = await this.getCloudShellWebSocketUrl(
+        environment.name,
+        tokenInfo.accessToken
+      );
+
       // Detect installed tools and capabilities
-      const capabilities = await this.detectCloudShellCapabilities(environment.name, tokenInfo.accessToken);
-      
+      const capabilities = await this.detectCloudShellCapabilities(
+        environment.name,
+        tokenInfo.accessToken
+      );
+
       const session: GCPCloudShellSession = {
         sessionId,
         webSocketUrl,
@@ -492,22 +544,27 @@ export class GCPProtocol extends BaseProtocol {
           internalIp: environment.internalIp,
           externalIp: environment.externalIp,
           subnetwork: environment.subnetwork,
-          network: environment.network
+          network: environment.network,
         },
-        metadata: options.metadata
+        metadata: options.metadata,
       };
 
       this.cloudShellSessions.set(sessionId, session);
-      
+
       // Set up WebSocket connection
       await this.establishCloudShellConnection(session);
-      
-      this.logger.info(`Cloud Shell session ${sessionId} created for project ${projectId}`);
+
+      this.logger.info(
+        `Cloud Shell session ${sessionId} created for project ${projectId}`
+      );
       this.emit('session-created', { sessionId, type: 'gcp-shell', session });
-      
+
       return session;
     } catch (error) {
-      this.logger.error(`Failed to create Cloud Shell session ${sessionId}:`, error);
+      this.logger.error(
+        `Failed to create Cloud Shell session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -520,10 +577,13 @@ export class GCPProtocol extends BaseProtocol {
     options: GCPConnectionOptions
   ): Promise<GCPComputeSession> {
     try {
-      const projectId = options.vmProject || options.projectId || await this.getDefaultProjectId();
+      const projectId =
+        options.vmProject ||
+        options.projectId ||
+        (await this.getDefaultProjectId());
       const zone = options.vmZone || options.zone || 'us-central1-a';
       const vmName = options.vmName;
-      
+
       if (!vmName) {
         throw new Error('VM name is required for Compute Engine sessions');
       }
@@ -531,22 +591,27 @@ export class GCPProtocol extends BaseProtocol {
       // Get authentication
       const authClient = await this.getAuthenticatedClient(options);
       const tokenInfo = await this.getTokenInfo(authClient);
-      
+
       // Get VM instance details
       const instance = await this.getComputeInstance(projectId, zone, vmName);
-      
+
       // Set up OS Login if enabled
       let osLoginInfo;
       if (options.osLoginEnabled) {
         osLoginInfo = await this.setupOSLogin(projectId, authClient, options);
       }
-      
+
       // Set up IAP tunnel if enabled
       let iapTunnelInfo;
       if (options.iapTunnelEnabled) {
-        iapTunnelInfo = await this.setupIAPTunnel(projectId, zone, vmName, options);
+        iapTunnelInfo = await this.setupIAPTunnel(
+          projectId,
+          zone,
+          vmName,
+          options
+        );
       }
-      
+
       const session: GCPComputeSession = {
         sessionId,
         vmName,
@@ -555,30 +620,42 @@ export class GCPProtocol extends BaseProtocol {
         instanceId: instance.id!.toString(),
         machineType: instance.machineType?.split('/').pop() || 'unknown',
         status: instance.status as any,
-        accessMethod: options.osLoginEnabled ? 'oslogin' : 
-                    options.iapTunnelEnabled ? 'iap-tunnel' : 'ssh',
+        accessMethod: options.osLoginEnabled
+          ? 'oslogin'
+          : options.iapTunnelEnabled
+            ? 'iap-tunnel'
+            : 'ssh',
         connectionInfo: {
           internalIp: instance.networkInterfaces?.[0]?.networkIP,
-          externalIp: instance.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP,
+          externalIp:
+            instance.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP,
           username: osLoginInfo?.username || options.osLoginUser || 'user',
-          sshKeys: instance.metadata?.items?.find((item: any) => item.key === 'ssh-keys')?.value?.split('\n') || []
+          sshKeys:
+            instance.metadata?.items
+              ?.find((item: any) => item.key === 'ssh-keys')
+              ?.value?.split('\n') || [],
         },
         osLogin: osLoginInfo,
         iapTunnel: iapTunnelInfo,
-        metadata: options.metadata
+        metadata: options.metadata,
       };
 
       this.computeSessions.set(sessionId, session);
-      
+
       // Establish SSH connection
       await this.establishComputeConnection(session, options);
-      
-      this.logger.info(`Compute session ${sessionId} created for VM ${vmName} in ${zone}`);
+
+      this.logger.info(
+        `Compute session ${sessionId} created for VM ${vmName} in ${zone}`
+      );
       this.emit('session-created', { sessionId, type: 'gcp-ssh', session });
-      
+
       return session;
     } catch (error) {
-      this.logger.error(`Failed to create Compute session ${sessionId}:`, error);
+      this.logger.error(
+        `Failed to create Compute session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -591,25 +668,31 @@ export class GCPProtocol extends BaseProtocol {
     options: GCPConnectionOptions
   ): Promise<GCPGKESession> {
     try {
-      const projectId = options.projectId || await this.getDefaultProjectId();
+      const projectId = options.projectId || (await this.getDefaultProjectId());
       const clusterName = options.clusterName;
       const clusterLocation = options.clusterLocation;
       const namespace = options.namespace || 'default';
-      
+
       if (!clusterName || !clusterLocation) {
-        throw new Error('Cluster name and location are required for GKE sessions');
+        throw new Error(
+          'Cluster name and location are required for GKE sessions'
+        );
       }
 
       // Get authentication
       const authClient = await this.getAuthenticatedClient(options);
       const tokenInfo = await this.getTokenInfo(authClient);
-      
+
       // Get cluster details
-      const cluster = await this.getGKECluster(projectId, clusterLocation, clusterName);
-      
+      const cluster = await this.getGKECluster(
+        projectId,
+        clusterLocation,
+        clusterName
+      );
+
       // Generate kubeconfig
       const kubeconfig = await this.generateKubeconfig(cluster, tokenInfo);
-      
+
       const session: GCPGKESession = {
         sessionId,
         clusterName,
@@ -627,26 +710,30 @@ export class GCPProtocol extends BaseProtocol {
           location: clusterLocation,
           network: cluster.network,
           subnetwork: cluster.subnetwork,
-          masterAuthorizedNetworks: cluster.masterAuthorizedNetworksConfig?.cidrBlocks?.map((block: any) => block.cidrBlock) || []
+          masterAuthorizedNetworks:
+            cluster.masterAuthorizedNetworksConfig?.cidrBlocks?.map(
+              (block: any) => block.cidrBlock
+            ) || [],
         },
-        metadata: options.metadata
+        metadata: options.metadata,
       };
 
       this.gkeSessions.set(sessionId, session);
-      
+
       // Establish kubectl connection
       await this.establishGKEConnection(session, options);
-      
-      this.logger.info(`GKE session ${sessionId} created for cluster ${clusterName}`);
+
+      this.logger.info(
+        `GKE session ${sessionId} created for cluster ${clusterName}`
+      );
       this.emit('session-created', { sessionId, type: 'gcp-oslogin', session });
-      
+
       return session;
     } catch (error) {
       this.logger.error(`Failed to create GKE session ${sessionId}:`, error);
       throw error;
     }
   }
-
 
   /**
    * Close a GCP session
@@ -659,26 +746,26 @@ export class GCPProtocol extends BaseProtocol {
         ws.close();
         this.webSocketConnections.delete(sessionId);
       }
-      
+
       // Close SSH connections
       const ssh = this.sshConnections.get(sessionId);
       if (ssh) {
         ssh.kill();
         this.sshConnections.delete(sessionId);
       }
-      
+
       // Close IAP tunnels
       const tunnel = this.iapTunnels.get(sessionId);
       if (tunnel) {
         tunnel.close();
         this.iapTunnels.delete(sessionId);
       }
-      
+
       // Remove from session maps
       this.cloudShellSessions.delete(sessionId);
       this.computeSessions.delete(sessionId);
       this.gkeSessions.delete(sessionId);
-      
+
       this.logger.info(`Session ${sessionId} closed`);
       this.emit('session-closed', { sessionId });
     } catch (error) {
@@ -690,64 +777,75 @@ export class GCPProtocol extends BaseProtocol {
   /**
    * Get session information
    */
-  getSession(sessionId: string): GCPCloudShellSession | GCPComputeSession | GCPGKESession | null {
-    return this.cloudShellSessions.get(sessionId) ||
-           this.computeSessions.get(sessionId) ||
-           this.gkeSessions.get(sessionId) ||
-           null;
+  getSession(
+    sessionId: string
+  ): GCPCloudShellSession | GCPComputeSession | GCPGKESession | null {
+    return (
+      this.cloudShellSessions.get(sessionId) ||
+      this.computeSessions.get(sessionId) ||
+      this.gkeSessions.get(sessionId) ||
+      null
+    );
   }
 
   /**
    * List all active sessions
    */
   listSessions(): Array<{ sessionId: string; type: string; session: any }> {
-    const sessions: Array<{ sessionId: string; type: string; session: any }> = [];
-    
+    const sessions: Array<{ sessionId: string; type: string; session: any }> =
+      [];
+
     for (const [sessionId, session] of Array.from(this.cloudShellSessions)) {
       sessions.push({ sessionId, type: 'gcp-shell', session });
     }
-    
+
     for (const [sessionId, session] of Array.from(this.computeSessions)) {
       sessions.push({ sessionId, type: 'gcp-ssh', session });
     }
-    
+
     for (const [sessionId, session] of Array.from(this.gkeSessions)) {
       sessions.push({ sessionId, type: 'gcp-oslogin', session });
     }
-    
+
     return sessions;
   }
 
   // Private helper methods
 
-  private async getAuthenticatedClient(options: GCPConnectionOptions): Promise<any> {
+  private async getAuthenticatedClient(
+    options: GCPConnectionOptions
+  ): Promise<any> {
     if (options.oauth2Config) {
       return this.createOAuth2Client(options.oauth2Config);
     }
-    
+
     if (options.keyFile || options.keyFilename || options.credentials) {
       return this.createServiceAccountClient(options);
     }
-    
+
     // Default to ADC (Application Default Credentials)
     return this.auth.getClient();
   }
 
-  private createOAuth2Client(oauth2Config: NonNullable<GCPConnectionOptions['oauth2Config']>): any {
+  private createOAuth2Client(
+    oauth2Config: NonNullable<GCPConnectionOptions['oauth2Config']>
+  ): any {
     if (!OAuth2Client) {
-      throw new Error('OAuth2Client from google-auth-library is required but not available');
+      throw new Error(
+        'OAuth2Client from google-auth-library is required but not available'
+      );
     }
 
     const client = new OAuth2Client({
       clientId: oauth2Config.clientId,
       clientSecret: oauth2Config.clientSecret,
-      redirectUri: 'urn:ietf:wg:oauth:2.0:oob'
+      redirectUri: 'urn:ietf:wg:oauth:2.0:oob',
     });
 
     if (oauth2Config.refreshToken) {
       client.setCredentials({
         refresh_token: oauth2Config.refreshToken,
-        access_token: oauth2Config.accessToken
+        access_token: oauth2Config.accessToken,
       });
     }
 
@@ -756,11 +854,13 @@ export class GCPProtocol extends BaseProtocol {
 
   private createServiceAccountClient(options: GCPConnectionOptions): any {
     if (!JWT) {
-      throw new Error('JWT from google-auth-library is required but not available');
+      throw new Error(
+        'JWT from google-auth-library is required but not available'
+      );
     }
 
     let credentials;
-    
+
     if (options.keyFile) {
       credentials = JSON.parse(options.keyFile);
     } else if (options.keyFilename) {
@@ -774,25 +874,31 @@ export class GCPProtocol extends BaseProtocol {
     return new JWT({
       email: credentials.client_email,
       key: credentials.private_key,
-      scopes: options.scopes || [...this.CLOUD_SHELL_SCOPES, ...this.COMPUTE_SCOPES, ...this.OSLOGIN_SCOPES]
+      scopes: options.scopes || [
+        ...this.CLOUD_SHELL_SCOPES,
+        ...this.COMPUTE_SCOPES,
+        ...this.OSLOGIN_SCOPES,
+      ],
     });
   }
 
   private async getTokenInfo(client: any): Promise<GCPTokenInfo> {
     const accessToken = await client.getAccessToken();
     const credentials = client.credentials || {};
-    
+
     return {
       accessToken: accessToken.token!,
       refreshToken: credentials.refresh_token,
       tokenType: credentials.token_type || 'Bearer',
-      expiresIn: credentials.expiry_date ? Math.floor((credentials.expiry_date - Date.now()) / 1000) : 3600,
+      expiresIn: credentials.expiry_date
+        ? Math.floor((credentials.expiry_date - Date.now()) / 1000)
+        : 3600,
       expiresOn: new Date(credentials.expiry_date || Date.now() + 3600000),
       scope: (credentials.scope as string)?.split(' ') || [],
       projectId: await this.getDefaultProjectId(),
       clientId: client._clientId,
       clientEmail: client.email,
-      serviceAccount: JWT && client instanceof JWT
+      serviceAccount: JWT && client instanceof JWT,
     };
   }
 
@@ -805,15 +911,22 @@ export class GCPProtocol extends BaseProtocol {
         try {
           return await gcpMetadata.project('project-id');
         } catch (metadataError) {
-          throw new Error('Unable to determine project ID. Please specify projectId in options.');
+          throw new Error(
+            'Unable to determine project ID. Please specify projectId in options.'
+          );
         }
       } else {
-        throw new Error('Unable to determine project ID. Please specify projectId in options.');
+        throw new Error(
+          'Unable to determine project ID. Please specify projectId in options.'
+        );
       }
     }
   }
 
-  private async createCloudShellEnvironment(projectId: string, options: GCPConnectionOptions): Promise<any> {
+  private async createCloudShellEnvironment(
+    projectId: string,
+    options: GCPConnectionOptions
+  ): Promise<any> {
     // Implementation would call Cloud Shell API to create/get environment
     // This is a simplified version - actual implementation would make REST calls
     return {
@@ -826,36 +939,58 @@ export class GCPProtocol extends BaseProtocol {
       internalIp: '10.0.0.1',
       externalIp: undefined, // Cloud Shell typically doesn't have external IP
       network: 'default',
-      subnetwork: 'default'
+      subnetwork: 'default',
     };
   }
 
-  private async getCloudShellWebSocketUrl(environmentName: string, accessToken: string): Promise<string> {
+  private async getCloudShellWebSocketUrl(
+    environmentName: string,
+    accessToken: string
+  ): Promise<string> {
     // Implementation would get actual WebSocket URL from Cloud Shell API
     return `wss://cloudshell.googleapis.com/v1/${environmentName}/connect`;
   }
 
-  private async detectCloudShellCapabilities(environmentName: string, accessToken: string): Promise<GCPCloudShellSession['capabilities']> {
+  private async detectCloudShellCapabilities(
+    environmentName: string,
+    accessToken: string
+  ): Promise<GCPCloudShellSession['capabilities']> {
     // Implementation would detect installed tools in Cloud Shell environment
     return {
       cloudSdk: true,
       docker: true,
       kubectl: true,
       terraform: true,
-      customTools: ['git', 'vim', 'nano', 'curl', 'wget', 'python3', 'node', 'go']
+      customTools: [
+        'git',
+        'vim',
+        'nano',
+        'curl',
+        'wget',
+        'python3',
+        'node',
+        'go',
+      ],
     };
   }
 
-  private async establishCloudShellConnection(session: GCPCloudShellSession): Promise<void> {
+  private async establishCloudShellConnection(
+    session: GCPCloudShellSession
+  ): Promise<void> {
     const ws = new WebSocket(session.webSocketUrl, {
       headers: {
-        'Authorization': `Bearer ${session.accessToken}`
-      }
+        Authorization: `Bearer ${session.accessToken}`,
+      },
     });
 
     ws.on('open', () => {
-      this.logger.info(`Cloud Shell WebSocket connection established for session ${session.sessionId}`);
-      this.emit('session-connected', { sessionId: session.sessionId, type: 'websocket' });
+      this.logger.info(
+        `Cloud Shell WebSocket connection established for session ${session.sessionId}`
+      );
+      this.emit('session-connected', {
+        sessionId: session.sessionId,
+        type: 'websocket',
+      });
     });
 
     ws.on('message', (data) => {
@@ -863,60 +998,80 @@ export class GCPProtocol extends BaseProtocol {
         sessionId: session.sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(session.sessionId, output);
     });
 
     ws.on('error', (error) => {
-      this.logger.error(`Cloud Shell WebSocket error for session ${session.sessionId}:`, error);
+      this.logger.error(
+        `Cloud Shell WebSocket error for session ${session.sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId: session.sessionId, error });
     });
 
     ws.on('close', () => {
-      this.logger.info(`Cloud Shell WebSocket connection closed for session ${session.sessionId}`);
+      this.logger.info(
+        `Cloud Shell WebSocket connection closed for session ${session.sessionId}`
+      );
       this.emit('session-disconnected', { sessionId: session.sessionId });
     });
 
     this.webSocketConnections.set(session.sessionId, ws);
   }
 
-  private async getComputeInstance(projectId: string, zone: string, instanceName: string): Promise<any> {
+  private async getComputeInstance(
+    projectId: string,
+    zone: string,
+    instanceName: string
+  ): Promise<any> {
     if (!this.computeClient || !InstancesClient) {
       throw new Error('@google-cloud/compute is required but not available');
     }
     const [instance] = await this.computeClient.get({
       project: projectId,
       zone: zone,
-      instance: instanceName
+      instance: instanceName,
     });
     return instance;
   }
 
-  private async setupOSLogin(projectId: string, authClient: any, options: GCPConnectionOptions): Promise<any> {
+  private async setupOSLogin(
+    projectId: string,
+    authClient: any,
+    options: GCPConnectionOptions
+  ): Promise<any> {
     if (!options.osLoginUser) {
       // Get user info from token
-      const tokenInfo = await authClient.getTokenInfo(await authClient.getAccessToken());
+      const tokenInfo = await authClient.getTokenInfo(
+        await authClient.getAccessToken()
+      );
       options.osLoginUser = tokenInfo.email || 'unknown';
     }
 
     // Import SSH public key via OS Login API
     const osLoginUser = `users/${options.osLoginUser}`;
-    
+
     return {
       enabled: true,
       username: options.osLoginUser,
       uid: 1000, // This would be returned by OS Login API
       gid: 1000,
       homeDirectory: `/home/${options.osLoginUser}`,
-      shell: '/bin/bash'
+      shell: '/bin/bash',
     };
   }
 
-  private async setupIAPTunnel(projectId: string, zone: string, instanceName: string, options: GCPConnectionOptions): Promise<any> {
+  private async setupIAPTunnel(
+    projectId: string,
+    zone: string,
+    instanceName: string,
+    options: GCPConnectionOptions
+  ): Promise<any> {
     const localPort = 2222; // Random available port
     const remotePort = 22;
-    
+
     // This would set up actual IAP tunnel using gcloud compute start-iap-tunnel
     // For now, return tunnel configuration
     return {
@@ -924,11 +1079,14 @@ export class GCPProtocol extends BaseProtocol {
       localPort,
       targetPort: remotePort,
       clientId: options.iapConfig?.clientId,
-      audience: options.iapConfig?.audience
+      audience: options.iapConfig?.audience,
     };
   }
 
-  private async establishComputeConnection(session: GCPComputeSession, options: GCPConnectionOptions): Promise<void> {
+  private async establishComputeConnection(
+    session: GCPComputeSession,
+    options: GCPConnectionOptions
+  ): Promise<void> {
     let sshCommand: string[];
     let sshHost: string;
     let sshPort = 22;
@@ -939,19 +1097,23 @@ export class GCPProtocol extends BaseProtocol {
       sshPort = session.iapTunnel.localPort;
     } else {
       // Direct connection
-      sshHost = session.connectionInfo.externalIp || session.connectionInfo.internalIp!;
+      sshHost =
+        session.connectionInfo.externalIp || session.connectionInfo.internalIp!;
     }
 
     sshCommand = [
       'ssh',
-      '-o', 'StrictHostKeyChecking=no',
-      '-o', 'UserKnownHostsFile=/dev/null',
-      '-p', sshPort.toString(),
-      `${session.connectionInfo.username}@${sshHost}`
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      '-p',
+      sshPort.toString(),
+      `${session.connectionInfo.username}@${sshHost}`,
     ];
 
     const sshProcess = spawn(sshCommand[0], sshCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     sshProcess.stdout?.on('data', (data) => {
@@ -959,7 +1121,7 @@ export class GCPProtocol extends BaseProtocol {
         sessionId: session.sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(session.sessionId, output);
     });
@@ -969,25 +1131,34 @@ export class GCPProtocol extends BaseProtocol {
         sessionId: session.sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(session.sessionId, output);
     });
 
     sshProcess.on('error', (error) => {
-      this.logger.error(`SSH process error for session ${session.sessionId}:`, error);
+      this.logger.error(
+        `SSH process error for session ${session.sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId: session.sessionId, error });
     });
 
     sshProcess.on('close', (code) => {
-      this.logger.info(`SSH process closed for session ${session.sessionId} with code ${code}`);
+      this.logger.info(
+        `SSH process closed for session ${session.sessionId} with code ${code}`
+      );
       this.emit('session-disconnected', { sessionId: session.sessionId });
     });
 
     this.sshConnections.set(session.sessionId, sshProcess);
   }
 
-  private async getGKECluster(projectId: string, location: string, clusterName: string): Promise<any> {
+  private async getGKECluster(
+    projectId: string,
+    location: string,
+    clusterName: string
+  ): Promise<any> {
     // This would use Container API to get cluster info
     // Simplified implementation
     return {
@@ -998,32 +1169,38 @@ export class GCPProtocol extends BaseProtocol {
       network: 'default',
       subnetwork: 'default',
       masterAuthorizedNetworksConfig: {
-        cidrBlocks: [{ cidrBlock: '0.0.0.0/0' }]
-      }
+        cidrBlocks: [{ cidrBlock: '0.0.0.0/0' }],
+      },
     };
   }
 
-  private async generateKubeconfig(cluster: any, tokenInfo: GCPTokenInfo): Promise<any> {
+  private async generateKubeconfig(
+    cluster: any,
+    tokenInfo: GCPTokenInfo
+  ): Promise<any> {
     return {
       context: `gke_${tokenInfo.projectId}_${cluster.location}_${cluster.name}`,
       cluster: `gke_${tokenInfo.projectId}_${cluster.location}_${cluster.name}`,
       user: `gke_${tokenInfo.projectId}_${cluster.location}_${cluster.name}`,
       certificateAuthority: cluster.masterAuth?.clusterCaCertificate,
       clientCertificate: cluster.masterAuth?.clientCertificate,
-      clientKey: cluster.masterAuth?.clientKey
+      clientKey: cluster.masterAuth?.clientKey,
     };
   }
 
-  private async establishGKEConnection(session: GCPGKESession, options: GCPConnectionOptions): Promise<void> {
+  private async establishGKEConnection(
+    session: GCPGKESession,
+    options: GCPConnectionOptions
+  ): Promise<void> {
     // Set up kubectl with the generated kubeconfig
     const kubectlCommand = ['kubectl', 'get', 'pods', '-n', session.namespace];
-    
+
     const kubectlProcess = spawn(kubectlCommand[0], kubectlCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        KUBECONFIG: '/tmp/kubeconfig-' + session.sessionId // This would contain the actual kubeconfig
-      }
+        KUBECONFIG: '/tmp/kubeconfig-' + session.sessionId, // This would contain the actual kubeconfig
+      },
     });
 
     kubectlProcess.stdout?.on('data', (data) => {
@@ -1031,7 +1208,7 @@ export class GCPProtocol extends BaseProtocol {
         sessionId: session.sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(session.sessionId, output);
     });
@@ -1041,7 +1218,7 @@ export class GCPProtocol extends BaseProtocol {
         sessionId: session.sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(session.sessionId, output);
     });
@@ -1049,21 +1226,27 @@ export class GCPProtocol extends BaseProtocol {
     this.sshConnections.set(session.sessionId, kubectlProcess);
   }
 
-  private async sendCloudShellInput(sessionId: string, input: string): Promise<void> {
+  private async sendCloudShellInput(
+    sessionId: string,
+    input: string
+  ): Promise<void> {
     const ws = this.webSocketConnections.get(sessionId);
     if (!ws) {
       throw new Error(`No WebSocket connection for session ${sessionId}`);
     }
-    
+
     ws.send(input);
   }
 
-  private async sendComputeInput(sessionId: string, input: string): Promise<void> {
+  private async sendComputeInput(
+    sessionId: string,
+    input: string
+  ): Promise<void> {
     const ssh = this.sshConnections.get(sessionId);
     if (!ssh || !ssh.stdin) {
       throw new Error(`No SSH connection for session ${sessionId}`);
     }
-    
+
     ssh.stdin.write(input);
   }
 
@@ -1072,7 +1255,7 @@ export class GCPProtocol extends BaseProtocol {
     if (!kubectl || !kubectl.stdin) {
       throw new Error(`No kubectl connection for session ${sessionId}`);
     }
-    
+
     kubectl.stdin.write(input);
   }
 
@@ -1085,7 +1268,11 @@ export class GCPProtocol extends BaseProtocol {
   /**
    * Get quota information for a service
    */
-  async getQuotaInfo(service: string, region?: string, zone?: string): Promise<GCPQuotaInfo[]> {
+  async getQuotaInfo(
+    service: string,
+    region?: string,
+    zone?: string
+  ): Promise<GCPQuotaInfo[]> {
     // This would call Compute Engine or other service APIs to get quota info
     return [
       {
@@ -1097,8 +1284,8 @@ export class GCPProtocol extends BaseProtocol {
         remaining: 8,
         unit: 'count',
         region: region,
-        zone: zone
-      }
+        zone: zone,
+      },
     ];
   }
 
@@ -1119,7 +1306,10 @@ export class GCPProtocol extends BaseProtocol {
       try {
         ws.close();
       } catch (error) {
-        this.logger.error(`Error closing WebSocket for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error closing WebSocket for session ${sessionId}:`,
+          error
+        );
       }
     }
 
@@ -1128,7 +1318,10 @@ export class GCPProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing SSH process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing SSH process for session ${sessionId}:`,
+          error
+        );
       }
     }
 
@@ -1137,7 +1330,10 @@ export class GCPProtocol extends BaseProtocol {
       try {
         tunnel.close();
       } catch (error) {
-        this.logger.error(`Error closing IAP tunnel for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error closing IAP tunnel for session ${sessionId}:`,
+          error
+        );
       }
     }
 

@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Chef Protocol connection options
@@ -88,9 +88,9 @@ export class ChefProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -122,8 +122,8 @@ export class ChefProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -150,8 +150,13 @@ export class ChefProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -172,7 +177,9 @@ export class ChefProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Chef session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Chef session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -203,12 +210,16 @@ export class ChefProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
-    const chefOptions = options.chefOptions || {} as ChefConnectionOptions;
+    const chefOptions = options.chefOptions || ({} as ChefConnectionOptions);
 
     // Build Chef command
     const chefCommand = this.buildChefCommand(chefOptions);
@@ -217,7 +228,11 @@ export class ChefProtocol extends BaseProtocol {
     const chefProcess = spawn(chefCommand[0], chefCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || chefOptions.chefRepoPath || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(chefOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(chefOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -226,7 +241,7 @@ export class ChefProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -236,7 +251,7 @@ export class ChefProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -247,7 +262,9 @@ export class ChefProtocol extends BaseProtocol {
     });
 
     chefProcess.on('close', (code) => {
-      this.logger.info(`Chef process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Chef process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -260,7 +277,11 @@ export class ChefProtocol extends BaseProtocol {
       command: chefCommand[0],
       args: chefCommand.slice(1),
       cwd: options.cwd || chefOptions.chefRepoPath || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(chefOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(chefOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -268,12 +289,14 @@ export class ChefProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: chefProcess.pid
+      pid: chefProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Chef session ${sessionId} created for ${chefOptions.nodeName || chefOptions.cookbookPath || 'Chef automation'}`);
+    this.logger.info(
+      `Chef session ${sessionId} created for ${chefOptions.nodeName || chefOptions.cookbookPath || 'Chef automation'}`
+    );
     this.emit('session-created', { sessionId, type: 'chef', session });
 
     return session;
@@ -282,7 +305,7 @@ export class ChefProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -291,8 +314,8 @@ export class ChefProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -314,25 +337,30 @@ export class ChefProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Chef session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Chef session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const chefProcess = this.chefProcesses.get(sessionId);
-    return chefProcess && !chefProcess.killed || false;
+    return (chefProcess && !chefProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -343,26 +371,26 @@ export class ChefProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.chefProcesses.size
+        connectionsActive: this.chefProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -374,8 +402,8 @@ export class ChefProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          chef: { available: true }
-        }
+          chef: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -383,15 +411,17 @@ export class ChefProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Chef not available: ${error}`],
         dependencies: {
-          chef: { available: false }
-        }
+          chef: { available: false },
+        },
       };
     }
   }
 
   private async checkChefAvailability(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const testProcess = spawn('chef-client', ['--version'], { stdio: 'pipe' });
+      const testProcess = spawn('chef-client', ['--version'], {
+        stdio: 'pipe',
+      });
 
       testProcess.on('close', (code) => {
         if (code === 0) {
@@ -535,7 +565,9 @@ export class ChefProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: ChefConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: ChefConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Chef server configuration
@@ -594,7 +626,10 @@ export class ChefProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Chef process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Chef process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

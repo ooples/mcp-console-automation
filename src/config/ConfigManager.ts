@@ -1,4 +1,10 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  copyFileSync,
+} from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { Logger } from '../utils/logger.js';
@@ -43,7 +49,12 @@ export interface ConnectionProfile {
 export interface DotNetOptions {
   enabled: boolean;
   sdkPath?: string;
-  defaultFramework?: 'net6.0' | 'net7.0' | 'net8.0' | 'net9.0' | 'netcoreapp3.1';
+  defaultFramework?:
+    | 'net6.0'
+    | 'net7.0'
+    | 'net8.0'
+    | 'net9.0'
+    | 'netcoreapp3.1';
   buildConfiguration?: 'Debug' | 'Release';
   enableHotReload?: boolean;
   environmentVariables?: Record<string, string>;
@@ -95,16 +106,32 @@ export class ConfigManager {
   }
 
   private getConfigPath(): string {
-    const configDir = join(homedir(), '.mcp-console-automation');
-    const configFile = join(configDir, 'config.json');
+    const oldConfigDir = join(homedir(), '.mcp-console-automation');
+    const newConfigDir = join(homedir(), '.console-automation-mcp');
+    const oldConfigFile = join(oldConfigDir, 'config.json');
+    const newConfigFile = join(newConfigDir, 'config.json');
 
-    // Create directory if it doesn't exist
-    if (!existsSync(configDir)) {
-      mkdirSync(configDir, { recursive: true });
-      this.logger.info(`Created config directory: ${configDir}`);
+    // Migrate from old directory to new directory if needed
+    if (existsSync(oldConfigDir) && !existsSync(newConfigDir)) {
+      this.logger.info(
+        `Migrating config from ${oldConfigDir} to ${newConfigDir}`
+      );
+      mkdirSync(newConfigDir, { recursive: true });
+
+      // Copy config file if it exists
+      if (existsSync(oldConfigFile)) {
+        copyFileSync(oldConfigFile, newConfigFile);
+        this.logger.info('Config file migrated successfully');
+      }
     }
 
-    return configFile;
+    // Create new directory if it doesn't exist
+    if (!existsSync(newConfigDir)) {
+      mkdirSync(newConfigDir, { recursive: true });
+      this.logger.info(`Created config directory: ${newConfigDir}`);
+    }
+
+    return newConfigFile;
   }
 
   private getDefaultConfig(): MCPConfig {
@@ -115,13 +142,13 @@ export class ConfigManager {
           name: 'node-default',
           type: 'node',
           command: 'node',
-          args: []
+          args: [],
         },
         {
           name: 'python-default',
           type: 'python',
           command: 'python',
-          args: []
+          args: [],
         },
         {
           name: 'dotnet-default',
@@ -132,18 +159,18 @@ export class ConfigManager {
             enabled: true,
             defaultFramework: 'net8.0',
             buildConfiguration: 'Debug',
-            enableHotReload: true
-          }
-        }
+            enableHotReload: true,
+          },
+        },
       ],
       settings: {
         autoReconnect: true,
         keepAliveInterval: 30000,
-        commandTimeout: 120000,  // Increased from 30s to 2 minutes
-        maxRetries: 5,           // Increased from 3 to 5
+        commandTimeout: 120000, // Increased from 30s to 2 minutes
+        maxRetries: 5, // Increased from 3 to 5
         logLevel: 'info',
         enableMetrics: true,
-        enableHealthChecks: true
+        enableHealthChecks: true,
       },
       dotnet: {
         enabled: true,
@@ -151,10 +178,10 @@ export class ConfigManager {
         buildConfiguration: 'Debug',
         enableHotReload: true,
         environmentVariables: {
-          'DOTNET_CLI_TELEMETRY_OPTOUT': '1',
-          'DOTNET_NOLOGO': 'true'
-        }
-      }
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1',
+          DOTNET_NOLOGO: 'true',
+        },
+      },
     };
   }
 
@@ -163,18 +190,20 @@ export class ConfigManager {
       if (existsSync(this.configPath)) {
         const configData = readFileSync(this.configPath, 'utf-8');
         const loadedConfig = JSON.parse(configData) as MCPConfig;
-        
+
         // Merge with defaults to ensure all fields exist
         const defaultConfig = this.getDefaultConfig();
         return {
           ...defaultConfig,
           ...loadedConfig,
           settings: { ...defaultConfig.settings, ...loadedConfig.settings },
-          dotnet: { ...defaultConfig.dotnet, ...loadedConfig.dotnet }
+          dotnet: { ...defaultConfig.dotnet, ...loadedConfig.dotnet },
         };
       }
     } catch (error) {
-      this.logger.warn(`Failed to load config from ${this.configPath}: ${error}`);
+      this.logger.warn(
+        `Failed to load config from ${this.configPath}: ${error}`
+      );
     }
 
     // Return default config if file doesn't exist or failed to load
@@ -196,8 +225,10 @@ export class ConfigManager {
   // Connection Profile Management
   public addConnectionProfile(profile: ConnectionProfile): void {
     // Check if profile with same name exists
-    const existingIndex = this.config.connectionProfiles.findIndex(p => p.name === profile.name);
-    
+    const existingIndex = this.config.connectionProfiles.findIndex(
+      (p) => p.name === profile.name
+    );
+
     if (existingIndex >= 0) {
       this.config.connectionProfiles[existingIndex] = profile;
       this.logger.info(`Updated connection profile: ${profile.name}`);
@@ -210,7 +241,7 @@ export class ConfigManager {
     if (this.config.connectionProfiles.length === 1 || profile.isDefault) {
       this.config.defaultConnectionProfile = profile.name;
       // Clear other defaults
-      this.config.connectionProfiles.forEach(p => {
+      this.config.connectionProfiles.forEach((p) => {
         if (p.name !== profile.name) {
           p.isDefault = false;
         }
@@ -229,19 +260,22 @@ export class ConfigManager {
       }
     }
 
-    return this.config.connectionProfiles.find(p => p.name === name);
+    return this.config.connectionProfiles.find((p) => p.name === name);
   }
 
   public removeConnectionProfile(name: string): boolean {
-    const index = this.config.connectionProfiles.findIndex(p => p.name === name);
+    const index = this.config.connectionProfiles.findIndex(
+      (p) => p.name === name
+    );
     if (index >= 0) {
       this.config.connectionProfiles.splice(index, 1);
-      
+
       // Update default if necessary
       if (this.config.defaultConnectionProfile === name) {
-        this.config.defaultConnectionProfile = this.config.connectionProfiles[0]?.name;
+        this.config.defaultConnectionProfile =
+          this.config.connectionProfiles[0]?.name;
       }
-      
+
       this.saveConfig();
       this.logger.info(`Removed connection profile: ${name}`);
       return true;
@@ -255,8 +289,10 @@ export class ConfigManager {
 
   // Application Profile Management
   public addApplicationProfile(profile: ApplicationProfile): void {
-    const existingIndex = this.config.applicationProfiles.findIndex(p => p.name === profile.name);
-    
+    const existingIndex = this.config.applicationProfiles.findIndex(
+      (p) => p.name === profile.name
+    );
+
     if (existingIndex >= 0) {
       this.config.applicationProfiles[existingIndex] = profile;
       this.logger.info(`Updated application profile: ${profile.name}`);
@@ -269,11 +305,13 @@ export class ConfigManager {
   }
 
   public getApplicationProfile(name: string): ApplicationProfile | undefined {
-    return this.config.applicationProfiles.find(p => p.name === name);
+    return this.config.applicationProfiles.find((p) => p.name === name);
   }
 
-  public getApplicationProfileByType(type: string): ApplicationProfile | undefined {
-    return this.config.applicationProfiles.find(p => p.type === type);
+  public getApplicationProfileByType(
+    type: string
+  ): ApplicationProfile | undefined {
+    return this.config.applicationProfiles.find((p) => p.type === type);
   }
 
   // .NET specific methods
@@ -299,24 +337,28 @@ export class ConfigManager {
   }
 
   // Helper method to get SSH options with defaults applied
-  public getSSHOptionsWithDefaults(profileName?: string): SSHConnectionOptions | undefined {
+  public getSSHOptionsWithDefaults(
+    profileName?: string
+  ): SSHConnectionOptions | undefined {
     const profile = this.getConnectionProfile(profileName);
     if (!profile || profile.type !== 'ssh' || !profile.sshOptions) {
       return undefined;
     }
 
     const sshOptions = profile.sshOptions;
-    
+
     // Apply defaults
     return {
       ...sshOptions,
       port: sshOptions.port || 22,
       username: sshOptions.username || 'root',
-      keepAliveInterval: sshOptions.keepAliveInterval || this.config.settings.keepAliveInterval,
-      readyTimeout: sshOptions.readyTimeout || this.config.settings.commandTimeout,
+      keepAliveInterval:
+        sshOptions.keepAliveInterval || this.config.settings.keepAliveInterval,
+      readyTimeout:
+        sshOptions.readyTimeout || this.config.settings.commandTimeout,
       // Add reconnection settings
       reconnect: this.config.settings.autoReconnect,
-      maxReconnectAttempts: this.config.settings.maxRetries
+      maxReconnectAttempts: this.config.settings.maxRetries,
     } as SSHConnectionOptions;
   }
 

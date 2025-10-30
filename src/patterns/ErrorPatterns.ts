@@ -52,9 +52,10 @@ export class ErrorPatterns {
       language: 'javascript',
       description: 'JavaScript TypeError',
       severity: 'high',
-      remediation: 'Check object types and ensure properties exist before accessing',
+      remediation:
+        'Check object types and ensure properties exist before accessing',
       tags: ['javascript', 'node', 'type-error'],
-      contexts: ['browser', 'node']
+      contexts: ['browser', 'node'],
     },
     {
       pattern: /ReferenceError: (.+) is not defined/,
@@ -64,7 +65,7 @@ export class ErrorPatterns {
       description: 'JavaScript ReferenceError',
       severity: 'high',
       remediation: 'Declare the variable or import the required module',
-      tags: ['javascript', 'node', 'reference-error']
+      tags: ['javascript', 'node', 'reference-error'],
     },
     {
       pattern: /SyntaxError: (.+)/,
@@ -74,7 +75,7 @@ export class ErrorPatterns {
       description: 'JavaScript SyntaxError',
       severity: 'critical',
       remediation: 'Fix syntax issues in your JavaScript code',
-      tags: ['javascript', 'syntax']
+      tags: ['javascript', 'syntax'],
     },
     {
       pattern: /UnhandledPromiseRejectionWarning: (.+)/,
@@ -84,7 +85,7 @@ export class ErrorPatterns {
       description: 'Unhandled Promise Rejection',
       severity: 'high',
       remediation: 'Add .catch() handler or use try-catch with async/await',
-      tags: ['javascript', 'node', 'promise', 'async']
+      tags: ['javascript', 'node', 'promise', 'async'],
     },
 
     // Python Runtime Errors
@@ -96,7 +97,7 @@ export class ErrorPatterns {
       description: 'Python Exception with Stack Trace',
       severity: 'high',
       remediation: 'Check the stack trace for the root cause',
-      tags: ['python', 'traceback', 'exception']
+      tags: ['python', 'traceback', 'exception'],
     },
     {
       pattern: /(\w+Error): (.+)/,
@@ -106,7 +107,7 @@ export class ErrorPatterns {
       description: 'Python Exception',
       severity: 'high',
       remediation: 'Handle the specific exception type',
-      tags: ['python', 'exception']
+      tags: ['python', 'exception'],
     },
     {
       pattern: /IndentationError: (.+)/,
@@ -116,7 +117,7 @@ export class ErrorPatterns {
       description: 'Python Indentation Error',
       severity: 'high',
       remediation: 'Fix indentation issues in Python code',
-      tags: ['python', 'syntax', 'indentation']
+      tags: ['python', 'syntax', 'indentation'],
     },
 
     // Java Runtime Errors
@@ -129,7 +130,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check the exception type and stack trace',
       tags: ['java', 'exception', 'thread'],
-      lineNumberPattern: /at .+\.java:(\d+)/
+      lineNumberPattern: /at .+\.java:(\d+)/,
     },
     {
       pattern: /java\.lang\.NullPointerException/,
@@ -138,8 +139,9 @@ export class ErrorPatterns {
       language: 'java',
       description: 'Java Null Pointer Exception',
       severity: 'critical',
-      remediation: 'Check for null values before accessing object methods/properties',
-      tags: ['java', 'null-pointer', 'npe']
+      remediation:
+        'Check for null values before accessing object methods/properties',
+      tags: ['java', 'null-pointer', 'npe'],
     },
     {
       pattern: /java\.lang\.OutOfMemoryError/,
@@ -149,7 +151,7 @@ export class ErrorPatterns {
       description: 'Java Out of Memory Error',
       severity: 'critical',
       remediation: 'Increase heap size with -Xmx or optimize memory usage',
-      tags: ['java', 'memory', 'heap']
+      tags: ['java', 'memory', 'heap'],
     },
 
     // Go Runtime Errors
@@ -161,7 +163,7 @@ export class ErrorPatterns {
       description: 'Go Panic',
       severity: 'critical',
       remediation: 'Add proper error handling or recover from panic',
-      tags: ['go', 'panic']
+      tags: ['go', 'panic'],
     },
     {
       pattern: /runtime error: (.+)/,
@@ -171,7 +173,7 @@ export class ErrorPatterns {
       description: 'Go Runtime Error',
       severity: 'high',
       remediation: 'Check bounds, nil pointers, and type assertions',
-      tags: ['go', 'runtime']
+      tags: ['go', 'runtime'],
     },
 
     // Rust Runtime Errors
@@ -183,7 +185,7 @@ export class ErrorPatterns {
       description: 'Rust Panic',
       severity: 'critical',
       remediation: 'Handle errors properly using Result types',
-      tags: ['rust', 'panic']
+      tags: ['rust', 'panic'],
     },
 
     // C/C++ Runtime Errors
@@ -195,7 +197,7 @@ export class ErrorPatterns {
       description: 'Segmentation Fault',
       severity: 'critical',
       remediation: 'Check memory access, pointers, and array bounds',
-      tags: ['c', 'cpp', 'segfault', 'memory']
+      tags: ['c', 'cpp', 'segfault', 'memory'],
     },
     {
       pattern: /Aborted \(core dumped\)/,
@@ -205,8 +207,8 @@ export class ErrorPatterns {
       description: 'Program Aborted with Core Dump',
       severity: 'critical',
       remediation: 'Check for assertion failures or invalid operations',
-      tags: ['c', 'cpp', 'abort', 'core-dump']
-    }
+      tags: ['c', 'cpp', 'abort', 'core-dump'],
+    },
   ];
 
   /**
@@ -224,9 +226,9 @@ export class ErrorPatterns {
       remediation: 'Fix TypeScript type errors and syntax issues',
       tags: ['typescript', 'tsc', 'compile'],
       filePathPattern: /(.+\.ts)/,
-      lineNumberPattern: /\((\d+),(\d+)\)/
+      lineNumberPattern: /\((\d+),(\d+)\)/,
     },
-    
+
     // Java Compilation Errors
     {
       pattern: /(.+\.java):(\d+): error: (.+)/,
@@ -238,7 +240,7 @@ export class ErrorPatterns {
       remediation: 'Fix Java syntax and type errors',
       tags: ['java', 'javac', 'compile'],
       filePathPattern: /(.+\.java)/,
-      lineNumberPattern: /:(\d+):/
+      lineNumberPattern: /:(\d+):/,
     },
 
     // C/C++ Compilation Errors
@@ -252,7 +254,7 @@ export class ErrorPatterns {
       remediation: 'Fix C/C++ syntax, includes, and linking issues',
       tags: ['c', 'cpp', 'gcc', 'clang', 'compile'],
       filePathPattern: /(.+\.[ch]pp?)/,
-      lineNumberPattern: /:(\d+):(\d+):/
+      lineNumberPattern: /:(\d+):(\d+):/,
     },
 
     // Go Compilation Errors
@@ -266,7 +268,7 @@ export class ErrorPatterns {
       remediation: 'Fix Go syntax and import issues',
       tags: ['go', 'compile'],
       filePathPattern: /(.+\.go)/,
-      lineNumberPattern: /:(\d+):(\d+):/
+      lineNumberPattern: /:(\d+):(\d+):/,
     },
 
     // Rust Compilation Errors
@@ -278,8 +280,8 @@ export class ErrorPatterns {
       description: 'Rust Compilation Error',
       severity: 'high',
       remediation: 'Fix Rust syntax, borrowing, and lifetime issues',
-      tags: ['rust', 'rustc', 'compile']
-    }
+      tags: ['rust', 'rustc', 'compile'],
+    },
   ];
 
   /**
@@ -292,9 +294,10 @@ export class ErrorPatterns {
       category: 'network',
       description: 'Connection Refused',
       severity: 'high',
-      remediation: 'Check if the service is running and accessible on the specified port',
+      remediation:
+        'Check if the service is running and accessible on the specified port',
       tags: ['network', 'connection', 'refused'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /Connection timed out|connection timed out/,
@@ -304,7 +307,7 @@ export class ErrorPatterns {
       severity: 'medium',
       remediation: 'Check network connectivity and increase timeout values',
       tags: ['network', 'timeout'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /Network is unreachable|network unreachable/,
@@ -314,7 +317,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check network configuration and routing',
       tags: ['network', 'unreachable'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /Host not found|host not found|Name or service not known/,
@@ -324,7 +327,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check DNS settings and hostname spelling',
       tags: ['network', 'dns', 'hostname'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /SSL certificate verify failed|certificate verification failed/i,
@@ -332,8 +335,9 @@ export class ErrorPatterns {
       category: 'network',
       description: 'SSL Certificate Verification Failed',
       severity: 'high',
-      remediation: 'Check SSL certificate validity or disable verification for testing',
-      tags: ['network', 'ssl', 'certificate', 'security']
+      remediation:
+        'Check SSL certificate validity or disable verification for testing',
+      tags: ['network', 'ssl', 'certificate', 'security'],
     },
     {
       pattern: /Connection reset by peer|connection reset/,
@@ -343,8 +347,8 @@ export class ErrorPatterns {
       severity: 'medium',
       remediation: 'Check server configuration and network stability',
       tags: ['network', 'connection', 'reset'],
-      retryable: true
-    }
+      retryable: true,
+    },
   ];
 
   /**
@@ -359,7 +363,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check if SSH service is running on the target host',
       tags: ['ssh', 'connection', 'refused'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /Permission denied \(publickey\)/,
@@ -368,7 +372,7 @@ export class ErrorPatterns {
       description: 'SSH Public Key Authentication Failed',
       severity: 'high',
       remediation: 'Check SSH key configuration and permissions',
-      tags: ['ssh', 'authentication', 'publickey']
+      tags: ['ssh', 'authentication', 'publickey'],
     },
     {
       pattern: /Permission denied, please try again/,
@@ -377,7 +381,7 @@ export class ErrorPatterns {
       description: 'SSH Password Authentication Failed',
       severity: 'high',
       remediation: 'Verify username and password are correct',
-      tags: ['ssh', 'authentication', 'password']
+      tags: ['ssh', 'authentication', 'password'],
     },
     {
       pattern: /Host key verification failed/,
@@ -386,7 +390,7 @@ export class ErrorPatterns {
       description: 'SSH Host Key Verification Failed',
       severity: 'high',
       remediation: 'Update known_hosts file or verify host authenticity',
-      tags: ['ssh', 'hostkey', 'security']
+      tags: ['ssh', 'hostkey', 'security'],
     },
     {
       pattern: /ssh: Could not resolve hostname (.+): (.+)/,
@@ -395,7 +399,7 @@ export class ErrorPatterns {
       description: 'SSH Hostname Resolution Failed',
       severity: 'high',
       remediation: 'Check hostname spelling and DNS configuration',
-      tags: ['ssh', 'dns', 'hostname']
+      tags: ['ssh', 'dns', 'hostname'],
     },
     {
       pattern: /Connection to (.+) closed by remote host/,
@@ -405,8 +409,8 @@ export class ErrorPatterns {
       severity: 'medium',
       remediation: 'Check server logs and connection limits',
       tags: ['ssh', 'connection', 'closed'],
-      retryable: true
-    }
+      retryable: true,
+    },
   ];
 
   /**
@@ -422,7 +426,7 @@ export class ErrorPatterns {
       description: 'NPM Error',
       severity: 'high',
       remediation: 'Check package.json and dependencies',
-      tags: ['npm', 'javascript', 'build']
+      tags: ['npm', 'javascript', 'build'],
     },
     {
       pattern: /Module not found: Error: Can't resolve '(.+)'/,
@@ -432,7 +436,7 @@ export class ErrorPatterns {
       description: 'Module Resolution Error',
       severity: 'high',
       remediation: 'Install missing dependency or check import path',
-      tags: ['javascript', 'module', 'webpack', 'build']
+      tags: ['javascript', 'module', 'webpack', 'build'],
     },
 
     // Maven Errors
@@ -444,7 +448,7 @@ export class ErrorPatterns {
       description: 'Maven Build Error',
       severity: 'high',
       remediation: 'Check Maven configuration and dependencies',
-      tags: ['maven', 'java', 'build']
+      tags: ['maven', 'java', 'build'],
     },
 
     // Gradle Errors
@@ -456,7 +460,7 @@ export class ErrorPatterns {
       description: 'Gradle Task Failed',
       severity: 'high',
       remediation: 'Check Gradle configuration and task dependencies',
-      tags: ['gradle', 'java', 'build']
+      tags: ['gradle', 'java', 'build'],
     },
 
     // Cargo Errors (Rust)
@@ -468,7 +472,7 @@ export class ErrorPatterns {
       description: 'Cargo Build Error',
       severity: 'high',
       remediation: 'Check Cargo.toml and Rust code',
-      tags: ['cargo', 'rust', 'build']
+      tags: ['cargo', 'rust', 'build'],
     },
 
     // Make Errors
@@ -479,8 +483,8 @@ export class ErrorPatterns {
       description: 'Make Build Error',
       severity: 'high',
       remediation: 'Check Makefile and build dependencies',
-      tags: ['make', 'build']
-    }
+      tags: ['make', 'build'],
+    },
   ];
 
   /**
@@ -495,7 +499,7 @@ export class ErrorPatterns {
       description: 'MySQL Error',
       severity: 'high',
       remediation: 'Check MySQL error code and query syntax',
-      tags: ['mysql', 'database', 'sql']
+      tags: ['mysql', 'database', 'sql'],
     },
     {
       pattern: /Can't connect to MySQL server on '(.+)'/,
@@ -505,7 +509,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check MySQL server status and connection parameters',
       tags: ['mysql', 'database', 'connection'],
-      retryable: true
+      retryable: true,
     },
 
     // PostgreSQL Errors
@@ -516,7 +520,7 @@ export class ErrorPatterns {
       description: 'PostgreSQL Error',
       severity: 'high',
       remediation: 'Check PostgreSQL logs and query syntax',
-      tags: ['postgresql', 'postgres', 'database', 'sql']
+      tags: ['postgresql', 'postgres', 'database', 'sql'],
     },
     {
       pattern: /could not connect to server: (.+)/,
@@ -526,7 +530,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check PostgreSQL server status and configuration',
       tags: ['postgresql', 'postgres', 'database', 'connection'],
-      retryable: true
+      retryable: true,
     },
 
     // MongoDB Errors
@@ -537,7 +541,7 @@ export class ErrorPatterns {
       description: 'MongoDB Error',
       severity: 'high',
       remediation: 'Check MongoDB configuration and query',
-      tags: ['mongodb', 'database', 'nosql']
+      tags: ['mongodb', 'database', 'nosql'],
     },
 
     // Redis Errors
@@ -548,7 +552,7 @@ export class ErrorPatterns {
       description: 'Redis Wrong Type Error',
       severity: 'medium',
       remediation: 'Check Redis key types and operations',
-      tags: ['redis', 'database', 'cache']
+      tags: ['redis', 'database', 'cache'],
     },
 
     // Generic Database Connection Errors
@@ -558,8 +562,9 @@ export class ErrorPatterns {
       category: 'database',
       description: 'Database Connection Pool Exhausted',
       severity: 'critical',
-      remediation: 'Check connection pool configuration and close unused connections',
-      tags: ['database', 'connection-pool', 'performance']
+      remediation:
+        'Check connection pool configuration and close unused connections',
+      tags: ['database', 'connection-pool', 'performance'],
     },
     {
       pattern: /Deadlock found when trying to get lock|deadlock/i,
@@ -569,8 +574,8 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Optimize transaction order and reduce lock time',
       tags: ['database', 'deadlock', 'transaction'],
-      retryable: true
-    }
+      retryable: true,
+    },
   ];
 
   /**
@@ -585,7 +590,7 @@ export class ErrorPatterns {
       description: 'Out of Memory Error',
       severity: 'critical',
       remediation: 'Increase memory allocation or optimize memory usage',
-      tags: ['memory', 'performance', 'oom']
+      tags: ['memory', 'performance', 'oom'],
     },
     {
       pattern: /Memory leak|memory leak/i,
@@ -594,7 +599,7 @@ export class ErrorPatterns {
       description: 'Potential Memory Leak',
       severity: 'high',
       remediation: 'Profile application and fix memory leaks',
-      tags: ['memory', 'performance', 'leak']
+      tags: ['memory', 'performance', 'leak'],
     },
     {
       pattern: /GC overhead limit exceeded/,
@@ -604,7 +609,7 @@ export class ErrorPatterns {
       description: 'Garbage Collection Overhead',
       severity: 'critical',
       remediation: 'Optimize memory usage or tune GC parameters',
-      tags: ['java', 'gc', 'memory', 'performance']
+      tags: ['java', 'gc', 'memory', 'performance'],
     },
 
     // CPU Issues
@@ -615,7 +620,7 @@ export class ErrorPatterns {
       description: 'High CPU Usage',
       severity: 'medium',
       remediation: 'Profile application and optimize CPU-intensive operations',
-      tags: ['cpu', 'performance']
+      tags: ['cpu', 'performance'],
     },
     {
       pattern: /Thread pool exhausted|thread pool/i,
@@ -624,7 +629,7 @@ export class ErrorPatterns {
       description: 'Thread Pool Exhausted',
       severity: 'high',
       remediation: 'Increase thread pool size or optimize task processing',
-      tags: ['threads', 'performance', 'pool']
+      tags: ['threads', 'performance', 'pool'],
     },
 
     // Disk I/O Issues
@@ -635,7 +640,7 @@ export class ErrorPatterns {
       description: 'Disk Space Exhausted',
       severity: 'critical',
       remediation: 'Free up disk space or increase storage capacity',
-      tags: ['disk', 'storage', 'space']
+      tags: ['disk', 'storage', 'space'],
     },
     {
       pattern: /I\/O error|disk error|read error|write error/i,
@@ -644,8 +649,8 @@ export class ErrorPatterns {
       description: 'Disk I/O Error',
       severity: 'high',
       remediation: 'Check disk health and file system integrity',
-      tags: ['disk', 'io', 'hardware']
-    }
+      tags: ['disk', 'io', 'hardware'],
+    },
   ];
 
   /**
@@ -659,7 +664,7 @@ export class ErrorPatterns {
       description: 'Access Denied',
       severity: 'high',
       remediation: 'Check permissions and authentication',
-      tags: ['security', 'access', 'permissions']
+      tags: ['security', 'access', 'permissions'],
     },
     {
       pattern: /Unauthorized|unauthorized|401/,
@@ -668,7 +673,7 @@ export class ErrorPatterns {
       description: 'Unauthorized Access',
       severity: 'high',
       remediation: 'Verify authentication credentials',
-      tags: ['security', 'authentication', 'unauthorized']
+      tags: ['security', 'authentication', 'unauthorized'],
     },
     {
       pattern: /Invalid token|token expired|JWT/i,
@@ -678,7 +683,7 @@ export class ErrorPatterns {
       severity: 'medium',
       remediation: 'Refresh or renew authentication token',
       tags: ['security', 'token', 'jwt', 'authentication'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /CSRF token mismatch|csrf/i,
@@ -687,7 +692,7 @@ export class ErrorPatterns {
       description: 'CSRF Token Error',
       severity: 'high',
       remediation: 'Ensure CSRF token is properly included in requests',
-      tags: ['security', 'csrf', 'token']
+      tags: ['security', 'csrf', 'token'],
     },
     {
       pattern: /SQL injection|sql injection/i,
@@ -696,8 +701,8 @@ export class ErrorPatterns {
       description: 'Potential SQL Injection',
       severity: 'critical',
       remediation: 'Use parameterized queries and input validation',
-      tags: ['security', 'sql-injection', 'database']
-    }
+      tags: ['security', 'sql-injection', 'database'],
+    },
   ];
 
   /**
@@ -712,7 +717,7 @@ export class ErrorPatterns {
       description: 'Invalid SSM Session ID',
       severity: 'high',
       remediation: 'Create a new SSM session or verify session ID',
-      tags: ['aws', 'ssm', 'session', 'invalid-id']
+      tags: ['aws', 'ssm', 'session', 'invalid-id'],
     },
     {
       pattern: /Unable to start session: (.+)/,
@@ -722,7 +727,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check instance status, SSM agent, and IAM permissions',
       tags: ['aws', 'ssm', 'session', 'start-failed'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /Session ([\w-]+) has been terminated/,
@@ -732,7 +737,7 @@ export class ErrorPatterns {
       severity: 'medium',
       remediation: 'Check session timeout settings and reconnect if needed',
       tags: ['aws', 'ssm', 'session', 'terminated'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /Session ([\w-]+) is not in a valid state for this operation/,
@@ -741,7 +746,7 @@ export class ErrorPatterns {
       description: 'SSM Session Invalid State',
       severity: 'high',
       remediation: 'Verify session status and create new session if needed',
-      tags: ['aws', 'ssm', 'session', 'invalid-state']
+      tags: ['aws', 'ssm', 'session', 'invalid-state'],
     },
 
     // SSM Agent Errors
@@ -752,7 +757,7 @@ export class ErrorPatterns {
       description: 'SSM Agent Not Running',
       severity: 'critical',
       remediation: 'Start SSM agent on the target EC2 instance',
-      tags: ['aws', 'ssm', 'agent', 'not-running']
+      tags: ['aws', 'ssm', 'agent', 'not-running'],
     },
     {
       pattern: /SSM agent version (.+) is not supported/,
@@ -761,7 +766,7 @@ export class ErrorPatterns {
       description: 'Unsupported SSM Agent Version',
       severity: 'high',
       remediation: 'Update SSM agent to a supported version',
-      tags: ['aws', 'ssm', 'agent', 'version']
+      tags: ['aws', 'ssm', 'agent', 'version'],
     },
     {
       pattern: /Instance (i-[\w]+) is not managed by SSM/,
@@ -770,7 +775,7 @@ export class ErrorPatterns {
       description: 'Instance Not Managed by SSM',
       severity: 'critical',
       remediation: 'Install and configure SSM agent on the instance',
-      tags: ['aws', 'ssm', 'instance', 'not-managed']
+      tags: ['aws', 'ssm', 'instance', 'not-managed'],
     },
 
     // IAM and Permission Errors
@@ -781,7 +786,7 @@ export class ErrorPatterns {
       description: 'SSM Permission Denied',
       severity: 'high',
       remediation: 'Add required SSM permissions to IAM user/role',
-      tags: ['aws', 'ssm', 'iam', 'permissions']
+      tags: ['aws', 'ssm', 'iam', 'permissions'],
     },
     {
       pattern: /Access denied for SSM operation: (.+)/,
@@ -790,7 +795,7 @@ export class ErrorPatterns {
       description: 'SSM Access Denied',
       severity: 'high',
       remediation: 'Check IAM permissions and resource-based policies',
-      tags: ['aws', 'ssm', 'access-denied']
+      tags: ['aws', 'ssm', 'access-denied'],
     },
     {
       pattern: /Instance profile (.+) does not have SSM permissions/,
@@ -799,7 +804,7 @@ export class ErrorPatterns {
       description: 'Instance Profile Missing SSM Permissions',
       severity: 'critical',
       remediation: 'Add SSM permissions to the instance profile role',
-      tags: ['aws', 'ssm', 'instance-profile', 'permissions']
+      tags: ['aws', 'ssm', 'instance-profile', 'permissions'],
     },
 
     // Port Forwarding Errors
@@ -810,7 +815,7 @@ export class ErrorPatterns {
       description: 'SSM Port Already in Use',
       severity: 'high',
       remediation: 'Use a different local port or terminate existing session',
-      tags: ['aws', 'ssm', 'port-forwarding', 'port-in-use']
+      tags: ['aws', 'ssm', 'port-forwarding', 'port-in-use'],
     },
     {
       pattern: /Unable to establish port forwarding session to (.+):(\d+)/,
@@ -820,7 +825,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check target port accessibility and security groups',
       tags: ['aws', 'ssm', 'port-forwarding', 'failed'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /Port forwarding session ([\w-]+) failed: (.+)/,
@@ -830,7 +835,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check connectivity and restart port forwarding session',
       tags: ['aws', 'ssm', 'port-forwarding', 'session-failed'],
-      retryable: true
+      retryable: true,
     },
 
     // Document Execution Errors
@@ -840,8 +845,9 @@ export class ErrorPatterns {
       category: 'aws-ssm',
       description: 'SSM Document Not Found',
       severity: 'high',
-      remediation: 'Verify document name and check if it exists in the account/region',
-      tags: ['aws', 'ssm', 'document', 'not-found']
+      remediation:
+        'Verify document name and check if it exists in the account/region',
+      tags: ['aws', 'ssm', 'document', 'not-found'],
     },
     {
       pattern: /Document (.+) execution failed: (.+)/,
@@ -849,8 +855,9 @@ export class ErrorPatterns {
       category: 'aws-ssm',
       description: 'SSM Document Execution Failed',
       severity: 'high',
-      remediation: 'Check document parameters and target instance compatibility',
-      tags: ['aws', 'ssm', 'document', 'execution-failed']
+      remediation:
+        'Check document parameters and target instance compatibility',
+      tags: ['aws', 'ssm', 'document', 'execution-failed'],
     },
     {
       pattern: /Invalid parameters for document (.+): (.+)/,
@@ -859,7 +866,7 @@ export class ErrorPatterns {
       description: 'SSM Document Invalid Parameters',
       severity: 'medium',
       remediation: 'Verify document parameter requirements and values',
-      tags: ['aws', 'ssm', 'document', 'invalid-parameters']
+      tags: ['aws', 'ssm', 'document', 'invalid-parameters'],
     },
 
     // Connection and Network Errors
@@ -869,9 +876,10 @@ export class ErrorPatterns {
       category: 'aws-ssm',
       description: 'SSM Service Connection Failed',
       severity: 'high',
-      remediation: 'Check AWS credentials, region settings, and network connectivity',
+      remediation:
+        'Check AWS credentials, region settings, and network connectivity',
       tags: ['aws', 'ssm', 'connection', 'service'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /WebSocket connection to SSM failed: (.+)/,
@@ -881,7 +889,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Check network connectivity and firewall settings',
       tags: ['aws', 'ssm', 'websocket', 'connection'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /SSM endpoint not available in region (.+)/,
@@ -890,7 +898,7 @@ export class ErrorPatterns {
       description: 'SSM Service Not Available in Region',
       severity: 'critical',
       remediation: 'Use a supported AWS region or check service availability',
-      tags: ['aws', 'ssm', 'region', 'endpoint']
+      tags: ['aws', 'ssm', 'region', 'endpoint'],
     },
 
     // Credential and Authentication Errors
@@ -901,7 +909,7 @@ export class ErrorPatterns {
       description: 'Invalid AWS Credentials',
       severity: 'critical',
       remediation: 'Verify AWS access key and secret key are correct',
-      tags: ['aws', 'ssm', 'credentials', 'invalid']
+      tags: ['aws', 'ssm', 'credentials', 'invalid'],
     },
     {
       pattern: /AWS credentials have expired/,
@@ -911,7 +919,7 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Refresh AWS credentials or assume new role',
       tags: ['aws', 'ssm', 'credentials', 'expired'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /MFA token required for SSM access/,
@@ -920,7 +928,7 @@ export class ErrorPatterns {
       description: 'MFA Token Required',
       severity: 'medium',
       remediation: 'Provide MFA token to authenticate with AWS',
-      tags: ['aws', 'ssm', 'mfa', 'token']
+      tags: ['aws', 'ssm', 'mfa', 'token'],
     },
 
     // Rate Limiting and Throttling
@@ -932,7 +940,7 @@ export class ErrorPatterns {
       severity: 'medium',
       remediation: 'Implement exponential backoff and retry logic',
       tags: ['aws', 'ssm', 'rate-limit', 'throttling'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /Throttling exception for SSM: (.+)/,
@@ -942,7 +950,7 @@ export class ErrorPatterns {
       severity: 'medium',
       remediation: 'Reduce request frequency and implement backoff',
       tags: ['aws', 'ssm', 'throttling'],
-      retryable: true
+      retryable: true,
     },
 
     // Generic SSM Errors
@@ -953,7 +961,7 @@ export class ErrorPatterns {
       description: 'SSM Service Exception',
       severity: 'high',
       remediation: 'Check specific error message and AWS documentation',
-      tags: ['aws', 'ssm', 'exception']
+      tags: ['aws', 'ssm', 'exception'],
     },
     {
       pattern: /SSM operation (.+) failed: (.+)/,
@@ -963,8 +971,51 @@ export class ErrorPatterns {
       severity: 'high',
       remediation: 'Retry operation or check specific error details',
       tags: ['aws', 'ssm', 'operation', 'failed'],
-      retryable: true
-    }
+      retryable: true,
+    },
+  ];
+
+  /**
+   * Generic Error Patterns - Catch-all patterns for common error formats
+   * Note: These use word boundaries to avoid matching specific error patterns
+   */
+  static readonly GENERIC_PATTERNS: ExtendedErrorPattern[] = [
+    {
+      pattern: /^\s*Error:\s*(.+)/,
+      type: 'error',
+      category: 'generic',
+      description: 'Generic Error Message',
+      severity: 'medium',
+      remediation: 'Review error message and context',
+      tags: ['error', 'generic'],
+    },
+    {
+      pattern: /^\s*Exception:\s*(.+)/,
+      type: 'exception',
+      category: 'generic',
+      description: 'Generic Exception',
+      severity: 'medium',
+      remediation: 'Review exception message and context',
+      tags: ['exception', 'generic'],
+    },
+    {
+      pattern: /^\s*Warning:\s*(.+)/,
+      type: 'warning',
+      category: 'generic',
+      description: 'Generic Warning Message',
+      severity: 'low',
+      remediation: 'Review warning message',
+      tags: ['warning', 'generic'],
+    },
+    {
+      pattern: /^\s*Fatal:\s*(.+)/,
+      type: 'error',
+      category: 'generic',
+      description: 'Fatal Error Message',
+      severity: 'critical',
+      remediation: 'Review fatal error and restart service',
+      tags: ['fatal', 'generic'],
+    },
   ];
 
   /**
@@ -978,7 +1029,7 @@ export class ErrorPatterns {
       description: 'Configuration Error',
       severity: 'high',
       remediation: 'Check configuration files and settings',
-      tags: ['configuration', 'config']
+      tags: ['configuration', 'config'],
     },
     {
       pattern: /Missing environment variable|env var|environment/i,
@@ -987,7 +1038,7 @@ export class ErrorPatterns {
       description: 'Missing Environment Variable',
       severity: 'high',
       remediation: 'Set required environment variables',
-      tags: ['configuration', 'environment', 'variables']
+      tags: ['configuration', 'environment', 'variables'],
     },
     {
       pattern: /Invalid configuration|invalid config/i,
@@ -996,7 +1047,7 @@ export class ErrorPatterns {
       description: 'Invalid Configuration',
       severity: 'high',
       remediation: 'Validate configuration syntax and values',
-      tags: ['configuration', 'validation']
+      tags: ['configuration', 'validation'],
     },
     {
       pattern: /Port already in use|address already in use/i,
@@ -1005,8 +1056,8 @@ export class ErrorPatterns {
       description: 'Port Already in Use',
       severity: 'high',
       remediation: 'Use a different port or stop the conflicting service',
-      tags: ['configuration', 'port', 'network']
-    }
+      tags: ['configuration', 'port', 'network'],
+    },
   ];
 
   /**
@@ -1019,9 +1070,10 @@ export class ErrorPatterns {
       description: 'WSL distribution registration failed - file not found',
       severity: 'high',
       category: 'wsl-installation',
-      remediation: 'Check file paths and permissions for distribution installation',
+      remediation:
+        'Check file paths and permissions for distribution installation',
       tags: ['wsl', 'installation', 'registration'],
-      retryable: false
+      retryable: false,
     },
     {
       pattern: /WslRegisterDistribution failed with error: 0x8007019e/,
@@ -1031,17 +1083,18 @@ export class ErrorPatterns {
       category: 'wsl-configuration',
       remediation: 'Enable WSL feature in Windows Features or via PowerShell',
       tags: ['wsl', 'feature', 'windows'],
-      retryable: false
+      retryable: false,
     },
     {
-      pattern: /The Windows Subsystem for Linux optional component is not enabled/,
+      pattern:
+        /The Windows Subsystem for Linux optional component is not enabled/,
       type: 'error',
       description: 'WSL optional component not enabled',
       severity: 'critical',
       category: 'wsl-configuration',
       remediation: 'Enable WSL in Windows Features',
       tags: ['wsl', 'windows-features'],
-      retryable: false
+      retryable: false,
     },
     {
       pattern: /Element not found/,
@@ -1051,7 +1104,7 @@ export class ErrorPatterns {
       category: 'wsl-distribution',
       remediation: 'Check distribution name and installation status',
       tags: ['wsl', 'distribution', 'not-found'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /The system cannot find the file specified/,
@@ -1061,7 +1114,7 @@ export class ErrorPatterns {
       category: 'wsl-filesystem',
       remediation: 'Reinstall WSL or the specific distribution',
       tags: ['wsl', 'filesystem', 'file-not-found'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /A connection with the server could not be established/,
@@ -1071,7 +1124,7 @@ export class ErrorPatterns {
       category: 'wsl-network',
       remediation: 'Check network configuration and restart WSL',
       tags: ['wsl', 'network', 'connectivity'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /systemd.*failed/i,
@@ -1081,7 +1134,7 @@ export class ErrorPatterns {
       category: 'wsl-systemd',
       remediation: 'Check systemd configuration and service status',
       tags: ['wsl', 'systemd', 'service'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /mount.*failed/i,
@@ -1091,7 +1144,7 @@ export class ErrorPatterns {
       category: 'wsl-filesystem',
       remediation: 'Check mount points and file system integrity',
       tags: ['wsl', 'filesystem', 'mount'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /docker.*not found/i,
@@ -1101,7 +1154,7 @@ export class ErrorPatterns {
       category: 'wsl-docker',
       remediation: 'Install Docker in WSL distribution',
       tags: ['wsl', 'docker', 'not-found'],
-      retryable: false
+      retryable: false,
     },
     {
       pattern: /permission denied.*\/mnt\//i,
@@ -1111,7 +1164,7 @@ export class ErrorPatterns {
       category: 'wsl-permissions',
       remediation: 'Check WSL mount permissions and Windows file permissions',
       tags: ['wsl', 'permissions', 'mount'],
-      retryable: false
+      retryable: false,
     },
     {
       pattern: /wsl.*terminated/i,
@@ -1121,7 +1174,7 @@ export class ErrorPatterns {
       category: 'wsl-runtime',
       remediation: 'Restart WSL distribution and check system resources',
       tags: ['wsl', 'runtime', 'terminated'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /Invalid console output mode/i,
@@ -1131,7 +1184,7 @@ export class ErrorPatterns {
       category: 'wsl-console',
       remediation: 'Reset WSL terminal configuration',
       tags: ['wsl', 'console', 'output'],
-      retryable: true
+      retryable: true,
     },
     {
       pattern: /The parameter is incorrect/,
@@ -1141,7 +1194,7 @@ export class ErrorPatterns {
       category: 'wsl-parameter',
       remediation: 'Check command syntax and parameters',
       tags: ['wsl', 'parameter', 'command'],
-      retryable: false
+      retryable: false,
     },
     {
       pattern: /wsl: Argument list too long/i,
@@ -1151,7 +1204,7 @@ export class ErrorPatterns {
       category: 'wsl-argument',
       remediation: 'Reduce command arguments or use input files',
       tags: ['wsl', 'arguments', 'command'],
-      retryable: false
+      retryable: false,
     },
     {
       pattern: /Virtual machine could not be started/i,
@@ -1161,12 +1214,13 @@ export class ErrorPatterns {
       category: 'wsl2-vm',
       remediation: 'Check Hyper-V settings and system resources',
       tags: ['wsl2', 'vm', 'startup'],
-      retryable: true
-    }
+      retryable: true,
+    },
   ];
 
   /**
    * Get all error patterns combined
+   * Note: Generic patterns are last to allow more specific patterns to match first
    */
   static getAllPatterns(): ExtendedErrorPattern[] {
     return [
@@ -1180,7 +1234,8 @@ export class ErrorPatterns {
       ...this.SECURITY_PATTERNS,
       ...this.AWS_SSM_PATTERNS,
       ...this.CONFIGURATION_PATTERNS,
-      ...this.WSL_PATTERNS
+      ...this.WSL_PATTERNS,
+      ...this.GENERIC_PATTERNS,
     ];
   }
 
@@ -1188,27 +1243,37 @@ export class ErrorPatterns {
    * Get patterns by category
    */
   static getPatternsByCategory(category: string): ExtendedErrorPattern[] {
-    return this.getAllPatterns().filter(pattern => pattern.category === category);
+    return this.getAllPatterns().filter(
+      (pattern) => pattern.category === category
+    );
   }
 
   /**
    * Get patterns by language
    */
   static getPatternsByLanguage(language: string): ExtendedErrorPattern[] {
-    return this.getAllPatterns().filter(pattern => pattern.language === language);
+    return this.getAllPatterns().filter(
+      (pattern) => pattern.language === language
+    );
   }
 
   /**
    * Get patterns by severity
    */
-  static getPatternsBySeverity(severity: 'low' | 'medium' | 'high' | 'critical'): ExtendedErrorPattern[] {
-    return this.getAllPatterns().filter(pattern => pattern.severity === severity);
+  static getPatternsBySeverity(
+    severity: 'low' | 'medium' | 'high' | 'critical'
+  ): ExtendedErrorPattern[] {
+    return this.getAllPatterns().filter(
+      (pattern) => pattern.severity === severity
+    );
   }
 
   /**
    * Get retryable patterns
    */
   static getRetryablePatterns(): ExtendedErrorPattern[] {
-    return this.getAllPatterns().filter(pattern => pattern.retryable === true);
+    return this.getAllPatterns().filter(
+      (pattern) => pattern.retryable === true
+    );
   }
 }

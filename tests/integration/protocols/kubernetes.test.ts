@@ -18,7 +18,10 @@ import {
   K8sClusterInfo 
 } from '../../../src/types/index.js';
 
-describe('Kubernetes Protocol Integration Tests', () => {
+// Skip cloud protocol tests if SKIP_HARDWARE_TESTS is set (requires Kubernetes cluster)
+const describeIfCloud = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfCloud('Kubernetes Protocol Integration Tests', () => {
   let k8sProtocol: KubernetesProtocol;
   let mockK8sProtocol: MockKubernetesProtocol;
   let testServerManager: TestServerManager;

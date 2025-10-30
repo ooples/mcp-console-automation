@@ -125,7 +125,9 @@ export class TestDataLoader {
     filePaths: string[],
     options?: LoaderOptions
   ): Promise<TestFixture[]> {
-    return Promise.all(filePaths.map((path) => this.loadFixture(path, options)));
+    return Promise.all(
+      filePaths.map((path) => this.loadFixture(path, options))
+    );
   }
 
   /**
@@ -303,7 +305,9 @@ export class TestDataLoader {
     if (schema.required && Array.isArray(schema.required)) {
       for (const field of schema.required) {
         if (!(field in data)) {
-          throw new Error(`Schema validation failed: missing required field "${field}"`);
+          throw new Error(
+            `Schema validation failed: missing required field "${field}"`
+          );
         }
       }
     }

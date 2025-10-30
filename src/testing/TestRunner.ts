@@ -59,9 +59,9 @@ export class TestRunner {
     const duration = endTime - startTime;
 
     // Calculate statistics
-    const passed = results.filter(r => r.status === 'pass').length;
-    const failed = results.filter(r => r.status === 'fail').length;
-    const skipped = results.filter(r => r.status === 'skip').length;
+    const passed = results.filter((r) => r.status === 'pass').length;
+    const failed = results.filter((r) => r.status === 'fail').length;
+    const skipped = results.filter((r) => r.status === 'skip').length;
 
     const suiteResult: TestSuiteResult = {
       suite,
@@ -82,13 +82,18 @@ export class TestRunner {
   /**
    * Run a single test with retries
    */
-  private async runTest(test: TestDefinition, suite: TestSuite): Promise<TestResult> {
+  private async runTest(
+    test: TestDefinition,
+    suite: TestSuite
+  ): Promise<TestResult> {
     const maxAttempts = test.retry + 1;
     let lastResult: TestResult | null = null;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       if (attempt > 0) {
-        console.log(`  🔄 Retry attempt ${attempt}/${test.retry} for "${test.name}"`);
+        console.log(
+          `  🔄 Retry attempt ${attempt}/${test.retry} for "${test.name}"`
+        );
       }
 
       lastResult = await this.runTestOnce(test, attempt);
@@ -105,7 +110,10 @@ export class TestRunner {
   /**
    * Run a single test once
    */
-  private async runTestOnce(test: TestDefinition, retryCount: number = 0): Promise<TestResult> {
+  private async runTestOnce(
+    test: TestDefinition,
+    retryCount: number = 0
+  ): Promise<TestResult> {
     const startTime = Date.now();
     const assertions: AssertionResult[] = [];
     let status: TestResult['status'] = 'pass';
@@ -134,7 +142,7 @@ export class TestRunner {
       assertions.push(...result.assertions);
 
       // Check if any assertions failed
-      const failedAssertions = assertions.filter(a => !a.passed);
+      const failedAssertions = assertions.filter((a) => !a.passed);
       if (failedAssertions.length > 0) {
         status = 'fail';
         error = new Error(`${failedAssertions.length} assertion(s) failed`);
@@ -206,7 +214,9 @@ export class TestRunner {
    * Execute a single assertion
    * For Phase 3, this is a stub that simulates assertion execution
    */
-  private async executeAssertion(assertion: Assertion): Promise<AssertionResult> {
+  private async executeAssertion(
+    assertion: Assertion
+  ): Promise<AssertionResult> {
     // Stub implementation - Phase 2 will provide the real assertion engine
     // For now, randomly pass/fail to simulate test execution
 
@@ -225,7 +235,10 @@ export class TestRunner {
   /**
    * Run a test hook (setup/teardown)
    */
-  private async runHook(hook: { type: string; fn: () => Promise<void> | void; timeout?: number }, label: string): Promise<void> {
+  private async runHook(
+    hook: { type: string; fn: () => Promise<void> | void; timeout?: number },
+    label: string
+  ): Promise<void> {
     try {
       const timeout = hook.timeout ?? 10000;
       const hookPromise = Promise.resolve(hook.fn());
@@ -270,7 +283,8 @@ export class TestRunner {
     console.log(`⊝  Skipped: ${result.skipped}`);
     console.log(`⏱️  Duration: ${result.duration}ms`);
 
-    const passRate = result.totalTests > 0 ? (result.passed / result.totalTests) * 100 : 0;
+    const passRate =
+      result.totalTests > 0 ? (result.passed / result.totalTests) * 100 : 0;
     console.log(`📊 Pass Rate: ${passRate.toFixed(1)}%`);
     console.log('='.repeat(60) + '\n');
   }

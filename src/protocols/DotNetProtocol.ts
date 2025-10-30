@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // .NET Protocol connection options
@@ -73,9 +73,9 @@ export class DotNetProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -107,8 +107,8 @@ export class DotNetProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -135,8 +135,13 @@ export class DotNetProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -157,7 +162,9 @@ export class DotNetProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to .NET session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to .NET session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -188,7 +195,11 @@ export class DotNetProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -202,7 +213,11 @@ export class DotNetProtocol extends BaseProtocol {
     const dotnetProcess = spawn(dotnetCommand[0], dotnetCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(dotnetOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(dotnetOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -211,7 +226,7 @@ export class DotNetProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -221,7 +236,7 @@ export class DotNetProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -232,7 +247,9 @@ export class DotNetProtocol extends BaseProtocol {
     });
 
     dotnetProcess.on('close', (code) => {
-      this.logger.info(`.NET process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `.NET process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -245,7 +262,11 @@ export class DotNetProtocol extends BaseProtocol {
       command: dotnetCommand[0],
       args: dotnetCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(dotnetOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(dotnetOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -253,12 +274,14 @@ export class DotNetProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: dotnetProcess.pid
+      pid: dotnetProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`.NET session ${sessionId} created for ${dotnetOptions.projectFile || dotnetOptions.solutionFile || dotnetOptions.assemblyPath || '.NET application'}`);
+    this.logger.info(
+      `.NET session ${sessionId} created for ${dotnetOptions.projectFile || dotnetOptions.solutionFile || dotnetOptions.assemblyPath || '.NET application'}`
+    );
     this.emit('session-created', { sessionId, type: 'dotnet', session });
 
     return session;
@@ -267,7 +290,7 @@ export class DotNetProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -276,8 +299,8 @@ export class DotNetProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -299,25 +322,30 @@ export class DotNetProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in .NET session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in .NET session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const dotnetProcess = this.dotnetProcesses.get(sessionId);
-    return dotnetProcess && !dotnetProcess.killed || false;
+    return (dotnetProcess && !dotnetProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -328,26 +356,26 @@ export class DotNetProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.dotnetProcesses.size
+        connectionsActive: this.dotnetProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -359,8 +387,8 @@ export class DotNetProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          dotnet: { available: true }
-        }
+          dotnet: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -368,8 +396,8 @@ export class DotNetProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `.NET not available: ${error}`],
         dependencies: {
-          dotnet: { available: false }
-        }
+          dotnet: { available: false },
+        },
       };
     }
   }
@@ -448,11 +476,9 @@ export class DotNetProtocol extends BaseProtocol {
       if (options.buildFlags) {
         command.push(...options.buildFlags);
       }
-
     } else if (options.assemblyPath) {
       // Running compiled assembly directly
       command.push(options.assemblyPath);
-
     } else {
       // Default to --info if nothing specified
       command.push('--info');
@@ -467,7 +493,9 @@ export class DotNetProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: DotNetConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: DotNetConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // .NET environment variables
@@ -545,7 +573,10 @@ export class DotNetProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing .NET process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing .NET process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

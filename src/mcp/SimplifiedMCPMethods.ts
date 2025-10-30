@@ -1,6 +1,10 @@
 import { SimpleCommandExecutor } from '../core/SimpleCommandExecutor.js';
 import { SessionOptions } from '../types/index.js';
-import { TextContent, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import {
+  TextContent,
+  McpError,
+  ErrorCode,
+} from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Simplified MCP method implementations that bypass complex session management
@@ -29,7 +33,10 @@ export class SimplifiedMCPMethods {
     try {
       // Validate required parameters
       if (!args.command) {
-        throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'command parameter is required'
+        );
       }
 
       // Create session options
@@ -54,21 +61,28 @@ export class SimplifiedMCPMethods {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              command: args.command,
-              args: args.args,
-              method: result.method,
-              output: result.output,
-              exitCode: result.exitCode,
-              success: result.exitCode === 0,
-              executedAt: new Date().toISOString(),
-              duration: 'N/A', // Could be tracked if needed
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                command: args.command,
+                args: args.args,
+                method: result.method,
+                output: result.output,
+                exitCode: result.exitCode,
+                success: result.exitCode === 0,
+                executedAt: new Date().toISOString(),
+                duration: 'N/A', // Could be tracked if needed
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
-      throw new McpError(ErrorCode.InternalError, `Command execution failed: ${error.message}`);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Command execution failed: ${error.message}`
+      );
     }
   }
 
@@ -85,7 +99,10 @@ export class SimplifiedMCPMethods {
   }) {
     try {
       if (!args.command) {
-        throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'command parameter is required'
+        );
       }
 
       const result = await this.executor.executeSyncCommand(
@@ -102,20 +119,27 @@ export class SimplifiedMCPMethods {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              command: args.command,
-              args: args.args,
-              method: 'synchronous',
-              output: result.output,
-              exitCode: result.exitCode,
-              success: result.exitCode === 0,
-              executedAt: new Date().toISOString(),
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                command: args.command,
+                args: args.args,
+                method: 'synchronous',
+                output: result.output,
+                exitCode: result.exitCode,
+                success: result.exitCode === 0,
+                executedAt: new Date().toISOString(),
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
-      throw new McpError(ErrorCode.InternalError, `Sync command execution failed: ${error.message}`);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Sync command execution failed: ${error.message}`
+      );
     }
   }
 
@@ -132,11 +156,18 @@ export class SimplifiedMCPMethods {
   }) {
     try {
       if (!args.command) {
-        throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'command parameter is required'
+        );
       }
 
       let streamingOutput = '';
-      const outputChunks: Array<{ data: string; isError: boolean; timestamp: string }> = [];
+      const outputChunks: Array<{
+        data: string;
+        isError: boolean;
+        timestamp: string;
+      }> = [];
 
       const result = await this.executor.executeStreamingCommand(
         args.command,
@@ -150,9 +181,9 @@ export class SimplifiedMCPMethods {
             outputChunks.push({
               data,
               isError,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
             });
-          }
+          },
         }
       );
 
@@ -160,22 +191,29 @@ export class SimplifiedMCPMethods {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              command: args.command,
-              args: args.args,
-              method: 'streaming',
-              output: result.output,
-              exitCode: result.exitCode,
-              success: result.exitCode === 0,
-              executedAt: new Date().toISOString(),
-              streamingChunks: outputChunks.length,
-              realTimeOutput: outputChunks.slice(0, 10), // First 10 chunks as example
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                command: args.command,
+                args: args.args,
+                method: 'streaming',
+                output: result.output,
+                exitCode: result.exitCode,
+                success: result.exitCode === 0,
+                executedAt: new Date().toISOString(),
+                streamingChunks: outputChunks.length,
+                realTimeOutput: outputChunks.slice(0, 10), // First 10 chunks as example
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
-      throw new McpError(ErrorCode.InternalError, `Streaming command execution failed: ${error.message}`);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Streaming command execution failed: ${error.message}`
+      );
     }
   }
 
@@ -198,15 +236,25 @@ export class SimplifiedMCPMethods {
   }) {
     try {
       if (!args.command) {
-        throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'command parameter is required'
+        );
       }
 
       if (!args.sshOptions) {
-        throw new McpError(ErrorCode.InvalidParams, 'sshOptions parameter is required for SSH execution');
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'sshOptions parameter is required for SSH execution'
+        );
       }
 
       // Check for Windows SSH password limitation
-      if (process.platform === 'win32' && args.sshOptions.password && !args.sshOptions.privateKeyPath) {
+      if (
+        process.platform === 'win32' &&
+        args.sshOptions.password &&
+        !args.sshOptions.privateKeyPath
+      ) {
         throw new McpError(
           ErrorCode.InvalidParams,
           'SSH password authentication is not supported on Windows. Please use SSH key-based authentication instead.'
@@ -226,22 +274,29 @@ export class SimplifiedMCPMethods {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              command: args.command,
-              args: args.args,
-              method: 'ssh',
-              host: args.sshOptions.host,
-              username: args.sshOptions.username,
-              output: result.output,
-              exitCode: result.exitCode,
-              success: result.exitCode === 0,
-              executedAt: new Date().toISOString(),
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                command: args.command,
+                args: args.args,
+                method: 'ssh',
+                host: args.sshOptions.host,
+                username: args.sshOptions.username,
+                output: result.output,
+                exitCode: result.exitCode,
+                success: result.exitCode === 0,
+                executedAt: new Date().toISOString(),
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
-      throw new McpError(ErrorCode.InternalError, `SSH command execution failed: ${error.message}`);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `SSH command execution failed: ${error.message}`
+      );
     }
   }
 
@@ -263,7 +318,10 @@ export class SimplifiedMCPMethods {
 
     try {
       if (!args.command) {
-        throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'command parameter is required'
+        );
       }
 
       const startTime = Date.now();
@@ -272,10 +330,14 @@ export class SimplifiedMCPMethods {
       let result: { output: string; exitCode: number; method?: string };
 
       if (args.sshOptions) {
-        result = await this.executor.executeSSHCommand(args.command, args.sshOptions, {
-          timeout: args.timeout,
-          args: args.args,
-        });
+        result = await this.executor.executeSSHCommand(
+          args.command,
+          args.sshOptions,
+          {
+            timeout: args.timeout,
+            args: args.args,
+          }
+        );
         result.method = 'ssh';
       } else {
         // Use smart execution for local commands
@@ -300,23 +362,30 @@ export class SimplifiedMCPMethods {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              sessionId, // Fake session ID for compatibility
-              command: args.command,
-              args: args.args,
-              method: result.method || 'oneshot',
-              output: result.output,
-              exitCode: result.exitCode,
-              success: result.exitCode === 0,
-              duration,
-              executedAt: new Date().toISOString(),
-              sessionType: 'one-shot',
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                sessionId, // Fake session ID for compatibility
+                command: args.command,
+                args: args.args,
+                method: result.method || 'oneshot',
+                output: result.output,
+                exitCode: result.exitCode,
+                success: result.exitCode === 0,
+                duration,
+                executedAt: new Date().toISOString(),
+                sessionType: 'one-shot',
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
-      throw new McpError(ErrorCode.InternalError, `One-shot execution failed: ${error.message}`);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `One-shot execution failed: ${error.message}`
+      );
     }
   }
 }

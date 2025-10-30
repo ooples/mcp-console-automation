@@ -3,7 +3,10 @@
  */
 
 import { ParallelExecutor } from '../testing/ParallelExecutor.js';
-import { TestDefinition, ParallelExecutionConfig } from '../types/test-framework.js';
+import {
+  TestDefinition,
+  ParallelExecutionConfig,
+} from '../types/test-framework.js';
 
 describe('ParallelExecutor', () => {
   let executor: ParallelExecutor;

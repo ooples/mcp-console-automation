@@ -44,7 +44,8 @@ module.exports = {
   moduleNameMapper: {
     '^(\.{1,2}/.+)\.js$': '$1',
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^@tests/(.*)$': '<rootDir>/tests/$1'
+    '^@tests/(.*)$': '<rootDir>/tests/$1',
+    '^strip-ansi$': '<rootDir>/src/tests/__mocks__/strip-ansi.js'
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   globals: {
@@ -54,7 +55,7 @@ module.exports = {
     }
   },
   transform: {
-    '^.+\.(js|jsx|mjs|cjs)$': 'babel-jest'
+    '^.+\\.(js|jsx|mjs|cjs)$': 'babel-jest'
   },
   transformIgnorePatterns: [],
   setupFilesAfterEnv: [
@@ -85,6 +86,6 @@ module.exports = {
     }]
   ],
   testResultsProcessor: 'jest-sonar-reporter',
-  globalSetup: '<rootDir>/tests/setup/global-setup-simple.js',
-  globalTeardown: '<rootDir>/tests/setup/global-teardown-simple.js'
+  globalSetup: '<rootDir>/tests/setup/global-setup-simple.mjs',
+  globalTeardown: '<rootDir>/tests/setup/global-teardown-simple.mjs'
 };

@@ -1,0 +1,41 @@
+{
+  "name": "wait-test",
+  "version": "1.0.0",
+  "createdAt": "2025-10-30T19:22:12.846Z",
+  "duration": 0,
+  "steps": [
+    {
+      "type": "create_session",
+      "timestamp": 0,
+      "data": {
+        "command": "bash"
+      },
+      "sessionId": "s1"
+    },
+    {
+      "type": "send_input",
+      "timestamp": 0,
+      "data": {
+        "input": "sleep 1"
+      },
+      "sessionId": "s1"
+    },
+    {
+      "type": "wait_for_output",
+      "timestamp": 0,
+      "data": {
+        "pattern": "prompt",
+        "timeout": 10000
+      },
+      "sessionId": "s1"
+    }
+  ],
+  "metadata": {
+    "environment": {
+      "platform": "win32",
+      "nodeVersion": "v22.20.0",
+      "cwd": "C:\\Users\\cheat\\source\\repos\\mcp-console-automation",
+      "timestamp": "2025-10-30T19:22:12.846Z"
+    }
+  }
+}

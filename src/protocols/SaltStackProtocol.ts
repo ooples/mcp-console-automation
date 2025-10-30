@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,13 +12,33 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // SaltStack Protocol connection options
 interface SaltStackConnectionOptions extends SessionOptions {
   // Basic Salt Configuration
-  operation?: 'call' | 'run' | 'cp' | 'grain' | 'pillar' | 'key' | 'minion' | 'master' | 'syndic' | 'state' | 'mine' | 'event' | 'debug' | 'ssh' | 'cloud' | 'batch' | 'jobs' | 'ret' | 'vault' | 'proxy';
+  operation?:
+    | 'call'
+    | 'run'
+    | 'cp'
+    | 'grain'
+    | 'pillar'
+    | 'key'
+    | 'minion'
+    | 'master'
+    | 'syndic'
+    | 'state'
+    | 'mine'
+    | 'event'
+    | 'debug'
+    | 'ssh'
+    | 'cloud'
+    | 'batch'
+    | 'jobs'
+    | 'ret'
+    | 'vault'
+    | 'proxy';
 
   // Core Commands
   target?: string;
@@ -36,7 +56,19 @@ interface SaltStackConnectionOptions extends SessionOptions {
   saltenv?: string;
 
   // Targeting
-  targetType?: 'glob' | 'pcre' | 'list' | 'grain' | 'grain_pcre' | 'pillar' | 'pillar_pcre' | 'nodegroup' | 'range' | 'compound' | 'ipcidr' | 'subnet';
+  targetType?:
+    | 'glob'
+    | 'pcre'
+    | 'list'
+    | 'grain'
+    | 'grain_pcre'
+    | 'pillar'
+    | 'pillar_pcre'
+    | 'nodegroup'
+    | 'range'
+    | 'compound'
+    | 'ipcidr'
+    | 'subnet';
   compound?: boolean;
   batch?: string | number;
   batchSize?: number;
@@ -57,7 +89,19 @@ interface SaltStackConnectionOptions extends SessionOptions {
   failSomeMinions?: boolean;
 
   // Output Options
-  outputFormat?: 'yaml' | 'json' | 'txt' | 'raw' | 'nested' | 'quiet' | 'pprint' | 'key' | 'overstatestage' | 'highstate' | 'table' | 'newline_values_only';
+  outputFormat?:
+    | 'yaml'
+    | 'json'
+    | 'txt'
+    | 'raw'
+    | 'nested'
+    | 'quiet'
+    | 'pprint'
+    | 'key'
+    | 'overstatestage'
+    | 'highstate'
+    | 'table'
+    | 'newline_values_only';
   outputIndent?: number;
   noColor?: boolean;
   forceColor?: boolean;
@@ -70,7 +114,17 @@ interface SaltStackConnectionOptions extends SessionOptions {
   cacheDir?: string;
   extPillarDir?: string;
   logFile?: string;
-  logLevel?: 'all' | 'garbage' | 'trace' | 'debug' | 'profile' | 'info' | 'warning' | 'error' | 'critical' | 'quiet';
+  logLevel?:
+    | 'all'
+    | 'garbage'
+    | 'trace'
+    | 'debug'
+    | 'profile'
+    | 'info'
+    | 'warning'
+    | 'error'
+    | 'critical'
+    | 'quiet';
 
   // Minion Management
   minionId?: string;
@@ -128,17 +182,20 @@ interface SaltStackConnectionOptions extends SessionOptions {
   mineFunctions?: Record<string, any>;
 
   // Scheduling
-  schedule?: Record<string, {
-    function: string;
-    seconds?: number;
-    minutes?: number;
-    hours?: number;
-    days?: number;
-    when?: string;
-    cron?: string;
-    args?: any[];
-    kwargs?: Record<string, any>;
-  }>;
+  schedule?: Record<
+    string,
+    {
+      function: string;
+      seconds?: number;
+      minutes?: number;
+      hours?: number;
+      days?: number;
+      when?: string;
+      cron?: string;
+      args?: any[];
+      kwargs?: Record<string, any>;
+    }
+  >;
 
   // SSH Configuration (for salt-ssh)
   sshHost?: string;
@@ -256,9 +313,9 @@ export class SaltStackProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -290,8 +347,8 @@ export class SaltStackProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -302,7 +359,9 @@ export class SaltStackProtocol extends BaseProtocol {
       // Check if Salt is available
       await this.checkSaltAvailability();
       this.isInitialized = true;
-      this.logger.info('SaltStack protocol initialized with production configuration management features');
+      this.logger.info(
+        'SaltStack protocol initialized with production configuration management features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize SaltStack protocol', error);
       throw error;
@@ -318,8 +377,13 @@ export class SaltStackProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -340,7 +404,9 @@ export class SaltStackProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to SaltStack session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to SaltStack session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -371,7 +437,11 @@ export class SaltStackProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -385,7 +455,11 @@ export class SaltStackProtocol extends BaseProtocol {
     const saltProcess = spawn(saltCommand[0], saltCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(saltOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(saltOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -394,7 +468,7 @@ export class SaltStackProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -404,18 +478,23 @@ export class SaltStackProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     saltProcess.on('error', (error) => {
-      this.logger.error(`SaltStack process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `SaltStack process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     saltProcess.on('close', (code) => {
-      this.logger.info(`SaltStack process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `SaltStack process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -428,7 +507,11 @@ export class SaltStackProtocol extends BaseProtocol {
       command: saltCommand[0],
       args: saltCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(saltOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(saltOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -436,12 +519,14 @@ export class SaltStackProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: saltProcess.pid
+      pid: saltProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`SaltStack session ${sessionId} created for operation ${saltOptions.operation || 'call'}`);
+    this.logger.info(
+      `SaltStack session ${sessionId} created for operation ${saltOptions.operation || 'call'}`
+    );
     this.emit('session-created', { sessionId, type: 'saltstack', session });
 
     return session;
@@ -450,7 +535,7 @@ export class SaltStackProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -459,8 +544,8 @@ export class SaltStackProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -482,25 +567,30 @@ export class SaltStackProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in SaltStack session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in SaltStack session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const saltProcess = this.saltProcesses.get(sessionId);
-    return saltProcess && !saltProcess.killed || false;
+    return (saltProcess && !saltProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -511,26 +601,26 @@ export class SaltStackProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.saltProcesses.size
+        connectionsActive: this.saltProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -542,8 +632,8 @@ export class SaltStackProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          salt: { available: true }
-        }
+          salt: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -551,8 +641,8 @@ export class SaltStackProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `SaltStack not available: ${error}`],
         dependencies: {
-          salt: { available: false }
-        }
+          salt: { available: false },
+        },
       };
     }
   }
@@ -761,9 +851,9 @@ export class SaltStackProtocol extends BaseProtocol {
 
     // Pillar data
     if (options.pillarData) {
-      command.push('pillar=\'');
+      command.push("pillar='");
       command.push(JSON.stringify(options.pillarData));
-      command.push('\'');
+      command.push("'");
     }
 
     if (options.pillarFile) {
@@ -788,7 +878,9 @@ export class SaltStackProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: SaltStackConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: SaltStackConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Salt environment variables
@@ -832,7 +924,10 @@ export class SaltStackProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing SaltStack process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing SaltStack process for session ${sessionId}:`,
+          error
+        );
       }
     }
 
