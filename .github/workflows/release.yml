@@ -53,6 +53,7 @@ jobs:
         run: npm run test:coverage
         env:
           NODE_OPTIONS: --experimental-vm-modules
+          SKIP_HARDWARE_TESTS: true
 
       - name: Semantic Release
         id: semantic

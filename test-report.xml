@@ -1,26 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\tests\protocols\ConsoleManager.test.ts">
-    <testCase name="ConsoleManager Initialization should initialize successfully" duration="42"/>
-    <testCase name="ConsoleManager Initialization should create new instances" duration="27"/>
-    <testCase name="ConsoleManager Session Management should create session with protocol detection" duration="130"/>
-    <testCase name="ConsoleManager Session Management should throw error when protocol detection fails" duration="33"/>
-    <testCase name="ConsoleManager Session Management should get all sessions" duration="96"/>
-    <testCase name="ConsoleManager Session Management should get session by ID" duration="75"/>
-    <testCase name="ConsoleManager Session Management should stop session" duration="85"/>
-    <testCase name="ConsoleManager Command Execution should execute command" duration="78"/>
-    <testCase name="ConsoleManager Command Execution should execute command with arguments" duration="72"/>
-    <testCase name="ConsoleManager Command Execution should handle command execution with options" duration="81"/>
-    <testCase name="ConsoleManager Command Execution should execute command in existing session" duration="85"/>
-    <testCase name="ConsoleManager Input/Output Operations should send input to session" duration="80"/>
-    <testCase name="ConsoleManager Input/Output Operations should get output from session" duration="73"/>
-    <testCase name="ConsoleManager Input/Output Operations should get output with limit" duration="70"/>
-    <testCase name="ConsoleManager Input/Output Operations should throw error for operations on non-existent session" duration="236"/>
-    <testCase name="ConsoleManager Health Status should get health status" duration="120"/>
-    <testCase name="ConsoleManager Error Handling should handle protocol creation failure" duration="10"/>
-    <testCase name="ConsoleManager Error Handling should handle session creation failure" duration="102"/>
-    <testCase name="ConsoleManager Destruction should destroy manager and all resources" duration="85"/>
-    <testCase name="ConsoleManager Destruction should handle destroy when already destroyed" duration="7"/>
-    <testCase name="ConsoleManager Destruction should reject operations after destruction" duration="11"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\tests\integration\protocols\wsl.test.ts">
+    <testCase name="WSL Protocol Integration Tests WSL Service Management should initialize WSL service successfully" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests WSL Service Management should list available distributions" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests WSL Service Management should get default distribution" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests WSL Service Management should set default distribution" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests WSL Service Management should handle WSL service unavailability" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Session Management should create WSL session successfully" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Session Management should create session with default distribution" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Session Management should create session with specific user" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Session Management should handle invalid distribution" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Session Management should handle invalid user" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Command Execution should execute simple commands successfully" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Command Execution should execute Linux-specific commands" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Command Execution should handle file system operations" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Command Execution should handle Windows interoperability" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Command Execution should handle file path conversions" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Command Execution should handle command timeouts" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Command Execution should handle restricted commands" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Command Execution should capture command output with streaming" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests System Information and Monitoring should collect WSL system information" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests System Information and Monitoring should monitor resource usage" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests System Information and Monitoring should perform health checks" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests System Information and Monitoring should track file system usage" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Network Configuration should configure port forwarding" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Network Configuration should handle network connectivity" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Network Configuration should configure DNS settings" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests File System Operations should handle Windows-Linux file path conversion" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests File System Operations should handle file permissions correctly" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests File System Operations should handle symbolic links" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests File System Operations should handle case sensitivity correctly" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Distribution Management should start and stop distributions" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Distribution Management should restart distribution" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Distribution Management should get distribution configuration" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Distribution Management should update distribution configuration" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Security and Access Control should enforce user restrictions" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Security and Access Control should block restricted commands" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Security and Access Control should audit command execution" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Security and Access Control should enforce root access restrictions" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Error Handling and Resilience should handle WSL service restart" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Error Handling and Resilience should handle distribution unavailability" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Error Handling and Resilience should handle resource exhaustion" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Error Handling and Resilience should handle concurrent operations" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Session Cleanup and Termination should terminate session gracefully" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Session Cleanup and Termination should force terminate unresponsive sessions" duration="0"/>
+    <testCase name="WSL Protocol Integration Tests Session Cleanup and Termination should cleanup all resources on protocol shutdown" duration="0"/>
   </file>
 </testExecutions>
