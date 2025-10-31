@@ -129,6 +129,7 @@ export interface SessionState {
   lastActivity?: Date;
   pid?: number;
   exitCode?: number;
+  completionDetected?: boolean; // For interactive apps that need auto-quit
   metadata?: Record<string, any>;
 }
 

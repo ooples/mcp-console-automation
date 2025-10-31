@@ -103,6 +103,26 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       return args.includes('exec') && args.includes('--');
     }
 
+    // .NET console apps with command-line arguments
+    // When running: dotnet run -- <command> <args>
+    // Or direct execution: ./app.exe <command> <args>
+    if (command === 'dotnet') {
+      // Check if this is "dotnet run" with arguments passed via "--"
+      const runIndex = args.indexOf('run');
+      const dashDashIndex = args.indexOf('--');
+      return runIndex >= 0 && dashDashIndex > runIndex;
+    }
+
+    // Direct .NET executable with .exe or .dll extension and arguments
+    if (
+      (command.endsWith('.exe') || command.endsWith('.dll')) &&
+      args.length > 0
+    ) {
+      // If the executable has arguments, it might be a command-style invocation
+      // This is a heuristic - apps with interactive loops need special handling
+      return true;
+    }
+
     return false;
   }
 
@@ -125,6 +145,9 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       isPersistent: !isOneShot,
       createdAt: new Date(),
       lastActivity: new Date(),
+      metadata: {
+        sessionOptions: options, // Store original options for later use
+      },
     };
 
     this.sessionStates.set(sessionId, sessionState);
@@ -235,6 +258,132 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       output.type === 'stderr'
     ) {
       this.markSessionComplete(sessionId, 1); // Error exit
+    }
+
+    // Check for .NET console app completion patterns
+    if (this.isInteractiveDotnetApp(sessionId)) {
+      this.checkDotnetAppCompletion(sessionId, output);
+    }
+  }
+
+  /**
+   * Check if this is an interactive .NET console app
+   */
+  private isInteractiveDotnetApp(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+
+    const command = session.command?.toLowerCase() || '';
+    const args = session.args || [];
+
+    // Check for dotnet run with arguments
+    if (command === 'dotnet' && args.includes('run') && args.includes('--')) {
+      return true;
+    }
+
+    // Check for direct .exe/.dll execution
+    if (
+      (session.command?.endsWith('.exe') || session.command?.endsWith('.dll')) &&
+      args.length > 0
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Extract quit character from prompt text
+   * Looks for patterns like "enter q to quit" or "press 'x' to exit"
+   */
+  private extractQuitCharFromPrompt(text: string): string | null {
+    const lowerText = text.toLowerCase();
+
+    // Pattern: "enter <char> to quit/exit"
+    const enterMatch = lowerText.match(
+      /enter\s+['"]?(\w)['"]?\s+to\s+(quit|exit)/
+    );
+    if (enterMatch) {
+      return enterMatch[1];
+    }
+
+    // Pattern: "press <char> to quit/exit"
+    const pressMatch = lowerText.match(
+      /press\s+['"]?(\w)['"]?\s+to\s+(quit|exit)/
+    );
+    if (pressMatch) {
+      return pressMatch[1];
+    }
+
+    // Pattern: "type <char> to quit/exit"
+    const typeMatch = lowerText.match(
+      /type\s+['"]?(\w)['"]?\s+to\s+(quit|exit)/
+    );
+    if (typeMatch) {
+      return typeMatch[1];
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if .NET console app has completed its command
+   * and needs to be sent a quit command
+   */
+  private async checkDotnetAppCompletion(
+    sessionId: string,
+    output: ConsoleOutput
+  ): Promise<void> {
+    const text = output.data.toLowerCase();
+
+    // Detect completion patterns common in .NET console apps
+    if (
+      text.includes('command complete') ||
+      text.includes('operation complete') ||
+      text.includes('finished successfully') ||
+      text.includes('enter a command or enter q to quit') ||
+      text.includes('please enter a command')
+    ) {
+      // Mark that we've detected completion
+      const sessionState = this.sessionStates.get(sessionId);
+      if (sessionState && !sessionState.completionDetected) {
+        sessionState.completionDetected = true;
+
+        // Get session options from metadata
+        const sessionOptions = sessionState.metadata?.sessionOptions;
+
+        // Extract quit character from prompt if present, otherwise use configured/default
+        const extractedQuitChar = this.extractQuitCharFromPrompt(output.data);
+        const quitCommand =
+          extractedQuitChar ||
+          sessionOptions?.dotnetQuitCommand ||
+          'q';
+
+        // Get flush delay from options or use default
+        const flushDelay = sessionOptions?.completionFlushDelay ?? 200;
+
+        this.logger.info(
+          `Detected command completion for .NET app ${sessionId}, sending quit command '${quitCommand}' after ${flushDelay}ms delay`
+        );
+
+        // Wait for any remaining output to flush
+        await new Promise((resolve) => setTimeout(resolve, flushDelay));
+
+        // Send quit command to exit the interactive loop
+        // Append newline if not already present
+        const quitInput = quitCommand.endsWith('\n')
+          ? quitCommand
+          : `${quitCommand}\n`;
+
+        try {
+          await this.sendInput(sessionId, quitInput);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to send quit command to session ${sessionId}:`,
+            error
+          );
+        }
+      }
     }
   }
 
