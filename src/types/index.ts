@@ -497,6 +497,9 @@ export interface SessionOptions {
   scpOptions?: SCPTransferOptions;
   // One-shot command flag
   isOneShot?: boolean;
+  // .NET console app auto-quit configuration
+  dotnetQuitCommand?: string; // Command to send to quit interactive app (default: 'q')
+  completionFlushDelay?: number; // Delay in ms to wait for output flush before sending quit (default: 200)
 }
 
 // Connection Pooling Configuration

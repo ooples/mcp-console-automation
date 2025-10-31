@@ -145,6 +145,9 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       isPersistent: !isOneShot,
       createdAt: new Date(),
       lastActivity: new Date(),
+      metadata: {
+        sessionOptions: options, // Store original options for later use
+      },
     };
 
     this.sessionStates.set(sessionId, sessionState);
@@ -290,6 +293,40 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
   }
 
   /**
+   * Extract quit character from prompt text
+   * Looks for patterns like "enter q to quit" or "press 'x' to exit"
+   */
+  private extractQuitCharFromPrompt(text: string): string | null {
+    const lowerText = text.toLowerCase();
+
+    // Pattern: "enter <char> to quit/exit"
+    const enterMatch = lowerText.match(
+      /enter\s+['"]?(\w)['"]?\s+to\s+(quit|exit)/
+    );
+    if (enterMatch) {
+      return enterMatch[1];
+    }
+
+    // Pattern: "press <char> to quit/exit"
+    const pressMatch = lowerText.match(
+      /press\s+['"]?(\w)['"]?\s+to\s+(quit|exit)/
+    );
+    if (pressMatch) {
+      return pressMatch[1];
+    }
+
+    // Pattern: "type <char> to quit/exit"
+    const typeMatch = lowerText.match(
+      /type\s+['"]?(\w)['"]?\s+to\s+(quit|exit)/
+    );
+    if (typeMatch) {
+      return typeMatch[1];
+    }
+
+    return null;
+  }
+
+  /**
    * Check if .NET console app has completed its command
    * and needs to be sent a quit command
    */
@@ -312,16 +349,34 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
       if (sessionState && !sessionState.completionDetected) {
         sessionState.completionDetected = true;
 
+        // Get session options from metadata
+        const sessionOptions = sessionState.metadata?.sessionOptions;
+
+        // Extract quit character from prompt if present, otherwise use configured/default
+        const extractedQuitChar = this.extractQuitCharFromPrompt(output.data);
+        const quitCommand =
+          extractedQuitChar ||
+          sessionOptions?.dotnetQuitCommand ||
+          'q';
+
+        // Get flush delay from options or use default
+        const flushDelay = sessionOptions?.completionFlushDelay ?? 200;
+
         this.logger.info(
-          `Detected command completion for .NET app ${sessionId}, sending quit command`
+          `Detected command completion for .NET app ${sessionId}, sending quit command '${quitCommand}' after ${flushDelay}ms delay`
         );
 
-        // Wait a moment for any remaining output to flush
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        // Wait for any remaining output to flush
+        await new Promise((resolve) => setTimeout(resolve, flushDelay));
 
         // Send quit command to exit the interactive loop
+        // Append newline if not already present
+        const quitInput = quitCommand.endsWith('\n')
+          ? quitCommand
+          : `${quitCommand}\n`;
+
         try {
-          await this.sendInput(sessionId, 'q\n');
+          await this.sendInput(sessionId, quitInput);
         } catch (error) {
           this.logger.warn(
             `Failed to send quit command to session ${sessionId}:`,
