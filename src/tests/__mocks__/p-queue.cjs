@@ -1,4 +1,4 @@
-// Mock for p-queue ESM package
+// Mock for p-queue ESM package - CommonJS format
 class PQueue {
   constructor(options) {
     this.concurrency = options?.concurrency || Infinity;
@@ -50,4 +50,4 @@ class PQueue {
   }
 }
 
-export default PQueue;
+module.exports = PQueue;

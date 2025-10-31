@@ -45,9 +45,10 @@ module.exports = {
     '^(\.{1,2}/.+)\.js$': '$1',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@tests/(.*)$': '<rootDir>/tests/$1',
-    '^strip-ansi$': '<rootDir>/src/tests/__mocks__/strip-ansi.mjs',
-    '^ansi-regex$': '<rootDir>/src/tests/__mocks__/ansi-regex.mjs',
-    '^p-queue$': '<rootDir>/src/tests/__mocks__/p-queue.mjs'
+    '^strip-ansi$': '<rootDir>/src/tests/__mocks__/strip-ansi.cjs',
+    '^ansi-regex$': '<rootDir>/src/tests/__mocks__/ansi-regex.cjs',
+    '^p-queue$': '<rootDir>/src/tests/__mocks__/p-queue.cjs',
+    '^@kubernetes/client-node$': '<rootDir>/src/tests/__mocks__/@kubernetes/client-node.cjs'
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node', 'mjs'],
   globals: {
@@ -58,7 +59,7 @@ module.exports = {
   },
   transform: {
     '^.+\\.tsx?$': 'ts-jest',
-    '^.+\\.(js|jsx|mjs|cjs)$': 'babel-jest'
+    '^.+\\.(js|jsx|cjs)$': 'babel-jest'
   },
   transformIgnorePatterns: [
     'node_modules/(?!(@kubernetes/client-node)/)'
