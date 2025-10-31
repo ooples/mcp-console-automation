@@ -23,6 +23,7 @@ export interface WorkerInfo {
   worker: Worker;
   busy: boolean;
   currentTask?: WorkerTask;
+  taskTimeout?: NodeJS.Timeout;
   tasksCompleted: number;
   startTime: number;
   lastHeartbeat: number;
@@ -206,8 +207,8 @@ export class WorkerPool extends EventEmitter {
 
     this.emit('task-assigned', { workerId: workerInfo.id, taskId: task.id });
 
-    // Set timeout for task
-    setTimeout(() => {
+    // Set timeout for task - STORE THE HANDLE
+    workerInfo.taskTimeout = setTimeout(() => {
       if (workerInfo.currentTask?.id === task.id) {
         this.handleTaskTimeout(workerInfo, task);
       }
@@ -251,6 +252,12 @@ export class WorkerPool extends EventEmitter {
     const task = workerInfo.currentTask;
     if (!task) return;
 
+    // CLEAR THE TIMEOUT
+    if (workerInfo.taskTimeout) {
+      clearTimeout(workerInfo.taskTimeout);
+      workerInfo.taskTimeout = undefined;
+    }
+
     workerInfo.busy = false;
     workerInfo.currentTask = undefined;
     workerInfo.tasksCompleted++;
@@ -272,6 +279,12 @@ export class WorkerPool extends EventEmitter {
   private handleTaskError(workerInfo: WorkerInfo, error: any): void {
     const task = workerInfo.currentTask;
     if (!task) return;
+
+    // CLEAR THE TIMEOUT
+    if (workerInfo.taskTimeout) {
+      clearTimeout(workerInfo.taskTimeout);
+      workerInfo.taskTimeout = undefined;
+    }
 
     workerInfo.busy = false;
     workerInfo.currentTask = undefined;
