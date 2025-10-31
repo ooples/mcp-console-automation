@@ -55,9 +55,12 @@ module.exports = {
     }
   },
   transform: {
+    '^.+\\.tsx?$': 'ts-jest',
     '^.+\\.(js|jsx|mjs|cjs)$': 'babel-jest'
   },
-  transformIgnorePatterns: [],
+  transformIgnorePatterns: [
+    'node_modules/(?!(@kubernetes/client-node)/)'
+  ],
   setupFilesAfterEnv: [
     '<rootDir>/tests/setup/jest.setup.ts'
   ],

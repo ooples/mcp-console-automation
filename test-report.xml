@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
   <file path="C:\Users\cheat\source\repos\mcp-console-automation\tests\protocols\ConsoleManager.test.ts">
-    <testCase name="ConsoleManager Initialization should initialize successfully" duration="48"/>
-    <testCase name="ConsoleManager Initialization should create new instances" duration="38"/>
-    <testCase name="ConsoleManager Session Management should create session with protocol detection" duration="143"/>
-    <testCase name="ConsoleManager Session Management should throw error when protocol detection fails" duration="35"/>
-    <testCase name="ConsoleManager Session Management should get all sessions" duration="83"/>
-    <testCase name="ConsoleManager Session Management should get session by ID" duration="81"/>
-    <testCase name="ConsoleManager Session Management should stop session" duration="83"/>
-    <testCase name="ConsoleManager Command Execution should execute command" duration="89"/>
-    <testCase name="ConsoleManager Command Execution should execute command with arguments" duration="95"/>
-    <testCase name="ConsoleManager Command Execution should handle command execution with options" duration="83"/>
-    <testCase name="ConsoleManager Command Execution should execute command in existing session" duration="86"/>
-    <testCase name="ConsoleManager Input/Output Operations should send input to session" duration="83"/>
-    <testCase name="ConsoleManager Input/Output Operations should get output from session" duration="78"/>
-    <testCase name="ConsoleManager Input/Output Operations should get output with limit" duration="87"/>
-    <testCase name="ConsoleManager Input/Output Operations should throw error for operations on non-existent session" duration="220"/>
-    <testCase name="ConsoleManager Health Status should get health status" duration="126"/>
-    <testCase name="ConsoleManager Error Handling should handle protocol creation failure" duration="10"/>
-    <testCase name="ConsoleManager Error Handling should handle session creation failure" duration="83"/>
-    <testCase name="ConsoleManager Destruction should destroy manager and all resources" duration="91"/>
-    <testCase name="ConsoleManager Destruction should handle destroy when already destroyed" duration="10"/>
-    <testCase name="ConsoleManager Destruction should reject operations after destruction" duration="11"/>
+    <testCase name="ConsoleManager Initialization should initialize successfully" duration="121"/>
+    <testCase name="ConsoleManager Initialization should create new instances" duration="31"/>
+    <testCase name="ConsoleManager Session Management should create session with protocol detection" duration="106"/>
+    <testCase name="ConsoleManager Session Management should throw error when protocol detection fails" duration="26"/>
+    <testCase name="ConsoleManager Session Management should get all sessions" duration="65"/>
+    <testCase name="ConsoleManager Session Management should get session by ID" duration="63"/>
+    <testCase name="ConsoleManager Session Management should stop session" duration="62"/>
+    <testCase name="ConsoleManager Command Execution should execute command" duration="62"/>
+    <testCase name="ConsoleManager Command Execution should execute command with arguments" duration="58"/>
+    <testCase name="ConsoleManager Command Execution should handle command execution with options" duration="62"/>
+    <testCase name="ConsoleManager Command Execution should execute command in existing session" duration="65"/>
+    <testCase name="ConsoleManager Input/Output Operations should send input to session" duration="82"/>
+    <testCase name="ConsoleManager Input/Output Operations should get output from session" duration="80"/>
+    <testCase name="ConsoleManager Input/Output Operations should get output with limit" duration="61"/>
+    <testCase name="ConsoleManager Input/Output Operations should throw error for operations on non-existent session" duration="184"/>
+    <testCase name="ConsoleManager Health Status should get health status" duration="117"/>
+    <testCase name="ConsoleManager Error Handling should handle protocol creation failure" duration="7"/>
+    <testCase name="ConsoleManager Error Handling should handle session creation failure" duration="63"/>
+    <testCase name="ConsoleManager Destruction should destroy manager and all resources" duration="62"/>
+    <testCase name="ConsoleManager Destruction should handle destroy when already destroyed" duration="6"/>
+    <testCase name="ConsoleManager Destruction should reject operations after destruction" duration="9"/>
   </file>
 </testExecutions>

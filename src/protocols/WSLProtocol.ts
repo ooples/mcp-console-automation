@@ -71,6 +71,43 @@ export class WSLProtocol {
   }
 
   /**
+   * Synchronous check if WSL is available (for test compatibility)
+   * Returns cached result from last initialization
+   */
+  public isWSLAvailable(): boolean {
+    if (platform() !== 'win32') {
+      return false;
+    }
+    // Return true if we have system info, indicating WSL is available
+    return this.wslSystemInfo !== null;
+  }
+
+  /**
+   * Get all active sessions (for BaseProtocol compatibility)
+   */
+  public getAllSessions(): ConsoleSession[] {
+    const sessions: ConsoleSession[] = [];
+    for (const [sessionId, wslSession] of this.activeSessions.entries()) {
+      sessions.push({
+        id: sessionId,
+        command: wslSession.command || 'wsl',
+        args: wslSession.args || [],
+        cwd: wslSession.cwd || '~',
+        env: wslSession.env || {},
+        createdAt: wslSession.createdAt,
+        status: wslSession.status as any,
+        type: 'wsl',
+        streaming: wslSession.streaming,
+        pid: wslSession.pid,
+        exitCode: wslSession.exitCode,
+        executionState: 'idle',
+        activeCommands: new Map(),
+      });
+    }
+    return sessions;
+  }
+
+  /**
    * Check if WSL is available on the system
    */
   public async checkWSLAvailability(): Promise<boolean> {
