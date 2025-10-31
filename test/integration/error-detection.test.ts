@@ -4,7 +4,10 @@ import { ConsoleManager } from '../../src/core/ConsoleManager.js';
 import { ErrorPattern } from '../../src/types/index.js';
 import { platform } from 'os';
 
-describe('Error Detection Integration Tests', () => {
+// Skip hardware-intensive integration tests in CI
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfHardware('Error Detection Integration Tests', () => {
   let errorDetector: ErrorDetector;
   let consoleManager: ConsoleManager;
 

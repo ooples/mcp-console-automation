@@ -1,7 +1,10 @@
 import { describe, beforeAll, afterAll, beforeEach, afterEach, it, expect, jest } from '@jest/globals';
 import { PromptDetector, PromptDetectorConfig, PromptPattern } from '../../src/core/PromptDetector.js';
 
-describe('PromptDetector Integration Tests', () => {
+// Skip hardware-intensive integration tests in CI
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfHardware('PromptDetector Integration Tests', () => {
   let promptDetector: PromptDetector;
   const testSessionId = 'test-session-1';
 

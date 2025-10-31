@@ -5,7 +5,10 @@ import { EventEmitter } from 'events';
 import { spawn } from 'child_process';
 import { platform } from 'os';
 
-describe('Session Management Integration Tests', () => {
+// Skip hardware-intensive integration tests in CI
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfHardware('Session Management Integration Tests', () => {
   let consoleManager: ConsoleManager;
   const maxSessions = 10;
 

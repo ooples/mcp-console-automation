@@ -5,7 +5,10 @@ import { EventEmitter } from 'events';
 import { performance } from 'perf_hooks';
 import { platform } from 'os';
 
-describe('Load and Stress Tests', () => {
+// Skip hardware-intensive tests in CI
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfHardware('Load and Stress Tests', () => {
   let consoleManager: ConsoleManager;
   let sshServer: SSHServer;
   let sshPort: number;

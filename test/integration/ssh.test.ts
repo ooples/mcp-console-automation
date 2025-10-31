@@ -7,7 +7,10 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { writeFileSync, unlinkSync } from 'fs';
 
-describe('SSH Integration Tests', () => {
+// Skip hardware-intensive integration tests in CI
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfHardware('SSH Integration Tests', () => {
   let mockSSHServer: SSHServer;
   let consoleManager: ConsoleManager;
   let testKeyPath: string;
