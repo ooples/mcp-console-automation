@@ -45,9 +45,11 @@ module.exports = {
     '^(\.{1,2}/.+)\.js$': '$1',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@tests/(.*)$': '<rootDir>/tests/$1',
-    '^strip-ansi$': '<rootDir>/src/tests/__mocks__/strip-ansi.js'
+    '^strip-ansi$': '<rootDir>/src/tests/__mocks__/strip-ansi.mjs',
+    '^ansi-regex$': '<rootDir>/src/tests/__mocks__/ansi-regex.mjs',
+    '^p-queue$': '<rootDir>/src/tests/__mocks__/p-queue.mjs'
   },
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node', 'mjs'],
   globals: {
     'ts-jest': {
       tsconfig: '<rootDir>/tsconfig.test.json',
