@@ -122,6 +122,8 @@ export class DockerProtocol extends BaseProtocol {
   private logStreams: Map<string, PassThrough> = new Map();
   private metricsIntervals: Map<string, NodeJS.Timeout> = new Map();
   private eventMonitor?: NodeJS.Timeout;
+  private connectionMonitorInterval?: NodeJS.Timeout;
+  private reconnectTimeout?: NodeJS.Timeout;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
   private reconnectDelay: number = 5000;
@@ -293,7 +295,12 @@ export class DockerProtocol extends BaseProtocol {
    * Set up connection health monitoring
    */
   private setupConnectionMonitoring(): void {
-    setInterval(async () => {
+    // Clear any existing monitoring interval
+    if (this.connectionMonitorInterval) {
+      clearInterval(this.connectionMonitorInterval);
+    }
+
+    this.connectionMonitorInterval = setInterval(async () => {
       if (!(await this.testDockerConnection())) {
         this.emit(
           'connection-error',
@@ -313,10 +320,15 @@ export class DockerProtocol extends BaseProtocol {
       return;
     }
 
+    // Clear any existing reconnect timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
     this.reconnectAttempts++;
 
-    setTimeout(() => {
+    this.reconnectTimeout = setTimeout(() => {
       this.logger.info(
         `Attempting Docker reconnection (${this.reconnectAttempts}/${this.maxReconnectAttempts})`
       );
@@ -1708,6 +1720,18 @@ export class DockerProtocol extends BaseProtocol {
     // Stop event monitoring
     if (this.eventMonitor) {
       clearTimeout(this.eventMonitor);
+    }
+
+    // Stop connection monitoring
+    if (this.connectionMonitorInterval) {
+      clearInterval(this.connectionMonitorInterval);
+      this.connectionMonitorInterval = undefined;
+    }
+
+    // Clear any pending reconnection timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = undefined;
     }
 
     // Clean up all Docker sessions
