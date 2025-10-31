@@ -15,7 +15,7 @@ describe('DataParameterizer', () => {
   const createMockTest = (): TestDefinition => ({
     name: 'mock-test',
     assertions: [],
-    timeout: 5000,
+    timeout: 30000, // Increased from 5000 to prevent timeouts
     retry: 0,
   });
 

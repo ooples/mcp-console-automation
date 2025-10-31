@@ -246,11 +246,13 @@ export class DataParameterizer {
   ): Promise<TestResult> {
     const startTime = Date.now();
 
+    let timeoutHandle: NodeJS.Timeout | undefined;
+
     try {
       // Setup timeout if specified
       const timeout = options.timeout || test.timeout || 30000;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
+        timeoutHandle = setTimeout(
           () => reject(new Error(`Test timeout after ${timeout}ms`)),
           timeout
         );
@@ -261,6 +263,12 @@ export class DataParameterizer {
 
       // Race between execution and timeout
       const assertions = await Promise.race([executionPromise, timeoutPromise]);
+
+      // Clear timeout if execution completed first
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = undefined;
+      }
 
       const endTime = Date.now();
       const duration = endTime - startTime;
@@ -278,6 +286,12 @@ export class DataParameterizer {
         assertions,
       };
     } catch (error) {
+      // Clear timeout on error too
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = undefined;
+      }
+
       const endTime = Date.now();
       const duration = endTime - startTime;
 
