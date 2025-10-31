@@ -35,7 +35,10 @@ const createMockProcess = () => {
       }
       return mockProcess;
     }),
-    kill: jest.fn<any>(),
+    kill: jest.fn<any>().mockImplementation(() => {
+      mockProcess.killed = true;
+      return true;
+    }),
     killed: false,
   };
   return mockProcess;
@@ -319,7 +322,6 @@ describe('LocalProtocol', () => {
       await autoProtocol.initialize();
 
       const session = await autoProtocol.createSession({
-        command: 'auto',
         streaming: true,
       });
 
@@ -343,7 +345,6 @@ describe('LocalProtocol', () => {
       await autoProtocol.initialize();
 
       const session = await autoProtocol.createSession({
-        command: 'auto',
         streaming: true,
       });
 
@@ -371,7 +372,6 @@ describe('LocalProtocol', () => {
       await autoProtocol.initialize();
 
       const session = await autoProtocol.createSession({
-        command: 'auto',
         streaming: true,
       });
 

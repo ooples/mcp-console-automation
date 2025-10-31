@@ -373,12 +373,18 @@ export class LocalProtocol extends BaseProtocol {
       if (localSession) {
         localSession.isActive = false;
 
+        // Clear any existing kill timeout
+        if (localSession.killTimeout) {
+          clearTimeout(localSession.killTimeout);
+          localSession.killTimeout = undefined;
+        }
+
         if (localSession.process && !localSession.process.killed) {
           // Try graceful shutdown first
           localSession.process.kill('SIGTERM');
 
-          // Force kill after timeout
-          setTimeout(() => {
+          // Force kill after timeout (only if process is still running)
+          localSession.killTimeout = setTimeout(() => {
             if (localSession.process && !localSession.process.killed) {
               localSession.process.kill('SIGKILL');
             }
@@ -429,9 +435,20 @@ export class LocalProtocol extends BaseProtocol {
   async cleanup(): Promise<void> {
     this.logger.info(`Disposing local protocol: ${this.type}`);
 
+    // Save local sessions before closing (so we can clear timeouts after)
+    const localSessionsSnapshot = new Map(this.localSessions);
+
     // Close all active sessions
     const sessionIds = Array.from(this.sessions.keys());
     await Promise.all(sessionIds.map((id) => this.closeSession(id)));
+
+    // Clear any remaining kill timeouts from the saved snapshot
+    for (const [, localSession] of localSessionsSnapshot) {
+      if (localSession.killTimeout) {
+        clearTimeout(localSession.killTimeout);
+        localSession.killTimeout = undefined;
+      }
+    }
 
     this.sessions.clear();
     this.localSessions.clear();
@@ -667,4 +684,5 @@ interface LocalSession {
   outputBuffer: string;
   errorBuffer: string;
   isActive: boolean;
+  killTimeout?: NodeJS.Timeout;
 }
