@@ -8,7 +8,7 @@ import {
   ConsoleSession,
   ConsoleOutput,
   SessionOptions,
-  ConsoleType
+  ConsoleType,
 } from '../types/index.js';
 import { SessionState, ProtocolCapabilities } from '../core/IProtocol.js';
 
@@ -42,8 +42,8 @@ class TestProtocol extends BaseProtocol {
       windows: true,
       linux: true,
       macos: true,
-      freebsd: false
-    }
+      freebsd: false,
+    },
   };
 
   async initialize(): Promise<void> {
@@ -75,7 +75,7 @@ class TestProtocol extends BaseProtocol {
       type: this.type,
       streaming: options.streaming || false,
       executionState: 'idle',
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     this.sessions.set(sessionId, session);
@@ -95,13 +95,17 @@ class TestProtocol extends BaseProtocol {
     this.markSessionComplete(sessionId, 0);
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     // Simulate command execution
     const output: ConsoleOutput = {
       sessionId,
       type: 'stdout',
       data: `Executed: ${command} ${args?.join(' ') || ''}`,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     this.addToOutputBuffer(sessionId, output);
@@ -113,7 +117,7 @@ class TestProtocol extends BaseProtocol {
       sessionId,
       type: 'stdout',
       data: `Input received: ${input}`,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     this.addToOutputBuffer(sessionId, output);
@@ -125,8 +129,10 @@ class TestProtocol extends BaseProtocol {
     const output: ConsoleOutput = {
       sessionId,
       type: 'stdout',
-      data: isOneShot ? 'One-shot command completed' : 'Persistent session ready',
-      timestamp: new Date()
+      data: isOneShot
+        ? 'One-shot command completed'
+        : 'Persistent session ready',
+      timestamp: new Date(),
     };
 
     this.addToOutputBuffer(sessionId, output);
@@ -154,66 +160,66 @@ async function runSessionManagementTests(): Promise<void> {
       name: 'PowerShell one-shot detection',
       options: {
         command: 'powershell',
-        args: ['-Command', 'echo "Hello World"']
+        args: ['-Command', 'echo "Hello World"'],
       },
-      expectedType: 'oneshot'
+      expectedType: 'oneshot',
     },
     {
       name: 'CMD one-shot detection',
       options: {
         command: 'cmd',
-        args: ['/c', 'echo Hello World']
+        args: ['/c', 'echo Hello World'],
       },
-      expectedType: 'oneshot'
+      expectedType: 'oneshot',
     },
     {
       name: 'Bash one-shot detection',
       options: {
         command: 'bash',
-        args: ['-c', 'echo "Hello World"']
+        args: ['-c', 'echo "Hello World"'],
       },
-      expectedType: 'oneshot'
+      expectedType: 'oneshot',
     },
     {
       name: 'PowerShell persistent detection',
       options: {
         command: 'powershell',
-        args: ['-NoExit']
+        args: ['-NoExit'],
       },
-      expectedType: 'persistent'
+      expectedType: 'persistent',
     },
     {
       name: 'SSH with command (one-shot)',
       options: {
         command: 'ssh',
-        args: ['user@host', 'ls', '-la']
+        args: ['user@host', 'ls', '-la'],
       },
-      expectedType: 'oneshot'
+      expectedType: 'oneshot',
     },
     {
       name: 'SSH interactive (persistent)',
       options: {
         command: 'ssh',
-        args: ['user@host']
+        args: ['user@host'],
       },
-      expectedType: 'persistent'
+      expectedType: 'persistent',
     },
     {
       name: 'Docker exec with command (one-shot)',
       options: {
         command: 'docker',
-        args: ['exec', 'container', 'ls', '-la']
+        args: ['exec', 'container', 'ls', '-la'],
       },
-      expectedType: 'oneshot'
+      expectedType: 'oneshot',
     },
     {
       name: 'Kubectl exec with command (one-shot)',
       options: {
         command: 'kubectl',
-        args: ['exec', 'pod', '--', 'ls', '-la']
+        args: ['exec', 'pod', '--', 'ls', '-la'],
       },
-      expectedType: 'oneshot'
-    }
+      expectedType: 'oneshot',
+    },
   ];
 
   let passed = 0;
@@ -232,12 +238,14 @@ async function runSessionManagementTests(): Promise<void> {
         console.log(`  ✅ PASS - Detected as ${actualType}`);
         passed++;
       } else {
-        console.log(`  ❌ FAIL - Expected ${test.expectedType}, got ${actualType}`);
+        console.log(
+          `  ❌ FAIL - Expected ${test.expectedType}, got ${actualType}`
+        );
         failed++;
       }
 
       // Test output retrieval
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       const output = await protocol.getOutput(session.id);
 
       if (output.length > 0) {
@@ -247,9 +255,10 @@ async function runSessionManagementTests(): Promise<void> {
       }
 
       await protocol.closeSession(session.id);
-
     } catch (error) {
-      console.log(`  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`);
+      console.log(
+        `  ❌ ERROR: ${error instanceof Error ? error.message : String(error)}`
+      );
       failed++;
     }
 
@@ -259,7 +268,9 @@ async function runSessionManagementTests(): Promise<void> {
   console.log('📊 Test Results:');
   console.log(`✅ Passed: ${passed}`);
   console.log(`❌ Failed: ${failed}`);
-  console.log(`📈 Success Rate: ${Math.round((passed / (passed + failed)) * 100)}%\n`);
+  console.log(
+    `📈 Success Rate: ${Math.round((passed / (passed + failed)) * 100)}%\n`
+  );
 
   if (failed === 0) {
     console.log('🎉 All session management tests passed!');

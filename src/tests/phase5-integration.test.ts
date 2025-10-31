@@ -20,7 +20,10 @@ describe('Phase 5 Integration', () => {
 
       // 2. Register fixtures
       fixtureManager.register('users', path.join(fixturesPath, 'users.json'));
-      fixtureManager.register('servers', path.join(fixturesPath, 'servers.json'));
+      fixtureManager.register(
+        'servers',
+        path.join(fixturesPath, 'servers.json')
+      );
 
       // 3. Load fixtures
       await fixtureManager.loadAll();
@@ -51,7 +54,9 @@ describe('Phase 5 Integration', () => {
     it('should run parameterized tests with CSV data', async () => {
       // 1. Load test data from CSV
       const loader = new TestDataLoader();
-      const testData = await loader.loadCSV(path.join(fixturesPath, 'test-data.csv'));
+      const testData = await loader.loadCSV(
+        path.join(fixturesPath, 'test-data.csv')
+      );
 
       // 2. Run parameterized test
       const parameterizer = new DataParameterizer();
@@ -106,7 +111,10 @@ describe('Phase 5 Integration', () => {
       });
 
       // Create isolated copy
-      const isolated = envManager.createIsolatedEnvironment('base-env', 'isolated-1');
+      const isolated = envManager.createIsolatedEnvironment(
+        'base-env',
+        'isolated-1'
+      );
 
       // Modify isolated
       envManager.setVariable('isolated-1', 'isolated', 'data');
@@ -127,10 +135,17 @@ describe('Phase 5 Integration', () => {
       const fixtureManager = new FixtureManager();
 
       // Register with dependencies
-      fixtureManager.register('servers', path.join(fixturesPath, 'servers.json'));
-      fixtureManager.register('deploy-config', path.join(fixturesPath, 'deploy-config.yaml'), {
-        dependencies: ['servers'],
-      });
+      fixtureManager.register(
+        'servers',
+        path.join(fixturesPath, 'servers.json')
+      );
+      fixtureManager.register(
+        'deploy-config',
+        path.join(fixturesPath, 'deploy-config.yaml'),
+        {
+          dependencies: ['servers'],
+        }
+      );
 
       // Validate
       const validation = fixtureManager.validateDependencies();
@@ -156,7 +171,10 @@ describe('Phase 5 Integration', () => {
       const fixtureManager = new FixtureManager();
 
       // 2. Load and prepare test data
-      fixtureManager.register('test-data', path.join(fixturesPath, 'test-data.csv'));
+      fixtureManager.register(
+        'test-data',
+        path.join(fixturesPath, 'test-data.csv')
+      );
       await fixtureManager.load('test-data');
 
       const testData = fixtureManager.get('test-data');

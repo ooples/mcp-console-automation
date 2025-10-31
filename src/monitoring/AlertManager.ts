@@ -2,7 +2,12 @@ import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import * as nodemailer from 'nodemailer';
 import axios from 'axios';
-import { Alert, NotificationConfig, NotificationTrigger, Anomaly } from '../types/index.js';
+import {
+  Alert,
+  NotificationConfig,
+  NotificationTrigger,
+  Anomaly,
+} from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 
 interface AlertRule {
@@ -34,7 +39,8 @@ export class AlertManager extends EventEmitter {
   private alerts: Map<string, Alert> = new Map();
   private alertRules: Map<string, AlertRule> = new Map();
   private notificationChannels: Map<string, NotificationChannel> = new Map();
-  private metricValues: Map<string, { value: number; timestamp: Date }[]> = new Map();
+  private metricValues: Map<string, { value: number; timestamp: Date }[]> =
+    new Map();
   private isRunning: boolean = false;
   private evaluationInterval: NodeJS.Timeout | null = null;
 
@@ -85,29 +91,30 @@ export class AlertManager extends EventEmitter {
           metric: 'cpu_usage',
           operator: 'gt',
           threshold: 90,
-          duration: 5
-        }
+          duration: 5,
+        },
       ],
       notifications: [],
-      cooldownMinutes: 15
+      cooldownMinutes: 15,
     });
 
     // High memory usage alert
     this.addAlertRule({
       id: 'high-memory-usage',
       name: 'High Memory Usage',
-      description: 'Alert when memory usage exceeds 95% for more than 3 minutes',
+      description:
+        'Alert when memory usage exceeds 95% for more than 3 minutes',
       enabled: true,
       conditions: [
         {
           metric: 'memory_usage',
           operator: 'gt',
           threshold: 95,
-          duration: 3
-        }
+          duration: 3,
+        },
       ],
       notifications: [],
-      cooldownMinutes: 10
+      cooldownMinutes: 10,
     });
 
     // Session failure alert
@@ -121,11 +128,11 @@ export class AlertManager extends EventEmitter {
           metric: 'session_failure_rate',
           operator: 'gt',
           threshold: 10,
-          duration: 10
-        }
+          duration: 10,
+        },
       ],
       notifications: [],
-      cooldownMinutes: 30
+      cooldownMinutes: 30,
     });
 
     // Disk space alert
@@ -139,11 +146,11 @@ export class AlertManager extends EventEmitter {
           metric: 'disk_usage',
           operator: 'gt',
           threshold: 95,
-          duration: 1
-        }
+          duration: 1,
+        },
       ],
       notifications: [],
-      cooldownMinutes: 60
+      cooldownMinutes: 60,
     });
   }
 
@@ -175,7 +182,10 @@ export class AlertManager extends EventEmitter {
   }
 
   // Add notification channel
-  addNotificationChannel(channelId: string, channel: NotificationChannel): void {
+  addNotificationChannel(
+    channelId: string,
+    channel: NotificationChannel
+  ): void {
     this.notificationChannels.set(channelId, channel);
     this.logger.info(`Added notification channel: ${channel.type}`);
   }
@@ -187,8 +197,10 @@ export class AlertManager extends EventEmitter {
 
     // Keep only last 24 hours of data
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    const filteredHistory = history.filter(h => h.timestamp.getTime() > cutoff);
-    
+    const filteredHistory = history.filter(
+      (h) => h.timestamp.getTime() > cutoff
+    );
+
     this.metricValues.set(metricName, filteredHistory);
   }
 
@@ -211,8 +223,8 @@ export class AlertManager extends EventEmitter {
         expectedValue: anomaly.expectedValue,
         deviation: anomaly.deviation,
         confidence: anomaly.confidence,
-        type: anomaly.type
-      }
+        type: anomaly.type,
+      },
     };
 
     this.createAlert(alert);
@@ -222,10 +234,10 @@ export class AlertManager extends EventEmitter {
   createAlert(alert: Alert): void {
     this.alerts.set(alert.id, alert);
     this.emit('alert-created', alert);
-    
+
     // Send notifications based on alert severity and type
     this.sendNotifications(alert);
-    
+
     this.logger.warn(`Alert created: ${alert.title} (${alert.severity})`);
   }
 
@@ -249,7 +261,7 @@ export class AlertManager extends EventEmitter {
 
   // Evaluate all alert rules
   private evaluateRules(): void {
-    this.alertRules.forEach(rule => {
+    this.alertRules.forEach((rule) => {
       if (rule.enabled) {
         this.evaluateRule(rule);
       }
@@ -269,7 +281,7 @@ export class AlertManager extends EventEmitter {
       }
 
       // Evaluate all conditions
-      const conditionsMet = rule.conditions.every(condition => 
+      const conditionsMet = rule.conditions.every((condition) =>
         this.evaluateCondition(condition)
       );
 
@@ -291,27 +303,42 @@ export class AlertManager extends EventEmitter {
     // Check if condition has been met for the required duration
     const durationMs = condition.duration * 60 * 1000;
     const cutoff = Date.now() - durationMs;
-    
-    const recentValues = metricHistory.filter(h => h.timestamp.getTime() > cutoff);
-    
+
+    const recentValues = metricHistory.filter(
+      (h) => h.timestamp.getTime() > cutoff
+    );
+
     if (recentValues.length === 0) {
       return false;
     }
 
     // Check if all recent values meet the condition
-    return recentValues.every(h => this.compareValues(h.value, condition.operator, condition.threshold));
+    return recentValues.every((h) =>
+      this.compareValues(h.value, condition.operator, condition.threshold)
+    );
   }
 
   // Compare values based on operator
-  private compareValues(value: number, operator: string, threshold: number): boolean {
+  private compareValues(
+    value: number,
+    operator: string,
+    threshold: number
+  ): boolean {
     switch (operator) {
-      case 'gt': return value > threshold;
-      case 'lt': return value < threshold;
-      case 'eq': return value === threshold;
-      case 'ne': return value !== threshold;
-      case 'gte': return value >= threshold;
-      case 'lte': return value <= threshold;
-      default: return false;
+      case 'gt':
+        return value > threshold;
+      case 'lt':
+        return value < threshold;
+      case 'eq':
+        return value === threshold;
+      case 'ne':
+        return value !== threshold;
+      case 'gte':
+        return value >= threshold;
+      case 'lte':
+        return value <= threshold;
+      default:
+        return false;
     }
   }
 
@@ -328,8 +355,8 @@ export class AlertManager extends EventEmitter {
       resolved: false,
       metadata: {
         ruleId: rule.id,
-        conditions: rule.conditions
-      }
+        conditions: rule.conditions,
+      },
     };
 
     rule.lastTriggered = new Date();
@@ -339,11 +366,13 @@ export class AlertManager extends EventEmitter {
   }
 
   // Determine severity from rule
-  private getSeverityFromRule(rule: AlertRule): 'low' | 'medium' | 'high' | 'critical' {
+  private getSeverityFromRule(
+    rule: AlertRule
+  ): 'low' | 'medium' | 'high' | 'critical' {
     // Simple heuristic based on thresholds
-    const hasHighThresholds = rule.conditions.some(c => c.threshold > 90);
-    const hasLowDuration = rule.conditions.some(c => c.duration < 5);
-    
+    const hasHighThresholds = rule.conditions.some((c) => c.threshold > 90);
+    const hasLowDuration = rule.conditions.some((c) => c.duration < 5);
+
     if (hasHighThresholds && hasLowDuration) return 'critical';
     if (hasHighThresholds) return 'high';
     if (hasLowDuration) return 'medium';
@@ -353,20 +382,26 @@ export class AlertManager extends EventEmitter {
   // Send notifications for an alert
   private async sendNotifications(alert: Alert): Promise<void> {
     // Send notifications based on alert severity
-    const relevantChannels = Array.from(this.notificationChannels.values())
-      .filter(channel => channel.enabled);
+    const relevantChannels = Array.from(
+      this.notificationChannels.values()
+    ).filter((channel) => channel.enabled);
 
     for (const channel of relevantChannels) {
       try {
         await this.sendNotification(channel, alert);
       } catch (error) {
-        this.logger.error(`Failed to send notification via ${channel.type}: ${error}`);
+        this.logger.error(
+          `Failed to send notification via ${channel.type}: ${error}`
+        );
       }
     }
   }
 
   // Send notification through specific channel
-  private async sendNotification(channel: NotificationChannel, alert: Alert): Promise<void> {
+  private async sendNotification(
+    channel: NotificationChannel,
+    alert: Alert
+  ): Promise<void> {
     switch (channel.type) {
       case 'email':
         await this.sendEmailNotification(channel.config, alert);
@@ -386,13 +421,16 @@ export class AlertManager extends EventEmitter {
   }
 
   // Send email notification
-  private async sendEmailNotification(config: any, alert: Alert): Promise<void> {
+  private async sendEmailNotification(
+    config: any,
+    alert: Alert
+  ): Promise<void> {
     if (!config.smtp) {
       throw new Error('SMTP configuration required for email notifications');
     }
 
     const transporter = nodemailer.createTransport(config.smtp);
-    
+
     const subject = `[${alert.severity.toUpperCase()}] ${alert.title}`;
     const html = this.generateEmailHTML(alert);
 
@@ -400,35 +438,41 @@ export class AlertManager extends EventEmitter {
       from: config.from,
       to: config.to,
       subject,
-      html
+      html,
     });
 
     this.logger.info(`Email notification sent for alert: ${alert.title}`);
   }
 
   // Send webhook notification
-  private async sendWebhookNotification(config: any, alert: Alert): Promise<void> {
+  private async sendWebhookNotification(
+    config: any,
+    alert: Alert
+  ): Promise<void> {
     const payload = {
       alert,
       timestamp: alert.timestamp.toISOString(),
       severity: alert.severity,
       title: alert.title,
-      description: alert.description
+      description: alert.description,
     };
 
     await axios.post(config.url, payload, {
       headers: {
         'Content-Type': 'application/json',
-        ...config.headers
+        ...config.headers,
       },
-      timeout: 10000
+      timeout: 10000,
     });
 
     this.logger.info(`Webhook notification sent for alert: ${alert.title}`);
   }
 
   // Send Slack notification
-  private async sendSlackNotification(config: any, alert: Alert): Promise<void> {
+  private async sendSlackNotification(
+    config: any,
+    alert: Alert
+  ): Promise<void> {
     const color = this.getSlackColor(alert.severity);
     const payload = {
       text: `Alert: ${alert.title}`,
@@ -441,28 +485,28 @@ export class AlertManager extends EventEmitter {
             {
               title: 'Severity',
               value: alert.severity.toUpperCase(),
-              short: true
+              short: true,
             },
             {
               title: 'Time',
               value: alert.timestamp.toISOString(),
-              short: true
+              short: true,
             },
             {
               title: 'Source',
               value: alert.source,
-              short: true
-            }
+              short: true,
+            },
           ],
           footer: 'Console Automation MCP',
-          ts: Math.floor(alert.timestamp.getTime() / 1000)
-        }
-      ]
+          ts: Math.floor(alert.timestamp.getTime() / 1000),
+        },
+      ],
     };
 
     await axios.post(config.webhookUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 10000
+      timeout: 10000,
     });
 
     this.logger.info(`Slack notification sent for alert: ${alert.title}`);
@@ -472,13 +516,15 @@ export class AlertManager extends EventEmitter {
   private sendConsoleNotification(alert: Alert): void {
     const severity = alert.severity.toUpperCase();
     const timestamp = alert.timestamp.toISOString();
-    console.log(`[${timestamp}] [ALERT-${severity}] ${alert.title}: ${alert.description}`);
+    console.log(
+      `[${timestamp}] [ALERT-${severity}] ${alert.title}: ${alert.description}`
+    );
   }
 
   // Generate HTML for email notifications
   private generateEmailHTML(alert: Alert): string {
     const severityColor = this.getSeverityColor(alert.severity);
-    
+
     return `
       <html>
         <body style="font-family: Arial, sans-serif; margin: 20px;">
@@ -492,12 +538,16 @@ export class AlertManager extends EventEmitter {
             ${alert.sessionId ? `<p><strong>Session ID:</strong> ${alert.sessionId}</p>` : ''}
             <p><strong>Description:</strong></p>
             <p>${alert.description}</p>
-            ${alert.metadata ? `
+            ${
+              alert.metadata
+                ? `
               <details>
                 <summary>Additional Details</summary>
                 <pre>${JSON.stringify(alert.metadata, null, 2)}</pre>
               </details>
-            ` : ''}
+            `
+                : ''
+            }
           </div>
         </body>
       </html>
@@ -507,22 +557,32 @@ export class AlertManager extends EventEmitter {
   // Get color for severity
   private getSeverityColor(severity: string): string {
     switch (severity) {
-      case 'critical': return '#DC2626';
-      case 'high': return '#EA580C';
-      case 'medium': return '#D97706';
-      case 'low': return '#65A30D';
-      default: return '#6B7280';
+      case 'critical':
+        return '#DC2626';
+      case 'high':
+        return '#EA580C';
+      case 'medium':
+        return '#D97706';
+      case 'low':
+        return '#65A30D';
+      default:
+        return '#6B7280';
     }
   }
 
   // Get Slack color for severity
   private getSlackColor(severity: string): string {
     switch (severity) {
-      case 'critical': return 'danger';
-      case 'high': return 'warning';
-      case 'medium': return '#D97706';
-      case 'low': return 'good';
-      default: return '#6B7280';
+      case 'critical':
+        return 'danger';
+      case 'high':
+        return 'warning';
+      case 'medium':
+        return '#D97706';
+      case 'low':
+        return 'good';
+      default:
+        return '#6B7280';
     }
   }
 
@@ -533,18 +593,22 @@ export class AlertManager extends EventEmitter {
 
   // Get active (unresolved) alerts
   getActiveAlerts(): Alert[] {
-    return Array.from(this.alerts.values()).filter(alert => !alert.resolved);
+    return Array.from(this.alerts.values()).filter((alert) => !alert.resolved);
   }
 
   // Get alerts by severity
-  getAlertsBySeverity(severity: 'low' | 'medium' | 'high' | 'critical'): Alert[] {
-    return Array.from(this.alerts.values()).filter(alert => alert.severity === severity);
+  getAlertsBySeverity(
+    severity: 'low' | 'medium' | 'high' | 'critical'
+  ): Alert[] {
+    return Array.from(this.alerts.values()).filter(
+      (alert) => alert.severity === severity
+    );
   }
 
   // Get alerts for time range
   getAlertsInTimeRange(startTime: Date, endTime: Date): Alert[] {
     return Array.from(this.alerts.values()).filter(
-      alert => alert.timestamp >= startTime && alert.timestamp <= endTime
+      (alert) => alert.timestamp >= startTime && alert.timestamp <= endTime
     );
   }
 
@@ -559,40 +623,41 @@ export class AlertManager extends EventEmitter {
     notificationChannels: number;
   } {
     const alerts = Array.from(this.alerts.values());
-    const activeAlerts = alerts.filter(a => !a.resolved);
-    
+    const activeAlerts = alerts.filter((a) => !a.resolved);
+
     const alertsBySeverity = {
-      low: alerts.filter(a => a.severity === 'low').length,
-      medium: alerts.filter(a => a.severity === 'medium').length,
-      high: alerts.filter(a => a.severity === 'high').length,
-      critical: alerts.filter(a => a.severity === 'critical').length
+      low: alerts.filter((a) => a.severity === 'low').length,
+      medium: alerts.filter((a) => a.severity === 'medium').length,
+      high: alerts.filter((a) => a.severity === 'high').length,
+      critical: alerts.filter((a) => a.severity === 'critical').length,
     };
 
     const alertsByType = {
-      performance: alerts.filter(a => a.type === 'performance').length,
-      error: alerts.filter(a => a.type === 'error').length,
-      security: alerts.filter(a => a.type === 'security').length,
-      compliance: alerts.filter(a => a.type === 'compliance').length,
-      anomaly: alerts.filter(a => a.type === 'anomaly').length
+      performance: alerts.filter((a) => a.type === 'performance').length,
+      error: alerts.filter((a) => a.type === 'error').length,
+      security: alerts.filter((a) => a.type === 'security').length,
+      compliance: alerts.filter((a) => a.type === 'compliance').length,
+      anomaly: alerts.filter((a) => a.type === 'anomaly').length,
     };
 
     const rules = Array.from(this.alertRules.values());
-    
+
     return {
       totalAlerts: alerts.length,
       activeAlerts: activeAlerts.length,
       alertsBySeverity,
       alertsByType,
-      rulesEnabled: rules.filter(r => r.enabled).length,
+      rulesEnabled: rules.filter((r) => r.enabled).length,
       rulesTotal: rules.length,
-      notificationChannels: this.notificationChannels.size
+      notificationChannels: this.notificationChannels.size,
     };
   }
 
   // Clear old alerts to prevent memory leaks
-  cleanupOldAlerts(maxAge: number = 7 * 24 * 60 * 60 * 1000): void { // 7 days default
+  cleanupOldAlerts(maxAge: number = 7 * 24 * 60 * 60 * 1000): void {
+    // 7 days default
     const cutoff = Date.now() - maxAge;
-    
+
     Array.from(this.alerts.entries()).forEach(([id, alert]) => {
       if (alert.timestamp.getTime() < cutoff) {
         this.alerts.delete(id);

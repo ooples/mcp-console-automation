@@ -9,27 +9,27 @@ export interface FilterOptions {
   grep?: string;
   grepIgnoreCase?: boolean;
   grepInvert?: boolean;
-  
+
   // Line-based operations
-  tail?: number;          // Last N lines
-  head?: number;          // First N lines
+  tail?: number; // Last N lines
+  head?: number; // First N lines
   lineRange?: [number, number]; // [start, end] line numbers (1-indexed)
-  
+
   // Time-based filtering
-  since?: string;         // ISO timestamp or relative (e.g., "5m", "1h", "2d")
-  until?: string;         // ISO timestamp or relative
-  
+  since?: string; // ISO timestamp or relative (e.g., "5m", "1h", "2d")
+  until?: string; // ISO timestamp or relative
+
   // Multi-pattern search
   multiPattern?: {
     patterns: string[];
     logic: 'AND' | 'OR';
     ignoreCase?: boolean;
   };
-  
+
   // Performance optimizations
-  maxLines?: number;      // Maximum lines to process
+  maxLines?: number; // Maximum lines to process
   streamingMode?: boolean; // Process in streaming mode for large outputs
-  chunkSize?: number;     // Chunk size for streaming processing
+  chunkSize?: number; // Chunk size for streaming processing
 }
 
 /**
@@ -90,7 +90,7 @@ export class OutputFilterEngine {
   private metrics: FilterMetrics;
   private regexCache: Map<string, RegExp>;
   private timestampCache: Map<string, Date>;
-  
+
   constructor() {
     this.logger = new Logger('OutputFilterEngine');
     this.metrics = {
@@ -101,7 +101,7 @@ export class OutputFilterEngine {
       totalLinesProcessed: 0,
       totalMemoryUsed: 0,
       cacheHits: 0,
-      cacheMisses: 0
+      cacheMisses: 0,
     };
     this.regexCache = new Map();
     this.timestampCache = new Map();
@@ -116,11 +116,11 @@ export class OutputFilterEngine {
   ): Promise<FilterResult> {
     const startTime = performance.now();
     const initialMemory = this.getMemoryUsage();
-    
+
     try {
       this.logger.debug('Starting filter operation', {
         outputLines: output.length,
-        options: JSON.stringify(options, null, 2)
+        options: JSON.stringify(options, null, 2),
       });
 
       // Early exit for empty output
@@ -138,7 +138,11 @@ export class OutputFilterEngine {
 
       // Step 1: Time-based filtering (most selective, apply first)
       if (options.since || options.until) {
-        const timeResult = this.applyTimeFilter(result, options.since, options.until);
+        const timeResult = this.applyTimeFilter(
+          result,
+          options.since,
+          options.until
+        );
         result = timeResult.filtered;
         filterStats.timeFiltered = timeResult.removed;
       }
@@ -168,7 +172,10 @@ export class OutputFilterEngine {
 
       // Step 4: Multi-pattern search
       if (options.multiPattern) {
-        const multiResult = this.applyMultiPatternFilter(result, options.multiPattern);
+        const multiResult = this.applyMultiPatternFilter(
+          result,
+          options.multiPattern
+        );
         result = multiResult.filtered;
         filterStats.multiPatternMatches = multiResult.matches;
       }
@@ -183,7 +190,11 @@ export class OutputFilterEngine {
       const processingTime = endTime - startTime;
 
       // Update metrics
-      this.updateMetrics(processingTime, output.length, finalMemory - initialMemory);
+      this.updateMetrics(
+        processingTime,
+        output.length,
+        finalMemory - initialMemory
+      );
 
       const filterResult: FilterResult = {
         success: true,
@@ -195,7 +206,7 @@ export class OutputFilterEngine {
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
           truncated: result.length < output.length,
-          filterStats
+          filterStats,
         },
         metadata: {
           totalLines: output.length,
@@ -203,13 +214,12 @@ export class OutputFilterEngine {
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
           truncated: result.length < output.length,
-          filterStats
-        } // Legacy compatibility
+          filterStats,
+        }, // Legacy compatibility
       };
 
       this.logger.debug('Filter operation completed', filterResult.metadata);
       return filterResult;
-
     } catch (error: any) {
       this.logger.error('Filter operation failed', error);
       throw new Error(`Filter operation failed: ${error.message}`);
@@ -225,23 +235,24 @@ export class OutputFilterEngine {
   ): Promise<ConsoleOutput[]> {
     const chunkSize = options.chunkSize || 1000;
     const result: ConsoleOutput[] = [];
-    
+
     for (let i = 0; i < output.length; i += chunkSize) {
       const chunk = output.slice(i, i + chunkSize);
-      
+
       // Process chunk and yield control
       result.push(...chunk);
-      
+
       // Yield control to event loop every chunk
-      await new Promise(resolve => setImmediate(resolve));
-      
+      await new Promise((resolve) => setImmediate(resolve));
+
       // Memory pressure check
-      if (this.getMemoryUsage() > 100 * 1024 * 1024) { // 100MB threshold
+      if (this.getMemoryUsage() > 100 * 1024 * 1024) {
+        // 100MB threshold
         this.logger.warn('Memory pressure detected, reducing chunk size');
         break;
       }
     }
-    
+
     return result;
   }
 
@@ -260,18 +271,18 @@ export class OutputFilterEngine {
     const sinceDate = since ? this.parseTimestamp(since) : null;
     const untilDate = until ? this.parseTimestamp(until) : null;
 
-    const filtered = output.filter(item => {
+    const filtered = output.filter((item) => {
       const itemDate = new Date(item.timestamp);
-      
+
       if (sinceDate && itemDate < sinceDate) return false;
       if (untilDate && itemDate > untilDate) return false;
-      
+
       return true;
     });
 
     return {
       filtered,
-      removed: output.length - filtered.length
+      removed: output.length - filtered.length,
     };
   }
 
@@ -283,20 +294,20 @@ export class OutputFilterEngine {
     lineRange: [number, number]
   ): { filtered: ConsoleOutput[]; removed: number } {
     const [start, end] = lineRange;
-    
+
     // Convert to 0-indexed and validate
     const startIdx = Math.max(0, start - 1);
     const endIdx = Math.min(output.length, end);
-    
+
     if (startIdx >= output.length || endIdx <= startIdx) {
       return { filtered: [], removed: output.length };
     }
 
     const filtered = output.slice(startIdx, endIdx);
-    
+
     return {
       filtered,
-      removed: output.length - filtered.length
+      removed: output.length - filtered.length,
     };
   }
 
@@ -310,16 +321,16 @@ export class OutputFilterEngine {
   ): { filtered: ConsoleOutput[]; matches: number } {
     const regex = this.getOrCreateRegex(pattern, {
       ignoreCase: options.grepIgnoreCase || false,
-      invert: options.grepInvert || false
+      invert: options.grepInvert || false,
     });
 
     let matches = 0;
-    const filtered = output.filter(item => {
+    const filtered = output.filter((item) => {
       const text = item.data;
       const isMatch = regex.test(text);
-      
+
       if (isMatch) matches++;
-      
+
       // Apply invert logic
       return options.grepInvert ? !isMatch : isMatch;
     });
@@ -335,22 +346,23 @@ export class OutputFilterEngine {
     multiPattern: NonNullable<FilterOptions['multiPattern']>
   ): { filtered: ConsoleOutput[]; matches: number } {
     const { patterns, logic, ignoreCase } = multiPattern;
-    
-    const regexes = patterns.map(pattern => 
+
+    const regexes = patterns.map((pattern) =>
       this.getOrCreateRegex(pattern, { ignoreCase: ignoreCase || false })
     );
 
     let matches = 0;
-    const filtered = output.filter(item => {
+    const filtered = output.filter((item) => {
       const text = item.data;
-      const results = regexes.map(regex => regex.test(text));
-      
-      const isMatch = logic === 'AND' 
-        ? results.every(result => result)
-        : results.some(result => result);
-      
+      const results = regexes.map((regex) => regex.test(text));
+
+      const isMatch =
+        logic === 'AND'
+          ? results.every((result) => result)
+          : results.some((result) => result);
+
       if (isMatch) matches++;
-      
+
       return isMatch;
     });
 
@@ -378,13 +390,14 @@ export class OutputFilterEngine {
       const match = timestamp.match(/^(\d+)([smhd])$/);
       if (match) {
         const [, value, unit] = match;
-        const multiplier = {
-          's': 1000,          // seconds
-          'm': 60 * 1000,     // minutes
-          'h': 60 * 60 * 1000, // hours
-          'd': 24 * 60 * 60 * 1000 // days
-        }[unit] || 1000;
-        
+        const multiplier =
+          {
+            s: 1000, // seconds
+            m: 60 * 1000, // minutes
+            h: 60 * 60 * 1000, // hours
+            d: 24 * 60 * 60 * 1000, // days
+          }[unit] || 1000;
+
         date = new Date(Date.now() - parseInt(value) * multiplier);
       } else {
         // Fallback to Date constructor
@@ -394,38 +407,41 @@ export class OutputFilterEngine {
 
     // Cache the result
     this.timestampCache.set(timestamp, date);
-    
+
     return date;
   }
 
   /**
    * Get or create regex with caching for performance
    */
-  private getOrCreateRegex(pattern: string, options: { 
-    ignoreCase?: boolean; 
-    invert?: boolean 
-  } = {}): RegExp {
+  private getOrCreateRegex(
+    pattern: string,
+    options: {
+      ignoreCase?: boolean;
+      invert?: boolean;
+    } = {}
+  ): RegExp {
     const cacheKey = `${pattern}:${JSON.stringify(options)}`;
-    
+
     if (this.regexCache.has(cacheKey)) {
       this.metrics.cacheHits++;
       return this.regexCache.get(cacheKey)!;
     }
 
     this.metrics.cacheMisses++;
-    
+
     let flags = 'g';
     if (options.ignoreCase) flags += 'i';
-    
+
     const regex = new RegExp(pattern, flags);
-    
+
     // Cache with size limit
     if (this.regexCache.size > 100) {
       // Remove oldest entry
       const firstKey = this.regexCache.keys().next().value;
       this.regexCache.delete(firstKey);
     }
-    
+
     this.regexCache.set(cacheKey, regex);
     return regex;
   }
@@ -443,11 +459,19 @@ export class OutputFilterEngine {
   /**
    * Update performance metrics
    */
-  private updateMetrics(processingTime: number, linesProcessed: number, memoryUsed: number): void {
+  private updateMetrics(
+    processingTime: number,
+    linesProcessed: number,
+    memoryUsed: number
+  ): void {
     this.metrics.operationCount++;
     this.metrics.totalProcessingTime += processingTime;
-    this.metrics.averageProcessingTime = this.metrics.totalProcessingTime / this.metrics.operationCount;
-    this.metrics.maxProcessingTime = Math.max(this.metrics.maxProcessingTime, processingTime);
+    this.metrics.averageProcessingTime =
+      this.metrics.totalProcessingTime / this.metrics.operationCount;
+    this.metrics.maxProcessingTime = Math.max(
+      this.metrics.maxProcessingTime,
+      processingTime
+    );
     this.metrics.totalLinesProcessed += linesProcessed;
     this.metrics.totalMemoryUsed += memoryUsed;
   }
@@ -455,7 +479,10 @@ export class OutputFilterEngine {
   /**
    * Create empty result for early exit
    */
-  private createEmptyResult(startTime: number, initialMemory: number): FilterResult {
+  private createEmptyResult(
+    startTime: number,
+    initialMemory: number
+  ): FilterResult {
     const endTime = performance.now();
     return {
       success: true,
@@ -467,7 +494,7 @@ export class OutputFilterEngine {
         processingTimeMs: endTime - startTime,
         memoryUsageBytes: this.getMemoryUsage() - initialMemory,
         truncated: false,
-        filterStats: {}
+        filterStats: {},
       },
       metadata: {
         totalLines: 0,
@@ -475,8 +502,8 @@ export class OutputFilterEngine {
         processingTimeMs: endTime - startTime,
         memoryUsageBytes: this.getMemoryUsage() - initialMemory,
         truncated: false,
-        filterStats: {}
-      } // Legacy compatibility
+        filterStats: {},
+      }, // Legacy compatibility
     };
   }
 
@@ -508,7 +535,7 @@ export class OutputFilterEngine {
       totalLinesProcessed: 0,
       totalMemoryUsed: 0,
       cacheHits: 0,
-      cacheMisses: 0
+      cacheMisses: 0,
     };
   }
 
@@ -520,19 +547,26 @@ export class OutputFilterEngine {
     timestampCacheSize: number;
     cacheHitRatio: number;
   } {
-    const totalCacheRequests = this.metrics.cacheHits + this.metrics.cacheMisses;
-    
+    const totalCacheRequests =
+      this.metrics.cacheHits + this.metrics.cacheMisses;
+
     return {
       regexCacheSize: this.regexCache.size,
       timestampCacheSize: this.timestampCache.size,
-      cacheHitRatio: totalCacheRequests > 0 ? this.metrics.cacheHits / totalCacheRequests : 0
+      cacheHitRatio:
+        totalCacheRequests > 0
+          ? this.metrics.cacheHits / totalCacheRequests
+          : 0,
     };
   }
 
   /**
    * Validate filter options for security and correctness
    */
-  validateFilterOptions(options: FilterOptions): { valid: boolean; errors: string[] } {
+  validateFilterOptions(options: FilterOptions): {
+    valid: boolean;
+    errors: string[];
+  } {
     const errors: string[] = [];
 
     // Validate regex patterns
@@ -569,7 +603,7 @@ export class OutputFilterEngine {
     if (options.head && options.head < 1) {
       errors.push('Head count must be >= 1');
     }
-    
+
     if (options.tail && options.tail < 1) {
       errors.push('Tail count must be >= 1');
     }
@@ -597,7 +631,7 @@ export class OutputFilterEngine {
 
     return {
       valid: errors.length === 0,
-      errors
+      errors,
     };
   }
 }

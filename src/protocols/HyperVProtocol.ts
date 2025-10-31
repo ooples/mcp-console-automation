@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Hyper-V Protocol connection options
@@ -24,7 +24,15 @@ interface HyperVConnectionOptions extends SessionOptions {
   username?: string;
   password?: string;
   domain?: string;
-  operation?: 'connect' | 'start' | 'stop' | 'save' | 'pause' | 'resume' | 'checkpoint' | 'restore';
+  operation?:
+    | 'connect'
+    | 'start'
+    | 'stop'
+    | 'save'
+    | 'pause'
+    | 'resume'
+    | 'checkpoint'
+    | 'restore';
   checkpointName?: string;
   enableEnhancedSession?: boolean;
   enableRDP?: boolean;
@@ -88,9 +96,9 @@ export class HyperVProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -122,8 +130,8 @@ export class HyperVProtocol extends BaseProtocol {
         windows: true, // Hyper-V is Windows-only
         linux: false,
         macos: false,
-        freebsd: false
-      }
+        freebsd: false,
+      },
     };
   }
 
@@ -150,8 +158,13 @@ export class HyperVProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -172,7 +185,9 @@ export class HyperVProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Hyper-V session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Hyper-V session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -203,7 +218,11 @@ export class HyperVProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -222,7 +241,11 @@ export class HyperVProtocol extends BaseProtocol {
     const hyperVProcess = spawn(hyperVCommand[0], hyperVCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(hyperVOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(hyperVOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -231,7 +254,7 @@ export class HyperVProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -241,18 +264,23 @@ export class HyperVProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     hyperVProcess.on('error', (error) => {
-      this.logger.error(`Hyper-V process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Hyper-V process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     hyperVProcess.on('close', (code) => {
-      this.logger.info(`Hyper-V process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Hyper-V process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -265,7 +293,11 @@ export class HyperVProtocol extends BaseProtocol {
       command: hyperVCommand[0],
       args: hyperVCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(hyperVOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(hyperVOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -273,12 +305,14 @@ export class HyperVProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: hyperVProcess.pid
+      pid: hyperVProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Hyper-V session ${sessionId} created for VM ${hyperVOptions.vmName || hyperVOptions.vmId}`);
+    this.logger.info(
+      `Hyper-V session ${sessionId} created for VM ${hyperVOptions.vmName || hyperVOptions.vmId}`
+    );
     this.emit('session-created', { sessionId, type: 'hyperv', session });
 
     return session;
@@ -287,7 +321,7 @@ export class HyperVProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -296,8 +330,8 @@ export class HyperVProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -319,25 +353,30 @@ export class HyperVProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Hyper-V session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Hyper-V session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const hyperVProcess = this.hyperVProcesses.get(sessionId);
-    return hyperVProcess && !hyperVProcess.killed || false;
+    return (hyperVProcess && !hyperVProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -348,26 +387,26 @@ export class HyperVProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.hyperVProcesses.size
+        connectionsActive: this.hyperVProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -379,8 +418,8 @@ export class HyperVProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          hyperv: { available: true }
-        }
+          hyperv: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -388,26 +427,41 @@ export class HyperVProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Hyper-V not available: ${error}`],
         dependencies: {
-          hyperv: { available: false }
-        }
+          hyperv: { available: false },
+        },
       };
     }
   }
 
   private async checkHyperVAvailability(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const testProcess = spawn('powershell', ['-Command', 'Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V'], { stdio: 'pipe' });
+      const testProcess = spawn(
+        'powershell',
+        [
+          '-Command',
+          'Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V',
+        ],
+        { stdio: 'pipe' }
+      );
 
       testProcess.on('close', (code) => {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Hyper-V not available. Please enable Hyper-V feature on Windows.'));
+          reject(
+            new Error(
+              'Hyper-V not available. Please enable Hyper-V feature on Windows.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('PowerShell not available. Hyper-V requires Windows PowerShell.'));
+        reject(
+          new Error(
+            'PowerShell not available. Hyper-V requires Windows PowerShell.'
+          )
+        );
       });
     });
   }
@@ -480,9 +534,17 @@ export class HyperVProtocol extends BaseProtocol {
       if (psCommand.includes('Enter-PSSession')) {
         const credScript = `$securePassword = ConvertTo-SecureString '${options.password}' -AsPlainText -Force; `;
         if (options.domain) {
-          psCommand = credScript + `$credential = New-Object System.Management.Automation.PSCredential('${options.domain}\\${options.username}', $securePassword); ` + psCommand + ` -Credential $credential`;
+          psCommand =
+            credScript +
+            `$credential = New-Object System.Management.Automation.PSCredential('${options.domain}\\${options.username}', $securePassword); ` +
+            psCommand +
+            ` -Credential $credential`;
         } else {
-          psCommand = credScript + `$credential = New-Object System.Management.Automation.PSCredential('${options.username}', $securePassword); ` + psCommand + ` -Credential $credential`;
+          psCommand =
+            credScript +
+            `$credential = New-Object System.Management.Automation.PSCredential('${options.username}', $securePassword); ` +
+            psCommand +
+            ` -Credential $credential`;
         }
       }
     }
@@ -492,7 +554,9 @@ export class HyperVProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: HyperVConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: HyperVConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Hyper-V environment variables
@@ -552,7 +616,10 @@ export class HyperVProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Hyper-V process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Hyper-V process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

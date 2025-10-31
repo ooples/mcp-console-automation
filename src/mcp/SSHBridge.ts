@@ -3,7 +3,10 @@
  * This replaces the broken ConsoleManager SSH handling
  */
 
-import { SSHSessionHandler, SSHSessionOptions } from '../core/SSHSessionHandler.js';
+import {
+  SSHSessionHandler,
+  SSHSessionOptions,
+} from '../core/SSHSessionHandler.js';
 import { Logger } from '../utils/logger.js';
 
 export class SSHBridge {
@@ -15,16 +18,18 @@ export class SSHBridge {
     this.logger = new Logger('SSHBridge');
     this.sshHandler = new SSHSessionHandler();
     this.sessionMap = new Map();
-    
+
     // Setup event listeners
     this.sshHandler.on('output', (data) => {
-      this.logger.debug(`Output from session ${data.sessionId}: ${data.data.substring(0, 100)}...`);
+      this.logger.debug(
+        `Output from session ${data.sessionId}: ${data.data.substring(0, 100)}...`
+      );
     });
-    
+
     this.sshHandler.on('error', (data) => {
       this.logger.error(`Error in session ${data.sessionId}:`, data.error);
     });
-    
+
     this.sshHandler.on('sessionClosed', (sessionId) => {
       // Clean up mapping
       for (const [mcp, ssh] of this.sessionMap.entries()) {
@@ -54,21 +59,22 @@ export class SSHBridge {
         readyTimeout: options.sshOptions?.readyTimeout || 30000,
         term: options.term || 'xterm-256color',
         cols: options.cols || 80,
-        rows: options.rows || 24
+        rows: options.rows || 24,
       };
-      
+
       // Create SSH session
       const sshSessionId = await this.sshHandler.createSession(sshOptions);
-      
+
       // Generate MCP session ID
       const mcpSessionId = `mcp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
+
       // Map MCP session to SSH session
       this.sessionMap.set(mcpSessionId, sshSessionId);
-      
-      this.logger.info(`Created MCP session ${mcpSessionId} -> SSH session ${sshSessionId}`);
+
+      this.logger.info(
+        `Created MCP session ${mcpSessionId} -> SSH session ${sshSessionId}`
+      );
       return mcpSessionId;
-      
     } catch (error) {
       this.logger.error('Failed to create SSH session:', error);
       throw error;
@@ -78,13 +84,18 @@ export class SSHBridge {
   /**
    * Execute a command in the session
    */
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const sshSessionId = this.sessionMap.get(sessionId);
     if (!sshSessionId) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sshHandler.executeCommand(sshSessionId, fullCommand);
   }
 
@@ -96,7 +107,7 @@ export class SSHBridge {
     if (!sshSessionId) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
+
     await this.sshHandler.sendInput(sshSessionId, input);
   }
 
@@ -108,7 +119,7 @@ export class SSHBridge {
     if (!sshSessionId) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
+
     await this.sshHandler.sendKey(sshSessionId, key);
   }
 
@@ -120,7 +131,7 @@ export class SSHBridge {
     if (!sshSessionId) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
+
     const outputLines = this.sshHandler.getOutput(sshSessionId, limit);
     return outputLines.join('');
   }
@@ -133,12 +144,12 @@ export class SSHBridge {
     if (!sshSessionId) {
       return null;
     }
-    
+
     const info = this.sshHandler.getSessionInfo(sshSessionId);
     return {
       ...info,
       mcpSessionId: sessionId,
-      sshSessionId: sshSessionId
+      sshSessionId: sshSessionId,
     };
   }
 
@@ -153,7 +164,7 @@ export class SSHBridge {
         sessions.push({
           sessionId: mcpId,
           sshSessionId: sshId,
-          ...info
+          ...info,
         });
       }
     }
@@ -169,7 +180,7 @@ export class SSHBridge {
       this.logger.warn(`Session ${sessionId} not found`);
       return;
     }
-    
+
     await this.sshHandler.closeSession(sshSessionId);
     this.sessionMap.delete(sessionId);
     this.logger.info(`Stopped MCP session ${sessionId}`);

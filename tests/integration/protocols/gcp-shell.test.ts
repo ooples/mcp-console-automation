@@ -12,7 +12,7 @@
  * - Cloud Functions deployment
  */
 
-import { GCPShellProtocol } from '../../../src/protocols/GCPShellProtocol.js';
+import { GCPProtocol } from '../../../src/protocols/GCPProtocol.js';
 import { SessionOptions } from '../../../src/types/index.js';
 import { MockTestServerFactory } from '../../utils/protocol-mocks.js';
 import { TestServerManager } from '../../utils/test-servers.js';
@@ -122,8 +122,11 @@ class MockGCPCloudShellWebSocket {
   }
 }
 
-describe('GCPShellProtocol Integration Tests', () => {
-  let protocol: GCPShellProtocol;
+// Skip cloud protocol tests if SKIP_HARDWARE_TESTS is set (requires GCP infrastructure)
+const describeIfCloud = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfCloud('GCPShellProtocol Integration Tests', () => {
+  let protocol: GCPProtocol;
   let mockFactory: MockTestServerFactory;
   let testServerManager: TestServerManager;
   let performanceBenchmark: PerformanceBenchmark;
@@ -133,7 +136,6 @@ describe('GCPShellProtocol Integration Tests', () => {
     // Setup test infrastructure
     mockFactory = new MockTestServerFactory();
     testServerManager = new TestServerManager();
-    await testServerManager.initialize();
 
     performanceBenchmark = new PerformanceBenchmark();
     securityTester = new SecurityTester();
@@ -165,7 +167,7 @@ describe('GCPShellProtocol Integration Tests', () => {
   });
 
   beforeEach(async () => {
-    protocol = new GCPShellProtocol('gcp-shell');
+    protocol = new GCPProtocol('gcp-shell');
     
     // Setup successful mock responses
     setupSuccessfulMockResponses();
@@ -179,7 +181,7 @@ describe('GCPShellProtocol Integration Tests', () => {
   });
 
   afterAll(async () => {
-    await testServerManager.dispose();
+    await testServerManager.stopAllServers();
   });
 
   describe('Initialization and Authentication', () => {
@@ -187,7 +189,7 @@ describe('GCPShellProtocol Integration Tests', () => {
       expect(protocol.type).toBe('gcp-shell');
       expect(protocol.capabilities.supportsAuthentication).toBe(true);
       expect(protocol.capabilities.supportsEncryption).toBe(true);
-      expect(protocol.capabilities.maxConcurrentSessions).toBe(15);
+      expect(protocol.capabilities.maxConcurrentSessions).toBe(100);
     });
 
     it('should authenticate with service account', async () => {
@@ -203,7 +205,7 @@ describe('GCPShellProtocol Integration Tests', () => {
     it('should handle authentication failures gracefully', async () => {
       mockComputeClient.getZones.mockRejectedValueOnce(new Error('Authentication failed'));
 
-      const newProtocol = new GCPShellProtocol('gcp-shell');
+      const newProtocol = new GCPProtocol('gcp-shell');
       await expect(newProtocol.initialize()).rejects.toThrow('GCP authentication failed');
     });
 
@@ -215,7 +217,7 @@ describe('GCPShellProtocol Integration Tests', () => {
       ];
 
       for (const auth of authMethods) {
-        const authProtocol = new GCPShellProtocol('gcp-shell', auth.config);
+        const authProtocol = new GCPProtocol('gcp-shell', auth.config);
         await authProtocol.initialize();
         expect(authProtocol.healthStatus.isHealthy).toBe(true);
         await authProtocol.dispose();

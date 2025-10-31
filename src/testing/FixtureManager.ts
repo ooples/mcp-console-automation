@@ -37,11 +37,7 @@ export class FixtureManager {
   /**
    * Register a fixture
    */
-  register(
-    name: string,
-    path: string,
-    options: FixtureOptions = {}
-  ): void {
+  register(name: string, path: string, options: FixtureOptions = {}): void {
     this.registrations.set(name, {
       name,
       path,
@@ -53,7 +49,9 @@ export class FixtureManager {
   /**
    * Register multiple fixtures
    */
-  registerMany(fixtures: Array<{ name: string; path: string; options?: FixtureOptions }>): void {
+  registerMany(
+    fixtures: Array<{ name: string; path: string; options?: FixtureOptions }>
+  ): void {
     for (const fixture of fixtures) {
       this.register(fixture.name, fixture.path, fixture.options || {});
     }
@@ -209,7 +207,9 @@ export class FixtureManager {
       if (registration.options.dependencies) {
         for (const dep of registration.options.dependencies) {
           if (!this.registrations.has(dep)) {
-            errors.push(`Fixture "${name}" depends on unregistered fixture "${dep}"`);
+            errors.push(
+              `Fixture "${name}" depends on unregistered fixture "${dep}"`
+            );
           }
         }
       }

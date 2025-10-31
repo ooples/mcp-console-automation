@@ -9,7 +9,9 @@ export class Matchers {
    */
   toContain(actual: string, expected: string): boolean {
     if (typeof actual !== 'string' || typeof expected !== 'string') {
-      throw new Error('toContain requires both actual and expected to be strings');
+      throw new Error(
+        'toContain requires both actual and expected to be strings'
+      );
     }
     return actual.includes(expected);
   }
@@ -103,7 +105,9 @@ export class Matchers {
    */
   toBeGreaterThan(actual: number, expected: number): boolean {
     if (typeof actual !== 'number' || typeof expected !== 'number') {
-      throw new Error('toBeGreaterThan requires both actual and expected to be numbers');
+      throw new Error(
+        'toBeGreaterThan requires both actual and expected to be numbers'
+      );
     }
     return actual > expected;
   }
@@ -113,7 +117,9 @@ export class Matchers {
    */
   toBeGreaterThanOrEqual(actual: number, expected: number): boolean {
     if (typeof actual !== 'number' || typeof expected !== 'number') {
-      throw new Error('toBeGreaterThanOrEqual requires both actual and expected to be numbers');
+      throw new Error(
+        'toBeGreaterThanOrEqual requires both actual and expected to be numbers'
+      );
     }
     return actual >= expected;
   }
@@ -123,7 +129,9 @@ export class Matchers {
    */
   toBeLessThan(actual: number, expected: number): boolean {
     if (typeof actual !== 'number' || typeof expected !== 'number') {
-      throw new Error('toBeLessThan requires both actual and expected to be numbers');
+      throw new Error(
+        'toBeLessThan requires both actual and expected to be numbers'
+      );
     }
     return actual < expected;
   }
@@ -133,7 +141,9 @@ export class Matchers {
    */
   toBeLessThanOrEqual(actual: number, expected: number): boolean {
     if (typeof actual !== 'number' || typeof expected !== 'number') {
-      throw new Error('toBeLessThanOrEqual requires both actual and expected to be numbers');
+      throw new Error(
+        'toBeLessThanOrEqual requires both actual and expected to be numbers'
+      );
     }
     return actual <= expected;
   }
@@ -143,7 +153,9 @@ export class Matchers {
    */
   toStartWith(actual: string, prefix: string): boolean {
     if (typeof actual !== 'string' || typeof prefix !== 'string') {
-      throw new Error('toStartWith requires both actual and prefix to be strings');
+      throw new Error(
+        'toStartWith requires both actual and prefix to be strings'
+      );
     }
     return actual.startsWith(prefix);
   }
@@ -153,7 +165,9 @@ export class Matchers {
    */
   toEndWith(actual: string, suffix: string): boolean {
     if (typeof actual !== 'string' || typeof suffix !== 'string') {
-      throw new Error('toEndWith requires both actual and suffix to be strings');
+      throw new Error(
+        'toEndWith requires both actual and suffix to be strings'
+      );
     }
     return actual.endsWith(suffix);
   }
@@ -165,7 +179,7 @@ export class Matchers {
     if (!Array.isArray(actual)) {
       throw new Error('toInclude requires actual to be an array');
     }
-    return actual.some(el => this.toDeepEqual(el, item));
+    return actual.some((el) => this.toDeepEqual(el, item));
   }
 
   /**
@@ -191,7 +205,9 @@ export class Matchers {
     if (typeof actual === 'object' && actual !== null) {
       return Object.keys(actual).length === 0;
     }
-    throw new Error('toBeEmpty requires actual to be an array, string, or object');
+    throw new Error(
+      'toBeEmpty requires actual to be an array, string, or object'
+    );
   }
 
   /**
@@ -236,7 +252,7 @@ export class Matchers {
 
     if (pattern === undefined) {
       // Check any default error pattern
-      return defaultErrorPatterns.some(p => p.test(actual));
+      return defaultErrorPatterns.some((p) => p.test(actual));
     }
 
     if (typeof pattern === 'string') {
@@ -299,7 +315,15 @@ export class Matchers {
    * Check if value is of expected type
    */
   toBeType(actual: any, expectedType: string): boolean {
-    const types = ['string', 'number', 'boolean', 'object', 'function', 'symbol', 'bigint'];
+    const types = [
+      'string',
+      'number',
+      'boolean',
+      'object',
+      'function',
+      'symbol',
+      'bigint',
+    ];
     if (!types.includes(expectedType)) {
       throw new Error(`Invalid type: ${expectedType}`);
     }
@@ -337,7 +361,11 @@ export class Matchers {
    * Check if number is close to expected (within delta)
    */
   toBeCloseTo(actual: number, expected: number, delta: number = 0.01): boolean {
-    if (typeof actual !== 'number' || typeof expected !== 'number' || typeof delta !== 'number') {
+    if (
+      typeof actual !== 'number' ||
+      typeof expected !== 'number' ||
+      typeof delta !== 'number'
+    ) {
       throw new Error('toBeCloseTo requires all parameters to be numbers');
     }
     return Math.abs(actual - expected) <= delta;
@@ -352,11 +380,11 @@ export class Matchers {
     }
 
     if (typeof actual === 'string') {
-      return items.every(item => actual.includes(String(item)));
+      return items.every((item) => actual.includes(String(item)));
     }
 
     if (Array.isArray(actual)) {
-      return items.every(item => this.toInclude(actual, item));
+      return items.every((item) => this.toInclude(actual, item));
     }
 
     throw new Error('toContainAll requires actual to be an array or string');
@@ -371,11 +399,11 @@ export class Matchers {
     }
 
     if (typeof actual === 'string') {
-      return items.some(item => actual.includes(String(item)));
+      return items.some((item) => actual.includes(String(item)));
     }
 
     if (Array.isArray(actual)) {
-      return items.some(item => this.toInclude(actual, item));
+      return items.some((item) => this.toInclude(actual, item));
     }
 
     throw new Error('toContainAny requires actual to be an array or string');
@@ -401,7 +429,11 @@ export class Matchers {
    * Check if value is between min and max (inclusive)
    */
   toBeBetween(actual: number, min: number, max: number): boolean {
-    if (typeof actual !== 'number' || typeof min !== 'number' || typeof max !== 'number') {
+    if (
+      typeof actual !== 'number' ||
+      typeof min !== 'number' ||
+      typeof max !== 'number'
+    ) {
       throw new Error('toBeBetween requires all parameters to be numbers');
     }
     return actual >= min && actual <= max;
@@ -412,7 +444,9 @@ export class Matchers {
    */
   toBeBefore(actual: Date, expected: Date): boolean {
     if (!(actual instanceof Date) || !(expected instanceof Date)) {
-      throw new Error('toBeBefore requires both actual and expected to be Date objects');
+      throw new Error(
+        'toBeBefore requires both actual and expected to be Date objects'
+      );
     }
     return actual.getTime() < expected.getTime();
   }
@@ -422,7 +456,9 @@ export class Matchers {
    */
   toBeAfter(actual: Date, expected: Date): boolean {
     if (!(actual instanceof Date) || !(expected instanceof Date)) {
-      throw new Error('toBeAfter requires both actual and expected to be Date objects');
+      throw new Error(
+        'toBeAfter requires both actual and expected to be Date objects'
+      );
     }
     return actual.getTime() > expected.getTime();
   }

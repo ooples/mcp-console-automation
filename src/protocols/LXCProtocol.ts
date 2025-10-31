@@ -6,7 +6,7 @@ import {
   ConsoleOutput,
   ConsoleType,
   ContainerConsoleType,
-  CommandExecution
+  CommandExecution,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -14,11 +14,10 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 import { v4 as uuidv4 } from 'uuid';
 import stripAnsi from 'strip-ansi';
-
 
 // LXC Protocol connection options
 interface LXCConnectionOptions extends SessionOptions {
@@ -97,9 +96,9 @@ export class LXCProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -131,8 +130,8 @@ export class LXCProtocol extends BaseProtocol {
         windows: false, // LXC is Linux-only
         linux: true,
         macos: false,
-        freebsd: false
-      }
+        freebsd: false,
+      },
     };
   }
 
@@ -143,7 +142,9 @@ export class LXCProtocol extends BaseProtocol {
       // Check if LXC is available
       await this.checkLXCAvailability();
       this.isInitialized = true;
-      this.logger.info('LXC protocol initialized with production features', { available: this.lxcAvailable });
+      this.logger.info('LXC protocol initialized with production features', {
+        available: this.lxcAvailable,
+      });
     } catch (error: any) {
       this.logger.error('Failed to initialize LXC protocol', error);
       throw error;
@@ -179,8 +180,13 @@ export class LXCProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -201,7 +207,9 @@ export class LXCProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to LXC session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to LXC session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -232,13 +240,19 @@ export class LXCProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     if (!this.lxcAvailable) {
-      throw new Error('LXC is not available. Ensure LXC is installed and properly configured');
+      throw new Error(
+        'LXC is not available. Ensure LXC is installed and properly configured'
+      );
     }
 
     const lxcOptions = options as LXCConnectionOptions;
@@ -262,7 +276,11 @@ export class LXCProtocol extends BaseProtocol {
       const lxcProcess = spawn(lxcCommand[0], lxcCommand.slice(1), {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: options.cwd || process.cwd(),
-        env: { ...process.env, ...this.buildEnvironment(lxcOptions), ...options.env }
+        env: {
+          ...process.env,
+          ...this.buildEnvironment(lxcOptions),
+          ...options.env,
+        },
       });
 
       // Set up output handling
@@ -271,7 +289,7 @@ export class LXCProtocol extends BaseProtocol {
           sessionId,
           type: 'stdout',
           data: stripAnsi(data.toString()),
-          timestamp: new Date()
+          timestamp: new Date(),
         };
         this.addToOutputBuffer(sessionId, output);
       });
@@ -281,7 +299,7 @@ export class LXCProtocol extends BaseProtocol {
           sessionId,
           type: 'stderr',
           data: stripAnsi(data.toString()),
-          timestamp: new Date()
+          timestamp: new Date(),
         };
         this.addToOutputBuffer(sessionId, output);
       });
@@ -292,7 +310,9 @@ export class LXCProtocol extends BaseProtocol {
       });
 
       lxcProcess.on('close', (code) => {
-        this.logger.info(`LXC process closed for session ${sessionId} with code ${code}`);
+        this.logger.info(
+          `LXC process closed for session ${sessionId} with code ${code}`
+        );
         this.markSessionComplete(sessionId, code || 0);
       });
 
@@ -305,7 +325,11 @@ export class LXCProtocol extends BaseProtocol {
         command: lxcCommand[0],
         args: lxcCommand.slice(1),
         cwd: options.cwd || process.cwd(),
-        env: { ...process.env, ...this.buildEnvironment(lxcOptions), ...options.env },
+        env: {
+          ...process.env,
+          ...this.buildEnvironment(lxcOptions),
+          ...options.env,
+        },
         createdAt: new Date(),
         lastActivity: new Date(),
         status: 'running',
@@ -313,20 +337,21 @@ export class LXCProtocol extends BaseProtocol {
         streaming: options.streaming,
         executionState: 'idle',
         activeCommands: new Map(),
-        pid: lxcProcess.pid
+        pid: lxcProcess.pid,
       };
 
       this.sessions.set(sessionId, session);
 
-      this.logger.info(`LXC session ${sessionId} created for container ${lxcOptions.containerName}`);
+      this.logger.info(
+        `LXC session ${sessionId} created for container ${lxcOptions.containerName}`
+      );
       this.emit('session-created', { sessionId, type: 'lxc', session });
 
       return session;
-
     } catch (error) {
       this.logger.error('Failed to create LXC session', {
         sessionId,
-        error: (error as Error).message
+        error: (error as Error).message,
       });
       throw error;
     }
@@ -335,7 +360,7 @@ export class LXCProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -344,8 +369,8 @@ export class LXCProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -367,25 +392,30 @@ export class LXCProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in LXC session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in LXC session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const lxcProcess = this.lxcProcesses.get(sessionId);
-    return lxcProcess && !lxcProcess.killed || false;
+    return (lxcProcess && !lxcProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -396,26 +426,26 @@ export class LXCProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.lxcProcesses.size
+        connectionsActive: this.lxcProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -427,8 +457,8 @@ export class LXCProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          lxc: { available: true }
-        }
+          lxc: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -436,8 +466,8 @@ export class LXCProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `LXC not available: ${error}`],
         dependencies: {
-          lxc: { available: false }
-        }
+          lxc: { available: false },
+        },
       };
     }
   }
@@ -463,7 +493,7 @@ export class LXCProtocol extends BaseProtocol {
 
     // Capabilities
     if (options.capabilities) {
-      options.capabilities.forEach(cap => {
+      options.capabilities.forEach((cap) => {
         command.push('--keep-capability', cap);
       });
     }
@@ -474,7 +504,7 @@ export class LXCProtocol extends BaseProtocol {
     }
 
     if (options.keepEnv) {
-      options.keepEnv.forEach(env => {
+      options.keepEnv.forEach((env) => {
         command.push('--keep-env', env);
       });
     }
@@ -541,7 +571,9 @@ export class LXCProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: LXCConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: LXCConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // LXC environment variables
@@ -621,8 +653,10 @@ export class LXCProtocol extends BaseProtocol {
 
   private async containerExists(containerName: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const lxcProcess = spawn('lxc-info', ['-n', containerName], { stdio: 'pipe' });
-      
+      const lxcProcess = spawn('lxc-info', ['-n', containerName], {
+        stdio: 'pipe',
+      });
+
       lxcProcess.on('exit', (code) => {
         resolve(code === 0);
       });
@@ -677,7 +711,11 @@ export class LXCProtocol extends BaseProtocol {
     }
 
     return new Promise((resolve, reject) => {
-      const startProcess = spawn('sudo', ['lxc-start', '-n', containerName, '-d'], { stdio: 'pipe' });
+      const startProcess = spawn(
+        'sudo',
+        ['lxc-start', '-n', containerName, '-d'],
+        { stdio: 'pipe' }
+      );
 
       let stderr = '';
       startProcess.stderr?.on('data', (chunk) => {
@@ -700,8 +738,10 @@ export class LXCProtocol extends BaseProtocol {
 
   private async isContainerRunning(containerName: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const infoProcess = spawn('lxc-info', ['-n', containerName, '-s'], { stdio: 'pipe' });
-      
+      const infoProcess = spawn('lxc-info', ['-n', containerName, '-s'], {
+        stdio: 'pipe',
+      });
+
       let stdout = '';
       infoProcess.stdout?.on('data', (chunk) => {
         stdout += chunk.toString();
@@ -725,7 +765,10 @@ export class LXCProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing LXC process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing LXC process for session ${sessionId}:`,
+          error
+        );
       }
     }
 
@@ -735,7 +778,6 @@ export class LXCProtocol extends BaseProtocol {
     // Call parent cleanup
     await super.cleanup();
   }
-
 }
 
 export default LXCProtocol;

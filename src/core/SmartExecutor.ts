@@ -53,7 +53,10 @@ class OutputMonitor {
 }
 
 class CommandAnalyzer {
-  private commandHistory: Map<string, { duration: number; outputSize: number }> = new Map();
+  private commandHistory: Map<
+    string,
+    { duration: number; outputSize: number }
+  > = new Map();
 
   analyze(command: string): CommandAnalysis {
     const longRunners = [
@@ -161,7 +164,10 @@ export class SmartExecutor {
     this.aggregator = new ResultAggregator();
   }
 
-  async execute(command: string, options: ExecuteOptions): Promise<UnifiedResult> {
+  async execute(
+    command: string,
+    options: ExecuteOptions
+  ): Promise<UnifiedResult> {
     const analysis = this.analyzer.analyze(command);
     const strategy = this.selector.select(analysis);
 
@@ -189,7 +195,10 @@ export class SmartExecutor {
     }
   }
 
-  private async executeFastPath(command: string, options: ExecuteOptions): Promise<UnifiedResult> {
+  private async executeFastPath(
+    command: string,
+    options: ExecuteOptions
+  ): Promise<UnifiedResult> {
     const monitor = new OutputMonitor();
 
     try {
@@ -218,7 +227,10 @@ export class SmartExecutor {
     }
   }
 
-  private async executeStreaming(command: string, options: ExecuteOptions): Promise<UnifiedResult> {
+  private async executeStreaming(
+    command: string,
+    options: ExecuteOptions
+  ): Promise<UnifiedResult> {
     const sessionId = options.sessionId;
     const chunks: string[] = [];
 
@@ -229,7 +241,10 @@ export class SmartExecutor {
     const maxAttempts = 100;
 
     while (attempts < maxAttempts) {
-      const output = await this.consoleManager.getOutputImmediate(sessionId, 50);
+      const output = await this.consoleManager.getOutputImmediate(
+        sessionId,
+        50
+      );
 
       if (output.length > sequenceId) {
         const newChunks = output.slice(sequenceId);
@@ -246,10 +261,19 @@ export class SmartExecutor {
       await this.sleep(200);
     }
 
-    return this.aggregator.aggregate(chunks.join(''), 0, undefined, 'streaming', false);
+    return this.aggregator.aggregate(
+      chunks.join(''),
+      0,
+      undefined,
+      'streaming',
+      false
+    );
   }
 
-  private async executeBackground(command: string, options: ExecuteOptions): Promise<UnifiedResult> {
+  private async executeBackground(
+    command: string,
+    options: ExecuteOptions
+  ): Promise<UnifiedResult> {
     const jobId = await this.consoleManager.startBackgroundJob(
       command,
       options.args || [],
@@ -277,9 +301,11 @@ export class SmartExecutor {
 
     const outputArray = await this.consoleManager.getBackgroundJobOutput(jobId);
 
-    const duration = status?.startedAt && status?.finishedAt
-      ? new Date(status.finishedAt).getTime() - new Date(status.startedAt).getTime()
-      : undefined;
+    const duration =
+      status?.startedAt && status?.finishedAt
+        ? new Date(status.finishedAt).getTime() -
+          new Date(status.startedAt).getTime()
+        : undefined;
 
     return this.aggregator.aggregate(
       outputArray.map((o) => o.data).join(''),
@@ -313,11 +339,14 @@ export class SmartExecutor {
         status = await this.consoleManager.getBackgroundJobStatus(jobId);
       } while (status && status.status === 'running');
 
-      const outputArray = await this.consoleManager.getBackgroundJobOutput(jobId);
+      const outputArray =
+        await this.consoleManager.getBackgroundJobOutput(jobId);
 
-      const duration = status?.startedAt && status?.finishedAt
-        ? new Date(status.finishedAt).getTime() - new Date(status.startedAt).getTime()
-        : undefined;
+      const duration =
+        status?.startedAt && status?.finishedAt
+          ? new Date(status.finishedAt).getTime() -
+            new Date(status.startedAt).getTime()
+          : undefined;
 
       return this.aggregator.aggregate(
         outputArray.map((o) => o.data).join(''),

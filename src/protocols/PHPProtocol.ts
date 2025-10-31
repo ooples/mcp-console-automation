@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // PHP Protocol connection options
@@ -69,9 +69,9 @@ export class PHPProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -103,8 +103,8 @@ export class PHPProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -131,8 +131,13 @@ export class PHPProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -153,7 +158,9 @@ export class PHPProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to PHP session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to PHP session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -184,7 +191,11 @@ export class PHPProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -198,7 +209,11 @@ export class PHPProtocol extends BaseProtocol {
     const phpProcess = spawn(phpCommand[0], phpCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(phpOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(phpOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -207,7 +222,7 @@ export class PHPProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -217,7 +232,7 @@ export class PHPProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -228,7 +243,9 @@ export class PHPProtocol extends BaseProtocol {
     });
 
     phpProcess.on('close', (code) => {
-      this.logger.info(`PHP process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `PHP process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -241,7 +258,11 @@ export class PHPProtocol extends BaseProtocol {
       command: phpCommand[0],
       args: phpCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(phpOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(phpOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -249,12 +270,14 @@ export class PHPProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: phpProcess.pid
+      pid: phpProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`PHP session ${sessionId} created for ${phpOptions.scriptFile || phpOptions.artisanCommand || phpOptions.interactive ? 'interactive PHP' : 'PHP application'}`);
+    this.logger.info(
+      `PHP session ${sessionId} created for ${phpOptions.scriptFile || phpOptions.artisanCommand || phpOptions.interactive ? 'interactive PHP' : 'PHP application'}`
+    );
     this.emit('session-created', { sessionId, type: 'php', session });
 
     return session;
@@ -263,7 +286,7 @@ export class PHPProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -272,8 +295,8 @@ export class PHPProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -295,25 +318,30 @@ export class PHPProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in PHP session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in PHP session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const phpProcess = this.phpProcesses.get(sessionId);
-    return phpProcess && !phpProcess.killed || false;
+    return (phpProcess && !phpProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -324,26 +352,26 @@ export class PHPProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.phpProcesses.size
+        connectionsActive: this.phpProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -355,8 +383,8 @@ export class PHPProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          php: { available: true }
-        }
+          php: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -364,8 +392,8 @@ export class PHPProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `PHP not available: ${error}`],
         dependencies: {
-          php: { available: false }
-        }
+          php: { available: false },
+        },
       };
     }
   }
@@ -491,7 +519,9 @@ export class PHPProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: PHPConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: PHPConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Include path
@@ -504,7 +534,9 @@ export class PHPProtocol extends BaseProtocol {
       env.XDEBUG_MODE = 'debug';
       if (options.xdebugConfig) {
         for (const [key, value] of Object.entries(options.xdebugConfig)) {
-          env[`XDEBUG_CONFIG`] = env[`XDEBUG_CONFIG`] ? `${env[`XDEBUG_CONFIG`]} ${key}=${value}` : `${key}=${value}`;
+          env[`XDEBUG_CONFIG`] = env[`XDEBUG_CONFIG`]
+            ? `${env[`XDEBUG_CONFIG`]} ${key}=${value}`
+            : `${key}=${value}`;
         }
       }
     }
@@ -546,7 +578,10 @@ export class PHPProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing PHP process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing PHP process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

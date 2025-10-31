@@ -1,5 +1,8 @@
 import { BaseProtocol } from '../core/BaseProtocol.js';
-import { ProtocolCapabilities, SessionState as BaseSessionState } from '../core/IProtocol.js';
+import {
+  ProtocolCapabilities,
+  SessionState as BaseSessionState,
+} from '../core/IProtocol.js';
 import { Logger } from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 import { WebSocket } from 'ws';
@@ -74,7 +77,7 @@ enum CommandStatus {
   Cancelled = 'Cancelled',
   TimedOut = 'TimedOut',
   InProgress = 'InProgress',
-  Pending = 'Pending'
+  Pending = 'Pending',
 }
 
 enum SessionStatus {
@@ -83,19 +86,34 @@ enum SessionStatus {
   Disconnected = 'Disconnected',
   Failed = 'Failed',
   Terminated = 'Terminated',
-  Terminating = 'Terminating'
+  Terminating = 'Terminating',
 }
 
 enum SessionState {
   Active = 'Active',
-  History = 'History'
+  History = 'History',
 }
 
-let SSMClient: any, StartSessionCommand: any, TerminateSessionCommand: any, DescribeSessionsCommand: any, 
-    ResumeSessionCommand: any, SendCommandCommand: any, ListCommandInvocationsCommand: any, GetCommandInvocationCommand: any,
-    DescribeInstanceInformationCommand: any, GetParametersCommand: any, PutParameterCommand: any, ListDocumentsCommand: any, 
-    DescribeDocumentCommand: any, CreateDocumentCommand: any, UpdateDocumentCommand: any, DeleteDocumentCommand: any,
-    SessionStatusValues: any, SessionStateValues: any, DocumentStatusValues: any, CommandStatusValues: any;
+let SSMClient: any,
+  StartSessionCommand: any,
+  TerminateSessionCommand: any,
+  DescribeSessionsCommand: any,
+  ResumeSessionCommand: any,
+  SendCommandCommand: any,
+  ListCommandInvocationsCommand: any,
+  GetCommandInvocationCommand: any,
+  DescribeInstanceInformationCommand: any,
+  GetParametersCommand: any,
+  PutParameterCommand: any,
+  ListDocumentsCommand: any,
+  DescribeDocumentCommand: any,
+  CreateDocumentCommand: any,
+  UpdateDocumentCommand: any,
+  DeleteDocumentCommand: any,
+  SessionStatusValues: any,
+  SessionStateValues: any,
+  DocumentStatusValues: any,
+  CommandStatusValues: any;
 
 try {
   const ssmModule = require('@aws-sdk/client-ssm');
@@ -107,7 +125,8 @@ try {
   SendCommandCommand = ssmModule.SendCommandCommand;
   ListCommandInvocationsCommand = ssmModule.ListCommandInvocationsCommand;
   GetCommandInvocationCommand = ssmModule.GetCommandInvocationCommand;
-  DescribeInstanceInformationCommand = ssmModule.DescribeInstanceInformationCommand;
+  DescribeInstanceInformationCommand =
+    ssmModule.DescribeInstanceInformationCommand;
   GetParametersCommand = ssmModule.GetParametersCommand;
   PutParameterCommand = ssmModule.PutParameterCommand;
   ListDocumentsCommand = ssmModule.ListDocumentsCommand;
@@ -120,7 +139,9 @@ try {
   DocumentStatusValues = ssmModule.DocumentStatus || {};
   CommandStatusValues = ssmModule.CommandStatus || {};
 } catch (error) {
-  console.warn('@aws-sdk/client-ssm not available, AWS SSM functionality will be disabled');
+  console.warn(
+    '@aws-sdk/client-ssm not available, AWS SSM functionality will be disabled'
+  );
 }
 
 // EC2 SDK imports - made optional
@@ -132,11 +153,16 @@ try {
   DescribeInstancesCommand = ec2Module.DescribeInstancesCommand;
   DescribeTagsCommand = ec2Module.DescribeTagsCommand;
 } catch (error) {
-  console.warn('@aws-sdk/client-ec2 not available, EC2 functionality will be disabled');
+  console.warn(
+    '@aws-sdk/client-ec2 not available, EC2 functionality will be disabled'
+  );
 }
 
 // STS SDK imports - made optional
-let STSClient: any, AssumeRoleCommand: any, GetCallerIdentityCommand: any, GetSessionTokenCommand: any;
+let STSClient: any,
+  AssumeRoleCommand: any,
+  GetCallerIdentityCommand: any,
+  GetSessionTokenCommand: any;
 
 try {
   const stsModule = require('@aws-sdk/client-sts');
@@ -145,11 +171,16 @@ try {
   GetCallerIdentityCommand = stsModule.GetCallerIdentityCommand;
   GetSessionTokenCommand = stsModule.GetSessionTokenCommand;
 } catch (error) {
-  console.warn('@aws-sdk/client-sts not available, STS functionality will be disabled');
+  console.warn(
+    '@aws-sdk/client-sts not available, STS functionality will be disabled'
+  );
 }
 
 // S3 SDK imports - made optional
-let S3Client: any, HeadBucketCommand: any, PutObjectCommand: any, GetObjectCommand: any;
+let S3Client: any,
+  HeadBucketCommand: any,
+  PutObjectCommand: any,
+  GetObjectCommand: any;
 
 try {
   const s3Module = require('@aws-sdk/client-s3');
@@ -158,12 +189,17 @@ try {
   PutObjectCommand = s3Module.PutObjectCommand;
   GetObjectCommand = s3Module.GetObjectCommand;
 } catch (error) {
-  console.warn('@aws-sdk/client-s3 not available, S3 functionality will be disabled');
+  console.warn(
+    '@aws-sdk/client-s3 not available, S3 functionality will be disabled'
+  );
 }
 
 // CloudWatch Logs SDK imports - made optional
-let CloudWatchLogsClient: any, CreateLogGroupCommand: any, CreateLogStreamCommand: any, 
-    PutLogEventsCommand: any, DescribeLogGroupsCommand: any;
+let CloudWatchLogsClient: any,
+  CreateLogGroupCommand: any,
+  CreateLogStreamCommand: any,
+  PutLogEventsCommand: any,
+  DescribeLogGroupsCommand: any;
 
 try {
   const logsModule = require('@aws-sdk/client-cloudwatch-logs');
@@ -173,12 +209,18 @@ try {
   PutLogEventsCommand = logsModule.PutLogEventsCommand;
   DescribeLogGroupsCommand = logsModule.DescribeLogGroupsCommand;
 } catch (error) {
-  console.warn('@aws-sdk/client-cloudwatch-logs not available, CloudWatch Logs functionality will be disabled');
+  console.warn(
+    '@aws-sdk/client-cloudwatch-logs not available, CloudWatch Logs functionality will be disabled'
+  );
 }
 
 // AWS Credential Providers - made optional
-let fromEnv: any, fromIni: any, fromInstanceMetadata: any, fromContainerMetadata: any, 
-    fromNodeProviderChain: any, fromWebToken: any;
+let fromEnv: any,
+  fromIni: any,
+  fromInstanceMetadata: any,
+  fromContainerMetadata: any,
+  fromNodeProviderChain: any,
+  fromWebToken: any;
 
 try {
   const credModule = require('@aws-sdk/credential-providers');
@@ -189,7 +231,9 @@ try {
   fromNodeProviderChain = credModule.fromNodeProviderChain;
   fromWebToken = credModule.fromWebToken;
 } catch (error) {
-  console.warn('@aws-sdk/credential-providers not available, credential provider functionality will be disabled');
+  console.warn(
+    '@aws-sdk/credential-providers not available, credential provider functionality will be disabled'
+  );
 }
 
 import {
@@ -209,7 +253,7 @@ import {
   ConsoleSession,
   ConsoleEvent,
   SessionOptions,
-  ConsoleType
+  ConsoleType,
 } from '../types/index.js';
 
 import { RetryManager } from '../core/RetryManager.js';
@@ -217,7 +261,7 @@ import { ErrorRecovery } from '../core/ErrorRecovery.js';
 
 /**
  * AWS Systems Manager Session Manager Protocol Implementation
- * 
+ *
  * This class provides comprehensive support for AWS SSM Session Manager including:
  * - Interactive shell sessions
  * - Port forwarding tunnels
@@ -236,29 +280,33 @@ export class AWSSSMProtocol extends BaseProtocol {
   private stsClient!: STSClientType;
   private s3Client?: S3ClientType;
   private cloudWatchLogsClient?: CloudWatchLogsClientType;
-  
+
   private retryManager: RetryManager;
   private errorRecovery: ErrorRecovery;
-  
+
   private awsSSMSessions: Map<string, AWSSSMSession> = new Map();
-  private portForwardingSessions: Map<string, AWSSSMPortForwardingSession> = new Map();
+  private portForwardingSessions: Map<string, AWSSSMPortForwardingSession> =
+    new Map();
   private webSockets: Map<string, WebSocket> = new Map();
-  
+
   private config: AWSSSMSessionManagerConfig;
   private connectionOptions: AWSSSMConnectionOptions;
   private credentials?: AWSCredentials;
   private assumedRole?: AWSSTSAssumedRole;
-  
+
   private sessionLogs: Map<string, AWSSSMSessionLog[]> = new Map();
   private activeCommands: Map<string, AWSSSMCommandExecution> = new Map();
-  
+
   // Health monitoring
   private healthCheckInterval?: NodeJS.Timeout;
   private connectionHealthy: boolean = false;
   private lastHealthCheck: Date = new Date();
   private reconnectAttempts: number = 0;
-  
-  constructor(options: AWSSSMConnectionOptions, config?: Partial<AWSSSMSessionManagerConfig>) {
+
+  constructor(
+    options: AWSSSMConnectionOptions,
+    config?: Partial<AWSSSMSessionManagerConfig>
+  ) {
     super('AWSSSMProtocol');
 
     this.capabilities = {
@@ -293,16 +341,16 @@ export class AWSSSMProtocol extends BaseProtocol {
     this.connectionOptions = options;
     this.retryManager = new RetryManager();
     this.errorRecovery = new ErrorRecovery();
-    
+
     // Initialize configuration with defaults
     this.config = this.initializeConfig(config);
-    
+
     // Initialize AWS clients with configuration
     this.initializeAWSClients();
-    
+
     // Setup error recovery handlers
     this.setupErrorRecoveryHandlers();
-    
+
     // Start health monitoring
     this.startHealthMonitoring();
   }
@@ -310,79 +358,109 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Initialize configuration with sensible defaults
    */
-  private initializeConfig(config?: Partial<AWSSSMSessionManagerConfig>): AWSSSMSessionManagerConfig {
+  private initializeConfig(
+    config?: Partial<AWSSSMSessionManagerConfig>
+  ): AWSSSMSessionManagerConfig {
     return {
       regionConfig: {
         defaultRegion: this.connectionOptions.region,
         allowedRegions: [this.connectionOptions.region],
-        regionPriority: [this.connectionOptions.region]
+        regionPriority: [this.connectionOptions.region],
       },
       authConfig: {
-        credentialChain: ['environment', 'profile', 'iam-role', 'instance-profile', 'ecs-task-role'],
-        assumeRoleConfig: this.connectionOptions.roleArn ? {
-          roleArn: this.connectionOptions.roleArn,
-          roleSessionName: this.connectionOptions.roleSessionName || `ssm-session-${Date.now()}`,
-          externalId: this.connectionOptions.externalId,
-          durationSeconds: this.connectionOptions.durationSeconds || 3600
-        } : undefined,
-        mfaConfig: this.connectionOptions.mfaSerial ? {
-          mfaSerial: this.connectionOptions.mfaSerial,
-          tokenCodeCallback: async () => this.connectionOptions.mfaTokenCode || ''
-        } : undefined
+        credentialChain: [
+          'environment',
+          'profile',
+          'iam-role',
+          'instance-profile',
+          'ecs-task-role',
+        ],
+        assumeRoleConfig: this.connectionOptions.roleArn
+          ? {
+              roleArn: this.connectionOptions.roleArn,
+              roleSessionName:
+                this.connectionOptions.roleSessionName ||
+                `ssm-session-${Date.now()}`,
+              externalId: this.connectionOptions.externalId,
+              durationSeconds: this.connectionOptions.durationSeconds || 3600,
+            }
+          : undefined,
+        mfaConfig: this.connectionOptions.mfaSerial
+          ? {
+              mfaSerial: this.connectionOptions.mfaSerial,
+              tokenCodeCallback: async () =>
+                this.connectionOptions.mfaTokenCode || '',
+            }
+          : undefined,
       },
       sessionConfig: {
         defaultDocumentName: 'SSM-SessionManagerRunShell',
         defaultShellProfile: this.connectionOptions.shellProfile || 'bash',
         defaultWorkingDirectory: this.connectionOptions.workingDirectory,
-        defaultEnvironmentVariables: this.connectionOptions.environmentVariables || {},
+        defaultEnvironmentVariables:
+          this.connectionOptions.environmentVariables || {},
         sessionTimeout: this.connectionOptions.sessionTimeout || 1800000, // 30 minutes
-        maxSessionDuration: this.connectionOptions.maxSessionDuration || 7200000, // 2 hours
+        maxSessionDuration:
+          this.connectionOptions.maxSessionDuration || 7200000, // 2 hours
         keepAliveInterval: this.connectionOptions.keepAliveInterval || 30000, // 30 seconds
-        maxConcurrentSessions: 10
+        maxConcurrentSessions: 10,
       },
       loggingConfig: {
-        enabled: !!(this.connectionOptions.s3BucketName || this.connectionOptions.cloudWatchLogGroupName),
-        s3Config: this.connectionOptions.s3BucketName ? {
-          bucketName: this.connectionOptions.s3BucketName,
-          keyPrefix: this.connectionOptions.s3KeyPrefix || 'ssm-session-logs',
-          encryptionEnabled: this.connectionOptions.s3EncryptionEnabled !== false
-        } : undefined,
-        cloudWatchConfig: this.connectionOptions.cloudWatchLogGroupName ? {
-          logGroupName: this.connectionOptions.cloudWatchLogGroupName,
-          encryptionEnabled: this.connectionOptions.cloudWatchEncryptionEnabled !== false,
-          streamingEnabled: this.connectionOptions.cloudWatchStreamingEnabled !== false
-        } : undefined,
+        enabled: !!(
+          this.connectionOptions.s3BucketName ||
+          this.connectionOptions.cloudWatchLogGroupName
+        ),
+        s3Config: this.connectionOptions.s3BucketName
+          ? {
+              bucketName: this.connectionOptions.s3BucketName,
+              keyPrefix:
+                this.connectionOptions.s3KeyPrefix || 'ssm-session-logs',
+              encryptionEnabled:
+                this.connectionOptions.s3EncryptionEnabled !== false,
+            }
+          : undefined,
+        cloudWatchConfig: this.connectionOptions.cloudWatchLogGroupName
+          ? {
+              logGroupName: this.connectionOptions.cloudWatchLogGroupName,
+              encryptionEnabled:
+                this.connectionOptions.cloudWatchEncryptionEnabled !== false,
+              streamingEnabled:
+                this.connectionOptions.cloudWatchStreamingEnabled !== false,
+            }
+          : undefined,
         localLogging: {
           enabled: true,
           logLevel: 'INFO',
           maxFileSize: 10 * 1024 * 1024, // 10MB
-          maxFiles: 5
-        }
+          maxFiles: 5,
+        },
       },
       connectionConfig: {
         connectionTimeout: this.connectionOptions.connectionTimeout || 30000,
         retryAttempts: this.connectionOptions.retryAttempts || 3,
         backoffMultiplier: this.connectionOptions.backoffMultiplier || 2,
         jitterEnabled: this.connectionOptions.jitterEnabled !== false,
-        customEndpoints: this.connectionOptions.customEndpoint ? {
-          ssm: this.connectionOptions.customEndpoint
-        } : undefined,
-        useIMDSv2: this.connectionOptions.useIMDSv2 !== false
+        customEndpoints: this.connectionOptions.customEndpoint
+          ? {
+              ssm: this.connectionOptions.customEndpoint,
+            }
+          : undefined,
+        useIMDSv2: this.connectionOptions.useIMDSv2 !== false,
       },
       securityConfig: {
         sessionRecordingEnabled: true,
         complianceMode: false,
         encryptionInTransit: true,
-        encryptionAtRest: true
+        encryptionAtRest: true,
       },
       monitoringConfig: {
         metricsEnabled: true,
         cloudWatchMetrics: true,
         customMetrics: false,
         healthCheckInterval: 60000, // 1 minute
-        alertingEnabled: false
+        alertingEnabled: false,
       },
-      ...config
+      ...config,
     };
   }
 
@@ -398,8 +476,8 @@ export class AWSSSMProtocol extends BaseProtocol {
       endpoint: this.config.connectionConfig.customEndpoints?.ssm,
       requestHandler: {
         connectionTimeout: this.config.connectionConfig.connectionTimeout,
-        socketTimeout: this.config.connectionConfig.connectionTimeout * 2
-      }
+        socketTimeout: this.config.connectionConfig.connectionTimeout * 2,
+      },
     };
 
     if (!SSMClient) {
@@ -408,11 +486,11 @@ export class AWSSSMProtocol extends BaseProtocol {
     this.ssmClient = new SSMClient(clientConfig);
     this.ec2Client = new EC2Client(clientConfig);
     this.stsClient = new STSClient(clientConfig);
-    
+
     if (this.config.loggingConfig.s3Config && S3Client) {
       this.s3Client = new S3Client(clientConfig);
     }
-    
+
     if (this.config.loggingConfig.cloudWatchConfig && CloudWatchLogsClient) {
       this.cloudWatchLogsClient = new CloudWatchLogsClient(clientConfig);
     }
@@ -421,7 +499,9 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Convert environment variables to SSM parameters format
    */
-  private convertEnvironmentToParameters(env: Record<string, string>): Record<string, string[]> {
+  private convertEnvironmentToParameters(
+    env: Record<string, string>
+  ): Record<string, string[]> {
     const parameters: Record<string, string[]> = {};
     for (const [key, value] of Object.entries(env)) {
       parameters[key] = [value];
@@ -432,7 +512,9 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Convert SSM parameters to environment variables format
    */
-  private convertParametersToEnvironment(params: Record<string, string[]>): Record<string, string> {
+  private convertParametersToEnvironment(
+    params: Record<string, string[]>
+  ): Record<string, string> {
     const env: Record<string, string> = {};
     for (const [key, values] of Object.entries(params)) {
       env[key] = values[0] || '';
@@ -445,11 +527,14 @@ export class AWSSSMProtocol extends BaseProtocol {
    */
   private getCredentialProvider(): AwsCredentialProvider {
     // If explicit credentials provided
-    if (this.connectionOptions.accessKeyId && this.connectionOptions.secretAccessKey) {
+    if (
+      this.connectionOptions.accessKeyId &&
+      this.connectionOptions.secretAccessKey
+    ) {
       return async () => ({
         accessKeyId: this.connectionOptions.accessKeyId!,
         secretAccessKey: this.connectionOptions.secretAccessKey!,
-        sessionToken: this.connectionOptions.sessionToken
+        sessionToken: this.connectionOptions.sessionToken,
       });
     }
 
@@ -460,7 +545,7 @@ export class AWSSSMProtocol extends BaseProtocol {
 
     // Use credential chain based on configuration
     const providers: AwsCredentialProvider[] = [];
-    
+
     for (const providerType of this.config.authConfig.credentialChain) {
       switch (providerType) {
         case 'environment':
@@ -482,7 +567,7 @@ export class AWSSSMProtocol extends BaseProtocol {
     }
 
     return fromNodeProviderChain({
-      providers
+      providers,
     });
   }
 
@@ -526,36 +611,49 @@ export class AWSSSMProtocol extends BaseProtocol {
   private async performHealthCheck(): Promise<void> {
     try {
       // Test basic connectivity
-      const identity = await this.stsClient.send(new GetCallerIdentityCommand({}));
+      const identity = await this.stsClient.send(
+        new GetCallerIdentityCommand({})
+      );
       this.connectionHealthy = true;
       this.lastHealthCheck = new Date();
       this.reconnectAttempts = 0;
 
-      this.logger.debug(`Health check passed - Account: ${identity.Account}, User: ${identity.Arn}`);
+      this.logger.debug(
+        `Health check passed - Account: ${identity.Account}, User: ${identity.Arn}`
+      );
 
       // Check active sessions
-      for (const [sessionId, session] of Array.from(this.awsSSMSessions.entries())) {
+      for (const [sessionId, session] of Array.from(
+        this.awsSSMSessions.entries()
+      )) {
         if (session.status === 'Connected' || session.status === 'Connecting') {
           await this.checkSessionHealth(sessionId);
         }
       }
 
-      this.emit('health-check', { status: 'healthy', timestamp: this.lastHealthCheck });
-      
+      this.emit('health-check', {
+        status: 'healthy',
+        timestamp: this.lastHealthCheck,
+      });
     } catch (error) {
       this.connectionHealthy = false;
       this.reconnectAttempts++;
-      
-      this.logger.error(`Health check failed (attempt ${this.reconnectAttempts}):`, error);
-      this.emit('health-check', { 
-        status: 'unhealthy', 
-        error, 
+
+      this.logger.error(
+        `Health check failed (attempt ${this.reconnectAttempts}):`,
+        error
+      );
+      this.emit('health-check', {
+        status: 'unhealthy',
+        error,
         timestamp: new Date(),
-        reconnectAttempts: this.reconnectAttempts 
+        reconnectAttempts: this.reconnectAttempts,
       });
 
       // Attempt recovery if configured
-      if (this.reconnectAttempts <= this.config.connectionConfig.retryAttempts) {
+      if (
+        this.reconnectAttempts <= this.config.connectionConfig.retryAttempts
+      ) {
         await this.attemptReconnection({ error: 'Health check failed' });
       }
     }
@@ -566,22 +664,33 @@ export class AWSSSMProtocol extends BaseProtocol {
    */
   private async checkSessionHealth(sessionId: string): Promise<void> {
     try {
-      const response = await this.ssmClient.send(new DescribeSessionsCommand({
-        State: SessionStateValues.Active || 'Active',
-        Filters: [{
-          key: 'SessionId', // Use string instead of enum since AWS SDK is optional
-          value: sessionId
-        }]
-      }));
+      const response = await this.ssmClient.send(
+        new DescribeSessionsCommand({
+          State: SessionStateValues.Active || 'Active',
+          Filters: [
+            {
+              key: 'SessionId', // Use string instead of enum since AWS SDK is optional
+              value: sessionId,
+            },
+          ],
+        })
+      );
 
-      const sessionInfo = response.Sessions?.find((s: any) => s.SessionId === sessionId);
-      if (!sessionInfo || sessionInfo.Status !== (SessionStatusValues.Connected || 'Connected')) {
+      const sessionInfo = response.Sessions?.find(
+        (s: any) => s.SessionId === sessionId
+      );
+      if (
+        !sessionInfo ||
+        sessionInfo.Status !== (SessionStatusValues.Connected || 'Connected')
+      ) {
         await this.handleSessionDisconnect(sessionId, 'Health check failed');
       }
-      
     } catch (error) {
       this.logger.error(`Session health check failed for ${sessionId}:`, error);
-      await this.handleSessionDisconnect(sessionId, `Health check error: ${error}`);
+      await this.handleSessionDisconnect(
+        sessionId,
+        `Health check error: ${error}`
+      );
     }
   }
 
@@ -590,16 +699,20 @@ export class AWSSSMProtocol extends BaseProtocol {
    */
   protected async attemptReconnection(context: any): Promise<boolean> {
     try {
-      this.logger.info(`Attempting reconnection (${this.reconnectAttempts}/${this.config.connectionConfig.retryAttempts})`);
-      
+      this.logger.info(
+        `Attempting reconnection (${this.reconnectAttempts}/${this.config.connectionConfig.retryAttempts})`
+      );
+
       // Refresh credentials if needed
       await this.refreshCredentials();
-      
+
       // Re-initialize clients
       this.initializeAWSClients();
-      
+
       // Attempt to reconnect active sessions
-      for (const [sessionId, session] of Array.from(this.awsSSMSessions.entries())) {
+      for (const [sessionId, session] of Array.from(
+        this.awsSSMSessions.entries()
+      )) {
         if (session.status === 'Disconnected' || session.status === 'Failed') {
           await this.attemptSessionRecovery(sessionId);
         }
@@ -628,36 +741,42 @@ export class AWSSSMProtocol extends BaseProtocol {
   private async refreshCredentials(): Promise<void> {
     if (this.config.authConfig.assumeRoleConfig) {
       try {
-        const assumeRoleResponse = await this.stsClient.send(new AssumeRoleCommand({
-          RoleArn: this.config.authConfig.assumeRoleConfig.roleArn,
-          RoleSessionName: this.config.authConfig.assumeRoleConfig.roleSessionName,
-          ExternalId: this.config.authConfig.assumeRoleConfig.externalId,
-          DurationSeconds: this.config.authConfig.assumeRoleConfig.durationSeconds,
-          Policy: this.config.authConfig.assumeRoleConfig.policy,
-          PolicyArns: this.config.authConfig.assumeRoleConfig.policyArns?.map(arn => ({ arn })),
-          SerialNumber: this.config.authConfig.mfaConfig?.mfaSerial,
-          TokenCode: this.config.authConfig.mfaConfig ? 
-            await this.config.authConfig.mfaConfig.tokenCodeCallback() : undefined
-        }));
+        const assumeRoleResponse = await this.stsClient.send(
+          new AssumeRoleCommand({
+            RoleArn: this.config.authConfig.assumeRoleConfig.roleArn,
+            RoleSessionName:
+              this.config.authConfig.assumeRoleConfig.roleSessionName,
+            ExternalId: this.config.authConfig.assumeRoleConfig.externalId,
+            DurationSeconds:
+              this.config.authConfig.assumeRoleConfig.durationSeconds,
+            Policy: this.config.authConfig.assumeRoleConfig.policy,
+            PolicyArns: this.config.authConfig.assumeRoleConfig.policyArns?.map(
+              (arn) => ({ arn })
+            ),
+            SerialNumber: this.config.authConfig.mfaConfig?.mfaSerial,
+            TokenCode: this.config.authConfig.mfaConfig
+              ? await this.config.authConfig.mfaConfig.tokenCodeCallback()
+              : undefined,
+          })
+        );
 
         if (assumeRoleResponse.Credentials) {
           this.credentials = {
             accessKeyId: assumeRoleResponse.Credentials.AccessKeyId!,
             secretAccessKey: assumeRoleResponse.Credentials.SecretAccessKey!,
             sessionToken: assumeRoleResponse.Credentials.SessionToken,
-            expiration: assumeRoleResponse.Credentials.Expiration
+            expiration: assumeRoleResponse.Credentials.Expiration,
           };
 
           this.assumedRole = {
             credentials: this.credentials,
             assumedRoleUser: assumeRoleResponse.AssumedRoleUser!,
             packedPolicySize: assumeRoleResponse.PackedPolicySize,
-            sourceIdentity: assumeRoleResponse.SourceIdentity
+            sourceIdentity: assumeRoleResponse.SourceIdentity,
           };
 
           this.logger.info('Credentials refreshed successfully');
         }
-        
       } catch (error) {
         this.logger.error('Failed to refresh credentials:', error);
         throw error;
@@ -668,39 +787,50 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Start an interactive SSM session
    */
-  async startSession(options: Partial<AWSSSMConnectionOptions> = {}): Promise<string> {
+  async startSession(
+    options: Partial<AWSSSMConnectionOptions> = {}
+  ): Promise<string> {
     const sessionOptions = { ...this.connectionOptions, ...options };
-    
+
     if (!sessionOptions.instanceId) {
       throw new Error('Instance ID is required for SSM sessions');
     }
 
     const sessionId = uuidv4();
-    
+
     try {
       // Validate instance accessibility
-      await this.validateTarget(sessionOptions.instanceId, sessionOptions.targetType || 'instance');
-      
+      await this.validateTarget(
+        sessionOptions.instanceId,
+        sessionOptions.targetType || 'instance'
+      );
+
       // Prepare session parameters
       const sessionParams: StartSessionCommandInput = {
         Target: sessionOptions.instanceId,
-        DocumentName: sessionOptions.documentName || this.config.sessionConfig.defaultDocumentName,
+        DocumentName:
+          sessionOptions.documentName ||
+          this.config.sessionConfig.defaultDocumentName,
         Parameters: this.convertEnvironmentToParameters({
           ...this.config.sessionConfig.defaultEnvironmentVariables,
-          ...sessionOptions.environmentVariables
-        })
+          ...sessionOptions.environmentVariables,
+        }),
       };
 
       // Start the session
-      const response = await this.retryManager.executeWithRetry(
-        async () => await this.ssmClient.send(new StartSessionCommand(sessionParams)),
+      const response = (await this.retryManager.executeWithRetry(
+        async () =>
+          await this.ssmClient.send(new StartSessionCommand(sessionParams)),
         {
           sessionId,
           operationName: 'start_ssm_session',
           strategyName: 'ssm',
-          context: { instanceId: sessionOptions.instanceId, documentName: sessionParams.DocumentName }
+          context: {
+            instanceId: sessionOptions.instanceId,
+            documentName: sessionParams.DocumentName,
+          },
         }
-      ) as StartSessionCommandOutput;
+      )) as StartSessionCommandOutput;
 
       // Create session object
       const session: AWSSSMSession = {
@@ -720,7 +850,9 @@ export class AWSSSMProtocol extends BaseProtocol {
         maxSessionDuration: this.config.sessionConfig.maxSessionDuration,
         shellProfile: sessionOptions.shellProfile,
         workingDirectory: sessionOptions.workingDirectory,
-        environmentVariables: this.convertParametersToEnvironment(sessionParams.Parameters || {}),
+        environmentVariables: this.convertParametersToEnvironment(
+          sessionParams.Parameters || {}
+        ),
         region: this.connectionOptions.region,
         accountId: await this.getAccountId(),
         tags: sessionOptions.tags || {},
@@ -728,8 +860,8 @@ export class AWSSSMProtocol extends BaseProtocol {
           recordingEnabled: this.config.securityConfig.sessionRecordingEnabled,
           encryptionEnabled: this.config.securityConfig.encryptionInTransit,
           retentionPolicy: 'default',
-          auditLogEnabled: this.config.loggingConfig.enabled
-        }
+          auditLogEnabled: this.config.loggingConfig.enabled,
+        },
       };
 
       // Add S3 logging if configured
@@ -737,34 +869,40 @@ export class AWSSSMProtocol extends BaseProtocol {
         session.s3OutputLocation = {
           outputS3BucketName: this.config.loggingConfig.s3Config.bucketName,
           outputS3KeyPrefix: this.config.loggingConfig.s3Config.keyPrefix,
-          outputS3Region: this.connectionOptions.region
+          outputS3Region: this.connectionOptions.region,
         };
       }
 
       // Add CloudWatch logging if configured
       if (this.config.loggingConfig.cloudWatchConfig) {
         session.cloudWatchOutputConfig = {
-          cloudWatchLogGroupName: this.config.loggingConfig.cloudWatchConfig.logGroupName,
-          cloudWatchEncryptionEnabled: this.config.loggingConfig.cloudWatchConfig.encryptionEnabled
+          cloudWatchLogGroupName:
+            this.config.loggingConfig.cloudWatchConfig.logGroupName,
+          cloudWatchEncryptionEnabled:
+            this.config.loggingConfig.cloudWatchConfig.encryptionEnabled,
         };
       }
 
       this.awsSSMSessions.set(sessionId, session);
-      
+
       // Initialize WebSocket connection
       await this.initializeWebSocketConnection(sessionId, response.StreamUrl!);
-      
+
       // Setup session logging
       await this.setupSessionLogging(sessionId);
-      
+
       // Start session monitoring
       this.startSessionMonitoring(sessionId);
-      
-      this.logger.info(`SSM session started: ${sessionId} for instance ${sessionOptions.instanceId}`);
-      this.emit('session-started', { sessionId, instanceId: sessionOptions.instanceId });
-      
+
+      this.logger.info(
+        `SSM session started: ${sessionId} for instance ${sessionOptions.instanceId}`
+      );
+      this.emit('session-started', {
+        sessionId,
+        instanceId: sessionOptions.instanceId,
+      });
+
       return sessionId;
-      
     } catch (error) {
       this.logger.error(`Failed to start SSM session:`, error);
       await this.handleSessionError(sessionId, error as Error);
@@ -775,34 +913,39 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Start a port forwarding session
    */
-  async startPortForwardingSession(targetId: string, portNumber: number, localPortNumber?: number): Promise<string> {
+  async startPortForwardingSession(
+    targetId: string,
+    portNumber: number,
+    localPortNumber?: number
+  ): Promise<string> {
     const sessionId = uuidv4();
-    
+
     try {
       // Validate target
       await this.validateTarget(targetId, 'instance');
-      
+
       const actualLocalPort = localPortNumber || portNumber;
-      
+
       // Start port forwarding session
       const sessionParams: StartSessionCommandInput = {
         Target: targetId,
         DocumentName: 'AWS-StartPortForwardingSession',
         Parameters: {
           portNumber: [portNumber.toString()],
-          localPortNumber: [actualLocalPort.toString()]
-        }
+          localPortNumber: [actualLocalPort.toString()],
+        },
       };
 
-      const response = await this.retryManager.executeWithRetry(
-        async () => await this.ssmClient.send(new StartSessionCommand(sessionParams)),
+      const response = (await this.retryManager.executeWithRetry(
+        async () =>
+          await this.ssmClient.send(new StartSessionCommand(sessionParams)),
         {
           sessionId,
           operationName: 'start_port_forwarding',
           strategyName: 'ssm',
-          context: { targetId, portNumber, localPortNumber: actualLocalPort }
+          context: { targetId, portNumber, localPortNumber: actualLocalPort },
         }
-      ) as StartSessionCommandOutput;
+      )) as StartSessionCommandOutput;
 
       // Create port forwarding session object
       const portForwardingSession: AWSSSMPortForwardingSession = {
@@ -819,49 +962,69 @@ export class AWSSSMProtocol extends BaseProtocol {
         sessionToken: response.Token!,
         streamUrl: response.StreamUrl!,
         region: this.connectionOptions.region,
-        tags: this.connectionOptions.tags || {}
+        tags: this.connectionOptions.tags || {},
       };
 
       this.portForwardingSessions.set(sessionId, portForwardingSession);
-      
+
       // Initialize WebSocket connection for port forwarding
-      await this.initializeWebSocketConnection(sessionId, response.StreamUrl!, true);
-      
-      this.logger.info(`Port forwarding session started: ${sessionId} (${targetId}:${portNumber} -> localhost:${actualLocalPort})`);
-      this.emit('port-forwarding-started', { sessionId, targetId, portNumber, localPortNumber: actualLocalPort });
-      
+      await this.initializeWebSocketConnection(
+        sessionId,
+        response.StreamUrl!,
+        true
+      );
+
+      this.logger.info(
+        `Port forwarding session started: ${sessionId} (${targetId}:${portNumber} -> localhost:${actualLocalPort})`
+      );
+      this.emit('port-forwarding-started', {
+        sessionId,
+        targetId,
+        portNumber,
+        localPortNumber: actualLocalPort,
+      });
+
       return sessionId;
-      
     } catch (error) {
       this.logger.error(`Failed to start port forwarding session:`, error);
-      throw this.createSSMError(error as Error, 'StartPortForwardingFailed', true);
+      throw this.createSSMError(
+        error as Error,
+        'StartPortForwardingFailed',
+        true
+      );
     }
   }
 
   /**
    * Send command to multiple targets
    */
-  async sendCommand(documentName: string, parameters: Record<string, string[]>, targets?: AWSSSMTarget[]): Promise<string> {
+  async sendCommand(
+    documentName: string,
+    parameters: Record<string, string[]>,
+    targets?: AWSSSMTarget[]
+  ): Promise<string> {
     const commandId = uuidv4();
-    
+
     try {
       const commandInput: SendCommandCommandInput = {
         DocumentName: documentName,
         Parameters: parameters,
         Comment: `Command executed via SSM Protocol - ${new Date().toISOString()}`,
-        TimeoutSeconds: this.connectionOptions.sessionTimeout ? Math.floor(this.connectionOptions.sessionTimeout / 1000) : 3600,
+        TimeoutSeconds: this.connectionOptions.sessionTimeout
+          ? Math.floor(this.connectionOptions.sessionTimeout / 1000)
+          : 3600,
         MaxConcurrency: '10',
-        MaxErrors: '1'
+        MaxErrors: '1',
       };
 
       // Set targets
       if (targets && targets.length > 0) {
-        if (targets.every(t => t.type === 'instance')) {
-          commandInput.InstanceIds = targets.map(t => t.id);
+        if (targets.every((t) => t.type === 'instance')) {
+          commandInput.InstanceIds = targets.map((t) => t.id);
         } else {
-          commandInput.Targets = targets.map(t => ({
+          commandInput.Targets = targets.map((t) => ({
             key: t.type === 'tag' ? `tag:${t.name}` : t.type,
-            values: [t.id]
+            values: [t.id],
           }));
         }
       } else if (this.connectionOptions.instanceId) {
@@ -870,24 +1033,31 @@ export class AWSSSMProtocol extends BaseProtocol {
 
       // Add logging configuration
       if (this.config.loggingConfig.s3Config) {
-        commandInput.OutputS3BucketName = this.config.loggingConfig.s3Config.bucketName;
-        commandInput.OutputS3KeyPrefix = this.config.loggingConfig.s3Config.keyPrefix;
+        commandInput.OutputS3BucketName =
+          this.config.loggingConfig.s3Config.bucketName;
+        commandInput.OutputS3KeyPrefix =
+          this.config.loggingConfig.s3Config.keyPrefix;
       }
 
       if (this.config.loggingConfig.cloudWatchConfig) {
         commandInput.CloudWatchOutputConfig = {
-          cloudWatchLogGroupName: this.config.loggingConfig.cloudWatchConfig.logGroupName,
-          cloudWatchOutputEnabled: true
+          cloudWatchLogGroupName:
+            this.config.loggingConfig.cloudWatchConfig.logGroupName,
+          cloudWatchOutputEnabled: true,
         };
       }
 
       const response = await this.retryManager.executeWithRetry(
-        async () => await this.ssmClient.send(new SendCommandCommand(commandInput)),
+        async () =>
+          await this.ssmClient.send(new SendCommandCommand(commandInput)),
         {
           sessionId: commandId,
           operationName: 'send_command',
           strategyName: 'ssm',
-          context: { documentName, parametersCount: Object.keys(parameters).length }
+          context: {
+            documentName,
+            parametersCount: Object.keys(parameters).length,
+          },
         }
       );
 
@@ -907,19 +1077,18 @@ export class AWSSSMProtocol extends BaseProtocol {
         maxConcurrency: commandInput.MaxConcurrency,
         maxErrors: commandInput.MaxErrors,
         timeoutSeconds: commandInput.TimeoutSeconds,
-        cloudWatchOutputConfig: commandInput.CloudWatchOutputConfig
+        cloudWatchOutputConfig: commandInput.CloudWatchOutputConfig,
       };
 
       this.activeCommands.set(commandId, commandExecution);
-      
+
       // Start monitoring command execution
       this.monitorCommandExecution(commandId);
-      
+
       this.logger.info(`Command sent: ${commandId} (${documentName})`);
       this.emit('command-sent', { commandId, documentName });
-      
+
       return commandId;
-      
     } catch (error) {
       this.logger.error(`Failed to send command:`, error);
       throw this.createSSMError(error as Error, 'SendCommandFailed', true);
@@ -929,13 +1098,19 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Initialize WebSocket connection for session
    */
-  private async initializeWebSocketConnection(sessionId: string, streamUrl: string, isPortForwarding: boolean = false): Promise<void> {
+  private async initializeWebSocketConnection(
+    sessionId: string,
+    streamUrl: string,
+    isPortForwarding: boolean = false
+  ): Promise<void> {
     try {
       const ws = new WebSocket(streamUrl);
-      
+
       ws.on('open', () => {
-        this.logger.debug(`WebSocket connection opened for session: ${sessionId}`);
-        
+        this.logger.debug(
+          `WebSocket connection opened for session: ${sessionId}`
+        );
+
         if (isPortForwarding) {
           const session = this.portForwardingSessions.get(sessionId);
           if (session) {
@@ -949,7 +1124,7 @@ export class AWSSSMProtocol extends BaseProtocol {
             this.awsSSMSessions.set(sessionId, session);
           }
         }
-        
+
         this.emit('websocket-connected', { sessionId, isPortForwarding });
       });
 
@@ -958,8 +1133,15 @@ export class AWSSSMProtocol extends BaseProtocol {
       });
 
       ws.on('close', (code: number, reason: Buffer) => {
-        this.logger.debug(`WebSocket closed for session ${sessionId}: ${code} - ${reason.toString()}`);
-        this.handleWebSocketClose(sessionId, code, reason.toString(), isPortForwarding);
+        this.logger.debug(
+          `WebSocket closed for session ${sessionId}: ${code} - ${reason.toString()}`
+        );
+        this.handleWebSocketClose(
+          sessionId,
+          code,
+          reason.toString(),
+          isPortForwarding
+        );
       });
 
       ws.on('error', (error: Error) => {
@@ -968,9 +1150,11 @@ export class AWSSSMProtocol extends BaseProtocol {
       });
 
       this.webSockets.set(sessionId, ws);
-      
     } catch (error) {
-      this.logger.error(`Failed to initialize WebSocket for session ${sessionId}:`, error);
+      this.logger.error(
+        `Failed to initialize WebSocket for session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -978,38 +1162,49 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Handle WebSocket messages
    */
-  private async handleWebSocketMessage(sessionId: string, data: Buffer, isPortForwarding: boolean): Promise<void> {
+  private async handleWebSocketMessage(
+    sessionId: string,
+    data: Buffer,
+    isPortForwarding: boolean
+  ): Promise<void> {
     try {
       const message = data.toString('utf8');
-      
+
       // Create console output event
       const output: ConsoleOutput = {
         sessionId,
         type: 'stdout',
         data: message,
         timestamp: new Date(),
-        raw: data.toString('base64')
+        raw: data.toString('base64'),
       };
 
       // Log session data
       await this.logSessionData(sessionId, message, 'stdout');
-      
+
       // Update session statistics
       this.updateSessionStatistics(sessionId, data.length, 'in');
-      
+
       // Emit output event
       this.emit('output', output);
       this.emit('data', { sessionId, data: message, type: 'stdout' });
-      
     } catch (error) {
-      this.logger.error(`Error handling WebSocket message for session ${sessionId}:`, error);
+      this.logger.error(
+        `Error handling WebSocket message for session ${sessionId}:`,
+        error
+      );
     }
   }
 
   /**
    * Handle WebSocket close events
    */
-  private async handleWebSocketClose(sessionId: string, code: number, reason: string, isPortForwarding: boolean): Promise<void> {
+  private async handleWebSocketClose(
+    sessionId: string,
+    code: number,
+    reason: string,
+    isPortForwarding: boolean
+  ): Promise<void> {
     if (isPortForwarding) {
       const session = this.portForwardingSessions.get(sessionId);
       if (session) {
@@ -1017,17 +1212,29 @@ export class AWSSSMProtocol extends BaseProtocol {
         this.portForwardingSessions.set(sessionId, session);
       }
     } else {
-      await this.handleSessionDisconnect(sessionId, `WebSocket closed: ${code} - ${reason}`);
+      await this.handleSessionDisconnect(
+        sessionId,
+        `WebSocket closed: ${code} - ${reason}`
+      );
     }
-    
+
     this.webSockets.delete(sessionId);
-    this.emit('websocket-closed', { sessionId, code, reason, isPortForwarding });
+    this.emit('websocket-closed', {
+      sessionId,
+      code,
+      reason,
+      isPortForwarding,
+    });
   }
 
   /**
    * Handle WebSocket errors
    */
-  private async handleWebSocketError(sessionId: string, error: Error, isPortForwarding: boolean): Promise<void> {
+  private async handleWebSocketError(
+    sessionId: string,
+    error: Error,
+    isPortForwarding: boolean
+  ): Promise<void> {
     if (isPortForwarding) {
       const session = this.portForwardingSessions.get(sessionId);
       if (session) {
@@ -1038,7 +1245,7 @@ export class AWSSSMProtocol extends BaseProtocol {
     } else {
       await this.handleSessionError(sessionId, error);
     }
-    
+
     this.emit('websocket-error', { sessionId, error, isPortForwarding });
   }
 
@@ -1054,15 +1261,14 @@ export class AWSSSMProtocol extends BaseProtocol {
     try {
       // Send input to WebSocket
       ws.send(Buffer.from(input, 'utf8'));
-      
+
       // Log session data
       await this.logSessionData(sessionId, input, 'stdin');
-      
+
       // Update session statistics
       this.updateSessionStatistics(sessionId, Buffer.byteLength(input), 'out');
-      
+
       this.emit('input-sent', { sessionId, input });
-      
     } catch (error) {
       this.logger.error(`Failed to send input to session ${sessionId}:`, error);
       throw error;
@@ -1074,15 +1280,19 @@ export class AWSSSMProtocol extends BaseProtocol {
    */
   async terminateSession(sessionId: string): Promise<void> {
     try {
-      const session = this.awsSSMSessions.get(sessionId) || this.portForwardingSessions.get(sessionId);
+      const session =
+        this.awsSSMSessions.get(sessionId) ||
+        this.portForwardingSessions.get(sessionId);
       if (!session) {
         throw new Error(`Session ${sessionId} not found`);
       }
 
       // Terminate the session via AWS API
-      await this.ssmClient.send(new TerminateSessionCommand({
-        SessionId: sessionId
-      }));
+      await this.ssmClient.send(
+        new TerminateSessionCommand({
+          SessionId: sessionId,
+        })
+      );
 
       // Close WebSocket connection
       const ws = this.webSockets.get(sessionId);
@@ -1104,10 +1314,9 @@ export class AWSSSMProtocol extends BaseProtocol {
 
       // Finalize session logging
       await this.finalizeSessionLogging(sessionId);
-      
+
       this.logger.info(`Session terminated: ${sessionId}`);
       this.emit('session-terminated', { sessionId });
-      
     } catch (error) {
       this.logger.error(`Failed to terminate session ${sessionId}:`, error);
       throw error;
@@ -1117,27 +1326,40 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Validate target accessibility
    */
-  private async validateTarget(targetId: string, targetType: string): Promise<void> {
+  private async validateTarget(
+    targetId: string,
+    targetType: string
+  ): Promise<void> {
     try {
       if (targetType === 'instance') {
         // Check if instance exists and is SSM-managed
-        const instanceInfo = await this.ssmClient.send(new DescribeInstanceInformationCommand({
-          InstanceInformationFilterList: [{
-            key: 'InstanceIds',
-            valueSet: [targetId]
-          }]
-        }));
+        const instanceInfo = await this.ssmClient.send(
+          new DescribeInstanceInformationCommand({
+            InstanceInformationFilterList: [
+              {
+                key: 'InstanceIds',
+                valueSet: [targetId],
+              },
+            ],
+          })
+        );
 
-        if (!instanceInfo.InstanceInformationList || instanceInfo.InstanceInformationList.length === 0) {
-          throw new Error(`Instance ${targetId} is not managed by SSM or does not exist`);
+        if (
+          !instanceInfo.InstanceInformationList ||
+          instanceInfo.InstanceInformationList.length === 0
+        ) {
+          throw new Error(
+            `Instance ${targetId} is not managed by SSM or does not exist`
+          );
         }
 
         const instance = instanceInfo.InstanceInformationList[0];
         if (instance.PingStatus !== 'Online') {
-          throw new Error(`Instance ${targetId} is not online (status: ${instance.PingStatus})`);
+          throw new Error(
+            `Instance ${targetId} is not online (status: ${instance.PingStatus})`
+          );
         }
       }
-      
     } catch (error) {
       this.logger.error(`Target validation failed for ${targetId}:`, error);
       throw error;
@@ -1155,16 +1377,22 @@ export class AWSSSMProtocol extends BaseProtocol {
     try {
       // Initialize session log array
       this.sessionLogs.set(sessionId, []);
-      
+
       // Create CloudWatch log stream if configured
-      if (this.config.loggingConfig.cloudWatchConfig && this.cloudWatchLogsClient) {
+      if (
+        this.config.loggingConfig.cloudWatchConfig &&
+        this.cloudWatchLogsClient
+      ) {
         const logStreamName = `ssm-session-${sessionId}`;
-        
+
         try {
-          await this.cloudWatchLogsClient.send(new CreateLogStreamCommand({
-            logGroupName: this.config.loggingConfig.cloudWatchConfig.logGroupName,
-            logStreamName
-          }));
+          await this.cloudWatchLogsClient.send(
+            new CreateLogStreamCommand({
+              logGroupName:
+                this.config.loggingConfig.cloudWatchConfig.logGroupName,
+              logStreamName,
+            })
+          );
         } catch (error: any) {
           // Log stream might already exist, which is fine
           if (error.name !== 'ResourceAlreadyExistsException') {
@@ -1172,19 +1400,30 @@ export class AWSSSMProtocol extends BaseProtocol {
           }
         }
       }
-      
+
       // Log session start event
-      await this.logSessionEvent(sessionId, 'SessionStart', 'system', 'Session started');
-      
+      await this.logSessionEvent(
+        sessionId,
+        'SessionStart',
+        'system',
+        'Session started'
+      );
     } catch (error) {
-      this.logger.error(`Failed to setup session logging for ${sessionId}:`, error);
+      this.logger.error(
+        `Failed to setup session logging for ${sessionId}:`,
+        error
+      );
     }
   }
 
   /**
    * Log session data
    */
-  private async logSessionData(sessionId: string, data: string, dataType: 'stdin' | 'stdout' | 'stderr'): Promise<void> {
+  private async logSessionData(
+    sessionId: string,
+    data: string,
+    dataType: 'stdin' | 'stdout' | 'stderr'
+  ): Promise<void> {
     if (!this.config.loggingConfig.enabled) {
       return;
     }
@@ -1202,7 +1441,7 @@ export class AWSSSMProtocol extends BaseProtocol {
       region: this.connectionOptions.region,
       sessionOwner: 'session-manager',
       targetId: this.awsSSMSessions.get(sessionId)?.instanceId,
-      targetType: this.awsSSMSessions.get(sessionId)?.targetType
+      targetType: this.awsSSMSessions.get(sessionId)?.targetType,
     };
 
     // Add to in-memory log
@@ -1211,7 +1450,10 @@ export class AWSSSMProtocol extends BaseProtocol {
     this.sessionLogs.set(sessionId, logs);
 
     // Send to CloudWatch Logs if configured
-    if (this.config.loggingConfig.cloudWatchConfig?.streamingEnabled && this.cloudWatchLogsClient) {
+    if (
+      this.config.loggingConfig.cloudWatchConfig?.streamingEnabled &&
+      this.cloudWatchLogsClient
+    ) {
       await this.sendToCloudWatchLogs(sessionId, sessionLog);
     }
   }
@@ -1219,7 +1461,12 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Log session events
    */
-  private async logSessionEvent(sessionId: string, eventType: AWSSSMSessionLog['eventType'], source: AWSSSMSessionLog['source'], data: string): Promise<void> {
+  private async logSessionEvent(
+    sessionId: string,
+    eventType: AWSSSMSessionLog['eventType'],
+    source: AWSSSMSessionLog['source'],
+    data: string
+  ): Promise<void> {
     if (!this.config.loggingConfig.enabled) {
       return;
     }
@@ -1237,7 +1484,7 @@ export class AWSSSMProtocol extends BaseProtocol {
       region: this.connectionOptions.region,
       sessionOwner: 'session-manager',
       targetId: this.awsSSMSessions.get(sessionId)?.instanceId,
-      targetType: this.awsSSMSessions.get(sessionId)?.targetType
+      targetType: this.awsSSMSessions.get(sessionId)?.targetType,
     };
 
     // Add to in-memory log
@@ -1246,7 +1493,10 @@ export class AWSSSMProtocol extends BaseProtocol {
     this.sessionLogs.set(sessionId, logs);
 
     // Send to CloudWatch Logs if configured
-    if (this.config.loggingConfig.cloudWatchConfig && this.cloudWatchLogsClient) {
+    if (
+      this.config.loggingConfig.cloudWatchConfig &&
+      this.cloudWatchLogsClient
+    ) {
       await this.sendToCloudWatchLogs(sessionId, sessionLog);
     }
   }
@@ -1254,25 +1504,35 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Send log entry to CloudWatch Logs
    */
-  private async sendToCloudWatchLogs(sessionId: string, logEntry: AWSSSMSessionLog): Promise<void> {
-    if (!this.cloudWatchLogsClient || !this.config.loggingConfig.cloudWatchConfig) {
+  private async sendToCloudWatchLogs(
+    sessionId: string,
+    logEntry: AWSSSMSessionLog
+  ): Promise<void> {
+    if (
+      !this.cloudWatchLogsClient ||
+      !this.config.loggingConfig.cloudWatchConfig
+    ) {
       return;
     }
 
     try {
       const logEvent: LogEvent = {
         timestamp: logEntry.timestamp.getTime(),
-        message: JSON.stringify(logEntry)
+        message: JSON.stringify(logEntry),
       };
 
-      await this.cloudWatchLogsClient.send(new PutLogEventsCommand({
-        logGroupName: this.config.loggingConfig.cloudWatchConfig.logGroupName,
-        logStreamName: `ssm-session-${sessionId}`,
-        logEvents: [logEvent]
-      }));
-      
+      await this.cloudWatchLogsClient.send(
+        new PutLogEventsCommand({
+          logGroupName: this.config.loggingConfig.cloudWatchConfig.logGroupName,
+          logStreamName: `ssm-session-${sessionId}`,
+          logEvents: [logEvent],
+        })
+      );
     } catch (error) {
-      this.logger.error(`Failed to send log to CloudWatch for session ${sessionId}:`, error);
+      this.logger.error(
+        `Failed to send log to CloudWatch for session ${sessionId}:`,
+        error
+      );
     }
   }
 
@@ -1286,35 +1546,49 @@ export class AWSSSMProtocol extends BaseProtocol {
 
     try {
       // Log session end event
-      await this.logSessionEvent(sessionId, 'SessionEnd', 'system', 'Session ended');
-      
+      await this.logSessionEvent(
+        sessionId,
+        'SessionEnd',
+        'system',
+        'Session ended'
+      );
+
       // Upload to S3 if configured
       if (this.config.loggingConfig.s3Config && this.s3Client) {
         const logs = this.sessionLogs.get(sessionId) || [];
         const logData = JSON.stringify(logs, null, 2);
         const key = `${this.config.loggingConfig.s3Config.keyPrefix}/${sessionId}/${new Date().toISOString()}.json`;
 
-        await this.s3Client.send(new PutObjectCommand({
-          Bucket: this.config.loggingConfig.s3Config.bucketName,
-          Key: key,
-          Body: logData,
-          ContentType: 'application/json',
-          ServerSideEncryption: this.config.loggingConfig.s3Config.encryptionEnabled ? 'AES256' : undefined,
-          Metadata: {
-            sessionId,
-            region: this.connectionOptions.region,
-            timestamp: new Date().toISOString()
-          }
-        }));
+        await this.s3Client.send(
+          new PutObjectCommand({
+            Bucket: this.config.loggingConfig.s3Config.bucketName,
+            Key: key,
+            Body: logData,
+            ContentType: 'application/json',
+            ServerSideEncryption: this.config.loggingConfig.s3Config
+              .encryptionEnabled
+              ? 'AES256'
+              : undefined,
+            Metadata: {
+              sessionId,
+              region: this.connectionOptions.region,
+              timestamp: new Date().toISOString(),
+            },
+          })
+        );
 
-        this.logger.info(`Session logs uploaded to S3: s3://${this.config.loggingConfig.s3Config.bucketName}/${key}`);
+        this.logger.info(
+          `Session logs uploaded to S3: s3://${this.config.loggingConfig.s3Config.bucketName}/${key}`
+        );
       }
-      
+
       // Clean up in-memory logs
       this.sessionLogs.delete(sessionId);
-      
     } catch (error) {
-      this.logger.error(`Failed to finalize session logging for ${sessionId}:`, error);
+      this.logger.error(
+        `Failed to finalize session logging for ${sessionId}:`,
+        error
+      );
     }
   }
 
@@ -1329,7 +1603,11 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Update session statistics
    */
-  private updateSessionStatistics(sessionId: string, bytes: number, direction: 'in' | 'out'): void {
+  private updateSessionStatistics(
+    sessionId: string,
+    bytes: number,
+    direction: 'in' | 'out'
+  ): void {
     const session = this.awsSSMSessions.get(sessionId);
     if (!session) return;
 
@@ -1341,7 +1619,7 @@ export class AWSSSMProtocol extends BaseProtocol {
         packetsOut: 0,
         commandsExecuted: 0,
         errorsCount: 0,
-        lastActivityTime: new Date()
+        lastActivityTime: new Date(),
       };
     }
 
@@ -1355,14 +1633,17 @@ export class AWSSSMProtocol extends BaseProtocol {
 
     session.statistics.lastActivityTime = new Date();
     session.lastAccessedDate = new Date();
-    
+
     this.awsSSMSessions.set(sessionId, session);
   }
 
   /**
    * Handle session disconnect
    */
-  private async handleSessionDisconnect(sessionId: string, reason: string): Promise<void> {
+  private async handleSessionDisconnect(
+    sessionId: string,
+    reason: string
+  ): Promise<void> {
     const session = this.awsSSMSessions.get(sessionId);
     if (!session) return;
 
@@ -1383,7 +1664,10 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Handle session errors
    */
-  private async handleSessionError(sessionId: string, error: Error): Promise<void> {
+  private async handleSessionError(
+    sessionId: string,
+    error: Error
+  ): Promise<void> {
     const session = this.awsSSMSessions.get(sessionId);
     if (session) {
       session.status = 'Failed';
@@ -1392,8 +1676,13 @@ export class AWSSSMProtocol extends BaseProtocol {
     }
 
     // Log error event
-    await this.logSessionEvent(sessionId, 'ErrorEvent', 'system', `Error: ${error.message}`);
-    
+    await this.logSessionEvent(
+      sessionId,
+      'ErrorEvent',
+      'system',
+      `Error: ${error.message}`
+    );
+
     this.logger.error(`Session ${sessionId} error:`, error);
     this.emit('session-error', { sessionId, error });
   }
@@ -1407,18 +1696,19 @@ export class AWSSSMProtocol extends BaseProtocol {
       if (!session) return;
 
       this.logger.info(`Attempting recovery for session: ${sessionId}`);
-      
+
       // Try to resume the session
-      await this.ssmClient.send(new ResumeSessionCommand({
-        SessionId: sessionId
-      }));
+      await this.ssmClient.send(
+        new ResumeSessionCommand({
+          SessionId: sessionId,
+        })
+      );
 
       session.status = 'Connected';
       this.awsSSMSessions.set(sessionId, session);
-      
+
       this.logger.info(`Session recovery successful: ${sessionId}`);
       this.emit('session-recovered', { sessionId });
-      
     } catch (error) {
       this.logger.error(`Session recovery failed for ${sessionId}:`, error);
       await this.handleSessionError(sessionId, error as Error);
@@ -1451,32 +1741,48 @@ export class AWSSSMProtocol extends BaseProtocol {
   private monitorCommandExecution(commandId: string): void {
     const checkStatus = async () => {
       try {
-        const response = await this.ssmClient.send(new ListCommandInvocationsCommand({
-          CommandId: commandId
-        }));
+        const response = await this.ssmClient.send(
+          new ListCommandInvocationsCommand({
+            CommandId: commandId,
+          })
+        );
 
         const command = this.activeCommands.get(commandId);
         if (!command || !response.CommandInvocations) return;
 
         // Update command status based on invocations
         const invocations = response.CommandInvocations;
-        const statuses = invocations.map((inv: any) => inv.Status as keyof typeof CommandStatus);
-        
+        const statuses = invocations.map(
+          (inv: any) => inv.Status as keyof typeof CommandStatus
+        );
+
         if (statuses.every((status: any) => status === CommandStatus.Success)) {
           command.status = 'Success';
-        } else if (statuses.some((status: any) => status === CommandStatus.Failed)) {
+        } else if (
+          statuses.some((status: any) => status === CommandStatus.Failed)
+        ) {
           command.status = 'Failed';
-        } else if (statuses.some((status: any) => status === CommandStatus.Cancelled)) {
+        } else if (
+          statuses.some((status: any) => status === CommandStatus.Cancelled)
+        ) {
           command.status = 'Cancelled';
-        } else if (statuses.some((status: any) => status === CommandStatus.TimedOut)) {
+        } else if (
+          statuses.some((status: any) => status === CommandStatus.TimedOut)
+        ) {
           command.status = 'TimedOut';
-        } else if (statuses.some((status: any) => status === CommandStatus.InProgress)) {
+        } else if (
+          statuses.some((status: any) => status === CommandStatus.InProgress)
+        ) {
           command.status = 'InProgress';
         }
 
         this.activeCommands.set(commandId, command);
-        
-        if (['Success', 'Failed', 'Cancelled', 'TimedOut'].includes(command.status)) {
+
+        if (
+          ['Success', 'Failed', 'Cancelled', 'TimedOut'].includes(
+            command.status
+          )
+        ) {
           this.emit('command-completed', { commandId, status: command.status });
           // Stop monitoring
           return;
@@ -1484,7 +1790,6 @@ export class AWSSSMProtocol extends BaseProtocol {
 
         // Continue monitoring
         setTimeout(checkStatus, 5000);
-        
       } catch (error) {
         this.logger.error(`Command monitoring error for ${commandId}:`, error);
       }
@@ -1499,7 +1804,9 @@ export class AWSSSMProtocol extends BaseProtocol {
    */
   private async getAccountId(): Promise<string> {
     try {
-      const identity = await this.stsClient.send(new GetCallerIdentityCommand({}));
+      const identity = await this.stsClient.send(
+        new GetCallerIdentityCommand({})
+      );
       return identity.Account!;
     } catch (error) {
       this.logger.error('Failed to get account ID:', error);
@@ -1510,14 +1817,18 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Create standardized SSM error
    */
-  private createSSMError(originalError: Error, code: string, retryable: boolean): AWSSSMError {
+  private createSSMError(
+    originalError: Error,
+    code: string,
+    retryable: boolean
+  ): AWSSSMError {
     return {
       code,
       message: originalError.message,
       retryable,
       originalError,
       region: this.connectionOptions.region,
-      time: new Date()
+      time: new Date(),
     };
   }
 
@@ -1531,7 +1842,9 @@ export class AWSSSMProtocol extends BaseProtocol {
   /**
    * Get port forwarding session information
    */
-  getPortForwardingSession(sessionId: string): AWSSSMPortForwardingSession | undefined {
+  getPortForwardingSession(
+    sessionId: string
+  ): AWSSSMPortForwardingSession | undefined {
     return this.portForwardingSessions.get(sessionId);
   }
 
@@ -1582,12 +1895,12 @@ export class AWSSSMProtocol extends BaseProtocol {
    */
   updateConfig(newConfig: Partial<AWSSSMSessionManagerConfig>): void {
     this.config = { ...this.config, ...newConfig };
-    
+
     // Update health check interval if changed
     if (newConfig.monitoringConfig?.healthCheckInterval) {
       this.startHealthMonitoring();
     }
-    
+
     this.emit('config-updated', this.config);
   }
 
@@ -1604,17 +1917,27 @@ export class AWSSSMProtocol extends BaseProtocol {
 
       // Terminate all active sessions
       const terminationPromises: Promise<void>[] = [];
-      
+
       for (const sessionId of Array.from(this.awsSSMSessions.keys())) {
-        terminationPromises.push(this.terminateSession(sessionId).catch(err => 
-          this.logger.error(`Failed to terminate session ${sessionId} during cleanup:`, err)
-        ));
+        terminationPromises.push(
+          this.terminateSession(sessionId).catch((err) =>
+            this.logger.error(
+              `Failed to terminate session ${sessionId} during cleanup:`,
+              err
+            )
+          )
+        );
       }
 
       for (const sessionId of Array.from(this.portForwardingSessions.keys())) {
-        terminationPromises.push(this.terminateSession(sessionId).catch(err => 
-          this.logger.error(`Failed to terminate port forwarding session ${sessionId} during cleanup:`, err)
-        ));
+        terminationPromises.push(
+          this.terminateSession(sessionId).catch((err) =>
+            this.logger.error(
+              `Failed to terminate port forwarding session ${sessionId} during cleanup:`,
+              err
+            )
+          )
+        );
       }
 
       await Promise.allSettled(terminationPromises);
@@ -1624,7 +1947,10 @@ export class AWSSSMProtocol extends BaseProtocol {
         try {
           ws.close();
         } catch (error) {
-          this.logger.error(`Failed to close WebSocket for session ${sessionId}:`, error);
+          this.logger.error(
+            `Failed to close WebSocket for session ${sessionId}:`,
+            error
+          );
         }
       }
 
@@ -1637,7 +1963,6 @@ export class AWSSSMProtocol extends BaseProtocol {
 
       this.logger.info('AWS SSM Protocol destroyed successfully');
       this.emit('destroyed');
-
     } catch (error) {
       this.logger.error('Error during protocol destruction:', error);
       throw error;
@@ -1661,7 +1986,9 @@ export class AWSSSMProtocol extends BaseProtocol {
       }
 
       this.isInitialized = true;
-      this.logger.info('AWS SSM protocol initialized with session management fixes');
+      this.logger.info(
+        'AWS SSM protocol initialized with session management fixes'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize AWS SSM protocol', error);
       throw error;
@@ -1692,8 +2019,9 @@ export class AWSSSMProtocol extends BaseProtocol {
       // Create AWS SSM session using existing method
       const awsSessionId = await this.startSession({
         instanceId: options.awsSSMOptions.instanceId,
-        documentName: options.awsSSMOptions.documentName || 'AWS-StartSSHSession',
-        parameters: options.awsSSMOptions.parameters
+        documentName:
+          options.awsSSMOptions.documentName || 'AWS-StartSSHSession',
+        parameters: options.awsSSMOptions.parameters,
       });
 
       const consoleSession: ConsoleSession = {
@@ -1710,15 +2038,16 @@ export class AWSSSMProtocol extends BaseProtocol {
         executionState: 'idle',
         activeCommands: new Map(),
         lastActivity: new Date(),
-        pid: undefined // AWS SSM sessions don't have local PIDs
+        pid: undefined, // AWS SSM sessions don't have local PIDs
       };
 
       this.sessions.set(sessionId, consoleSession);
       this.outputBuffers.set(sessionId, []);
 
-      this.logger.info(`AWS SSM session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
+      this.logger.info(
+        `AWS SSM session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`
+      );
       return consoleSession;
-
     } catch (error) {
       this.logger.error(`Failed to create AWS SSM session: ${error}`);
 
@@ -1732,7 +2061,11 @@ export class AWSSSMProtocol extends BaseProtocol {
     }
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const awsSession = this.awsSSMSessions.get(sessionId);
     const sessionState = await this.getSessionState(sessionId);
 
@@ -1761,8 +2094,11 @@ export class AWSSSMProtocol extends BaseProtocol {
         }, 1000); // Give time for output to be captured
       }
 
-      this.emit('commandExecuted', { sessionId, command: fullCommand, timestamp: new Date() });
-
+      this.emit('commandExecuted', {
+        sessionId,
+        command: fullCommand,
+        timestamp: new Date(),
+      });
     } catch (error) {
       this.logger.error(`Failed to execute AWS SSM command: ${error}`);
       throw error;
@@ -1795,7 +2131,10 @@ export class AWSSSMProtocol extends BaseProtocol {
       try {
         await this.closeSession(sessionId);
       } catch (error) {
-        this.logger.warn(`Error closing session ${sessionId} during dispose:`, error);
+        this.logger.warn(
+          `Error closing session ${sessionId} during dispose:`,
+          error
+        );
       }
     }
 

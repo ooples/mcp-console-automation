@@ -9,7 +9,7 @@ import {
   TelnetSessionState,
   TelnetCommand,
   TelnetOption,
-  ConsoleType
+  ConsoleType,
 } from '../types/index.js';
 
 export class TelnetProtocol extends BaseProtocol {
@@ -54,7 +54,9 @@ export class TelnetProtocol extends BaseProtocol {
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    this.logger.info('Initializing Telnet protocol with session management fixes');
+    this.logger.info(
+      'Initializing Telnet protocol with session management fixes'
+    );
     this.isInitialized = true;
   }
 
@@ -96,10 +98,10 @@ export class TelnetProtocol extends BaseProtocol {
         lineEnding: '\r\n',
         timeout: 30000,
         retryCount: 0,
-        options: new Map()
+        options: new Map(),
       },
       options: telnetOptions,
-      buffer: Buffer.alloc(0)
+      buffer: Buffer.alloc(0),
     };
 
     this.telnetSessions.set(sessionId, telnetSession);
@@ -124,15 +126,16 @@ export class TelnetProtocol extends BaseProtocol {
         env: options.env || {},
         activeCommands: new Map(),
         telnetOptions,
-        streaming: options.streaming ?? false
+        streaming: options.streaming ?? false,
       };
 
       this.sessions.set(sessionId, consoleSession);
       this.outputBuffers.set(sessionId, []);
 
-      this.logger.info(`Telnet session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`);
+      this.logger.info(
+        `Telnet session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`
+      );
       return consoleSession;
-
     } catch (error) {
       this.logger.error(`Failed to create Telnet session: ${error}`);
 
@@ -149,19 +152,25 @@ export class TelnetProtocol extends BaseProtocol {
 
       const timeout = setTimeout(() => {
         socket.destroy();
-        reject(new Error(`Connection timeout to ${session.state.host}:${session.state.port}`));
+        reject(
+          new Error(
+            `Connection timeout to ${session.state.host}:${session.state.port}`
+          )
+        );
       }, session.options.timeout || 10000);
 
       socket.connect(session.state.port, session.state.host, () => {
         clearTimeout(timeout);
         session.state.isConnected = true;
         session.state.lastActivity = new Date();
-        this.logger.info(`Connected to ${session.state.host}:${session.state.port}`);
-        
+        this.logger.info(
+          `Connected to ${session.state.host}:${session.state.port}`
+        );
+
         // Send initial telnet negotiations
         this.sendTelnetCommand(session, 255, 253, 1); // IAC DO ECHO
         this.sendTelnetCommand(session, 255, 253, 3); // IAC DO SUPPRESS_GO_AHEAD
-        
+
         resolve();
       });
 
@@ -190,11 +199,12 @@ export class TelnetProtocol extends BaseProtocol {
     let processed = 0;
 
     while (processed < buffer.length) {
-      if (buffer[processed] === 255) { // IAC (Interpret As Command)
+      if (buffer[processed] === 255) {
+        // IAC (Interpret As Command)
         if (processed + 2 < buffer.length) {
           const command = buffer[processed + 1];
           const option = buffer[processed + 2];
-          
+
           this.handleTelnetCommand(session, command, option);
           processed += 3;
         } else {
@@ -206,7 +216,7 @@ export class TelnetProtocol extends BaseProtocol {
         while (processed < buffer.length && buffer[processed] !== 255) {
           processed++;
         }
-        
+
         const textData = buffer.slice(start, processed).toString('utf8');
         if (textData.length > 0) {
           const output: ConsoleOutput = {
@@ -226,7 +236,11 @@ export class TelnetProtocol extends BaseProtocol {
     session.state.lastActivity = new Date();
   }
 
-  private handleTelnetCommand(session: TelnetSession, command: number, option: number): void {
+  private handleTelnetCommand(
+    session: TelnetSession,
+    command: number,
+    option: number
+  ): void {
     switch (command) {
       case 251: // WILL
         this.logger.debug(`Received WILL ${option}`);
@@ -249,14 +263,23 @@ export class TelnetProtocol extends BaseProtocol {
     }
   }
 
-  private sendTelnetCommand(session: TelnetSession, iac: number, command: number, option: number): void {
+  private sendTelnetCommand(
+    session: TelnetSession,
+    iac: number,
+    command: number,
+    option: number
+  ): void {
     if (session.socket && session.state.isConnected) {
       const buffer = Buffer.from([iac, command, option]);
       session.socket.write(buffer);
     }
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const telnetSession = this.telnetSessions.get(sessionId);
     const sessionState = await this.getSessionState(sessionId);
 
@@ -281,7 +304,7 @@ export class TelnetProtocol extends BaseProtocol {
         id: `cmd-${Date.now()}`,
         command: fullCommand,
         timestamp: new Date(),
-        status: 'pending'
+        status: 'pending',
       };
 
       telnetSession.state.commandQueue.push(telnetCommand);
@@ -299,7 +322,6 @@ export class TelnetProtocol extends BaseProtocol {
       }
 
       telnetCommand.status = 'completed';
-
     } catch (error) {
       this.logger.error(`Failed to execute Telnet command: ${error}`);
       throw error;

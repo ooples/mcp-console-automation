@@ -34,15 +34,15 @@ export interface OutputCaptureConfig {
 }
 
 export interface StreamingConfig {
-  bufferSize: number;           // Default 1024 bytes (1KB chunks)
-  maxBufferSize: number;        // Maximum buffer size before forced flush
-  maxMemoryUsage: number;       // Maximum memory usage in bytes
-  flushInterval: number;        // Auto-flush interval in ms
-  enableFiltering: boolean;     // Enable server-side filtering
-  enableCompression: boolean;   // Enable data compression
+  bufferSize: number; // Default 1024 bytes (1KB chunks)
+  maxBufferSize: number; // Maximum buffer size before forced flush
+  maxMemoryUsage: number; // Maximum memory usage in bytes
+  flushInterval: number; // Auto-flush interval in ms
+  enableFiltering: boolean; // Enable server-side filtering
+  enableCompression: boolean; // Enable data compression
   retentionPolicy: 'rolling' | 'time-based' | 'none';
-  retentionSize: number;        // Number of chunks to retain
-  retentionTime: number;        // Time in ms to retain chunks
+  retentionSize: number; // Number of chunks to retain
+  retentionTime: number; // Time in ms to retain chunks
 }
 
 export interface StreamFilter {
@@ -114,7 +114,7 @@ export class StreamManager extends EventEmitter {
     memoryUsage: 0,
     averageChunkSize: 0,
     bufferUtilization: 0,
-    droppedChunks: 0
+    droppedChunks: 0,
   };
 
   constructor(
@@ -128,7 +128,7 @@ export class StreamManager extends EventEmitter {
     this.realtimeSubscribers = new Set();
     this.isEnded = false;
     this.outputBuffer = [];
-    
+
     // Default configuration for immediate output capture
     this.config = {
       enableRealTimeCapture: true,
@@ -138,7 +138,7 @@ export class StreamManager extends EventEmitter {
       pollingInterval: 50, // 50ms polling interval
       immediateFlush: true,
       chunkCombinationTimeout: 20, // 20ms to combine rapid chunks
-      ...config
+      ...config,
     };
 
     // Enhanced streaming configuration
@@ -152,11 +152,11 @@ export class StreamManager extends EventEmitter {
       retentionPolicy: 'rolling',
       retentionSize: 1000,
       retentionTime: 24 * 60 * 60 * 1000, // 24 hours
-      ...streamingConfig
+      ...streamingConfig,
     };
-    
+
     this.initializeBuffering();
-    
+
     if (this.config.enablePolling) {
       this.startOutputPolling();
     }
@@ -190,12 +190,12 @@ export class StreamManager extends EventEmitter {
     if (this.pendingBuffer.length > 0) {
       this.flushPendingBuffer();
     }
-    
+
     // Emit polling event for external listeners
     this.emit('poll', {
       sessionId: this.sessionId,
       timestamp: new Date(),
-      hasData: this.pendingBuffer.length > 0
+      hasData: this.pendingBuffer.length > 0,
     });
   }
 
@@ -218,7 +218,7 @@ export class StreamManager extends EventEmitter {
 
     // Notify real-time subscribers immediately
     if (this.config.enableRealTimeCapture) {
-      this.realtimeSubscribers.forEach(subscriber => {
+      this.realtimeSubscribers.forEach((subscriber) => {
         try {
           subscriber(data, timestamp);
         } catch (error) {
@@ -231,17 +231,21 @@ export class StreamManager extends EventEmitter {
   /**
    * Process chunk immediately without buffering
    */
-  private processImmediateChunk(data: string, isError: boolean, timestamp: Date): void {
+  private processImmediateChunk(
+    data: string,
+    isError: boolean,
+    timestamp: Date
+  ): void {
     const chunk: StreamChunk = {
       data,
       timestamp,
       isError,
       sequenceId: ++this.sequenceCounter,
-      size: Buffer.byteLength(data, 'utf8')
+      size: Buffer.byteLength(data, 'utf8'),
     };
 
     this.chunks.push(chunk);
-    
+
     // Maintain max chunks limit
     if (this.chunks.length > this.maxChunks) {
       this.chunks.shift();
@@ -258,15 +262,19 @@ export class StreamManager extends EventEmitter {
   /**
    * Add data to pending buffer for batch processing
    */
-  private addToPendingBuffer(data: string, isError: boolean, timestamp: Date): void {
+  private addToPendingBuffer(
+    data: string,
+    isError: boolean,
+    timestamp: Date
+  ): void {
     this.pendingBuffer += data;
-    
+
     // Add to buffer structure
     this.outputBuffer.push({
       data,
       timestamp,
       flushed: false,
-      size: Buffer.byteLength(data, 'utf8')
+      size: Buffer.byteLength(data, 'utf8'),
     });
 
     // Setup chunk combination timer
@@ -292,31 +300,31 @@ export class StreamManager extends EventEmitter {
 
     const data = this.pendingBuffer;
     const timestamp = new Date();
-    
+
     // Determine if any of the buffered data was from stderr
-    const hasErrors = this.outputBuffer.some(buf => !buf.flushed);
-    
+    const hasErrors = this.outputBuffer.some((buf) => !buf.flushed);
+
     const chunk: StreamChunk = {
       data,
       timestamp,
       isError: hasErrors,
       sequenceId: ++this.sequenceCounter,
-      size: Buffer.byteLength(data, 'utf8')
+      size: Buffer.byteLength(data, 'utf8'),
     };
 
     this.chunks.push(chunk);
-    
+
     // Maintain max chunks limit
     if (this.chunks.length > this.maxChunks) {
       this.chunks.shift();
     }
 
     // Mark buffer entries as flushed
-    this.outputBuffer.forEach(buf => buf.flushed = true);
-    
+    this.outputBuffer.forEach((buf) => (buf.flushed = true));
+
     // Clear pending buffer
     this.pendingBuffer = '';
-    
+
     // Clear combination timer
     if (this.chunkCombinationTimer) {
       clearTimeout(this.chunkCombinationTimer);
@@ -336,11 +344,11 @@ export class StreamManager extends EventEmitter {
    */
   private flushBuffer(): void {
     this.flushPendingBuffer();
-    
+
     // Clean up old buffer entries
-    const cutoff = Date.now() - (5 * 60 * 1000); // 5 minutes
-    this.outputBuffer = this.outputBuffer.filter(buf => 
-      buf.timestamp.getTime() > cutoff
+    const cutoff = Date.now() - 5 * 60 * 1000; // 5 minutes
+    this.outputBuffer = this.outputBuffer.filter(
+      (buf) => buf.timestamp.getTime() > cutoff
     );
   }
 
@@ -348,7 +356,7 @@ export class StreamManager extends EventEmitter {
    * Notify all subscribers safely
    */
   private notifySubscribers(chunk: StreamChunk): void {
-    this.subscribers.forEach(subscriber => {
+    this.subscribers.forEach((subscriber) => {
       try {
         subscriber(chunk);
       } catch (error) {
@@ -362,7 +370,7 @@ export class StreamManager extends EventEmitter {
    */
   subscribe(callback: (chunk: StreamChunk) => void): () => void {
     this.subscribers.add(callback);
-    
+
     // Return unsubscribe function
     return () => {
       this.subscribers.delete(callback);
@@ -372,9 +380,11 @@ export class StreamManager extends EventEmitter {
   /**
    * Subscribe to real-time output events (immediate, no buffering)
    */
-  subscribeRealtime(callback: (data: string, timestamp: Date) => void): () => void {
+  subscribeRealtime(
+    callback: (data: string, timestamp: Date) => void
+  ): () => void {
     this.realtimeSubscribers.add(callback);
-    
+
     return () => {
       this.realtimeSubscribers.delete(callback);
     };
@@ -383,7 +393,10 @@ export class StreamManager extends EventEmitter {
   /**
    * Register output listener for polling mechanism
    */
-  registerOutputListener(listenerId: string, callback: (data: string) => void): void {
+  registerOutputListener(
+    listenerId: string,
+    callback: (data: string) => void
+  ): void {
     this.outputListeners.set(listenerId, callback);
   }
 
@@ -400,7 +413,10 @@ export class StreamManager extends EventEmitter {
   forceFlush(): void {
     this.flushPendingBuffer();
     this.flushBuffer();
-    this.emit('force-flush', { sessionId: this.sessionId, timestamp: new Date() });
+    this.emit('force-flush', {
+      sessionId: this.sessionId,
+      timestamp: new Date(),
+    });
   }
 
   /**
@@ -410,14 +426,14 @@ export class StreamManager extends EventEmitter {
     if (!since) {
       return [...this.chunks];
     }
-    
+
     if (typeof since === 'number') {
       // Filter by sequence ID
-      return this.chunks.filter(chunk => chunk.sequenceId > since);
+      return this.chunks.filter((chunk) => chunk.sequenceId > since);
     }
-    
+
     // Filter by timestamp
-    return this.chunks.filter(chunk => chunk.timestamp > since);
+    return this.chunks.filter((chunk) => chunk.timestamp > since);
   }
 
   /**
@@ -436,21 +452,21 @@ export class StreamManager extends EventEmitter {
     maxLength?: number;
   }): string {
     let chunks = this.chunks;
-    
+
     if (options?.since) {
-      chunks = chunks.filter(c => c.timestamp > options.since!);
+      chunks = chunks.filter((c) => c.timestamp > options.since!);
     }
-    
+
     if (options?.includeErrors === false) {
-      chunks = chunks.filter(c => !c.isError);
+      chunks = chunks.filter((c) => !c.isError);
     }
-    
-    let output = chunks.map(c => c.data).join('');
-    
+
+    let output = chunks.map((c) => c.data).join('');
+
     if (options?.maxLength && output.length > options.maxLength) {
       output = output.substring(0, options.maxLength) + '...[truncated]';
     }
-    
+
     return output;
   }
 
@@ -474,7 +490,7 @@ export class StreamManager extends EventEmitter {
       pendingSize: this.pendingBuffer.length,
       bufferEntries: this.outputBuffer.length,
       lastOutputTime: this.lastOutputTime,
-      isPolling: this.pollingTimer !== null
+      isPolling: this.pollingTimer !== null,
     };
   }
 
@@ -484,7 +500,7 @@ export class StreamManager extends EventEmitter {
   updateConfig(newConfig: Partial<OutputCaptureConfig>): void {
     const oldConfig = { ...this.config };
     this.config = { ...this.config, ...newConfig };
-    
+
     // Restart timers if intervals changed
     if (oldConfig.bufferFlushInterval !== this.config.bufferFlushInterval) {
       if (this.bufferFlushTimer) {
@@ -492,9 +508,11 @@ export class StreamManager extends EventEmitter {
       }
       this.initializeBuffering();
     }
-    
-    if (oldConfig.pollingInterval !== this.config.pollingInterval ||
-        oldConfig.enablePolling !== this.config.enablePolling) {
+
+    if (
+      oldConfig.pollingInterval !== this.config.pollingInterval ||
+      oldConfig.enablePolling !== this.config.enablePolling
+    ) {
       if (this.pollingTimer) {
         clearInterval(this.pollingTimer);
         this.pollingTimer = null;
@@ -503,7 +521,7 @@ export class StreamManager extends EventEmitter {
         this.startOutputPolling();
       }
     }
-    
+
     this.emit('config-updated', { oldConfig, newConfig: this.config });
   }
 
@@ -514,12 +532,12 @@ export class StreamManager extends EventEmitter {
     this.chunks = [];
     this.outputBuffer = [];
     this.pendingBuffer = '';
-    
+
     if (this.chunkCombinationTimer) {
       clearTimeout(this.chunkCombinationTimer);
       this.chunkCombinationTimer = null;
     }
-    
+
     this.emit('clear');
   }
 
@@ -528,31 +546,31 @@ export class StreamManager extends EventEmitter {
    */
   end(): void {
     this.isEnded = true;
-    
+
     // Flush any pending output before ending
     this.forceFlush();
-    
+
     // Clean up timers
     if (this.bufferFlushTimer) {
       clearInterval(this.bufferFlushTimer);
       this.bufferFlushTimer = null;
     }
-    
+
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer);
       this.pollingTimer = null;
     }
-    
+
     if (this.chunkCombinationTimer) {
       clearTimeout(this.chunkCombinationTimer);
       this.chunkCombinationTimer = null;
     }
-    
+
     // Clear subscribers
     this.subscribers.clear();
     this.realtimeSubscribers.clear();
     this.outputListeners.clear();
-    
+
     this.emit('end');
   }
 
@@ -560,10 +578,11 @@ export class StreamManager extends EventEmitter {
    * Check if stream is actively capturing output
    */
   isStreaming(): boolean {
-    return !this.isEnded && (
-      this.subscribers.size > 0 || 
-      this.realtimeSubscribers.size > 0 ||
-      this.outputListeners.size > 0
+    return (
+      !this.isEnded &&
+      (this.subscribers.size > 0 ||
+        this.realtimeSubscribers.size > 0 ||
+        this.outputListeners.size > 0)
     );
   }
 
@@ -584,7 +603,7 @@ export class StreamManager extends EventEmitter {
     sequenceCounter: number;
   } {
     const memoryBytes = this.chunks.reduce((acc, chunk) => {
-      return acc + (chunk.data.length * 2); // Approximate UTF-16 bytes
+      return acc + chunk.data.length * 2; // Approximate UTF-16 bytes
     }, 0);
 
     const pendingBytes = Buffer.byteLength(this.pendingBuffer, 'utf8');
@@ -600,7 +619,7 @@ export class StreamManager extends EventEmitter {
       isEnded: this.isEnded,
       config: { ...this.config },
       lastOutputTime: this.lastOutputTime,
-      sequenceCounter: this.sequenceCounter
+      sequenceCounter: this.sequenceCounter,
     };
   }
 
@@ -657,7 +676,7 @@ export class StreamManager extends EventEmitter {
       }
 
       if (filter.include && filter.include.length > 0) {
-        const matchesInclude = filter.include.some(pattern =>
+        const matchesInclude = filter.include.some((pattern) =>
           chunk.data.toLowerCase().includes(pattern.toLowerCase())
         );
         if (!matchesInclude) {
@@ -667,7 +686,7 @@ export class StreamManager extends EventEmitter {
       }
 
       if (filter.exclude && filter.exclude.length > 0) {
-        const matchesExclude = filter.exclude.some(pattern =>
+        const matchesExclude = filter.exclude.some((pattern) =>
           chunk.data.toLowerCase().includes(pattern.toLowerCase())
         );
         if (matchesExclude) {
@@ -680,9 +699,14 @@ export class StreamManager extends EventEmitter {
   }
 
   getStreamStats(): StreamStats {
-    this.stats.memoryUsage = this.chunks.reduce((sum, chunk) => sum + chunk.size, 0);
-    this.stats.averageChunkSize = this.stats.totalChunks > 0 ?
-      this.stats.totalBytes / this.stats.totalChunks : 0;
+    this.stats.memoryUsage = this.chunks.reduce(
+      (sum, chunk) => sum + chunk.size,
+      0
+    );
+    this.stats.averageChunkSize =
+      this.stats.totalChunks > 0
+        ? this.stats.totalBytes / this.stats.totalChunks
+        : 0;
     this.stats.bufferUtilization = (this.chunks.length / this.maxChunks) * 100;
 
     return { ...this.stats };
@@ -693,7 +717,7 @@ export class StreamManager extends EventEmitter {
       chunks: [],
       totalSize: 0,
       oldestTimestamp: new Date(),
-      newestTimestamp: new Date()
+      newestTimestamp: new Date(),
     });
   }
 
@@ -706,13 +730,15 @@ export class StreamManager extends EventEmitter {
   }
 
   getFilteredChunks(since?: Date): StreamChunk[] {
-    let filteredChunks = this.chunks.filter(chunk => !chunk.filtered);
+    let filteredChunks = this.chunks.filter((chunk) => !chunk.filtered);
 
     if (since) {
       const sinceTime = since instanceof Date ? since.getTime() : since;
-      filteredChunks = filteredChunks.filter(chunk => {
-        const chunkTime = chunk.timestamp instanceof Date ?
-          chunk.timestamp.getTime() : chunk.timestamp;
+      filteredChunks = filteredChunks.filter((chunk) => {
+        const chunkTime =
+          chunk.timestamp instanceof Date
+            ? chunk.timestamp.getTime()
+            : chunk.timestamp;
         return chunkTime > sinceTime;
       });
     }

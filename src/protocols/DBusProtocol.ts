@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // D-Bus Protocol connection options
@@ -72,9 +72,9 @@ export class DBusProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -106,8 +106,8 @@ export class DBusProtocol extends BaseProtocol {
         windows: false, // D-Bus is primarily Linux/Unix
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -134,8 +134,13 @@ export class DBusProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -156,7 +161,9 @@ export class DBusProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to D-Bus session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to D-Bus session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -187,7 +194,11 @@ export class DBusProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -201,7 +212,11 @@ export class DBusProtocol extends BaseProtocol {
     const dbusProcess = spawn(dbusCommand[0], dbusCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(dbusOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(dbusOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -210,7 +225,7 @@ export class DBusProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -220,7 +235,7 @@ export class DBusProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -231,7 +246,9 @@ export class DBusProtocol extends BaseProtocol {
     });
 
     dbusProcess.on('close', (code) => {
-      this.logger.info(`D-Bus process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `D-Bus process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -244,7 +261,11 @@ export class DBusProtocol extends BaseProtocol {
       command: dbusCommand[0],
       args: dbusCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(dbusOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(dbusOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -252,12 +273,14 @@ export class DBusProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: dbusProcess.pid
+      pid: dbusProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`D-Bus session ${sessionId} created for ${dbusOptions.serviceName || dbusOptions.busType || 'D-Bus communication'}`);
+    this.logger.info(
+      `D-Bus session ${sessionId} created for ${dbusOptions.serviceName || dbusOptions.busType || 'D-Bus communication'}`
+    );
     this.emit('session-created', { sessionId, type: 'dbus', session });
 
     return session;
@@ -266,7 +289,7 @@ export class DBusProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -275,8 +298,8 @@ export class DBusProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -298,25 +321,30 @@ export class DBusProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in D-Bus session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in D-Bus session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const dbusProcess = this.dbusProcesses.get(sessionId);
-    return dbusProcess && !dbusProcess.killed || false;
+    return (dbusProcess && !dbusProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -327,26 +355,26 @@ export class DBusProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.dbusProcesses.size
+        connectionsActive: this.dbusProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -358,8 +386,8 @@ export class DBusProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          dbus: { available: true }
-        }
+          dbus: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -367,8 +395,8 @@ export class DBusProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `D-Bus not available: ${error}`],
         dependencies: {
-          dbus: { available: false }
-        }
+          dbus: { available: false },
+        },
       };
     }
   }
@@ -381,12 +409,16 @@ export class DBusProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('D-Bus tools not found. Please install dbus package.'));
+          reject(
+            new Error('D-Bus tools not found. Please install dbus package.')
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('D-Bus tools not found. Please install dbus package.'));
+        reject(
+          new Error('D-Bus tools not found. Please install dbus package.')
+        );
       });
     });
   }
@@ -425,7 +457,6 @@ export class DBusProtocol extends BaseProtocol {
           command.push(`member='${options.memberFilter}'`);
         }
       }
-
     } else if (options.enableIntrospection) {
       // Use dbus-send for introspection
       command.push('dbus-send');
@@ -439,7 +470,6 @@ export class DBusProtocol extends BaseProtocol {
       command.push('--dest=' + (options.serviceName || 'org.freedesktop.DBus'));
       command.push(options.objectPath || '/');
       command.push('org.freedesktop.DBus.Introspectable.Introspect');
-
     } else {
       // Use dbus-send for method calls, property access, etc.
       command.push('dbus-send');
@@ -490,7 +520,9 @@ export class DBusProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: DBusConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: DBusConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // D-Bus environment variables
@@ -499,9 +531,13 @@ export class DBusProtocol extends BaseProtocol {
     }
 
     if (options.busType === 'session') {
-      env.DBUS_SESSION_BUS_ADDRESS = options.busAddress || env.DBUS_SESSION_BUS_ADDRESS || 'unix:path=/run/user/1000/bus';
+      env.DBUS_SESSION_BUS_ADDRESS =
+        options.busAddress ||
+        env.DBUS_SESSION_BUS_ADDRESS ||
+        'unix:path=/run/user/1000/bus';
     } else if (options.busType === 'system') {
-      env.DBUS_SYSTEM_BUS_ADDRESS = options.busAddress || 'unix:path=/var/run/dbus/system_bus_socket';
+      env.DBUS_SYSTEM_BUS_ADDRESS =
+        options.busAddress || 'unix:path=/var/run/dbus/system_bus_socket';
     }
 
     // Authentication
@@ -546,7 +582,10 @@ export class DBusProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing D-Bus process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing D-Bus process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

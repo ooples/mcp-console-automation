@@ -1,4 +1,8 @@
-import { OutputFilterEngine, FilterOptions, FilterResult } from '../core/OutputFilterEngine.js';
+import {
+  OutputFilterEngine,
+  FilterOptions,
+  FilterResult,
+} from '../core/OutputFilterEngine.js';
 import { ConsoleOutput } from '../types/index.js';
 
 describe('OutputFilterEngine', () => {
@@ -9,20 +13,26 @@ describe('OutputFilterEngine', () => {
   });
 
   // Helper function to create test console output
-  const createTestOutput = (lines: string[], baseTimestamp = Date.now()): ConsoleOutput[] => {
+  const createTestOutput = (
+    lines: string[],
+    baseTimestamp = Date.now()
+  ): ConsoleOutput[] => {
     return lines.map((line, index) => ({
       sessionId: 'test-session',
       timestamp: new Date(baseTimestamp + index * 1000), // 1 second apart
       type: 'stdout' as const,
-      data: line
+      data: line,
     }));
   };
 
   // Helper function to create large test datasets
-  const createLargeOutput = (size: number, pattern = 'line'): ConsoleOutput[] => {
+  const createLargeOutput = (
+    size: number,
+    pattern = 'line'
+  ): ConsoleOutput[] => {
     const lines: string[] = [];
     const baseTimestamp = Date.now();
-    
+
     for (let i = 0; i < size; i++) {
       let line: string;
       if (i % 1000 === 0) {
@@ -36,7 +46,7 @@ describe('OutputFilterEngine', () => {
       }
       lines.push(line);
     }
-    
+
     return createTestOutput(lines, baseTimestamp);
   };
 
@@ -46,11 +56,11 @@ describe('OutputFilterEngine', () => {
         'This is a test line',
         'Another test line here',
         'No match in this one',
-        'Final test line'
+        'Final test line',
       ]);
 
       const result = await filterEngine.filter(output, {
-        grep: 'test'
+        grep: 'test',
       });
 
       expect(result.output).toHaveLength(3);
@@ -63,12 +73,12 @@ describe('OutputFilterEngine', () => {
         'ERROR: Something failed',
         'error: Another failure',
         'Error: Mixed case',
-        'INFO: All good'
+        'INFO: All good',
       ]);
 
       const result = await filterEngine.filter(output, {
         grep: 'error',
-        grepIgnoreCase: true
+        grepIgnoreCase: true,
       });
 
       expect(result.success).toBe(true);
@@ -83,12 +93,12 @@ describe('OutputFilterEngine', () => {
         'drwxr-xr-x 3 user user 4096 Dec 25 10:25 ..',
         '-rw-r--r-- 1 user user  220 Dec 25 10:25 .bashrc',
         'user@host:~/project$ cat file.txt',
-        'Hello World'
+        'Hello World',
       ]);
 
       // Match shell prompts
       const result = await filterEngine.filter(output, {
-        grep: '^[^@]+@[^:]+:[^$]+\\$'
+        grep: '^[^@]+@[^:]+:[^$]+\\$',
       });
 
       expect(result.success).toBe(true);
@@ -99,17 +109,15 @@ describe('OutputFilterEngine', () => {
   describe('Time-based Filtering', () => {
     test('should filter by absolute timestamp (ISO)', async () => {
       const now = new Date();
-      const output = createTestOutput([
-        'Old log entry',
-        'Another old entry',
-        'Recent entry',
-        'Latest entry'
-      ], now.getTime() - 10000); // 10 seconds ago
+      const output = createTestOutput(
+        ['Old log entry', 'Another old entry', 'Recent entry', 'Latest entry'],
+        now.getTime() - 10000
+      ); // 10 seconds ago
 
       const filterTime = new Date(now.getTime() - 5000).toISOString(); // 5 seconds ago
 
       const result = await filterEngine.filter(output, {
-        since: filterTime
+        since: filterTime,
       });
 
       expect(result.success).toBe(true);
@@ -118,15 +126,13 @@ describe('OutputFilterEngine', () => {
 
     test('should filter by relative timestamp', async () => {
       const now = Date.now();
-      const output = createTestOutput([
-        'Very old entry',
-        'Old entry',
-        'Recent entry',
-        'Latest entry'
-      ], now - 600000); // 10 minutes ago
+      const output = createTestOutput(
+        ['Very old entry', 'Old entry', 'Recent entry', 'Latest entry'],
+        now - 600000
+      ); // 10 minutes ago
 
       const result = await filterEngine.filter(output, {
-        since: '5m' // Last 5 minutes
+        since: '5m', // Last 5 minutes
       });
 
       expect(result.success).toBe(true);
@@ -138,18 +144,18 @@ describe('OutputFilterEngine', () => {
         { format: '30s', milliseconds: 30 * 1000 },
         { format: '5m', milliseconds: 5 * 60 * 1000 },
         { format: '2h', milliseconds: 2 * 60 * 60 * 1000 },
-        { format: '1d', milliseconds: 24 * 60 * 60 * 1000 }
+        { format: '1d', milliseconds: 24 * 60 * 60 * 1000 },
       ];
 
       for (const testCase of testCases) {
         const now = Date.now();
-        const output = createTestOutput([
-          'Old entry',
-          'Recent entry'
-        ], now - (testCase.milliseconds + 1000)); // Just outside the window
+        const output = createTestOutput(
+          ['Old entry', 'Recent entry'],
+          now - (testCase.milliseconds + 1000)
+        ); // Just outside the window
 
         const result = await filterEngine.filter(output, {
-          since: testCase.format
+          since: testCase.format,
         });
 
         expect(result.success).toBe(true);
@@ -160,10 +166,12 @@ describe('OutputFilterEngine', () => {
 
   describe('Line-based Operations', () => {
     test('should return first N lines (head)', async () => {
-      const output = createTestOutput(Array.from({length: 100}, (_, i) => `Line ${i + 1}`));
+      const output = createTestOutput(
+        Array.from({ length: 100 }, (_, i) => `Line ${i + 1}`)
+      );
 
       const result = await filterEngine.filter(output, {
-        head: 5
+        head: 5,
       });
 
       expect(result.success).toBe(true);
@@ -173,10 +181,12 @@ describe('OutputFilterEngine', () => {
     });
 
     test('should return last N lines (tail)', async () => {
-      const output = createTestOutput(Array.from({length: 100}, (_, i) => `Line ${i + 1}`));
+      const output = createTestOutput(
+        Array.from({ length: 100 }, (_, i) => `Line ${i + 1}`)
+      );
 
       const result = await filterEngine.filter(output, {
-        tail: 3
+        tail: 3,
       });
 
       expect(result.success).toBe(true);
@@ -186,10 +196,12 @@ describe('OutputFilterEngine', () => {
     });
 
     test('should return specific line range', async () => {
-      const output = createTestOutput(Array.from({length: 100}, (_, i) => `Line ${i + 1}`));
+      const output = createTestOutput(
+        Array.from({ length: 100 }, (_, i) => `Line ${i + 1}`)
+      );
 
       const result = await filterEngine.filter(output, {
-        lineRange: [10, 15] // Lines 10-15 (1-indexed)
+        lineRange: [10, 15], // Lines 10-15 (1-indexed)
       });
 
       expect(result.success).toBe(true);
@@ -199,10 +211,12 @@ describe('OutputFilterEngine', () => {
     });
 
     test('should handle invalid line ranges gracefully', async () => {
-      const output = createTestOutput(Array.from({length: 10}, (_, i) => `Line ${i + 1}`));
+      const output = createTestOutput(
+        Array.from({ length: 10 }, (_, i) => `Line ${i + 1}`)
+      );
 
       const result = await filterEngine.filter(output, {
-        lineRange: [5, 20] // End beyond available lines
+        lineRange: [5, 20], // End beyond available lines
       });
 
       expect(result.success).toBe(true);
@@ -219,14 +233,14 @@ describe('OutputFilterEngine', () => {
         'WARN: Database slow',
         'ERROR: Authentication failed',
         'INFO: Database connected',
-        'ERROR: Database timeout'
+        'ERROR: Database timeout',
       ]);
 
       const result = await filterEngine.filter(output, {
         multiPattern: {
           patterns: ['ERROR', 'Database'],
-          logic: 'AND'
-        }
+          logic: 'AND',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -238,14 +252,14 @@ describe('OutputFilterEngine', () => {
         'ERROR: Something failed',
         'WARN: Warning message',
         'INFO: Information',
-        'DEBUG: Debug info'
+        'DEBUG: Debug info',
       ]);
 
       const result = await filterEngine.filter(output, {
         multiPattern: {
           patterns: ['ERROR', 'WARN'],
-          logic: 'OR'
-        }
+          logic: 'OR',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -258,15 +272,15 @@ describe('OutputFilterEngine', () => {
         'WARN: Old warning',
         'ERROR: Recent error',
         'INFO: Recent info',
-        'WARN: Recent warning'
+        'WARN: Recent warning',
       ]);
 
       const result = await filterEngine.filter(output, {
         multiPattern: {
           patterns: ['ERROR', 'WARN'],
-          logic: 'OR'
+          logic: 'OR',
         },
-        tail: 3 // Last 3 lines after multi-pattern filtering
+        tail: 3, // Last 3 lines after multi-pattern filtering
       });
 
       expect(result.success).toBe(true);
@@ -280,10 +294,10 @@ describe('OutputFilterEngine', () => {
   describe('Performance and Large Data Tests', () => {
     test('should handle 100k+ lines efficiently', async () => {
       const output = createLargeOutput(100000);
-      
+
       console.time('100k lines filter');
       const result = await filterEngine.filter(output, {
-        grep: 'ERROR'
+        grep: 'ERROR',
       });
       console.timeEnd('100k lines filter');
 
@@ -295,11 +309,11 @@ describe('OutputFilterEngine', () => {
 
     test('should use streaming mode for large outputs', async () => {
       const output = createLargeOutput(150000);
-      
+
       console.time('150k lines streaming');
       const result = await filterEngine.filter(output, {
         grep: 'WARN',
-        streamingMode: true
+        streamingMode: true,
       });
       console.timeEnd('150k lines streaming');
 
@@ -311,10 +325,10 @@ describe('OutputFilterEngine', () => {
 
     test('should respect maxLines limit for performance', async () => {
       const output = createLargeOutput(200000);
-      
+
       const result = await filterEngine.filter(output, {
         grep: 'INFO',
-        maxLines: 50000 // Limit processing to first 50k lines
+        maxLines: 50000, // Limit processing to first 50k lines
       });
 
       expect(result.success).toBe(true);
@@ -324,10 +338,10 @@ describe('OutputFilterEngine', () => {
 
     test('should maintain performance with complex regex patterns', async () => {
       const output = createLargeOutput(50000);
-      
+
       console.time('Complex regex performance');
       const result = await filterEngine.filter(output, {
-        grep: '^(ERROR|WARN|INFO):\\s+.*\\s+(\\d+)$' // Complex pattern matching log format
+        grep: '^(ERROR|WARN|INFO):\\s+.*\\s+(\\d+)$', // Complex pattern matching log format
       });
       console.timeEnd('Complex regex performance');
 
@@ -338,24 +352,24 @@ describe('OutputFilterEngine', () => {
 
     test('should handle memory efficiently with streaming', async () => {
       const output = createLargeOutput(200000);
-      
+
       // Measure memory before
       const memBefore = process.memoryUsage().heapUsed;
-      
+
       const result = await filterEngine.filter(output, {
         grep: 'ERROR',
         streamingMode: true,
-        maxLines: 100000
+        maxLines: 100000,
       });
-      
+
       // Force garbage collection if available
       if (global.gc) {
         global.gc();
       }
-      
+
       const memAfter = process.memoryUsage().heapUsed;
       const memDiff = memAfter - memBefore;
-      
+
       expect(result.success).toBe(true);
       expect(memDiff).toBeLessThan(100 * 1024 * 1024); // Should use less than 100MB additional memory
     });
@@ -364,21 +378,24 @@ describe('OutputFilterEngine', () => {
   describe('Combined Filter Operations', () => {
     test('should apply multiple filters in correct order', async () => {
       const now = Date.now();
-      const output = createTestOutput([
-        'OLD ERROR: First error',
-        'OLD WARN: First warning', 
-        'OLD INFO: First info',
-        'ERROR: Recent error',
-        'WARN: Recent warning',
-        'INFO: Recent info',
-        'ERROR: Latest error',
-        'DEBUG: Latest debug'
-      ], now - 10000);
+      const output = createTestOutput(
+        [
+          'OLD ERROR: First error',
+          'OLD WARN: First warning',
+          'OLD INFO: First info',
+          'ERROR: Recent error',
+          'WARN: Recent warning',
+          'INFO: Recent info',
+          'ERROR: Latest error',
+          'DEBUG: Latest debug',
+        ],
+        now - 10000
+      );
 
       const result = await filterEngine.filter(output, {
         since: '7s', // Time filter first
         grep: '^(ERROR|WARN)', // Then pattern filter
-        tail: 2 // Then line limit
+        tail: 2, // Then line limit
       });
 
       expect(result.success).toBe(true);
@@ -391,11 +408,11 @@ describe('OutputFilterEngine', () => {
       const output = createTestOutput([
         'INFO: No errors here',
         'DEBUG: Just debug info',
-        'TRACE: Trace information'
+        'TRACE: Trace information',
       ]);
 
       const result = await filterEngine.filter(output, {
-        grep: 'ERROR' // No matches
+        grep: 'ERROR', // No matches
       });
 
       expect(result.success).toBe(true);
@@ -409,7 +426,7 @@ describe('OutputFilterEngine', () => {
 
       // Test invalid regex
       const invalidRegexResult = await filterEngine.filter(output, {
-        grep: '[invalid regex('
+        grep: '[invalid regex(',
       });
 
       expect(invalidRegexResult.success).toBe(false);
@@ -417,7 +434,7 @@ describe('OutputFilterEngine', () => {
 
       // Test invalid line range
       const invalidRangeResult = await filterEngine.filter(output, {
-        lineRange: [10, 5] // Start > end
+        lineRange: [10, 5], // Start > end
       });
 
       expect(invalidRangeResult.success).toBe(false);
@@ -440,7 +457,9 @@ describe('OutputFilterEngine', () => {
       const result2 = await filterEngine.filter(output, { grep: pattern });
       console.timeEnd('Cached regex run');
 
-      expect(result1.filteredOutput).toHaveLength(result2.filteredOutput.length);
+      expect(result1.filteredOutput).toHaveLength(
+        result2.filteredOutput.length
+      );
       expect(result1.success).toBe(true);
       expect(result2.success).toBe(true);
     });
@@ -451,11 +470,13 @@ describe('OutputFilterEngine', () => {
 
       // First run - should parse and cache timestamp
       const result1 = await filterEngine.filter(output, { since: timeFilter });
-      
+
       // Second run - should use cached timestamp
       const result2 = await filterEngine.filter(output, { since: timeFilter });
 
-      expect(result1.filteredOutput).toHaveLength(result2.filteredOutput.length);
+      expect(result1.filteredOutput).toHaveLength(
+        result2.filteredOutput.length
+      );
       expect(result1.success).toBe(true);
       expect(result2.success).toBe(true);
     });
@@ -471,13 +492,13 @@ describe('OutputFilterEngine', () => {
         '2023-12-25T10:30:15Z [INFO] Request processed successfully',
         '2023-12-25T10:30:20Z [ERROR] Database connection lost',
         '2023-12-25T10:30:25Z [WARN] Retrying database connection',
-        '2023-12-25T10:30:30Z [INFO] Database reconnected'
+        '2023-12-25T10:30:30Z [INFO] Database reconnected',
       ]);
 
       // Get only errors in the last 20 seconds
       const result = await filterEngine.filter(appLogs, {
         grep: '\\[ERROR\\]',
-        since: '20s'
+        since: '20s',
       });
 
       expect(result.success).toBe(true);
@@ -496,16 +517,16 @@ describe('OutputFilterEngine', () => {
         'src/components/Button.tsx: compiled successfully',
         'src/types.ts: error TS2304: Cannot find name',
         'Build failed with 1 error, 1 warning',
-        'npm run build exited with code 1'
+        'npm run build exited with code 1',
       ]);
 
       // Get build errors and warnings
       const result = await filterEngine.filter(buildOutput, {
         multiPattern: {
           patterns: ['error', 'warning', 'failed'],
-          logic: 'OR'
+          logic: 'OR',
         },
-        grepIgnoreCase: true
+        grepIgnoreCase: true,
       });
 
       expect(result.success).toBe(true);
@@ -518,13 +539,13 @@ describe('OutputFilterEngine', () => {
         '192.168.1.2 - - [25/Dec/2023:10:30:01 +0000] "GET /api/users HTTP/1.1" 200 567',
         '10.0.0.1 - - [25/Dec/2023:10:30:02 +0000] "POST /api/login HTTP/1.1" 401 89',
         '192.168.1.1 - - [25/Dec/2023:10:30:03 +0000] "GET /favicon.ico HTTP/1.1" 404 0',
-        '10.0.0.1 - - [25/Dec/2023:10:30:04 +0000] "POST /api/login HTTP/1.1" 200 156'
+        '10.0.0.1 - - [25/Dec/2023:10:30:04 +0000] "POST /api/login HTTP/1.1" 200 156',
       ]);
 
       // Get failed requests (4xx, 5xx status codes)
       const result = await filterEngine.filter(accessLogs, {
         grep: '" [45]\\d\\d ',
-        tail: 10
+        tail: 10,
       });
 
       expect(result.success).toBe(true);

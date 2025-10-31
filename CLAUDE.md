@@ -1,9 +1,9 @@
 # Claude Development Guidelines
 
 ## Project Information
-- **Repository**: https://github.com/ooples/mcp-console-automation
-- **Description**: MCP Console Automation - A tool for managing console sessions with SSH support
-- **Important**: This is the ooples/mcp-console-automation project, NOT any other similarly named project
+- **Repository**: https://github.com/ooples/console-automation-mcp
+- **Description**: Console Automation MCP - A tool for managing console sessions with SSH support
+- **Important**: This is the ooples/console-automation-mcp project (formerly mcp-console-automation)
 
 ## Important Rules
 
@@ -27,11 +27,11 @@
 
 ## Project-Specific Guidelines
 
-### MCP Console Automation (ooples/mcp-console-automation)
+### Console Automation MCP (ooples/console-automation-mcp)
 
 - This project handles console session management with comprehensive diagnostics
-- Original working version available at: https://github.com/ooples/mcp-console-automation
-- Check the original implementation for reference when fixing issues
+- Original working version available at: https://github.com/ooples/console-automation-mcp
+- Previous package name was mcp-console-automation (maintained for backward compatibility)
 - Key components:
   - ConsoleManager: Core session management
   - DiagnosticsManager: Diagnostic tracking and reporting

@@ -1,5 +1,10 @@
 import { ErrorPattern } from '../types/index.js';
-import { ErrorPatterns, ExtendedErrorPattern, ParsedError, ErrorContext } from '../patterns/ErrorPatterns.js';
+import {
+  ErrorPatterns,
+  ExtendedErrorPattern,
+  ParsedError,
+  ErrorContext,
+} from '../patterns/ErrorPatterns.js';
 
 export interface ErrorAnalysis {
   totalErrors: number;
@@ -46,7 +51,7 @@ export interface ErrorReport {
 export class ErrorDetector {
   private patterns: ExtendedErrorPattern[];
   private ansiRegex = /\x1b\[[0-9;]*m/g;
-  
+
   constructor() {
     // Use the comprehensive patterns from ErrorPatterns
     this.patterns = ErrorPatterns.getAllPatterns();
@@ -64,25 +69,44 @@ export class ErrorDetector {
    */
   detect(text: string, customPatterns?: ExtendedErrorPattern[]): ParsedError[] {
     const cleanText = this.stripAnsiCodes(text);
-    const patterns = customPatterns ? [...this.patterns, ...customPatterns] : this.patterns;
+    const patterns = customPatterns
+      ? [...this.patterns, ...customPatterns]
+      : this.patterns;
     const lines = cleanText.split('\n');
     const detectedErrors: ParsedError[] = [];
 
     lines.forEach((line, lineNumber) => {
-      patterns.forEach(pattern => {
+      let matchedOnThisLine = false;
+
+      patterns.forEach((pattern) => {
+        // Skip generic patterns if we already matched a more specific pattern
+        if (matchedOnThisLine && pattern.category === 'generic') {
+          return;
+        }
+
         const match = line.match(pattern.pattern);
         if (match) {
           const parsedError: ParsedError = {
             pattern,
             match: line.trim(),
             line: lineNumber + 1,
-            extractedInfo: this.extractErrorInfo(line, pattern, lines, lineNumber)
+            extractedInfo: this.extractErrorInfo(
+              line,
+              pattern,
+              lines,
+              lineNumber
+            ),
           };
 
           // Add context if available
           parsedError.context = this.extractContext(lines, lineNumber);
-          
+
           detectedErrors.push(parsedError);
+
+          // Mark that we found a match on this line
+          if (pattern.category !== 'generic') {
+            matchedOnThisLine = true;
+          }
         }
       });
     });
@@ -93,7 +117,12 @@ export class ErrorDetector {
   /**
    * Extract additional error information from matched lines
    */
-  private extractErrorInfo(line: string, pattern: ExtendedErrorPattern, lines: string[], lineNumber: number): any {
+  private extractErrorInfo(
+    line: string,
+    pattern: ExtendedErrorPattern,
+    lines: string[],
+    lineNumber: number
+  ): any {
     const info: any = {};
 
     // Extract file path if pattern supports it
@@ -137,7 +166,11 @@ export class ErrorDetector {
   /**
    * Extract context around error lines
    */
-  private extractContext(lines: string[], errorLineIndex: number, contextLines: number = 3): ErrorContext {
+  private extractContext(
+    lines: string[],
+    errorLineIndex: number,
+    contextLines: number = 3
+  ): ErrorContext {
     const context: ErrorContext = {};
 
     const startIndex = Math.max(0, errorLineIndex - contextLines);
@@ -154,16 +187,17 @@ export class ErrorDetector {
    */
   private extractStackTrace(lines: string[], startIndex: number): string[] {
     const stackTrace: string[] = [];
-    
+
     // Look for stack trace patterns in following lines
     for (let i = startIndex + 1; i < lines.length && i < startIndex + 20; i++) {
       const line = lines[i];
-      
+
       // Common stack trace patterns
-      if (line.match(/^\s+at\s+/) || // JavaScript/Node.js
-          line.match(/^\s+File\s+"/) || // Python
-          line.match(/^\s+#\d+/) || // C/C++
-          line.match(/^\s+\d+:/) // Rust
+      if (
+        line.match(/^\s+at\s+/) || // JavaScript/Node.js
+        line.match(/^\s+File\s+"/) || // Python
+        line.match(/^\s+#\d+/) || // C/C++
+        line.match(/^\s+\d+:/) // Rust
       ) {
         stackTrace.push(line.trim());
       } else if (stackTrace.length > 0) {
@@ -190,11 +224,11 @@ export class ErrorDetector {
       correlatedErrors: [],
       rootCauseAnalysis: [],
       suggestions: [],
-      retryableErrors: []
+      retryableErrors: [],
     };
 
     // Count by severity
-    errors.forEach(error => {
+    errors.forEach((error) => {
       switch (error.pattern.severity) {
         case 'critical':
           analysis.criticalErrors++;
@@ -211,12 +245,12 @@ export class ErrorDetector {
       }
 
       // Count by category
-      analysis.categories[error.pattern.category] = 
+      analysis.categories[error.pattern.category] =
         (analysis.categories[error.pattern.category] || 0) + 1;
 
       // Count by language
       if (error.pattern.language) {
-        analysis.languages[error.pattern.language] = 
+        analysis.languages[error.pattern.language] =
           (analysis.languages[error.pattern.language] || 0) + 1;
       }
 
@@ -256,9 +290,14 @@ export class ErrorDetector {
         if (processed.has(j)) continue;
 
         const secondaryError = errors[j];
-        const lineDifference = Math.abs(primaryError.line - secondaryError.line);
+        const lineDifference = Math.abs(
+          primaryError.line - secondaryError.line
+        );
 
-        if (primaryError.pattern.category === secondaryError.pattern.category && lineDifference <= 10) {
+        if (
+          primaryError.pattern.category === secondaryError.pattern.category &&
+          lineDifference <= 10
+        ) {
           relatedErrors.push(secondaryError);
           processed.add(j);
         }
@@ -268,8 +307,8 @@ export class ErrorDetector {
         correlations.push({
           primaryError,
           relatedErrors,
-          confidence: Math.min(0.9, 0.5 + (relatedErrors.length * 0.1)),
-          description: `${relatedErrors.length + 1} related ${primaryError.pattern.category} errors`
+          confidence: Math.min(0.9, 0.5 + relatedErrors.length * 0.1),
+          description: `${relatedErrors.length + 1} related ${primaryError.pattern.category} errors`,
         });
         processed.add(i);
       }
@@ -285,14 +324,17 @@ export class ErrorDetector {
     const rootCauses: RootCauseAnalysis[] = [];
 
     // Group errors by category
-    const errorsByCategory = errors.reduce((groups, error) => {
-      const category = error.pattern.category;
-      if (!groups[category]) {
-        groups[category] = [];
-      }
-      groups[category].push(error);
-      return groups;
-    }, {} as Record<string, ParsedError[]>);
+    const errorsByCategory = errors.reduce(
+      (groups, error) => {
+        const category = error.pattern.category;
+        if (!groups[category]) {
+          groups[category] = [];
+        }
+        groups[category].push(error);
+        return groups;
+      },
+      {} as Record<string, ParsedError[]>
+    );
 
     // Analyze each category
     Object.entries(errorsByCategory).forEach(([category, categoryErrors]) => {
@@ -305,42 +347,50 @@ export class ErrorDetector {
       switch (category) {
         case 'network':
           cause = 'Network connectivity or configuration issues';
-          remediation = 'Check network connectivity, DNS settings, and firewall configuration';
+          remediation =
+            'Check network connectivity, DNS settings, and firewall configuration';
           severity = 'high';
           break;
         case 'database':
           cause = 'Database connection or query issues';
-          remediation = 'Verify database connectivity, check query syntax, and review connection pool settings';
+          remediation =
+            'Verify database connectivity, check query syntax, and review connection pool settings';
           severity = 'high';
           break;
         case 'compilation':
           cause = 'Source code compilation errors';
-          remediation = 'Fix syntax errors, resolve dependencies, and check compiler settings';
+          remediation =
+            'Fix syntax errors, resolve dependencies, and check compiler settings';
           severity = 'critical';
           break;
         case 'runtime':
           cause = 'Runtime execution errors';
-          remediation = 'Debug application logic, check for null references, and handle exceptions properly';
+          remediation =
+            'Debug application logic, check for null references, and handle exceptions properly';
           severity = 'high';
           break;
         case 'performance':
           cause = 'System resource constraints';
-          remediation = 'Monitor resource usage, optimize code performance, and increase system resources';
+          remediation =
+            'Monitor resource usage, optimize code performance, and increase system resources';
           severity = 'medium';
           break;
         case 'security':
           cause = 'Security or authentication issues';
-          remediation = 'Review authentication mechanisms, check permissions, and validate security tokens';
+          remediation =
+            'Review authentication mechanisms, check permissions, and validate security tokens';
           severity = 'critical';
           break;
         case 'ssh':
           cause = 'SSH connection or authentication problems';
-          remediation = 'Verify SSH credentials, check network connectivity, and review SSH configuration';
+          remediation =
+            'Verify SSH credentials, check network connectivity, and review SSH configuration';
           severity = 'high';
           break;
         case 'aws-ssm':
           cause = 'AWS Systems Manager session or configuration issues';
-          remediation = 'Check SSM agent status, IAM permissions, instance connectivity, and AWS credentials';
+          remediation =
+            'Check SSM agent status, IAM permissions, instance connectivity, and AWS credentials';
           severity = 'high';
           break;
         default:
@@ -353,7 +403,7 @@ export class ErrorDetector {
         affectedErrors: categoryErrors,
         severity,
         remediation,
-        confidence: Math.min(0.9, 0.6 + (categoryErrors.length * 0.05))
+        confidence: Math.min(0.9, 0.6 + categoryErrors.length * 0.05),
       });
     });
 
@@ -363,12 +413,17 @@ export class ErrorDetector {
   /**
    * Generate actionable suggestions based on error analysis
    */
-  private generateSuggestions(errors: ParsedError[], analysis: ErrorAnalysis): string[] {
+  private generateSuggestions(
+    errors: ParsedError[],
+    analysis: ErrorAnalysis
+  ): string[] {
     const suggestions: string[] = [];
 
     // Critical errors get priority
     if (analysis.criticalErrors > 0) {
-      suggestions.push(`⚠️ Address ${analysis.criticalErrors} critical error(s) immediately`);
+      suggestions.push(
+        `⚠️ Address ${analysis.criticalErrors} critical error(s) immediately`
+      );
     }
 
     // Category-specific suggestions
@@ -376,22 +431,34 @@ export class ErrorDetector {
       if (count >= 3) {
         switch (category) {
           case 'network':
-            suggestions.push(`🌐 Multiple network errors detected - check connectivity and DNS settings`);
+            suggestions.push(
+              `🌐 Multiple network errors detected - check connectivity and DNS settings`
+            );
             break;
           case 'database':
-            suggestions.push(`🗄️ Database issues found - verify connection and query syntax`);
+            suggestions.push(
+              `🗄️ Database issues found - verify connection and query syntax`
+            );
             break;
           case 'compilation':
-            suggestions.push(`🔨 Compilation errors present - fix syntax and dependency issues`);
+            suggestions.push(
+              `🔨 Compilation errors present - fix syntax and dependency issues`
+            );
             break;
           case 'performance':
-            suggestions.push(`⚡ Performance issues detected - monitor resource usage`);
+            suggestions.push(
+              `⚡ Performance issues detected - monitor resource usage`
+            );
             break;
           case 'security':
-            suggestions.push(`🔒 Security errors found - review authentication and permissions`);
+            suggestions.push(
+              `🔒 Security errors found - review authentication and permissions`
+            );
             break;
           case 'aws-ssm':
-            suggestions.push(`☁️ AWS SSM errors detected - check SSM agent, IAM permissions, and connectivity`);
+            suggestions.push(
+              `☁️ AWS SSM errors detected - check SSM agent, IAM permissions, and connectivity`
+            );
             break;
         }
       }
@@ -399,11 +466,13 @@ export class ErrorDetector {
 
     // Retryable errors suggestion
     if (analysis.retryableErrors.length > 0) {
-      suggestions.push(`🔄 ${analysis.retryableErrors.length} error(s) may be resolved by retrying`);
+      suggestions.push(
+        `🔄 ${analysis.retryableErrors.length} error(s) may be resolved by retrying`
+      );
     }
 
     // Root cause suggestions
-    analysis.rootCauseAnalysis.forEach(rootCause => {
+    analysis.rootCauseAnalysis.forEach((rootCause) => {
       if (rootCause.confidence > 0.7) {
         suggestions.push(`🎯 Root cause identified: ${rootCause.cause}`);
       }
@@ -415,7 +484,10 @@ export class ErrorDetector {
   /**
    * Generate comprehensive error report
    */
-  generateReport(text: string, customPatterns?: ExtendedErrorPattern[]): ErrorReport {
+  generateReport(
+    text: string,
+    customPatterns?: ExtendedErrorPattern[]
+  ): ErrorReport {
     const lines = this.stripAnsiCodes(text).split('\n');
     const errors = this.detect(text, customPatterns);
     const analysis = this.analyzeErrors(errors);
@@ -424,22 +496,28 @@ export class ErrorDetector {
       critical: analysis.criticalErrors,
       high: analysis.highErrors,
       medium: analysis.mediumErrors,
-      low: analysis.lowErrors
+      low: analysis.lowErrors,
     };
 
     const recommendations: string[] = [];
-    
+
     // Add high-level recommendations
     if (analysis.criticalErrors > 0) {
-      recommendations.push('Immediately address critical errors to prevent system instability');
+      recommendations.push(
+        'Immediately address critical errors to prevent system instability'
+      );
     }
-    
+
     if (analysis.correlatedErrors.length > 0) {
-      recommendations.push('Focus on correlated errors which may share common root causes');
+      recommendations.push(
+        'Focus on correlated errors which may share common root causes'
+      );
     }
-    
+
     if (analysis.retryableErrors.length > 0) {
-      recommendations.push('Consider implementing retry mechanisms for transient errors');
+      recommendations.push(
+        'Consider implementing retry mechanisms for transient errors'
+      );
     }
 
     return {
@@ -447,7 +525,7 @@ export class ErrorDetector {
         totalLines: lines.length,
         errorsFound: errors.length,
         severityBreakdown,
-        categoryBreakdown: analysis.categories
+        categoryBreakdown: analysis.categories,
       },
       errors,
       analysis,
@@ -456,7 +534,7 @@ export class ErrorDetector {
         timestamp: new Date().toISOString(),
         version: '2.0.0',
         platform: process.platform,
-        errors: errors.map(error => ({
+        errors: errors.map((error) => ({
           type: error.pattern.type,
           category: error.pattern.category,
           severity: error.pattern.severity,
@@ -464,9 +542,9 @@ export class ErrorDetector {
           line: error.line,
           file: error.extractedInfo?.filePath,
           suggestion: error.extractedInfo?.suggestion,
-          retryable: error.pattern.retryable || false
-        }))
-      }
+          retryable: error.pattern.retryable || false,
+        })),
+      },
     };
   }
 
@@ -481,7 +559,9 @@ export class ErrorDetector {
    * Remove pattern by regex
    */
   removePattern(pattern: RegExp): void {
-    this.patterns = this.patterns.filter(p => p.pattern.toString() !== pattern.toString());
+    this.patterns = this.patterns.filter(
+      (p) => p.pattern.toString() !== pattern.toString()
+    );
   }
 
   /**
@@ -512,31 +592,40 @@ export class ErrorDetector {
     const cleanText = this.stripAnsiCodes(text);
     const result: { language?: string; frames: string[] } = { frames: [] };
 
-    const pythonMatch = cleanText.match(/Traceback \(most recent call last\):([\s\S]*?)(?=\n\S|\n$)/);
+    const pythonMatch = cleanText.match(
+      /Traceback \(most recent call last\):([\s\S]*?)(?=\n\S|\n$)/
+    );
     if (pythonMatch) {
       result.language = 'python';
-      const frames = pythonMatch[1].split('\n').filter(line => line.trim().startsWith('File'));
-      result.frames = frames.map(f => f.trim());
+      const frames = pythonMatch[1]
+        .split('\n')
+        .filter((line) => line.trim().startsWith('File'));
+      result.frames = frames.map((f) => f.trim());
       return result;
     }
 
-    const javaMatch = cleanText.match(/(?:Exception|Error) in thread[\s\S]*?\n((?:\s+at .*\n)+)/);
+    const javaMatch = cleanText.match(
+      /(?:Exception|Error) in thread[\s\S]*?\n((?:\s+at .*\n)+)/
+    );
     if (javaMatch) {
       result.language = 'java';
-      result.frames = javaMatch[1].split('\n').filter(line => line.trim().startsWith('at')).map(f => f.trim());
+      result.frames = javaMatch[1]
+        .split('\n')
+        .filter((line) => line.trim().startsWith('at'))
+        .map((f) => f.trim());
       return result;
     }
 
     const nodeMatch = cleanText.match(/at .*? \(.*?\)|\n\s+at .*?\n/g);
     if (nodeMatch && nodeMatch.length > 0) {
       result.language = 'javascript';
-      result.frames = nodeMatch.map(f => f.trim());
+      result.frames = nodeMatch.map((f) => f.trim());
       return result;
     }
 
     const genericStack = cleanText.match(/^\s*(#\d+|at|\d+:)\s+.*/gm);
     if (genericStack && genericStack.length > 0) {
-      result.frames = genericStack.map(f => f.trim());
+      result.frames = genericStack.map((f) => f.trim());
     }
 
     return result;
@@ -545,12 +634,14 @@ export class ErrorDetector {
   /**
    * Legacy method for backward compatibility
    */
-  getSeverityScore(errors: Array<{ pattern: ErrorPattern; match: string; line: number }>): number {
+  getSeverityScore(
+    errors: Array<{ pattern: ErrorPattern; match: string; line: number }>
+  ): number {
     const severityWeights = {
       low: 1,
       medium: 2,
       high: 3,
-      critical: 4
+      critical: 4,
     };
 
     return errors.reduce((score, error) => {
@@ -562,14 +653,14 @@ export class ErrorDetector {
    * Add multiple patterns at once - convenience method
    */
   addPatterns(patterns: ExtendedErrorPattern[]): void {
-    patterns.forEach(pattern => this.addPattern(pattern));
+    patterns.forEach((pattern) => this.addPattern(pattern));
   }
 
   /**
    * Remove multiple patterns by regex - convenience method
    */
   removePatterns(patterns: RegExp[]): void {
-    patterns.forEach(pattern => this.removePattern(pattern));
+    patterns.forEach((pattern) => this.removePattern(pattern));
   }
 
   /**

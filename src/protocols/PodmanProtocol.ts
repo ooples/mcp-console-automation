@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 import { v4 as uuidv4 } from 'uuid';
 import stripAnsi from 'strip-ansi';
@@ -21,7 +21,25 @@ import stripAnsi from 'strip-ansi';
 interface PodmanConnectionOptions extends SessionOptions {
   image: string;
   containerName?: string;
-  operation?: 'run' | 'exec' | 'logs' | 'inspect' | 'build' | 'push' | 'pull' | 'ps' | 'stop' | 'start' | 'restart' | 'kill' | 'rm' | 'rmi' | 'pod' | 'volume' | 'network' | 'system';
+  operation?:
+    | 'run'
+    | 'exec'
+    | 'logs'
+    | 'inspect'
+    | 'build'
+    | 'push'
+    | 'pull'
+    | 'ps'
+    | 'stop'
+    | 'start'
+    | 'restart'
+    | 'kill'
+    | 'rm'
+    | 'rmi'
+    | 'pod'
+    | 'volume'
+    | 'network'
+    | 'system';
   workingDir?: string;
   volumes?: string[];
   ports?: string[];
@@ -225,9 +243,9 @@ export class PodmanProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -259,8 +277,8 @@ export class PodmanProtocol extends BaseProtocol {
         windows: false, // Podman is primarily Linux/Unix
         linux: true,
         macos: true,
-        freebsd: false
-      }
+        freebsd: false,
+      },
     };
   }
 
@@ -287,8 +305,13 @@ export class PodmanProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -309,7 +332,9 @@ export class PodmanProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Podman session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Podman session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -346,7 +371,11 @@ export class PodmanProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -365,7 +394,11 @@ export class PodmanProtocol extends BaseProtocol {
     const podmanProcess = spawn(podmanCommand[0], podmanCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(podmanOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(podmanOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -374,7 +407,7 @@ export class PodmanProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: stripAnsi(data.toString()),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -384,18 +417,23 @@ export class PodmanProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: stripAnsi(data.toString()),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     podmanProcess.on('error', (error) => {
-      this.logger.error(`Podman process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Podman process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     podmanProcess.on('close', (code) => {
-      this.logger.info(`Podman process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Podman process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -408,7 +446,11 @@ export class PodmanProtocol extends BaseProtocol {
       command: podmanCommand[0],
       args: podmanCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(podmanOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(podmanOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -416,12 +458,14 @@ export class PodmanProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: podmanProcess.pid
+      pid: podmanProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Podman session ${sessionId} created for image ${podmanOptions.image}`);
+    this.logger.info(
+      `Podman session ${sessionId} created for image ${podmanOptions.image}`
+    );
     this.emit('session-created', { sessionId, type: 'podman', session });
 
     return session;
@@ -430,7 +474,7 @@ export class PodmanProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -439,8 +483,8 @@ export class PodmanProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -462,25 +506,30 @@ export class PodmanProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Podman session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Podman session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const podmanProcess = this.podmanProcesses.get(sessionId);
-    return podmanProcess && !podmanProcess.killed || false;
+    return (podmanProcess && !podmanProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -491,26 +540,26 @@ export class PodmanProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.podmanProcesses.size
+        connectionsActive: this.podmanProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -522,8 +571,8 @@ export class PodmanProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          podman: { available: true }
-        }
+          podman: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -531,8 +580,8 @@ export class PodmanProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Podman not available: ${error}`],
         dependencies: {
-          podman: { available: false }
-        }
+          podman: { available: false },
+        },
       };
     }
   }
@@ -616,7 +665,6 @@ export class PodmanProtocol extends BaseProtocol {
 
       // Container name/ID (required for exec)
       command.push(options.containerName || options.image);
-
     } else if (options.operation === 'logs') {
       command.push('logs');
 
@@ -629,7 +677,6 @@ export class PodmanProtocol extends BaseProtocol {
       }
 
       command.push(options.containerName || options.image);
-
     } else if (options.operation === 'build') {
       command.push('build');
 
@@ -657,7 +704,6 @@ export class PodmanProtocol extends BaseProtocol {
 
       command.push('-t', options.image);
       command.push(options.cwd || '.');
-
     } else {
       // Default to 'run' operation
       command.push('run');
@@ -703,14 +749,14 @@ export class PodmanProtocol extends BaseProtocol {
 
       // Capabilities
       if (options.capabilities) {
-        options.capabilities.forEach(cap => {
+        options.capabilities.forEach((cap) => {
           command.push('--cap-add', cap);
         });
       }
 
       // Security options
       if (options.securityOpt) {
-        options.securityOpt.forEach(opt => {
+        options.securityOpt.forEach((opt) => {
           command.push('--security-opt', opt);
         });
       }
@@ -724,14 +770,14 @@ export class PodmanProtocol extends BaseProtocol {
 
       // Volumes
       if (options.volumes) {
-        options.volumes.forEach(volume => {
+        options.volumes.forEach((volume) => {
           command.push('-v', volume);
         });
       }
 
       // Port mappings
       if (options.ports) {
-        options.ports.forEach(port => {
+        options.ports.forEach((port) => {
           command.push('-p', port);
         });
       }
@@ -761,7 +807,7 @@ export class PodmanProtocol extends BaseProtocol {
 
       // Devices
       if (options.devices) {
-        options.devices.forEach(device => {
+        options.devices.forEach((device) => {
           command.push('--device', device);
         });
       }
@@ -803,7 +849,7 @@ export class PodmanProtocol extends BaseProtocol {
 
       // Tmpfs
       if (options.tmpfs) {
-        options.tmpfs.forEach(tmpfs => {
+        options.tmpfs.forEach((tmpfs) => {
           command.push('--tmpfs', tmpfs);
         });
       }
@@ -824,7 +870,9 @@ export class PodmanProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: PodmanConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: PodmanConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Podman environment variables
@@ -885,7 +933,10 @@ export class PodmanProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Podman process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Podman process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

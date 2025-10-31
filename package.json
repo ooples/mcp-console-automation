@@ -1,11 +1,12 @@
 {
-  "name": "mcp-console-automation",
+  "name": "console-automation-mcp",
   "version": "1.0.2",
   "description": "MCP server for AI-driven console application automation and monitoring",
-  "mcpName": "io.github.ooples/mcp-console-automation",
+  "mcpName": "io.github.ooples/console-automation-mcp",
   "main": "dist/mcp/server.js",
   "type": "module",
   "bin": {
+    "console-automation-mcp": "./dist/mcp/server.js",
     "mcp-console": "./dist/mcp/server.js"
   },
   "scripts": {
@@ -23,7 +24,10 @@
     "test:load": "jest test/stress/load.test.ts",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --maxWorkers=2",
     "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"src/**/*.{ts,js,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
     "typecheck": "tsc --noEmit",
     "prepare": "npm run build"
   },
@@ -39,10 +43,22 @@
   "author": "ooples",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.920.0",
+    "@aws-sdk/client-ec2": "^3.920.0",
+    "@aws-sdk/client-ssm": "^3.920.0",
+    "@aws-sdk/client-sts": "^3.920.0",
     "@azure/arm-compute": "^21.0.0",
     "@azure/arm-network": "^33.0.0",
+    "@azure/arm-resources": "^7.0.0",
+    "@azure/arm-storage": "^19.1.0",
     "@azure/identity": "^4.0.1",
     "@azure/keyvault-secrets": "^4.8.0",
+    "@azure/storage-file-share": "^12.29.1",
+    "@google-cloud/compute": "^6.4.0",
+    "@google-cloud/container": "^6.6.0",
+    "@google-cloud/functions": "^4.2.1",
+    "@google-cloud/iam": "^2.3.1",
+    "@google-cloud/storage": "^7.17.2",
     "@influxdata/influxdb-client": "^1.35.0",
     "@kubernetes/client-node": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.17.4",
@@ -81,6 +97,12 @@
   "devDependencies": {
     "@babel/preset-env": "^7.28.3",
     "@babel/preset-typescript": "^7.27.1",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.0",
+    "@semantic-release/npm": "^12.0.1",
+    "@semantic-release/release-notes-generator": "^14.0.1",
     "@types/dockerode": "^3.3.43",
     "@types/express": "^4.17.21",
     "@types/jaeger-client": "^3.18.7",
@@ -100,6 +122,8 @@
     "jest-html-reporters": "^3.1.7",
     "jest-junit": "^16.0.0",
     "jest-sonar-reporter": "^2.0.0",
+    "prettier": "^3.6.2",
+    "semantic-release": "^24.2.0",
     "sharp": "^0.34.4",
     "ts-jest": "^29.4.4",
     "tsx": "^4.7.0",
@@ -110,10 +134,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ooples/mcp-console-automation.git"
+    "url": "git+https://github.com/ooples/console-automation-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/ooples/mcp-console-automation/issues"
+    "url": "https://github.com/ooples/console-automation-mcp/issues"
   },
-  "homepage": "https://github.com/ooples/mcp-console-automation#readme"
+  "homepage": "https://github.com/ooples/console-automation-mcp#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
 }

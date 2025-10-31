@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -23,7 +23,13 @@ interface NamedPipeConnectionOptions extends SessionOptions {
   pipeType?: 'byte' | 'message';
   pipeDirection?: 'in' | 'out' | 'duplex';
   pipeAccess?: 'read' | 'write' | 'readwrite';
-  pipeMode?: 'byte' | 'message' | 'nowait' | 'wait' | 'readmode_byte' | 'readmode_message';
+  pipeMode?:
+    | 'byte'
+    | 'message'
+    | 'nowait'
+    | 'wait'
+    | 'readmode_byte'
+    | 'readmode_message';
   maxInstances?: number;
   outputBufferSize?: number;
   inputBufferSize?: number;
@@ -57,7 +63,14 @@ interface NamedPipeConnectionOptions extends SessionOptions {
   enableLogging?: boolean;
   logLevel?: 'debug' | 'info' | 'warning' | 'error';
   platform?: 'windows' | 'linux' | 'unix' | 'auto';
-  operation?: 'server' | 'client' | 'connect' | 'listen' | 'send' | 'receive' | 'monitor';
+  operation?:
+    | 'server'
+    | 'client'
+    | 'connect'
+    | 'listen'
+    | 'send'
+    | 'receive'
+    | 'monitor';
   protocol?: 'simple' | 'json' | 'binary' | 'custom';
   messageDelimiter?: string;
   encoding?: 'utf8' | 'ascii' | 'base64' | 'hex' | 'binary';
@@ -97,9 +110,9 @@ export class NamedPipeProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -131,8 +144,8 @@ export class NamedPipeProtocol extends BaseProtocol {
         windows: true, // Primary named pipe support
         linux: true, // FIFO support
         macos: true, // FIFO support
-        freebsd: true // FIFO support
-      }
+        freebsd: true, // FIFO support
+      },
     };
   }
 
@@ -143,7 +156,9 @@ export class NamedPipeProtocol extends BaseProtocol {
       // Check if Named Pipe/FIFO tools are available
       await this.checkNamedPipeAvailability();
       this.isInitialized = true;
-      this.logger.info('Named Pipe protocol initialized with production features');
+      this.logger.info(
+        'Named Pipe protocol initialized with production features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize Named Pipe protocol', error);
       throw error;
@@ -159,8 +174,13 @@ export class NamedPipeProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -181,7 +201,9 @@ export class NamedPipeProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Named Pipe session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Named Pipe session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -213,12 +235,19 @@ export class NamedPipeProtocol extends BaseProtocol {
       this.logger.info(`Named Pipe session ${sessionId} closed`);
       this.emit('session-closed', sessionId);
     } catch (error) {
-      this.logger.error(`Error closing Named Pipe session ${sessionId}:`, error);
+      this.logger.error(
+        `Error closing Named Pipe session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -234,11 +263,19 @@ export class NamedPipeProtocol extends BaseProtocol {
     const namedPipeCommand = this.buildNamedPipeCommand(namedPipeOptions);
 
     // Spawn Named Pipe process
-    const namedPipeProcess = spawn(namedPipeCommand[0], namedPipeCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(namedPipeOptions), ...options.env }
-    });
+    const namedPipeProcess = spawn(
+      namedPipeCommand[0],
+      namedPipeCommand.slice(1),
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: options.cwd || process.cwd(),
+        env: {
+          ...process.env,
+          ...this.buildEnvironment(namedPipeOptions),
+          ...options.env,
+        },
+      }
+    );
 
     // Set up output handling
     namedPipeProcess.stdout?.on('data', (data) => {
@@ -246,7 +283,7 @@ export class NamedPipeProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -256,18 +293,23 @@ export class NamedPipeProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     namedPipeProcess.on('error', (error) => {
-      this.logger.error(`Named Pipe process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Named Pipe process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     namedPipeProcess.on('close', (code) => {
-      this.logger.info(`Named Pipe process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Named Pipe process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -280,7 +322,11 @@ export class NamedPipeProtocol extends BaseProtocol {
       command: namedPipeCommand[0],
       args: namedPipeCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(namedPipeOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(namedPipeOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -288,12 +334,14 @@ export class NamedPipeProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: namedPipeProcess.pid
+      pid: namedPipeProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Named Pipe session ${sessionId} created for pipe ${namedPipeOptions.pipeName}`);
+    this.logger.info(
+      `Named Pipe session ${sessionId} created for pipe ${namedPipeOptions.pipeName}`
+    );
     this.emit('session-created', { sessionId, type: 'named-pipe', session });
 
     return session;
@@ -302,7 +350,7 @@ export class NamedPipeProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -311,8 +359,8 @@ export class NamedPipeProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -334,25 +382,30 @@ export class NamedPipeProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Named Pipe session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Named Pipe session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const namedPipeProcess = this.namedPipeProcesses.get(sessionId);
-    return namedPipeProcess && !namedPipeProcess.killed || false;
+    return (namedPipeProcess && !namedPipeProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -363,26 +416,26 @@ export class NamedPipeProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.namedPipeProcesses.size
+        connectionsActive: this.namedPipeProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -394,8 +447,8 @@ export class NamedPipeProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          namedpipe: { available: true }
-        }
+          namedpipe: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -403,8 +456,8 @@ export class NamedPipeProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Named Pipe not available: ${error}`],
         dependencies: {
-          namedpipe: { available: false }
-        }
+          namedpipe: { available: false },
+        },
       };
     }
   }
@@ -414,18 +467,28 @@ export class NamedPipeProtocol extends BaseProtocol {
     if (process.platform === 'win32') {
       // Windows - check for named pipe support via PowerShell
       return new Promise((resolve, reject) => {
-        const testProcess = spawn('powershell', ['-Command', 'Get-ChildItem \\\\.\\pipe\\'], { stdio: 'pipe' });
+        const testProcess = spawn(
+          'powershell',
+          ['-Command', 'Get-ChildItem \\\\.\\pipe\\'],
+          { stdio: 'pipe' }
+        );
 
         testProcess.on('close', (code) => {
           if (code === 0) {
             resolve();
           } else {
-            reject(new Error('Windows Named Pipes not available. Please check system permissions.'));
+            reject(
+              new Error(
+                'Windows Named Pipes not available. Please check system permissions.'
+              )
+            );
           }
         });
 
         testProcess.on('error', () => {
-          reject(new Error('PowerShell not available for Named Pipe operations.'));
+          reject(
+            new Error('PowerShell not available for Named Pipe operations.')
+          );
         });
       });
     } else {
@@ -434,15 +497,24 @@ export class NamedPipeProtocol extends BaseProtocol {
         const testProcess = spawn('mkfifo', ['--help'], { stdio: 'pipe' });
 
         testProcess.on('close', (code) => {
-          if (code === 0 || code === 1) { // mkfifo --help returns 1 on some systems
+          if (code === 0 || code === 1) {
+            // mkfifo --help returns 1 on some systems
             resolve();
           } else {
-            reject(new Error('FIFO/Named Pipe tools not found. Please install coreutils.'));
+            reject(
+              new Error(
+                'FIFO/Named Pipe tools not found. Please install coreutils.'
+              )
+            );
           }
         });
 
         testProcess.on('error', () => {
-          reject(new Error('FIFO/Named Pipe tools not found. Please install coreutils.'));
+          reject(
+            new Error(
+              'FIFO/Named Pipe tools not found. Please install coreutils.'
+            )
+          );
         });
       });
     }
@@ -451,14 +523,21 @@ export class NamedPipeProtocol extends BaseProtocol {
   private buildNamedPipeCommand(options: NamedPipeConnectionOptions): string[] {
     const command = [];
     const isWindows = process.platform === 'win32';
-    const platform = options.platform === 'auto' ? (isWindows ? 'windows' : 'unix') : (options.platform || (isWindows ? 'windows' : 'unix'));
+    const platform =
+      options.platform === 'auto'
+        ? isWindows
+          ? 'windows'
+          : 'unix'
+        : options.platform || (isWindows ? 'windows' : 'unix');
 
     if (platform === 'windows') {
       // Windows Named Pipe operations via PowerShell
       command.push('powershell');
       command.push('-Command');
 
-      const pipePath = options.pipeName.startsWith('\\\\.\\pipe\\') ? options.pipeName : `\\\\.\\pipe\\${options.pipeName}`;
+      const pipePath = options.pipeName.startsWith('\\\\.\\pipe\\')
+        ? options.pipeName
+        : `\\\\.\\pipe\\${options.pipeName}`;
 
       if (options.operation === 'server' || options.operation === 'listen') {
         // Create and listen on named pipe
@@ -466,7 +545,12 @@ export class NamedPipeProtocol extends BaseProtocol {
           $pipe = New-Object System.IO.Pipes.NamedPipeServerStream('${options.pipeName.replace('\\\\.\\pipe\\', '')}`;
 
         if (options.pipeDirection) {
-          const direction = options.pipeDirection === 'duplex' ? 'InOut' : (options.pipeDirection === 'in' ? 'In' : 'Out');
+          const direction =
+            options.pipeDirection === 'duplex'
+              ? 'InOut'
+              : options.pipeDirection === 'in'
+                ? 'In'
+                : 'Out';
           pipeScript += `, [System.IO.Pipes.PipeDirection]::${direction}`;
         }
 
@@ -481,13 +565,21 @@ export class NamedPipeProtocol extends BaseProtocol {
         }
 
         command.push(pipeScript);
-      } else if (options.operation === 'client' || options.operation === 'connect') {
+      } else if (
+        options.operation === 'client' ||
+        options.operation === 'connect'
+      ) {
         // Connect to named pipe as client
         let pipeScript = `
           $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.', '${options.pipeName.replace('\\\\.\\pipe\\', '')}`;
 
         if (options.pipeDirection) {
-          const direction = options.pipeDirection === 'duplex' ? 'InOut' : (options.pipeDirection === 'in' ? 'In' : 'Out');
+          const direction =
+            options.pipeDirection === 'duplex'
+              ? 'InOut'
+              : options.pipeDirection === 'in'
+                ? 'In'
+                : 'Out';
           pipeScript += `, [System.IO.Pipes.PipeDirection]::${direction}`;
         }
 
@@ -536,7 +628,10 @@ export class NamedPipeProtocol extends BaseProtocol {
         }
 
         command.push(fifoScript);
-      } else if (options.operation === 'client' || options.operation === 'connect') {
+      } else if (
+        options.operation === 'client' ||
+        options.operation === 'connect'
+      ) {
         // Connect to FIFO
         command.push('sh');
         command.push('-c');
@@ -579,7 +674,9 @@ export class NamedPipeProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: NamedPipeConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: NamedPipeConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Named Pipe environment variables
@@ -664,7 +761,10 @@ export class NamedPipeProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Named Pipe process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Named Pipe process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

@@ -13,7 +13,7 @@ import {
   BackgroundJob,
   BackgroundJobOptions,
   BackgroundJobResult,
-  JobMetrics
+  JobMetrics,
 } from '../types/index.js';
 
 /**
@@ -22,7 +22,24 @@ import {
  */
 export class SessionManager extends EventEmitter {
   private sessions: Map<string, SessionState> = new Map();
-  private sessionsByType: Map<'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal', Set<string>> = new Map();
+  private sessionsByType: Map<
+    | 'local'
+    | 'ssh'
+    | 'azure'
+    | 'serial'
+    | 'kubernetes'
+    | 'docker'
+    | 'aws-ssm'
+    | 'wsl'
+    | 'sftp'
+    | 'rdp'
+    | 'winrm'
+    | 'vnc'
+    | 'ipc'
+    | 'ipmi'
+    | 'websocket-terminal',
+    Set<string>
+  > = new Map();
   private config: SessionManagerConfig;
   private logger: Logger;
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -64,11 +81,12 @@ export class SessionManager extends EventEmitter {
         recoveryDelay: config.recoveryOptions?.recoveryDelay ?? 5000,
         backoffMultiplier: config.recoveryOptions?.backoffMultiplier ?? 2.0,
         persistSessionData: config.recoveryOptions?.persistSessionData ?? true,
-        healthCheckInterval: config.recoveryOptions?.healthCheckInterval ?? 30 * 1000
+        healthCheckInterval:
+          config.recoveryOptions?.healthCheckInterval ?? 30 * 1000,
       },
       enableMetrics: config.enableMetrics ?? true,
       enableLogging: config.enableLogging ?? true,
-      heartbeatInterval: config.heartbeatInterval ?? 30 * 1000 // 30 seconds
+      heartbeatInterval: config.heartbeatInterval ?? 30 * 1000, // 30 seconds
     };
 
     this.logger = new Logger('SessionManager');
@@ -82,7 +100,7 @@ export class SessionManager extends EventEmitter {
       cleanupOperations: 0,
       jobsExecuted: 0,
       jobsSuccessful: 0,
-      jobsFailed: 0
+      jobsFailed: 0,
     };
 
     // Initialize session type tracking
@@ -114,9 +132,29 @@ export class SessionManager extends EventEmitter {
   /**
    * Register a new session
    */
-  async registerSession(sessionData: ConsoleSession, type: 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal' = 'local'): Promise<SessionState> {
+  async registerSession(
+    sessionData: ConsoleSession,
+    type:
+      | 'local'
+      | 'ssh'
+      | 'azure'
+      | 'serial'
+      | 'kubernetes'
+      | 'docker'
+      | 'aws-ssm'
+      | 'wsl'
+      | 'sftp'
+      | 'rdp'
+      | 'winrm'
+      | 'vnc'
+      | 'ipc'
+      | 'ipmi'
+      | 'websocket-terminal' = 'local'
+  ): Promise<SessionState> {
     if (this.sessions.size >= this.config.maxSessions) {
-      throw new Error(`Maximum session limit (${this.config.maxSessions}) reached`);
+      throw new Error(
+        `Maximum session limit (${this.config.maxSessions}) reached`
+      );
     }
 
     const sessionState: SessionState = {
@@ -127,19 +165,21 @@ export class SessionManager extends EventEmitter {
       lastActivity: new Date(),
       recoveryAttempts: 0,
       maxRecoveryAttempts: this.config.recoveryOptions.maxRecoveryAttempts,
-      persistentData: this.config.recoveryOptions.persistSessionData ? {
-        command: sessionData.command,
-        args: sessionData.args,
-        cwd: sessionData.cwd,
-        env: sessionData.env,
-        consoleType: sessionData.type,
-        streaming: sessionData.streaming
-      } : undefined,
+      persistentData: this.config.recoveryOptions.persistSessionData
+        ? {
+            command: sessionData.command,
+            args: sessionData.args,
+            cwd: sessionData.cwd,
+            env: sessionData.env,
+            consoleType: sessionData.type,
+            streaming: sessionData.streaming,
+          }
+        : undefined,
       pid: sessionData.pid,
       healthScore: 100,
       metadata: {
-        originalSession: sessionData
-      }
+        originalSession: sessionData,
+      },
     };
 
     this.sessions.set(sessionData.id, sessionState);
@@ -147,20 +187,30 @@ export class SessionManager extends EventEmitter {
     this.metrics.sessionsCreated++;
 
     if (this.config.enableLogging) {
-      this.logger.info(`Registered ${type} session ${sessionData.id}: ${sessionData.command}`);
+      this.logger.info(
+        `Registered ${type} session ${sessionData.id}: ${sessionData.command}`
+      );
     }
 
-    this.emit('sessionRegistered', { sessionId: sessionData.id, type, sessionState });
-    
+    this.emit('sessionRegistered', {
+      sessionId: sessionData.id,
+      type,
+      sessionState,
+    });
+
     await this.persistSessions();
-    
+
     return sessionState;
   }
 
   /**
    * Update session status
    */
-  async updateSessionStatus(sessionId: string, status: SessionState['status'], metadata?: Record<string, any>): Promise<void> {
+  async updateSessionStatus(
+    sessionId: string,
+    status: SessionState['status'],
+    metadata?: Record<string, any>
+  ): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -188,14 +238,16 @@ export class SessionManager extends EventEmitter {
     }
 
     if (this.config.enableLogging && oldStatus !== status) {
-      this.logger.info(`Session ${sessionId} status changed: ${oldStatus} -> ${status}`);
+      this.logger.info(
+        `Session ${sessionId} status changed: ${oldStatus} -> ${status}`
+      );
     }
 
-    this.emit('sessionStatusChanged', { 
-      sessionId, 
-      oldStatus, 
-      newStatus: status, 
-      sessionState: session 
+    this.emit('sessionStatusChanged', {
+      sessionId,
+      oldStatus,
+      newStatus: status,
+      sessionState: session,
     });
 
     // Handle session recovery if needed
@@ -209,7 +261,10 @@ export class SessionManager extends EventEmitter {
   /**
    * Update session activity timestamp
    */
-  updateSessionActivity(sessionId: string, metadata?: Record<string, any>): void {
+  updateSessionActivity(
+    sessionId: string,
+    metadata?: Record<string, any>
+  ): void {
     const session = this.sessions.get(sessionId);
     if (!session) {
       return;
@@ -222,7 +277,11 @@ export class SessionManager extends EventEmitter {
       session.metadata = { ...session.metadata, ...metadata };
     }
 
-    this.emit('sessionActivity', { sessionId, timestamp: session.lastActivity, metadata });
+    this.emit('sessionActivity', {
+      sessionId,
+      timestamp: session.lastActivity,
+      metadata,
+    });
   }
 
   /**
@@ -230,7 +289,7 @@ export class SessionManager extends EventEmitter {
    */
   async pauseSession(sessionId: string): Promise<void> {
     await this.updateSessionStatus(sessionId, 'paused');
-    
+
     if (this.config.enableLogging) {
       this.logger.info(`Paused session ${sessionId}`);
     }
@@ -246,11 +305,13 @@ export class SessionManager extends EventEmitter {
     }
 
     if (session.status !== 'paused') {
-      throw new Error(`Session ${sessionId} is not paused (current status: ${session.status})`);
+      throw new Error(
+        `Session ${sessionId} is not paused (current status: ${session.status})`
+      );
     }
 
     await this.updateSessionStatus(sessionId, 'running');
-    
+
     if (this.config.enableLogging) {
       this.logger.info(`Resumed session ${sessionId}`);
     }
@@ -276,14 +337,16 @@ export class SessionManager extends EventEmitter {
     this.metrics.sessionsDestroyed++;
 
     if (this.config.enableLogging) {
-      this.logger.info(`Unregistered session ${sessionId}${reason ? `: ${reason}` : ''}`);
+      this.logger.info(
+        `Unregistered session ${sessionId}${reason ? `: ${reason}` : ''}`
+      );
     }
 
-    this.emit('sessionUnregistered', { 
-      sessionId, 
-      type: session.type, 
-      reason, 
-      finalStatus: session.status 
+    this.emit('sessionUnregistered', {
+      sessionId,
+      type: session.type,
+      reason,
+      finalStatus: session.status,
     });
 
     await this.persistSessions();
@@ -307,16 +370,35 @@ export class SessionManager extends EventEmitter {
    * Get sessions by status
    */
   getSessionsByStatus(status: SessionState['status']): SessionState[] {
-    return Array.from(this.sessions.values()).filter(s => s.status === status);
+    return Array.from(this.sessions.values()).filter(
+      (s) => s.status === status
+    );
   }
 
   /**
    * Get sessions by type
    */
-  getSessionsByType(type: 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal'): SessionState[] {
+  getSessionsByType(
+    type:
+      | 'local'
+      | 'ssh'
+      | 'azure'
+      | 'serial'
+      | 'kubernetes'
+      | 'docker'
+      | 'aws-ssm'
+      | 'wsl'
+      | 'sftp'
+      | 'rdp'
+      | 'winrm'
+      | 'vnc'
+      | 'ipc'
+      | 'ipmi'
+      | 'websocket-terminal'
+  ): SessionState[] {
     const sessionIds = this.sessionsByType.get(type) || new Set();
     return Array.from(sessionIds)
-      .map(id => this.sessions.get(id)!)
+      .map((id) => this.sessions.get(id)!)
       .filter(Boolean);
   }
 
@@ -336,25 +418,30 @@ export class SessionManager extends EventEmitter {
 
     const sessionsByType: Record<string, number> = {
       local: this.sessionsByType.get('local')!.size,
-      ssh: this.sessionsByType.get('ssh')!.size
+      ssh: this.sessionsByType.get('ssh')!.size,
     };
 
-    const averageSessionAge = sessions.length > 0
-      ? sessions.reduce((sum, session) => sum + (now - session.createdAt.getTime()), 0) / sessions.length
-      : 0;
+    const averageSessionAge =
+      sessions.length > 0
+        ? sessions.reduce(
+            (sum, session) => sum + (now - session.createdAt.getTime()),
+            0
+          ) / sessions.length
+        : 0;
 
     return {
       totalSessions: sessions.length,
-      activeSessions: sessions.filter(s => s.status === 'running').length,
-      pausedSessions: sessions.filter(s => s.status === 'paused').length,
-      failedSessions: sessions.filter(s => s.status === 'failed').length,
-      recoveringSessions: sessions.filter(s => s.status === 'recovering').length,
+      activeSessions: sessions.filter((s) => s.status === 'running').length,
+      pausedSessions: sessions.filter((s) => s.status === 'paused').length,
+      failedSessions: sessions.filter((s) => s.status === 'failed').length,
+      recoveringSessions: sessions.filter((s) => s.status === 'recovering')
+        .length,
       sessionsByType,
       averageSessionAge,
       totalRecoveryAttempts: this.metrics.recoveryAttempts,
       successfulRecoveries: this.metrics.successfulRecoveries,
       failedRecoveries: this.metrics.failedRecoveries,
-      lastCleanupAt: new Date()
+      lastCleanupAt: new Date(),
     };
   }
 
@@ -365,7 +452,7 @@ export class SessionManager extends EventEmitter {
     return {
       ...this.metrics,
       stats: this.getStats(),
-      config: this.config
+      config: this.config,
     };
   }
 
@@ -375,16 +462,20 @@ export class SessionManager extends EventEmitter {
   async performHealthCheck(): Promise<void> {
     const sessions = Array.from(this.sessions.values());
     const now = Date.now();
-    
+
     if (this.config.enableLogging && sessions.length > 0) {
-      this.logger.debug(`Performing health check on ${sessions.length} sessions`);
+      this.logger.debug(
+        `Performing health check on ${sessions.length} sessions`
+      );
     }
 
     for (const session of sessions) {
       const timeSinceLastActivity = now - session.lastActivity.getTime();
-      
+
       // Decrease health score for inactive sessions
-      if (timeSinceLastActivity > this.config.recoveryOptions.healthCheckInterval) {
+      if (
+        timeSinceLastActivity > this.config.recoveryOptions.healthCheckInterval
+      ) {
         session.healthScore = Math.max(0, session.healthScore - 5);
       }
 
@@ -392,16 +483,19 @@ export class SessionManager extends EventEmitter {
       if (session.healthScore <= 10 && session.status === 'running') {
         await this.updateSessionStatus(session.id, 'failed', {
           failureReason: 'Low health score',
-          lastHealthScore: session.healthScore
+          lastHealthScore: session.healthScore,
         });
       }
 
       // Check for session timeout
       const sessionAge = now - session.createdAt.getTime();
-      if (sessionAge > this.config.sessionTimeout && session.status === 'running') {
+      if (
+        sessionAge > this.config.sessionTimeout &&
+        session.status === 'running'
+      ) {
         await this.updateSessionStatus(session.id, 'stopped', {
           reason: 'Session timeout',
-          sessionAge
+          sessionAge,
         });
       }
     }
@@ -422,11 +516,17 @@ export class SessionManager extends EventEmitter {
     session.status = 'recovering';
     this.metrics.recoveryAttempts++;
 
-    const delay = this.config.recoveryOptions.recoveryDelay * 
-      Math.pow(this.config.recoveryOptions.backoffMultiplier, session.recoveryAttempts - 1);
+    const delay =
+      this.config.recoveryOptions.recoveryDelay *
+      Math.pow(
+        this.config.recoveryOptions.backoffMultiplier,
+        session.recoveryAttempts - 1
+      );
 
     if (this.config.enableLogging) {
-      this.logger.info(`Attempting recovery ${session.recoveryAttempts}/${session.maxRecoveryAttempts} for session ${sessionId} in ${delay}ms`);
+      this.logger.info(
+        `Attempting recovery ${session.recoveryAttempts}/${session.maxRecoveryAttempts} for session ${sessionId} in ${delay}ms`
+      );
     }
 
     setTimeout(async () => {
@@ -437,54 +537,67 @@ export class SessionManager extends EventEmitter {
           attempt: session.recoveryAttempts,
           maxAttempts: session.maxRecoveryAttempts,
           sessionState: session,
-          persistentData: session.persistentData
+          persistentData: session.persistentData,
         });
 
         // Recovery success is determined by external handlers updating the session status
         // For now, we'll wait and check if the session was recovered
-        setTimeout(async () => {
-          const currentSession = this.sessions.get(sessionId);
-          if (currentSession && currentSession.status === 'recovering') {
-            // Recovery failed - session status wasn't updated by external handler
-            this.metrics.failedRecoveries++;
-            
-            if (currentSession.recoveryAttempts >= currentSession.maxRecoveryAttempts) {
-              await this.updateSessionStatus(sessionId, 'failed', {
-                reason: 'Max recovery attempts exceeded',
-                recoveryAttempts: currentSession.recoveryAttempts
-              });
-              
-              if (this.config.enableLogging) {
-                this.logger.warn(`Session ${sessionId} recovery failed after ${currentSession.recoveryAttempts} attempts`);
-              }
-            } else {
-              // Try again
-              await this.attemptSessionRecovery(sessionId);
-            }
-          } else if (currentSession && currentSession.status === 'running') {
-            // Recovery succeeded
-            this.metrics.successfulRecoveries++;
-            currentSession.recoveryAttempts = 0; // Reset on success
-            currentSession.healthScore = Math.min(100, currentSession.healthScore + 20);
-            
-            if (this.config.enableLogging) {
-              this.logger.info(`Session ${sessionId} recovered successfully`);
-            }
-            
-            this.emit('sessionRecovered', { sessionId, sessionState: currentSession });
-          }
-        }, Math.min(delay, 5000)); // Check recovery status after delay or 5s, whichever is shorter
+        setTimeout(
+          async () => {
+            const currentSession = this.sessions.get(sessionId);
+            if (currentSession && currentSession.status === 'recovering') {
+              // Recovery failed - session status wasn't updated by external handler
+              this.metrics.failedRecoveries++;
 
+              if (
+                currentSession.recoveryAttempts >=
+                currentSession.maxRecoveryAttempts
+              ) {
+                await this.updateSessionStatus(sessionId, 'failed', {
+                  reason: 'Max recovery attempts exceeded',
+                  recoveryAttempts: currentSession.recoveryAttempts,
+                });
+
+                if (this.config.enableLogging) {
+                  this.logger.warn(
+                    `Session ${sessionId} recovery failed after ${currentSession.recoveryAttempts} attempts`
+                  );
+                }
+              } else {
+                // Try again
+                await this.attemptSessionRecovery(sessionId);
+              }
+            } else if (currentSession && currentSession.status === 'running') {
+              // Recovery succeeded
+              this.metrics.successfulRecoveries++;
+              currentSession.recoveryAttempts = 0; // Reset on success
+              currentSession.healthScore = Math.min(
+                100,
+                currentSession.healthScore + 20
+              );
+
+              if (this.config.enableLogging) {
+                this.logger.info(`Session ${sessionId} recovered successfully`);
+              }
+
+              this.emit('sessionRecovered', {
+                sessionId,
+                sessionState: currentSession,
+              });
+            }
+          },
+          Math.min(delay, 5000)
+        ); // Check recovery status after delay or 5s, whichever is shorter
       } catch (error) {
         this.metrics.failedRecoveries++;
-        
+
         if (this.config.enableLogging) {
           this.logger.error(`Session recovery error for ${sessionId}:`, error);
         }
-        
+
         await this.updateSessionStatus(sessionId, 'failed', {
           reason: 'Recovery error',
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }, delay);
@@ -512,7 +625,6 @@ export class SessionManager extends EventEmitter {
       this.persistenceTimer = setInterval(async () => {
         await this.persistSessions();
       }, 60000); // Persist every minute
-
     } catch (error) {
       if (this.config.enableLogging) {
         this.logger.error('Failed to initialize persistence:', error);
@@ -524,7 +636,10 @@ export class SessionManager extends EventEmitter {
    * Load sessions from persistence
    */
   private loadSessions(): void {
-    if (!this.config.persistencePath || !existsSync(this.config.persistencePath)) {
+    if (
+      !this.config.persistencePath ||
+      !existsSync(this.config.persistencePath)
+    ) {
       return;
     }
 
@@ -556,7 +671,6 @@ export class SessionManager extends EventEmitter {
       if (this.config.enableLogging && loadedCount > 0) {
         this.logger.info(`Loaded ${loadedCount} sessions from persistence`);
       }
-
     } catch (error) {
       if (this.config.enableLogging) {
         this.logger.error('Failed to load sessions from persistence:', error);
@@ -576,7 +690,6 @@ export class SessionManager extends EventEmitter {
       const sessions = Array.from(this.sessions.values());
       const data = JSON.stringify(sessions, null, 2);
       writeFileSync(this.config.persistencePath, data, 'utf8');
-
     } catch (error) {
       if (this.config.enableLogging) {
         this.logger.error('Failed to persist sessions:', error);
@@ -626,10 +739,12 @@ export class SessionManager extends EventEmitter {
       // 1. Stopped/failed and older than 1 hour
       // 2. Any session older than session timeout
       // 3. Sessions inactive for more than half the session timeout
-      const shouldCleanup = 
-        (['stopped', 'failed'].includes(session.status) && sessionAge > 60 * 60 * 1000) ||
-        (sessionAge > this.config.sessionTimeout) ||
-        (inactiveTime > this.config.sessionTimeout / 2 && session.status !== 'running');
+      const shouldCleanup =
+        (['stopped', 'failed'].includes(session.status) &&
+          sessionAge > 60 * 60 * 1000) ||
+        sessionAge > this.config.sessionTimeout ||
+        (inactiveTime > this.config.sessionTimeout / 2 &&
+          session.status !== 'running');
 
       if (shouldCleanup) {
         sessionsToCleanup.push(session.id);
@@ -638,11 +753,16 @@ export class SessionManager extends EventEmitter {
 
     if (sessionsToCleanup.length > 0) {
       if (this.config.enableLogging) {
-        this.logger.info(`Cleaning up ${sessionsToCleanup.length} old/inactive sessions`);
+        this.logger.info(
+          `Cleaning up ${sessionsToCleanup.length} old/inactive sessions`
+        );
       }
 
       for (const sessionId of sessionsToCleanup) {
-        await this.unregisterSession(sessionId, 'Cleanup - session expired or inactive');
+        await this.unregisterSession(
+          sessionId,
+          'Cleanup - session expired or inactive'
+        );
       }
 
       this.metrics.cleanupOperations++;
@@ -695,7 +815,7 @@ export class SessionManager extends EventEmitter {
       status: 'pending',
       createdAt: new Date(),
       output: [],
-      progress: { current: 0, total: 100, message: 'Initializing...' }
+      progress: { current: 0, total: 100, message: 'Initializing...' },
     };
 
     this.backgroundJobs.set(jobId, job);
@@ -770,7 +890,7 @@ export class SessionManager extends EventEmitter {
       const childProcess = spawn(job.command, job.args || [], {
         cwd: job.cwd,
         env: { ...process.env, ...job.env },
-        shell: true
+        shell: true,
       });
 
       job.process = childProcess;
@@ -784,7 +904,7 @@ export class SessionManager extends EventEmitter {
           type: 'stdout',
           data: text,
           timestamp: new Date(),
-          sequence: ++this.outputSequenceCounter
+          sequence: ++this.outputSequenceCounter,
         });
         this.emit('jobOutput', { jobId: job.id, output: text, type: 'stdout' });
       });
@@ -796,7 +916,7 @@ export class SessionManager extends EventEmitter {
           type: 'stderr',
           data: text,
           timestamp: new Date(),
-          sequence: ++this.outputSequenceCounter
+          sequence: ++this.outputSequenceCounter,
         });
         this.emit('jobOutput', { jobId: job.id, output: text, type: 'stderr' });
       });
@@ -808,7 +928,7 @@ export class SessionManager extends EventEmitter {
           jobId: job.id,
           status: job.status,
           output,
-          exitCode: code
+          exitCode: code,
         };
 
         this.emit('jobCompleted', job);
@@ -842,7 +962,7 @@ export class SessionManager extends EventEmitter {
 
   getJobMetrics(): JobMetrics {
     const jobs = Array.from(this.backgroundJobs.values());
-    const completedJobs = jobs.filter(j => j.status === 'completed');
+    const completedJobs = jobs.filter((j) => j.status === 'completed');
     const totalExecutionTime = completedJobs.reduce((sum, job) => {
       if (job.startedAt && job.finishedAt) {
         return sum + (job.finishedAt.getTime() - job.startedAt.getTime());
@@ -853,7 +973,7 @@ export class SessionManager extends EventEmitter {
     const jobsByStatus: Record<string, number> = {};
     const jobsBySession: Record<string, number> = {};
 
-    jobs.forEach(job => {
+    jobs.forEach((job) => {
       jobsByStatus[job.status] = (jobsByStatus[job.status] || 0) + 1;
       if (job.sessionId) {
         jobsBySession[job.sessionId] = (jobsBySession[job.sessionId] || 0) + 1;
@@ -864,11 +984,14 @@ export class SessionManager extends EventEmitter {
       totalJobs: this.backgroundJobs.size,
       runningJobs: this.activeJobs.size,
       completedJobs: completedJobs.length,
-      failedJobs: jobs.filter(j => j.status === 'failed').length,
-      averageExecutionTime: completedJobs.length > 0 ? totalExecutionTime / completedJobs.length : 0,
+      failedJobs: jobs.filter((j) => j.status === 'failed').length,
+      averageExecutionTime:
+        completedJobs.length > 0
+          ? totalExecutionTime / completedJobs.length
+          : 0,
       queueSize: this.jobQueue.length,
       jobsByStatus,
-      jobsBySession
+      jobsBySession,
     };
   }
 
@@ -895,7 +1018,7 @@ export class SessionManager extends EventEmitter {
   listJobs(sessionId?: string): BackgroundJob[] {
     const jobs = Array.from(this.backgroundJobs.values());
     if (sessionId) {
-      return jobs.filter(job => job.sessionId === sessionId);
+      return jobs.filter((job) => job.sessionId === sessionId);
     }
     return jobs;
   }
@@ -906,8 +1029,13 @@ export class SessionManager extends EventEmitter {
 
     const entries = Array.from(this.backgroundJobs.entries());
     for (const [jobId, job] of entries) {
-      if ((job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') &&
-          job.finishedAt && job.finishedAt < cutoff) {
+      if (
+        (job.status === 'completed' ||
+          job.status === 'failed' ||
+          job.status === 'cancelled') &&
+        job.finishedAt &&
+        job.finishedAt < cutoff
+      ) {
         this.backgroundJobs.delete(jobId);
         cleanedCount++;
       }
@@ -919,7 +1047,7 @@ export class SessionManager extends EventEmitter {
   getMetrics(): any {
     return {
       ...this.metrics,
-      jobs: this.getJobMetrics()
+      jobs: this.getJobMetrics(),
     };
   }
 

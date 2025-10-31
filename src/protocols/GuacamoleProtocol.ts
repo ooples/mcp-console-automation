@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Guacamole Protocol connection options
@@ -99,9 +99,9 @@ export class GuacamoleProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -133,8 +133,8 @@ export class GuacamoleProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -145,7 +145,9 @@ export class GuacamoleProtocol extends BaseProtocol {
       // Check if Guacamole tools are available
       await this.checkGuacamoleAvailability();
       this.isInitialized = true;
-      this.logger.info('Guacamole protocol initialized with production features');
+      this.logger.info(
+        'Guacamole protocol initialized with production features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize Guacamole protocol', error);
       throw error;
@@ -161,8 +163,13 @@ export class GuacamoleProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -183,7 +190,9 @@ export class GuacamoleProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Guacamole session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Guacamole session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -214,7 +223,11 @@ export class GuacamoleProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -230,11 +243,19 @@ export class GuacamoleProtocol extends BaseProtocol {
     const guacamoleCommand = this.buildGuacamoleCommand(guacamoleOptions);
 
     // Spawn Guacamole process
-    const guacamoleProcess = spawn(guacamoleCommand[0], guacamoleCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(guacamoleOptions), ...options.env }
-    });
+    const guacamoleProcess = spawn(
+      guacamoleCommand[0],
+      guacamoleCommand.slice(1),
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: options.cwd || process.cwd(),
+        env: {
+          ...process.env,
+          ...this.buildEnvironment(guacamoleOptions),
+          ...options.env,
+        },
+      }
+    );
 
     // Set up output handling
     guacamoleProcess.stdout?.on('data', (data) => {
@@ -242,7 +263,7 @@ export class GuacamoleProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -252,18 +273,23 @@ export class GuacamoleProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     guacamoleProcess.on('error', (error) => {
-      this.logger.error(`Guacamole process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Guacamole process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     guacamoleProcess.on('close', (code) => {
-      this.logger.info(`Guacamole process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Guacamole process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -276,7 +302,11 @@ export class GuacamoleProtocol extends BaseProtocol {
       command: guacamoleCommand[0],
       args: guacamoleCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(guacamoleOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(guacamoleOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -284,12 +314,14 @@ export class GuacamoleProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: guacamoleProcess.pid
+      pid: guacamoleProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Guacamole session ${sessionId} created for ${guacamoleOptions.protocol}://${guacamoleOptions.hostname}:${guacamoleOptions.port || 'default'}`);
+    this.logger.info(
+      `Guacamole session ${sessionId} created for ${guacamoleOptions.protocol}://${guacamoleOptions.hostname}:${guacamoleOptions.port || 'default'}`
+    );
     this.emit('session-created', { sessionId, type: 'guacamole', session });
 
     return session;
@@ -298,7 +330,7 @@ export class GuacamoleProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -307,8 +339,8 @@ export class GuacamoleProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -330,25 +362,30 @@ export class GuacamoleProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Guacamole session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Guacamole session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const guacamoleProcess = this.guacamoleProcesses.get(sessionId);
-    return guacamoleProcess && !guacamoleProcess.killed || false;
+    return (guacamoleProcess && !guacamoleProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -359,26 +396,26 @@ export class GuacamoleProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.guacamoleProcesses.size
+        connectionsActive: this.guacamoleProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -390,8 +427,8 @@ export class GuacamoleProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          guacamole: { available: true }
-        }
+          guacamole: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -399,8 +436,8 @@ export class GuacamoleProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Guacamole not available: ${error}`],
         dependencies: {
-          guacamole: { available: false }
-        }
+          guacamole: { available: false },
+        },
       };
     }
   }
@@ -413,12 +450,20 @@ export class GuacamoleProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Guacamole daemon not found. Please install guacamole-server.'));
+          reject(
+            new Error(
+              'Guacamole daemon not found. Please install guacamole-server.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('Guacamole daemon not found. Please install guacamole-server.'));
+        reject(
+          new Error(
+            'Guacamole daemon not found. Please install guacamole-server.'
+          )
+        );
       });
     });
   }
@@ -568,7 +613,9 @@ export class GuacamoleProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: GuacamoleConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: GuacamoleConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Guacamole environment variables
@@ -628,7 +675,10 @@ export class GuacamoleProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Guacamole process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Guacamole process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

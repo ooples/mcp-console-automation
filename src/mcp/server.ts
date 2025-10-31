@@ -7,11 +7,15 @@ import {
   Tool,
   TextContent,
   ErrorCode,
-  McpError
+  McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { ConsoleManager } from '../core/ConsoleManager.js';
 import { SessionManager } from '../core/SessionManager.js';
-import { SessionOptions, ConsoleSession, BackgroundJobOptions } from '../types/index.js';
+import {
+  SessionOptions,
+  ConsoleSession,
+  BackgroundJobOptions,
+} from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 import { SSHBridge } from './SSHBridge.js';
 import { fileURLToPath } from 'url';
@@ -25,10 +29,10 @@ import { SnapshotDiffer } from '../testing/SnapshotDiffer.js';
 import { Assertion, SessionSnapshot } from '../types/test-framework.js';
 
 // Debug logging to file
-const DEBUG_LOG_FILE = 'C:\\Users\\yolan\\source\\repos\\mcp-console-automation\\mcp-debug.log';
+const DEBUG_LOG_FILE = path.join(process.cwd(), 'mcp-debug.log');
 function debugLog(...args: any[]) {
   const timestamp = new Date().toISOString();
-  const message = `[${timestamp}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')}\n`;
+  const message = `[${timestamp}] ${args.map((a) => (typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a))).join(' ')}\n`;
   fs.appendFileSync(DEBUG_LOG_FILE, message, 'utf8');
 }
 
@@ -49,7 +53,8 @@ export class ConsoleAutomationServer {
   private sessionRecoveryMap: Map<string, any> = new Map();
   private keepAliveInterval?: NodeJS.Timeout;
   private healthCheckInterval?: NodeJS.Timeout;
-  private connectionState: 'connected' | 'disconnected' | 'reconnecting' = 'disconnected';
+  private connectionState: 'connected' | 'disconnected' | 'reconnecting' =
+    'disconnected';
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 100;
   private reconnectDelay = 1000;
@@ -123,25 +128,25 @@ export class ConsoleAutomationServer {
         switch (name) {
           case 'console_create_session':
             return await this.handleCreateSession(args as any);
-          
+
           case 'console_send_input':
             return await this.handleSendInput(args as any);
-          
+
           case 'console_send_key':
             return await this.handleSendKey(args as any);
-          
+
           case 'console_get_output':
             return await this.handleGetOutput(args as any);
-          
+
           case 'console_get_stream':
             return await this.handleGetStream(args as any);
-          
+
           case 'console_wait_for_output':
             return await this.handleWaitForOutput(args as any);
-          
+
           case 'console_stop_session':
             return await this.handleStopSession(args as any);
-          
+
           case 'console_list_sessions':
             return await this.handleListSessions();
 
@@ -150,51 +155,51 @@ export class ConsoleAutomationServer {
 
           case 'console_execute_command':
             return await this.handleExecuteCommand(args as any);
-          
+
           case 'console_detect_errors':
             return await this.handleDetectErrors(args as any);
-          
+
           case 'console_get_resource_usage':
             return await this.handleGetResourceUsage();
-          
+
           case 'console_clear_output':
             return await this.handleClearOutput(args as any);
-          
+
           case 'console_get_session_state':
             return await this.handleGetSessionState(args as any);
-          
+
           case 'console_get_command_history':
             return await this.handleGetCommandHistory(args as any);
-          
+
           // Monitoring tools
           case 'console_get_system_metrics':
             return await this.handleGetSystemMetrics();
-          
+
           case 'console_get_session_metrics':
             return await this.handleGetSessionMetrics(args as any);
-          
+
           case 'console_get_alerts':
             return await this.handleGetAlerts();
-          
+
           case 'console_get_monitoring_dashboard':
             return await this.handleGetMonitoringDashboard();
-          
+
           case 'console_start_monitoring':
             return await this.handleStartMonitoring(args as any);
-          
+
           case 'console_stop_monitoring':
             return await this.handleStopMonitoring(args as any);
-          
+
           // Profile management tools
           case 'console_save_profile':
             return await this.handleSaveProfile(args as any);
-          
+
           case 'console_list_profiles':
             return await this.handleListProfiles();
-          
+
           case 'console_remove_profile':
             return await this.handleRemoveProfile(args as any);
-          
+
           case 'console_use_profile':
             return await this.handleUseProfile(args as any);
 
@@ -246,7 +251,10 @@ export class ConsoleAutomationServer {
             return await this.handleAssertState(args as any);
 
           default:
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+            throw new McpError(
+              ErrorCode.MethodNotFound,
+              `Unknown tool: ${name}`
+            );
         }
       } catch (error: any) {
         // CRITICAL: Never log errors in MCP mode - only return properly formatted MCP errors
@@ -259,15 +267,24 @@ export class ConsoleAutomationServer {
         }
 
         if (error.code === 'ENOENT' || error.code === 'EACCES') {
-          throw new McpError(ErrorCode.InvalidParams, `File system error: ${error.message}`);
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `File system error: ${error.message}`
+          );
         }
 
         if (error.name === 'ValidationError' || error.name === 'TypeError') {
-          throw new McpError(ErrorCode.InvalidParams, `Validation error: ${error.message}`);
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `Validation error: ${error.message}`
+          );
         }
 
         if (error.code === 'TIMEOUT' || error.message.includes('timeout')) {
-          throw new McpError(ErrorCode.InternalError, `Operation timeout: ${error.message}`);
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Operation timeout: ${error.message}`
+          );
         }
 
         // Default to internal error for unclassified errors
@@ -290,15 +307,34 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             command: { type: 'string', description: 'The command to execute' },
-            args: { type: 'array', items: { type: 'string' }, description: 'Command arguments' },
+            args: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Command arguments',
+            },
             cwd: { type: 'string', description: 'Working directory' },
             env: { type: 'object', description: 'Environment variables' },
-            detectErrors: { type: 'boolean', description: 'Enable automatic error detection' },
-            timeout: { type: 'number', description: 'Session timeout in milliseconds' },
-            consoleType: { 
-              type: 'string', 
-              enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'ssh', 'auto'],
-              description: 'Type of console to use' 
+            detectErrors: {
+              type: 'boolean',
+              description: 'Enable automatic error detection',
+            },
+            timeout: {
+              type: 'number',
+              description: 'Session timeout in milliseconds',
+            },
+            consoleType: {
+              type: 'string',
+              enum: [
+                'cmd',
+                'powershell',
+                'pwsh',
+                'bash',
+                'zsh',
+                'sh',
+                'ssh',
+                'auto',
+              ],
+              description: 'Type of console to use',
             },
             sshOptions: {
               type: 'object',
@@ -308,36 +344,75 @@ export class ConsoleAutomationServer {
                 port: { type: 'number', description: 'SSH port (default: 22)' },
                 username: { type: 'string', description: 'SSH username' },
                 password: { type: 'string', description: 'SSH password' },
-                privateKey: { type: 'string', description: 'Private key content' },
-                privateKeyPath: { type: 'string', description: 'Path to private key file' },
-                passphrase: { type: 'string', description: 'Private key passphrase' }
-              }
+                privateKey: {
+                  type: 'string',
+                  description: 'Private key content',
+                },
+                privateKeyPath: {
+                  type: 'string',
+                  description: 'Path to private key file',
+                },
+                passphrase: {
+                  type: 'string',
+                  description: 'Private key passphrase',
+                },
+              },
             },
-            streaming: { type: 'boolean', description: 'Enable streaming for long-running processes' },
+            streaming: {
+              type: 'boolean',
+              description: 'Enable streaming for long-running processes',
+            },
             monitoring: {
               type: 'object',
               description: 'Monitoring options for the session',
               properties: {
-                enableMetrics: { type: 'boolean', description: 'Enable metrics collection' },
-                enableTracing: { type: 'boolean', description: 'Enable distributed tracing' },
-                enableProfiling: { type: 'boolean', description: 'Enable performance profiling' },
-                enableAuditing: { type: 'boolean', description: 'Enable audit logging' },
-                enableAnomalyDetection: { type: 'boolean', description: 'Enable anomaly detection' },
-                customTags: { type: 'object', description: 'Custom tags for monitoring' },
+                enableMetrics: {
+                  type: 'boolean',
+                  description: 'Enable metrics collection',
+                },
+                enableTracing: {
+                  type: 'boolean',
+                  description: 'Enable distributed tracing',
+                },
+                enableProfiling: {
+                  type: 'boolean',
+                  description: 'Enable performance profiling',
+                },
+                enableAuditing: {
+                  type: 'boolean',
+                  description: 'Enable audit logging',
+                },
+                enableAnomalyDetection: {
+                  type: 'boolean',
+                  description: 'Enable anomaly detection',
+                },
+                customTags: {
+                  type: 'object',
+                  description: 'Custom tags for monitoring',
+                },
                 slaConfig: {
                   type: 'object',
                   description: 'SLA configuration',
                   properties: {
-                    responseTime: { type: 'number', description: 'Response time threshold in ms' },
-                    availabilityThreshold: { type: 'number', description: 'Availability threshold percentage' },
-                    errorRateThreshold: { type: 'number', description: 'Error rate threshold percentage' }
-                  }
-                }
-              }
-            }
+                    responseTime: {
+                      type: 'number',
+                      description: 'Response time threshold in ms',
+                    },
+                    availabilityThreshold: {
+                      type: 'number',
+                      description: 'Availability threshold percentage',
+                    },
+                    errorRateThreshold: {
+                      type: 'number',
+                      description: 'Error rate threshold percentage',
+                    },
+                  },
+                },
+              },
+            },
           },
-          required: ['command']
-        }
+          required: ['command'],
+        },
       },
       {
         name: 'console_send_input',
@@ -346,10 +421,13 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
-            input: { type: 'string', description: 'Text to send to the console' }
+            input: {
+              type: 'string',
+              description: 'Text to send to the console',
+            },
           },
-          required: ['sessionId', 'input']
-        }
+          required: ['sessionId', 'input'],
+        },
       },
       {
         name: 'console_send_key',
@@ -358,26 +436,55 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
-            key: { 
-              type: 'string', 
-              description: 'Key to send (e.g., enter, tab, up, down, ctrl+c, escape)',
-              enum: ['enter', 'tab', 'up', 'down', 'left', 'right', 'escape', 'backspace', 'delete', 'ctrl+c', 'ctrl+d', 'ctrl+z', 'ctrl+l', 'ctrl+break']
-            }
+            key: {
+              type: 'string',
+              description:
+                'Key to send (e.g., enter, tab, up, down, ctrl+c, escape)',
+              enum: [
+                'enter',
+                'tab',
+                'up',
+                'down',
+                'left',
+                'right',
+                'escape',
+                'backspace',
+                'delete',
+                'ctrl+c',
+                'ctrl+d',
+                'ctrl+z',
+                'ctrl+l',
+                'ctrl+break',
+              ],
+            },
           },
-          required: ['sessionId', 'key']
-        }
+          required: ['sessionId', 'key'],
+        },
       },
       {
         name: 'console_get_output',
-        description: 'Get output from a console session with server-side filtering, pagination, and search capabilities',
+        description:
+          'Get output from a console session with server-side filtering, pagination, and search capabilities',
         inputSchema: {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
-            limit: { type: 'number', description: 'Maximum number of output lines to return' },
-            grep: { type: 'string', description: 'Regex pattern for server-side filtering' },
-            grepIgnoreCase: { type: 'boolean', description: 'Case-insensitive grep matching' },
-            grepInvert: { type: 'boolean', description: 'Invert grep matching (exclude matches)' },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of output lines to return',
+            },
+            grep: {
+              type: 'string',
+              description: 'Regex pattern for server-side filtering',
+            },
+            grepIgnoreCase: {
+              type: 'boolean',
+              description: 'Case-insensitive grep matching',
+            },
+            grepInvert: {
+              type: 'boolean',
+              description: 'Invert grep matching (exclude matches)',
+            },
             tail: { type: 'number', description: 'Return last N lines' },
             head: { type: 'number', description: 'Return first N lines' },
             lineRange: {
@@ -385,10 +492,17 @@ export class ConsoleAutomationServer {
               items: { type: 'number' },
               minItems: 2,
               maxItems: 2,
-              description: '[start, end] line numbers (1-indexed)'
+              description: '[start, end] line numbers (1-indexed)',
             },
-            since: { type: 'string', description: 'Filter by timestamp - ISO string or relative (5m, 1h, 2d)' },
-            until: { type: 'string', description: 'Filter until timestamp - ISO string or relative' },
+            since: {
+              type: 'string',
+              description:
+                'Filter by timestamp - ISO string or relative (5m, 1h, 2d)',
+            },
+            until: {
+              type: 'string',
+              description: 'Filter until timestamp - ISO string or relative',
+            },
             multiPattern: {
               type: 'object',
               description: 'Multi-pattern search with complex logic',
@@ -396,24 +510,39 @@ export class ConsoleAutomationServer {
                 patterns: {
                   type: 'array',
                   items: { type: 'string' },
-                  description: 'Array of regex patterns'
+                  description: 'Array of regex patterns',
                 },
                 logic: {
                   type: 'string',
                   enum: ['AND', 'OR'],
-                  description: 'Logic for combining patterns'
+                  description: 'Logic for combining patterns',
                 },
-                ignoreCase: { type: 'boolean', description: 'Case-insensitive matching' }
+                ignoreCase: {
+                  type: 'boolean',
+                  description: 'Case-insensitive matching',
+                },
               },
-              required: ['patterns', 'logic']
+              required: ['patterns', 'logic'],
             },
-            maxLines: { type: 'number', description: 'Maximum lines to process (performance limit)' },
-            offset: { type: 'number', description: 'Starting offset for pagination (default: 0)' },
-            continuationToken: { type: 'string', description: 'Token for retrieving next page of results' },
-            streamingMode: { type: 'boolean', description: 'Use streaming mode for large outputs' }
+            maxLines: {
+              type: 'number',
+              description: 'Maximum lines to process (performance limit)',
+            },
+            offset: {
+              type: 'number',
+              description: 'Starting offset for pagination (default: 0)',
+            },
+            continuationToken: {
+              type: 'string',
+              description: 'Token for retrieving next page of results',
+            },
+            streamingMode: {
+              type: 'boolean',
+              description: 'Use streaming mode for large outputs',
+            },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
       {
         name: 'console_get_stream',
@@ -422,10 +551,13 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
-            since: { type: 'string', description: 'ISO timestamp to get output since' }
+            since: {
+              type: 'string',
+              description: 'ISO timestamp to get output since',
+            },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
       {
         name: 'console_wait_for_output',
@@ -434,11 +566,17 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
-            pattern: { type: 'string', description: 'Regex pattern to wait for' },
-            timeout: { type: 'number', description: 'Timeout in milliseconds (default: 5000)' }
+            pattern: {
+              type: 'string',
+              description: 'Regex pattern to wait for',
+            },
+            timeout: {
+              type: 'number',
+              description: 'Timeout in milliseconds (default: 5000)',
+            },
           },
-          required: ['sessionId', 'pattern']
-        }
+          required: ['sessionId', 'pattern'],
+        },
       },
       {
         name: 'console_stop_session',
@@ -446,18 +584,18 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            sessionId: { type: 'string', description: 'Session ID to stop' }
+            sessionId: { type: 'string', description: 'Session ID to stop' },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
       {
         name: 'console_list_sessions',
         description: 'List all active console sessions',
         inputSchema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
       {
         name: 'console_cleanup_sessions',
@@ -468,36 +606,63 @@ export class ConsoleAutomationServer {
             force: {
               type: 'boolean',
               description: 'Force cleanup all sessions (default: false)',
-              default: false
+              default: false,
             },
             olderThan: {
               type: 'number',
-              description: 'Clean up sessions older than this many milliseconds'
+              description:
+                'Clean up sessions older than this many milliseconds',
             },
             inactive: {
               type: 'boolean',
               description: 'Clean up only inactive sessions (default: true)',
-              default: true
-            }
-          }
-        }
+              default: true,
+            },
+          },
+        },
       },
       {
         name: 'console_execute_command',
-        description: 'Execute a command in an existing session or create a new one-off session',
+        description:
+          'Execute a command in an existing session or create a new one-off session',
         inputSchema: {
           type: 'object',
           properties: {
-            sessionId: { type: 'string', description: 'Optional: Session ID to execute command in' },
+            sessionId: {
+              type: 'string',
+              description: 'Optional: Session ID to execute command in',
+            },
             command: { type: 'string', description: 'Command to execute' },
-            args: { type: 'array', items: { type: 'string' }, description: 'Command arguments (for new sessions)' },
-            cwd: { type: 'string', description: 'Working directory (for new sessions)' },
-            env: { type: 'object', description: 'Environment variables (for new sessions)' },
-            timeout: { type: 'number', description: 'Execution timeout in milliseconds' },
-            consoleType: { 
-              type: 'string', 
-              enum: ['cmd', 'powershell', 'pwsh', 'bash', 'zsh', 'sh', 'ssh', 'auto'],
-              description: 'Type of console to use (for new sessions)' 
+            args: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Command arguments (for new sessions)',
+            },
+            cwd: {
+              type: 'string',
+              description: 'Working directory (for new sessions)',
+            },
+            env: {
+              type: 'object',
+              description: 'Environment variables (for new sessions)',
+            },
+            timeout: {
+              type: 'number',
+              description: 'Execution timeout in milliseconds',
+            },
+            consoleType: {
+              type: 'string',
+              enum: [
+                'cmd',
+                'powershell',
+                'pwsh',
+                'bash',
+                'zsh',
+                'sh',
+                'ssh',
+                'auto',
+              ],
+              description: 'Type of console to use (for new sessions)',
             },
             sshOptions: {
               type: 'object',
@@ -507,14 +672,23 @@ export class ConsoleAutomationServer {
                 port: { type: 'number', description: 'SSH port (default: 22)' },
                 username: { type: 'string', description: 'SSH username' },
                 password: { type: 'string', description: 'SSH password' },
-                privateKey: { type: 'string', description: 'Private key content' },
-                privateKeyPath: { type: 'string', description: 'Path to private key file' },
-                passphrase: { type: 'string', description: 'Private key passphrase' }
-              }
-            }
+                privateKey: {
+                  type: 'string',
+                  description: 'Private key content',
+                },
+                privateKeyPath: {
+                  type: 'string',
+                  description: 'Path to private key file',
+                },
+                passphrase: {
+                  type: 'string',
+                  description: 'Private key passphrase',
+                },
+              },
+            },
           },
-          required: ['command']
-        }
+          required: ['command'],
+        },
       },
       {
         name: 'console_detect_errors',
@@ -523,17 +697,20 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
-            text: { type: 'string', description: 'Text to analyze (if not using session)' }
-          }
-        }
+            text: {
+              type: 'string',
+              description: 'Text to analyze (if not using session)',
+            },
+          },
+        },
       },
       {
         name: 'console_get_resource_usage',
         description: 'Get resource usage statistics for all sessions',
         inputSchema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
       {
         name: 'console_clear_output',
@@ -541,10 +718,10 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            sessionId: { type: 'string', description: 'Session ID' }
+            sessionId: { type: 'string', description: 'Session ID' },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
       {
         name: 'console_get_session_state',
@@ -552,10 +729,10 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            sessionId: { type: 'string', description: 'Session ID' }
+            sessionId: { type: 'string', description: 'Session ID' },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
       {
         name: 'console_get_command_history',
@@ -564,18 +741,22 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
-            limit: { type: 'number', description: 'Maximum number of commands to return' }
+            limit: {
+              type: 'number',
+              description: 'Maximum number of commands to return',
+            },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
       {
         name: 'console_get_system_metrics',
-        description: 'Get comprehensive system monitoring metrics including CPU, memory, disk, and network usage',
+        description:
+          'Get comprehensive system monitoring metrics including CPU, memory, disk, and network usage',
         inputSchema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
       {
         name: 'console_get_session_metrics',
@@ -583,43 +764,64 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            sessionId: { type: 'string', description: 'Session ID' }
+            sessionId: { type: 'string', description: 'Session ID' },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
       {
         name: 'console_get_alerts',
-        description: 'Get current monitoring alerts including performance, error, security, and anomaly alerts',
+        description:
+          'Get current monitoring alerts including performance, error, security, and anomaly alerts',
         inputSchema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
       {
         name: 'console_get_monitoring_dashboard',
-        description: 'Get real-time monitoring dashboard data with metrics, alerts, and system status',
+        description:
+          'Get real-time monitoring dashboard data with metrics, alerts, and system status',
         inputSchema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
       {
         name: 'console_start_monitoring',
-        description: 'Start monitoring for a specific session with custom monitoring options',
+        description:
+          'Start monitoring for a specific session with custom monitoring options',
         inputSchema: {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID' },
-            enableMetrics: { type: 'boolean', description: 'Enable metrics collection' },
-            enableTracing: { type: 'boolean', description: 'Enable distributed tracing' },
-            enableProfiling: { type: 'boolean', description: 'Enable performance profiling' },
-            enableAuditing: { type: 'boolean', description: 'Enable audit logging' },
-            enableAnomalyDetection: { type: 'boolean', description: 'Enable anomaly detection' },
-            customTags: { type: 'object', description: 'Custom tags for monitoring' }
+            enableMetrics: {
+              type: 'boolean',
+              description: 'Enable metrics collection',
+            },
+            enableTracing: {
+              type: 'boolean',
+              description: 'Enable distributed tracing',
+            },
+            enableProfiling: {
+              type: 'boolean',
+              description: 'Enable performance profiling',
+            },
+            enableAuditing: {
+              type: 'boolean',
+              description: 'Enable audit logging',
+            },
+            enableAnomalyDetection: {
+              type: 'boolean',
+              description: 'Enable anomaly detection',
+            },
+            customTags: {
+              type: 'object',
+              description: 'Custom tags for monitoring',
+            },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
       {
         name: 'console_stop_monitoring',
@@ -627,10 +829,10 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            sessionId: { type: 'string', description: 'Session ID' }
+            sessionId: { type: 'string', description: 'Session ID' },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
       {
         name: 'console_save_profile',
@@ -638,21 +840,37 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            profileType: { 
-              type: 'string', 
+            profileType: {
+              type: 'string',
               enum: ['connection', 'application'],
-              description: 'Type of profile to save' 
+              description: 'Type of profile to save',
             },
             name: { type: 'string', description: 'Profile name' },
-            connectionType: { 
-              type: 'string', 
-              enum: ['ssh', 'docker', 'wsl', 'azure', 'aws', 'gcp', 'kubernetes'],
-              description: 'Connection type (for connection profiles)' 
+            connectionType: {
+              type: 'string',
+              enum: [
+                'ssh',
+                'docker',
+                'wsl',
+                'azure',
+                'aws',
+                'gcp',
+                'kubernetes',
+              ],
+              description: 'Connection type (for connection profiles)',
             },
             applicationType: {
               type: 'string',
-              enum: ['node', 'python', 'dotnet', 'java', 'go', 'rust', 'custom'],
-              description: 'Application type (for application profiles)'
+              enum: [
+                'node',
+                'python',
+                'dotnet',
+                'java',
+                'go',
+                'rust',
+                'custom',
+              ],
+              description: 'Application type (for application profiles)',
             },
             sshOptions: {
               type: 'object',
@@ -664,41 +882,63 @@ export class ConsoleAutomationServer {
                 password: { type: 'string' },
                 privateKey: { type: 'string' },
                 privateKeyPath: { type: 'string' },
-                passphrase: { type: 'string' }
-              }
+                passphrase: { type: 'string' },
+              },
             },
             dockerOptions: {
               type: 'object',
               properties: {
                 containerName: { type: 'string' },
-                imageName: { type: 'string' }
-              }
+                imageName: { type: 'string' },
+              },
             },
-            command: { type: 'string', description: 'Command for application profile' },
-            args: { type: 'array', items: { type: 'string' }, description: 'Arguments for application profile' },
-            workingDirectory: { type: 'string', description: 'Working directory for application profile' },
-            environmentVariables: { type: 'object', description: 'Environment variables' },
+            command: {
+              type: 'string',
+              description: 'Command for application profile',
+            },
+            args: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Arguments for application profile',
+            },
+            workingDirectory: {
+              type: 'string',
+              description: 'Working directory for application profile',
+            },
+            environmentVariables: {
+              type: 'object',
+              description: 'Environment variables',
+            },
             dotnetOptions: {
               type: 'object',
               description: '.NET specific options',
               properties: {
                 enabled: { type: 'boolean' },
                 sdkPath: { type: 'string' },
-                defaultFramework: { 
+                defaultFramework: {
                   type: 'string',
-                  enum: ['net6.0', 'net7.0', 'net8.0', 'net9.0', 'netcoreapp3.1']
+                  enum: [
+                    'net6.0',
+                    'net7.0',
+                    'net8.0',
+                    'net9.0',
+                    'netcoreapp3.1',
+                  ],
                 },
-                buildConfiguration: { 
+                buildConfiguration: {
                   type: 'string',
-                  enum: ['Debug', 'Release']
+                  enum: ['Debug', 'Release'],
                 },
-                enableHotReload: { type: 'boolean' }
-              }
+                enableHotReload: { type: 'boolean' },
+              },
             },
-            isDefault: { type: 'boolean', description: 'Set as default profile' }
+            isDefault: {
+              type: 'boolean',
+              description: 'Set as default profile',
+            },
           },
-          required: ['profileType', 'name']
-        }
+          required: ['profileType', 'name'],
+        },
       },
       {
         name: 'console_list_profiles',
@@ -706,13 +946,13 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            profileType: { 
-              type: 'string', 
+            profileType: {
+              type: 'string',
               enum: ['connection', 'application', 'all'],
-              description: 'Type of profiles to list (default: all)' 
-            }
-          }
-        }
+              description: 'Type of profiles to list (default: all)',
+            },
+          },
+        },
       },
       {
         name: 'console_remove_profile',
@@ -720,15 +960,15 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            profileType: { 
-              type: 'string', 
+            profileType: {
+              type: 'string',
               enum: ['connection', 'application'],
-              description: 'Type of profile to remove' 
+              description: 'Type of profile to remove',
             },
-            name: { type: 'string', description: 'Profile name to remove' }
+            name: { type: 'string', description: 'Profile name to remove' },
           },
-          required: ['profileType', 'name']
-        }
+          required: ['profileType', 'name'],
+        },
       },
       {
         name: 'console_use_profile',
@@ -736,14 +976,30 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            profileName: { type: 'string', description: 'Name of the profile to use' },
-            command: { type: 'string', description: 'Override command (optional)' },
-            args: { type: 'array', items: { type: 'string' }, description: 'Override arguments (optional)' },
-            cwd: { type: 'string', description: 'Override working directory (optional)' },
-            env: { type: 'object', description: 'Additional environment variables (optional)' }
+            profileName: {
+              type: 'string',
+              description: 'Name of the profile to use',
+            },
+            command: {
+              type: 'string',
+              description: 'Override command (optional)',
+            },
+            args: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Override arguments (optional)',
+            },
+            cwd: {
+              type: 'string',
+              description: 'Override working directory (optional)',
+            },
+            env: {
+              type: 'object',
+              description: 'Additional environment variables (optional)',
+            },
           },
-          required: ['profileName']
-        }
+          required: ['profileName'],
+        },
       },
 
       // Background Job Execution Tools
@@ -753,17 +1009,43 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            sessionId: { type: 'string', description: 'Session ID to execute command in' },
+            sessionId: {
+              type: 'string',
+              description: 'Session ID to execute command in',
+            },
             command: { type: 'string', description: 'Command to execute' },
-            args: { type: 'array', items: { type: 'string' }, description: 'Command arguments' },
-            background: { type: 'boolean', description: 'Execute in background mode (default: true)', default: true },
-            timeout: { type: 'number', description: 'Execution timeout in milliseconds' },
-            priority: { type: 'number', description: 'Job priority (1-10, 10 highest)', minimum: 1, maximum: 10 },
-            captureOutput: { type: 'boolean', description: 'Capture command output', default: true },
-            metadata: { type: 'object', description: 'Additional metadata for the job' }
+            args: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Command arguments',
+            },
+            background: {
+              type: 'boolean',
+              description: 'Execute in background mode (default: true)',
+              default: true,
+            },
+            timeout: {
+              type: 'number',
+              description: 'Execution timeout in milliseconds',
+            },
+            priority: {
+              type: 'number',
+              description: 'Job priority (1-10, 10 highest)',
+              minimum: 1,
+              maximum: 10,
+            },
+            captureOutput: {
+              type: 'boolean',
+              description: 'Capture command output',
+              default: true,
+            },
+            metadata: {
+              type: 'object',
+              description: 'Additional metadata for the job',
+            },
           },
-          required: ['sessionId', 'command']
-        }
+          required: ['sessionId', 'command'],
+        },
       },
 
       {
@@ -772,10 +1054,13 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            jobId: { type: 'string', description: 'Job ID to check status for' }
+            jobId: {
+              type: 'string',
+              description: 'Job ID to check status for',
+            },
           },
-          required: ['jobId']
-        }
+          required: ['jobId'],
+        },
       },
 
       {
@@ -785,10 +1070,14 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             jobId: { type: 'string', description: 'Job ID to get output from' },
-            latest: { type: 'boolean', description: 'Get only the latest output (last 100 lines)', default: false }
+            latest: {
+              type: 'boolean',
+              description: 'Get only the latest output (last 100 lines)',
+              default: false,
+            },
           },
-          required: ['jobId']
-        }
+          required: ['jobId'],
+        },
       },
 
       {
@@ -797,10 +1086,10 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            jobId: { type: 'string', description: 'Job ID to cancel' }
+            jobId: { type: 'string', description: 'Job ID to cancel' },
           },
-          required: ['jobId']
-        }
+          required: ['jobId'],
+        },
       },
 
       {
@@ -809,9 +1098,12 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            sessionId: { type: 'string', description: 'Optional session ID to filter jobs by' }
-          }
-        }
+            sessionId: {
+              type: 'string',
+              description: 'Optional session ID to filter jobs by',
+            },
+          },
+        },
       },
 
       {
@@ -820,10 +1112,13 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            jobId: { type: 'string', description: 'Job ID to get progress for' }
+            jobId: {
+              type: 'string',
+              description: 'Job ID to get progress for',
+            },
           },
-          required: ['jobId']
-        }
+          required: ['jobId'],
+        },
       },
 
       {
@@ -832,19 +1127,20 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            jobId: { type: 'string', description: 'Job ID to get result for' }
+            jobId: { type: 'string', description: 'Job ID to get result for' },
           },
-          required: ['jobId']
-        }
+          required: ['jobId'],
+        },
       },
 
       {
         name: 'console_get_job_metrics',
-        description: 'Get metrics and statistics about background job execution',
+        description:
+          'Get metrics and statistics about background job execution',
         inputSchema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
 
       {
@@ -853,9 +1149,12 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            olderThan: { type: 'number', description: 'Clean up jobs older than this many milliseconds' }
-          }
-        }
+            olderThan: {
+              type: 'number',
+              description: 'Clean up jobs older than this many milliseconds',
+            },
+          },
+        },
       },
 
       // Phase 2: Assertion Framework Tools
@@ -869,13 +1168,19 @@ export class ConsoleAutomationServer {
             assertionType: {
               type: 'string',
               enum: ['contains', 'matches', 'equals'],
-              description: 'Type of assertion to perform'
+              description: 'Type of assertion to perform',
             },
-            expected: { type: 'string', description: 'Expected value or pattern' },
-            message: { type: 'string', description: 'Custom assertion message' }
+            expected: {
+              type: 'string',
+              description: 'Expected value or pattern',
+            },
+            message: {
+              type: 'string',
+              description: 'Custom assertion message',
+            },
           },
-          required: ['sessionId', 'assertionType', 'expected']
-        }
+          required: ['sessionId', 'assertionType', 'expected'],
+        },
       },
 
       {
@@ -886,10 +1191,13 @@ export class ConsoleAutomationServer {
           properties: {
             sessionId: { type: 'string', description: 'Session ID to check' },
             expected: { type: 'number', description: 'Expected exit code' },
-            message: { type: 'string', description: 'Custom assertion message' }
+            message: {
+              type: 'string',
+              description: 'Custom assertion message',
+            },
           },
-          required: ['sessionId', 'expected']
-        }
+          required: ['sessionId', 'expected'],
+        },
       },
 
       {
@@ -899,10 +1207,13 @@ export class ConsoleAutomationServer {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'Session ID to check' },
-            message: { type: 'string', description: 'Custom assertion message' }
+            message: {
+              type: 'string',
+              description: 'Custom assertion message',
+            },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
 
       {
@@ -911,11 +1222,17 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            sessionId: { type: 'string', description: 'Session ID to snapshot' },
-            metadata: { type: 'object', description: 'Additional metadata to store with snapshot' }
+            sessionId: {
+              type: 'string',
+              description: 'Session ID to snapshot',
+            },
+            metadata: {
+              type: 'object',
+              description: 'Additional metadata to store with snapshot',
+            },
           },
-          required: ['sessionId']
-        }
+          required: ['sessionId'],
+        },
       },
 
       {
@@ -924,12 +1241,21 @@ export class ConsoleAutomationServer {
         inputSchema: {
           type: 'object',
           properties: {
-            snapshot1Path: { type: 'string', description: 'Path to first snapshot file' },
-            snapshot2Path: { type: 'string', description: 'Path to second snapshot file' },
-            detailed: { type: 'boolean', description: 'Include detailed line-by-line diff' }
+            snapshot1Path: {
+              type: 'string',
+              description: 'Path to first snapshot file',
+            },
+            snapshot2Path: {
+              type: 'string',
+              description: 'Path to second snapshot file',
+            },
+            detailed: {
+              type: 'boolean',
+              description: 'Include detailed line-by-line diff',
+            },
           },
-          required: ['snapshot1Path', 'snapshot2Path']
-        }
+          required: ['snapshot1Path', 'snapshot2Path'],
+        },
       },
 
       {
@@ -940,11 +1266,14 @@ export class ConsoleAutomationServer {
           properties: {
             sessionId: { type: 'string', description: 'Session ID to check' },
             expected: { type: 'object', description: 'Expected state object' },
-            message: { type: 'string', description: 'Custom assertion message' }
+            message: {
+              type: 'string',
+              description: 'Custom assertion message',
+            },
           },
-          required: ['sessionId', 'expected']
-        }
-      }
+          required: ['sessionId', 'expected'],
+        },
+      },
     ];
   }
 
@@ -953,7 +1282,10 @@ export class ConsoleAutomationServer {
     debugLog('[DEBUG] Args:', args);
     debugLog('[DEBUG] Current error count:', this.errorCount);
     debugLog('[DEBUG] Connection state:', this.connectionState);
-    this.logger.debug('MCP handleCreateSession received args:', JSON.stringify(args, null, 2));
+    this.logger.debug(
+      'MCP handleCreateSession received args:',
+      JSON.stringify(args, null, 2)
+    );
 
     try {
       // Check if SSH options are present - use new SSH bridge for SSH sessions
@@ -966,7 +1298,7 @@ export class ConsoleAutomationServer {
         // Store for recovery if needed
         this.sessionRecoveryMap.set(sessionId, {
           type: 'ssh',
-          options: args
+          options: args,
         });
 
         debugLog('[SSH] Session created successfully:', sessionId);
@@ -975,14 +1307,18 @@ export class ConsoleAutomationServer {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({
-                sessionId,
-                message: `SSH session created`,
-                consoleType: 'ssh',
-                streaming: false
-              }, null, 2)
-            } as TextContent
-          ]
+              text: JSON.stringify(
+                {
+                  sessionId,
+                  message: `SSH session created`,
+                  consoleType: 'ssh',
+                  streaming: false,
+                },
+                null,
+                2
+              ),
+            } as TextContent,
+          ],
         };
       }
 
@@ -990,7 +1326,10 @@ export class ConsoleAutomationServer {
       // Validate required parameters for non-SSH sessions
       if (!args.command) {
         debugLog('[DEBUG] Missing command parameter');
-        throw new McpError(ErrorCode.InvalidParams, 'command parameter is required');
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'command parameter is required'
+        );
       }
 
       debugLog('[DEBUG] Creating non-SSH session via ConsoleManager');
@@ -1004,12 +1343,15 @@ export class ConsoleAutomationServer {
       if (sessionId) {
         this.sessionRecoveryMap.set(sessionId, {
           type: 'console',
-          options: args
+          options: args,
         });
       }
 
       if (!session) {
-        throw new McpError(ErrorCode.InternalError, 'Failed to retrieve created session');
+        throw new McpError(
+          ErrorCode.InternalError,
+          'Failed to retrieve created session'
+        );
       }
 
       debugLog('[DEBUG] Session created successfully:', sessionId);
@@ -1018,15 +1360,19 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              sessionId,
-              message: `Session created for command: ${args.command}`,
-              pid: session?.pid,
-              consoleType: session?.type,
-              streaming: session?.streaming || false
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                sessionId,
+                message: `Session created for command: ${args.command}`,
+                pid: session?.pid,
+                consoleType: session?.type,
+                streaming: session?.streaming || false,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       debugLog('[DEBUG] === ERROR in handleCreateSession ===');
@@ -1056,21 +1402,30 @@ export class ConsoleAutomationServer {
         throw error;
       }
       debugLog('[DEBUG] Throwing new McpError');
-      throw new McpError(ErrorCode.InternalError, `Session creation failed: ${error.message}`);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Session creation failed: ${error.message}`
+      );
     }
   }
 
   private async handleSendInput(args: { sessionId: string; input: string }) {
-    this.logger.info(`handleSendInput called for session: ${args.sessionId}, input length: ${args.input.length}`);
+    this.logger.info(
+      `handleSendInput called for session: ${args.sessionId}, input length: ${args.input.length}`
+    );
 
     // Check if this is an SSH session
     const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
 
     if (sshInfo) {
-      this.logger.info(`Session ${args.sessionId} is SSH - routing through SSH bridge`);
+      this.logger.info(
+        `Session ${args.sessionId} is SSH - routing through SSH bridge`
+      );
       await this.sshBridge.sendInput(args.sessionId, args.input);
     } else {
-      this.logger.info(`Session ${args.sessionId} is not SSH - using ConsoleManager`);
+      this.logger.info(
+        `Session ${args.sessionId} is not SSH - using ConsoleManager`
+      );
       await this.consoleManager.sendInput(args.sessionId, args.input);
     }
 
@@ -1078,23 +1433,29 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: `Input sent to session ${args.sessionId}`
-        } as TextContent
-      ]
+          text: `Input sent to session ${args.sessionId}`,
+        } as TextContent,
+      ],
     };
   }
 
   private async handleSendKey(args: { sessionId: string; key: string }) {
-    this.logger.info(`handleSendKey called for session: ${args.sessionId}, key: ${args.key}`);
+    this.logger.info(
+      `handleSendKey called for session: ${args.sessionId}, key: ${args.key}`
+    );
 
     // Check if this is an SSH session
     const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
 
     if (sshInfo) {
-      this.logger.info(`Session ${args.sessionId} is SSH - routing through SSH bridge for key: ${args.key}`);
+      this.logger.info(
+        `Session ${args.sessionId} is SSH - routing through SSH bridge for key: ${args.key}`
+      );
       await this.sshBridge.sendKey(args.sessionId, args.key);
     } else {
-      this.logger.info(`Session ${args.sessionId} is not SSH - using ConsoleManager for key: ${args.key}`);
+      this.logger.info(
+        `Session ${args.sessionId} is not SSH - using ConsoleManager for key: ${args.key}`
+      );
       await this.consoleManager.sendKey(args.sessionId, args.key);
     }
 
@@ -1102,14 +1463,15 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: `Key '${args.key}' sent to session ${args.sessionId}`
-        } as TextContent
-      ]
+          text: `Key '${args.key}' sent to session ${args.sessionId}`,
+        } as TextContent,
+      ],
     };
   }
 
   private async handleGetOutput(args: any) {
-    const { sessionId, limit, offset, continuationToken, ...filterOptions } = args;
+    const { sessionId, limit, offset, continuationToken, ...filterOptions } =
+      args;
 
     // Check if this is an SSH session
     const sshInfo = this.sshBridge.getSessionInfo(sessionId);
@@ -1119,9 +1481,9 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: output
-          } as TextContent
-        ]
+            text: output,
+          } as TextContent,
+        ],
       };
     }
 
@@ -1130,19 +1492,22 @@ export class ConsoleAutomationServer {
 
     if (hasFilterOptions) {
       // Use the new filtered output method
-      const filterResult = await this.consoleManager.getOutputFiltered(sessionId, {
-        ...filterOptions,
-        ...(limit && { maxLines: limit }) // Convert legacy limit to maxLines
-      });
+      const filterResult = await this.consoleManager.getOutputFiltered(
+        sessionId,
+        {
+          ...filterOptions,
+          ...(limit && { maxLines: limit }), // Convert legacy limit to maxLines
+        }
+      );
 
-      const text = filterResult.output.map(o => o.data).join('');
+      const text = filterResult.output.map((o) => o.data).join('');
 
       return {
         content: [
           {
             type: 'text',
-            text: text || 'No output matches filter criteria'
-          } as TextContent
+            text: text || 'No output matches filter criteria',
+          } as TextContent,
         ],
         meta: {
           filtering: {
@@ -1152,14 +1517,15 @@ export class ConsoleAutomationServer {
             processingTimeMs: filterResult.metadata.processingTimeMs,
             memoryUsageBytes: filterResult.metadata.memoryUsageBytes,
             truncated: filterResult.metadata.truncated,
-            filterStats: filterResult.metadata.filterStats
+            filterStats: filterResult.metadata.filterStats,
           },
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       };
     } else {
       // Check for pagination parameters
-      const hasPaginationParams = offset !== undefined || continuationToken !== undefined;
+      const hasPaginationParams =
+        offset !== undefined || continuationToken !== undefined;
 
       if (hasPaginationParams) {
         // Use new pagination system
@@ -1174,8 +1540,8 @@ export class ConsoleAutomationServer {
           content: [
             {
               type: 'text',
-              text: paginatedResult.output || 'No output available'
-            } as TextContent
+              text: paginatedResult.output || 'No output available',
+            } as TextContent,
           ],
           meta: {
             pagination: {
@@ -1184,12 +1550,12 @@ export class ConsoleAutomationServer {
               totalLines: paginatedResult.totalLines,
               currentOffset: paginatedResult.currentOffset,
               pageSize: paginatedResult.pageSize,
-              returnedLines: paginatedResult.data.length
+              returnedLines: paginatedResult.data.length,
             },
             outputLength: paginatedResult.output.length,
             chunkCount: paginatedResult.data.length,
-            timestamp: paginatedResult.timestamp
-          }
+            timestamp: paginatedResult.timestamp,
+          },
         };
       } else {
         // Use legacy method for backward compatibility
@@ -1198,30 +1564,32 @@ export class ConsoleAutomationServer {
         if (streamManager) {
           streamManager.forceFlush();
           // Wait a small amount to allow any async processing
-          await new Promise(resolve => setTimeout(resolve, 10));
+          await new Promise((resolve) => setTimeout(resolve, 10));
         }
 
         const output = this.consoleManager.getOutput(sessionId, limit);
-        const text = output.map(o => o.data).join('');
+        const text = output.map((o) => o.data).join('');
 
         // Include buffer statistics for debugging
-        const bufferStats = streamManager ? streamManager.getBufferStats() : null;
+        const bufferStats = streamManager
+          ? streamManager.getBufferStats()
+          : null;
 
         return {
           content: [
             {
               type: 'text',
-              text: text || 'No output available'
-            } as TextContent
+              text: text || 'No output available',
+            } as TextContent,
           ],
           ...(bufferStats && {
             meta: {
               bufferStats,
               outputLength: text.length,
               chunkCount: output.length,
-              timestamp: new Date().toISOString()
-            }
-          })
+              timestamp: new Date().toISOString(),
+            },
+          }),
         };
       }
     }
@@ -1229,18 +1597,22 @@ export class ConsoleAutomationServer {
 
   private async handleGetStream(args: { sessionId: string; since?: string }) {
     const streamManager = this.consoleManager.getStream(args.sessionId);
-    
+
     if (!streamManager) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              error: 'Streaming not enabled for this session',
-              hint: 'Create session with streaming: true'
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                error: 'Streaming not enabled for this session',
+                hint: 'Create session with streaming: true',
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
 
@@ -1252,21 +1624,29 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            chunks: chunks.map(c => ({
-              data: c.data,
-              timestamp: c.timestamp,
-              isError: c.isError
-            })),
-            stats,
-            fullOutput: chunks.map(c => c.data).join('')
-          }, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(
+            {
+              chunks: chunks.map((c) => ({
+                data: c.data,
+                timestamp: c.timestamp,
+                isError: c.isError,
+              })),
+              stats,
+              fullOutput: chunks.map((c) => c.data).join(''),
+            },
+            null,
+            2
+          ),
+        } as TextContent,
+      ],
     };
   }
 
-  private async handleWaitForOutput(args: { sessionId: string; pattern: string; timeout?: number }) {
+  private async handleWaitForOutput(args: {
+    sessionId: string;
+    pattern: string;
+    timeout?: number;
+  }) {
     try {
       // Check if this is an SSH session
       const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
@@ -1281,13 +1661,17 @@ export class ConsoleAutomationServer {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify({
-                  output: output,
-                  matched: true,
-                  pattern: args.pattern
-                }, null, 2)
-              } as TextContent
-            ]
+                text: JSON.stringify(
+                  {
+                    output: output,
+                    matched: true,
+                    pattern: args.pattern,
+                  },
+                  null,
+                  2
+                ),
+              } as TextContent,
+            ],
           };
         } else {
           // Pattern not found in current output
@@ -1295,14 +1679,18 @@ export class ConsoleAutomationServer {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify({
-                  output: output,
-                  matched: false,
-                  pattern: args.pattern,
-                  message: 'Pattern not found in output'
-                }, null, 2)
-              } as TextContent
-            ]
+                text: JSON.stringify(
+                  {
+                    output: output,
+                    matched: false,
+                    pattern: args.pattern,
+                    message: 'Pattern not found in output',
+                  },
+                  null,
+                  2
+                ),
+              } as TextContent,
+            ],
           };
         }
       }
@@ -1312,16 +1700,16 @@ export class ConsoleAutomationServer {
         args.sessionId,
         args.pattern,
         {
-          timeout: args.timeout || 5000
+          timeout: args.timeout || 5000,
         }
       );
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(output, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(output, null, 2),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       throw new McpError(ErrorCode.InternalError, error.message);
@@ -1343,9 +1731,9 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: `Session ${args.sessionId} stopped`
-        } as TextContent
-      ]
+          text: `Session ${args.sessionId} stopped`,
+        } as TextContent,
+      ],
     };
   }
 
@@ -1361,26 +1749,34 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(allSessions.map(s => ({
-            id: s.id,
-            command: s.command,
-            status: s.status,
-            pid: s.pid,
-            type: s.type,
-            streaming: s.streaming,
-            createdAt: s.createdAt
-          })), null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(
+            allSessions.map((s) => ({
+              id: s.id,
+              command: s.command,
+              status: s.status,
+              pid: s.pid,
+              type: s.type,
+              streaming: s.streaming,
+              createdAt: s.createdAt,
+            })),
+            null,
+            2
+          ),
+        } as TextContent,
+      ],
     };
   }
 
-  private async handleCleanupSessions(args: { force?: boolean; olderThan?: number; inactive?: boolean }) {
+  private async handleCleanupSessions(args: {
+    force?: boolean;
+    olderThan?: number;
+    inactive?: boolean;
+  }) {
     // Get sessions from both ConsoleManager and SSH Bridge
     const consoleSessions = this.consoleManager.getAllSessions();
     const sshSessions = this.sshBridge.listSessions();
     const allSessions = [...consoleSessions, ...sshSessions];
-    
+
     let cleanedCount = 0;
     const errors: string[] = [];
     const cleaned: string[] = [];
@@ -1410,18 +1806,22 @@ export class ConsoleAutomationServer {
         if (shouldClean) {
           try {
             // Check if this is an SSH session
-            const isSSH = session.type === 'ssh' || this.sshBridge.getSessionInfo(session.id);
-            
+            const isSSH =
+              session.type === 'ssh' ||
+              this.sshBridge.getSessionInfo(session.id);
+
             if (isSSH) {
               await this.sshBridge.stopSession(session.id);
             } else {
               await this.consoleManager.stopSession(session.id);
             }
-            
+
             cleaned.push(session.id);
             cleanedCount++;
           } catch (error: any) {
-            errors.push(`Failed to clean session ${session.id}: ${error.message}`);
+            errors.push(
+              `Failed to clean session ${session.id}: ${error.message}`
+            );
           }
         }
       } catch (error: any) {
@@ -1433,21 +1833,34 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            success: true,
-            message: `Cleaned up ${cleanedCount} sessions`,
-            totalSessions: allSessions.length,
-            cleanedSessions: cleaned,
-            remainingSessions: allSessions.length - cleanedCount,
-            errors: errors.length > 0 ? errors : undefined,
-            timestamp: new Date().toISOString()
-          }, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(
+            {
+              success: true,
+              message: `Cleaned up ${cleanedCount} sessions`,
+              totalSessions: allSessions.length,
+              cleanedSessions: cleaned,
+              remainingSessions: allSessions.length - cleanedCount,
+              errors: errors.length > 0 ? errors : undefined,
+              timestamp: new Date().toISOString(),
+            },
+            null,
+            2
+          ),
+        } as TextContent,
+      ],
     };
   }
 
-  private async handleExecuteCommand(args: { sessionId?: string; command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeout?: number; consoleType?: any; sshOptions?: any }) {
+  private async handleExecuteCommand(args: {
+    sessionId?: string;
+    command: string;
+    args?: string[];
+    cwd?: string;
+    env?: Record<string, string>;
+    timeout?: number;
+    consoleType?: any;
+    sshOptions?: any;
+  }) {
     // If sessionId is provided, execute command in existing session
     if (args.sessionId) {
       try {
@@ -1455,26 +1868,34 @@ export class ConsoleAutomationServer {
         const sshInfo = this.sshBridge.getSessionInfo(args.sessionId);
         if (sshInfo) {
           // Execute command in SSH session
-          await this.sshBridge.executeCommand(args.sessionId, args.command, args.args);
+          await this.sshBridge.executeCommand(
+            args.sessionId,
+            args.command,
+            args.args
+          );
 
           // Get output after a short delay to allow command to execute
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
           const output = this.sshBridge.getOutput(args.sessionId);
 
           return {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify({
-                  sessionId: args.sessionId,
-                  command: args.command,
-                  args: args.args,
-                  output: output,
-                  status: 'completed',
-                  executedAt: new Date().toISOString()
-                }, null, 2)
-              } as TextContent
-            ]
+                text: JSON.stringify(
+                  {
+                    sessionId: args.sessionId,
+                    command: args.command,
+                    args: args.args,
+                    output: output,
+                    status: 'completed',
+                    executedAt: new Date().toISOString(),
+                  },
+                  null,
+                  2
+                ),
+              } as TextContent,
+            ],
           };
         }
 
@@ -1485,79 +1906,97 @@ export class ConsoleAutomationServer {
           args.args,
           args.timeout || 120000
         );
-        
+
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({
-                sessionId: args.sessionId,
-                commandId: result.commandId,
-                command: args.command,
-                args: args.args,
-                output: result.output.map(o => ({
-                  type: o.type,
-                  data: o.data,
-                  timestamp: o.timestamp,
-                  commandId: o.commandId,
-                  isCommandBoundary: o.isCommandBoundary,
-                  boundaryType: o.boundaryType
-                })),
-                outputText: result.output.map(o => o.data).join(''),
-                exitCode: result.exitCode,
-                duration: result.duration,
-                status: result.status,
-                executedAt: new Date().toISOString()
-              }, null, 2)
-            } as TextContent
-          ]
+              text: JSON.stringify(
+                {
+                  sessionId: args.sessionId,
+                  commandId: result.commandId,
+                  command: args.command,
+                  args: args.args,
+                  output: result.output.map((o) => ({
+                    type: o.type,
+                    data: o.data,
+                    timestamp: o.timestamp,
+                    commandId: o.commandId,
+                    isCommandBoundary: o.isCommandBoundary,
+                    boundaryType: o.boundaryType,
+                  })),
+                  outputText: result.output.map((o) => o.data).join(''),
+                  exitCode: result.exitCode,
+                  duration: result.duration,
+                  status: result.status,
+                  executedAt: new Date().toISOString(),
+                },
+                null,
+                2
+              ),
+            } as TextContent,
+          ],
         };
       } catch (error: any) {
         // Check if it's a timeout error and provide helpful guidance
         let errorMessage = error.message;
         let suggestion = '';
-        
-        if (error.message.includes('timeout') || error.message.includes('timed out')) {
-          suggestion = '\n\nTip: This command timed out. For long-running commands, use console_create_session to create a persistent session, then use console_send_input and console_wait_for_output instead of console_execute_command. This allows better control over long-running processes.';
+
+        if (
+          error.message.includes('timeout') ||
+          error.message.includes('timed out')
+        ) {
+          suggestion =
+            '\n\nTip: This command timed out. For long-running commands, use console_create_session to create a persistent session, then use console_send_input and console_wait_for_output instead of console_execute_command. This allows better control over long-running processes.';
         }
-        
+
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({
-                sessionId: args.sessionId,
-                command: args.command,
-                error: errorMessage + suggestion,
-                timestamp: new Date().toISOString()
-              }, null, 2)
-            } as TextContent
-          ]
+              text: JSON.stringify(
+                {
+                  sessionId: args.sessionId,
+                  command: args.command,
+                  error: errorMessage + suggestion,
+                  timestamp: new Date().toISOString(),
+                },
+                null,
+                2
+              ),
+            } as TextContent,
+          ],
         };
       }
     }
-    
+
     // Otherwise create new session for one-off command
     // Detect console type based on command and SSH options
     let detectedConsoleType = args.consoleType;
     let finalSSHOptions = args.sshOptions;
-    
+
     // If SSH options are provided, force SSH console type
     if (args.sshOptions && !detectedConsoleType) {
       detectedConsoleType = 'ssh';
     }
-    
+
     // Auto-detect console type from command patterns if not specified
     if (!detectedConsoleType || detectedConsoleType === 'auto') {
-      detectedConsoleType = this.detectConsoleTypeFromCommand(args.command, args.sshOptions);
+      detectedConsoleType = this.detectConsoleTypeFromCommand(
+        args.command,
+        args.sshOptions
+      );
     }
-    
-    this.logger.debug(`Console type detection for command "${args.command}": ${detectedConsoleType}`, {
-      originalType: args.consoleType,
-      hasSSHOptions: !!args.sshOptions,
-      detectedType: detectedConsoleType
-    });
-    
+
+    this.logger.debug(
+      `Console type detection for command "${args.command}": ${detectedConsoleType}`,
+      {
+        originalType: args.consoleType,
+        hasSSHOptions: !!args.sshOptions,
+        detectedType: detectedConsoleType,
+      }
+    );
+
     let result;
     try {
       result = await this.consoleManager.executeCommand(
@@ -1568,47 +2007,79 @@ export class ConsoleAutomationServer {
           env: args.env,
           timeout: args.timeout || 120000,
           consoleType: detectedConsoleType,
-          sshOptions: finalSSHOptions
+          sshOptions: finalSSHOptions,
         }
       );
     } catch (error: any) {
       // Check if it's a timeout error and provide helpful guidance
       let errorMessage = error.message;
       let suggestion = '';
-      
-      if (error.message.includes('timeout') || error.message.includes('timed out')) {
-        suggestion = '\n\nTip: This command timed out. For long-running commands, use console_create_session to create a persistent session, then use console_send_input and console_wait_for_output instead of console_execute_command. This allows better control over long-running processes.';
+
+      if (
+        error.message.includes('timeout') ||
+        error.message.includes('timed out')
+      ) {
+        suggestion =
+          '\n\nTip: This command timed out. For long-running commands, use console_create_session to create a persistent session, then use console_send_input and console_wait_for_output instead of console_execute_command. This allows better control over long-running processes.';
       }
-      
-      throw new McpError(
-        ErrorCode.InternalError,
-        errorMessage + suggestion
-      );
+
+      throw new McpError(ErrorCode.InternalError, errorMessage + suggestion);
     }
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(result, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(result, null, 2),
+        } as TextContent,
+      ],
     };
   }
 
   /**
    * Detect console type from command patterns and options
    */
-  private detectConsoleTypeFromCommand(command: string, sshOptions?: any): 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'ssh' | 'auto' {
+  private detectConsoleTypeFromCommand(
+    command: string,
+    sshOptions?: any
+  ): 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'ssh' | 'auto' {
     // If SSH options are provided, it's definitely an SSH session
     if (sshOptions) {
       return 'ssh';
     }
-    
+
     // Check for Unix/Linux commands that indicate bash/sh
-    const unixCommands = ['ls', 'grep', 'awk', 'sed', 'cat', 'tail', 'head', 'find', 'ps', 'top', 'df', 'du', 'chmod', 'chown', 'sudo', 'which', 'whereis', 'man', 'curl', 'wget', 'tar', 'gzip', 'gunzip', 'ssh', 'scp', 'rsync', 'git'];
+    const unixCommands = [
+      'ls',
+      'grep',
+      'awk',
+      'sed',
+      'cat',
+      'tail',
+      'head',
+      'find',
+      'ps',
+      'top',
+      'df',
+      'du',
+      'chmod',
+      'chown',
+      'sudo',
+      'which',
+      'whereis',
+      'man',
+      'curl',
+      'wget',
+      'tar',
+      'gzip',
+      'gunzip',
+      'ssh',
+      'scp',
+      'rsync',
+      'git',
+    ];
     const cmdTokens = command.toLowerCase().split(/\s+/);
     const firstCommand = cmdTokens[0];
-    
+
     // Check if it's a Unix command
     if (unixCommands.includes(firstCommand)) {
       // On Windows, if we see Unix commands, we likely need bash (WSL or Git Bash)
@@ -1618,30 +2089,53 @@ export class ConsoleAutomationServer {
         return 'sh';
       }
     }
-    
+
     // Check for Windows-specific commands
-    const windowsCommands = ['dir', 'copy', 'move', 'del', 'type', 'cls', 'ipconfig', 'ping', 'tracert', 'netstat', 'tasklist', 'taskkill'];
+    const windowsCommands = [
+      'dir',
+      'copy',
+      'move',
+      'del',
+      'type',
+      'cls',
+      'ipconfig',
+      'ping',
+      'tracert',
+      'netstat',
+      'tasklist',
+      'taskkill',
+    ];
     if (windowsCommands.includes(firstCommand)) {
       return 'cmd';
     }
-    
+
     // Check for PowerShell patterns
     const powershellPatterns = [
-      /^Get-/i, /^Set-/i, /^New-/i, /^Remove-/i, /^Add-/i, /^Invoke-/i, /^Test-/i, /^Start-/i, /^Stop-/i,
+      /^Get-/i,
+      /^Set-/i,
+      /^New-/i,
+      /^Remove-/i,
+      /^Add-/i,
+      /^Invoke-/i,
+      /^Test-/i,
+      /^Start-/i,
+      /^Stop-/i,
       /\$\w+/, // PowerShell variables
-      /\|\s*Where-Object/i, /\|\s*Select-Object/i, /\|\s*ForEach-Object/i,
-      /-\w+\s+\w+/ // PowerShell parameters like -Path, -Name, etc.
+      /\|\s*Where-Object/i,
+      /\|\s*Select-Object/i,
+      /\|\s*ForEach-Object/i,
+      /-\w+\s+\w+/, // PowerShell parameters like -Path, -Name, etc.
     ];
-    
-    if (powershellPatterns.some(pattern => pattern.test(command))) {
+
+    if (powershellPatterns.some((pattern) => pattern.test(command))) {
       return process.platform === 'win32' ? 'powershell' : 'pwsh';
     }
-    
+
     // Check for SSH command patterns
     if (/^ssh\s+/.test(command)) {
       return 'ssh';
     }
-    
+
     // Default based on platform
     if (process.platform === 'win32') {
       return 'cmd';
@@ -1650,9 +2144,14 @@ export class ConsoleAutomationServer {
     }
   }
 
-  private async handleDetectErrors(args: { sessionId?: string; text?: string }) {
-    const errorDetector = new (await import('../core/ErrorDetector.js')).ErrorDetector();
-    
+  private async handleDetectErrors(args: {
+    sessionId?: string;
+    text?: string;
+  }) {
+    const errorDetector = new (
+      await import('../core/ErrorDetector.js')
+    ).ErrorDetector();
+
     let textToAnalyze: string;
     if (args.sessionId) {
       const output = this.consoleManager.getLastOutput(args.sessionId, 100);
@@ -1664,9 +2163,13 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({ error: 'Either sessionId or text must be provided' }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              { error: 'Either sessionId or text must be provided' },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
 
@@ -1678,14 +2181,18 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            errors,
-            stackTrace,
-            severityScore,
-            hasErrors: errors.length > 0
-          }, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(
+            {
+              errors,
+              stackTrace,
+              severityScore,
+              hasErrors: errors.length > 0,
+            },
+            null,
+            2
+          ),
+        } as TextContent,
+      ],
     };
   }
 
@@ -1695,9 +2202,9 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(usage, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(usage, null, 2),
+        } as TextContent,
+      ],
     };
   }
 
@@ -1707,9 +2214,9 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: `Output buffer cleared for session ${args.sessionId}`
-        } as TextContent
-      ]
+          text: `Output buffer cleared for session ${args.sessionId}`,
+        } as TextContent,
+      ],
     };
   }
 
@@ -1723,16 +2230,20 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              sessionId: args.sessionId,
-              executionState: 'idle',
-              activeCommands: 0,
-              commandHistory: [],
-              status: sshInfo.status || 'running',
-              type: 'ssh'
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                sessionId: args.sessionId,
+                executionState: 'idle',
+                activeCommands: 0,
+                commandHistory: [],
+                status: sshInfo.status || 'running',
+                type: 'ssh',
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
 
@@ -1744,12 +2255,16 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              error: `Session ${args.sessionId} not found`,
-              timestamp: new Date().toISOString()
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                error: `Session ${args.sessionId} not found`,
+                timestamp: new Date().toISOString(),
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
 
@@ -1757,56 +2272,69 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(state, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(state, null, 2),
+        } as TextContent,
+      ],
     };
   }
 
-  private async handleGetCommandHistory(args: { sessionId: string; limit?: number }) {
-    const history = this.consoleManager.getSessionCommandHistory(args.sessionId);
-    
+  private async handleGetCommandHistory(args: {
+    sessionId: string;
+    limit?: number;
+  }) {
+    const history = this.consoleManager.getSessionCommandHistory(
+      args.sessionId
+    );
+
     if (history.length === 0) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              sessionId: args.sessionId,
-              commands: [],
-              message: 'No command history found for this session',
-              timestamp: new Date().toISOString()
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                sessionId: args.sessionId,
+                commands: [],
+                message: 'No command history found for this session',
+                timestamp: new Date().toISOString(),
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
 
     const limitedHistory = args.limit ? history.slice(-args.limit) : history;
-    
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            sessionId: args.sessionId,
-            totalCommands: history.length,
-            returnedCommands: limitedHistory.length,
-            commands: limitedHistory.map(cmd => ({
-              id: cmd.id,
-              command: cmd.command,
-              args: cmd.args,
-              startedAt: cmd.startedAt,
-              completedAt: cmd.completedAt,
-              status: cmd.status,
-              duration: cmd.duration,
-              exitCode: cmd.exitCode,
-              outputLines: cmd.totalOutputLines
-            })),
-            timestamp: new Date().toISOString()
-          }, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(
+            {
+              sessionId: args.sessionId,
+              totalCommands: history.length,
+              returnedCommands: limitedHistory.length,
+              commands: limitedHistory.map((cmd) => ({
+                id: cmd.id,
+                command: cmd.command,
+                args: cmd.args,
+                startedAt: cmd.startedAt,
+                completedAt: cmd.completedAt,
+                status: cmd.status,
+                duration: cmd.duration,
+                exitCode: cmd.exitCode,
+                outputLines: cmd.totalOutputLines,
+              })),
+              timestamp: new Date().toISOString(),
+            },
+            null,
+            2
+          ),
+        } as TextContent,
+      ],
     };
   }
 
@@ -1817,9 +2345,9 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(metrics, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(metrics, null, 2),
+        } as TextContent,
+      ],
     };
   }
 
@@ -1829,9 +2357,9 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(metrics, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(metrics, null, 2),
+        } as TextContent,
+      ],
     };
   }
 
@@ -1841,9 +2369,9 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(alerts, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(alerts, null, 2),
+        } as TextContent,
+      ],
     };
   }
 
@@ -1853,26 +2381,29 @@ export class ConsoleAutomationServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(dashboard, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(dashboard, null, 2),
+        } as TextContent,
+      ],
     };
   }
 
-  private async handleStartMonitoring(args: { 
-    sessionId: string; 
-    enableMetrics?: boolean; 
-    enableTracing?: boolean; 
-    enableProfiling?: boolean; 
-    enableAuditing?: boolean; 
-    enableAnomalyDetection?: boolean; 
-    customTags?: Record<string, string> 
+  private async handleStartMonitoring(args: {
+    sessionId: string;
+    enableMetrics?: boolean;
+    enableTracing?: boolean;
+    enableProfiling?: boolean;
+    enableAuditing?: boolean;
+    enableAnomalyDetection?: boolean;
+    customTags?: Record<string, string>;
   }) {
     const monitoringSystem = this.consoleManager.getMonitoringSystem();
     const session = this.consoleManager.getSession(args.sessionId);
-    
+
     if (!session) {
-      throw new McpError(ErrorCode.InvalidParams, `Session ${args.sessionId} not found`);
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Session ${args.sessionId} not found`
+      );
     }
 
     await monitoringSystem.startSessionMonitoring(args.sessionId, {
@@ -1884,43 +2415,43 @@ export class ConsoleAutomationServer {
       enableProfiling: args.enableProfiling,
       enableAuditing: args.enableAuditing,
       enableAnomalyDetection: args.enableAnomalyDetection,
-      customTags: args.customTags
+      customTags: args.customTags,
     });
 
     return {
       content: [
         {
           type: 'text',
-          text: `Monitoring started for session ${args.sessionId}`
-        } as TextContent
-      ]
+          text: `Monitoring started for session ${args.sessionId}`,
+        } as TextContent,
+      ],
     };
   }
 
   private async handleStopMonitoring(args: { sessionId: string }) {
     const monitoringSystem = this.consoleManager.getMonitoringSystem();
     await monitoringSystem.stopSessionMonitoring(args.sessionId);
-    
+
     return {
       content: [
         {
           type: 'text',
-          text: `Monitoring stopped for session ${args.sessionId}`
-        } as TextContent
-      ]
+          text: `Monitoring stopped for session ${args.sessionId}`,
+        } as TextContent,
+      ],
     };
   }
 
   private async handleSaveProfile(args: any) {
     const { profileType, name, ...profileData } = args;
-    
+
     if (profileType === 'connection') {
       const connectionProfile: any = {
         name,
         type: args.connectionType,
-        isDefault: args.isDefault || false
+        isDefault: args.isDefault || false,
       };
-      
+
       // Add connection-specific options based on type
       if (args.connectionType === 'ssh' && args.sshOptions) {
         connectionProfile.sshOptions = args.sshOptions;
@@ -1928,16 +2459,16 @@ export class ConsoleAutomationServer {
         connectionProfile.dockerOptions = args.dockerOptions;
       }
       // Add other connection types as needed
-      
+
       this.consoleManager.saveConnectionProfile(connectionProfile);
-      
+
       return {
         content: [
           {
             type: 'text',
-            text: `Connection profile '${name}' saved successfully`
-          } as TextContent
-        ]
+            text: `Connection profile '${name}' saved successfully`,
+          } as TextContent,
+        ],
       };
     } else if (profileType === 'application') {
       const applicationProfile: any = {
@@ -1947,109 +2478,146 @@ export class ConsoleAutomationServer {
         args: args.args,
         workingDirectory: args.workingDirectory,
         environmentVariables: args.environmentVariables,
-        dotnetOptions: args.dotnetOptions
+        dotnetOptions: args.dotnetOptions,
       };
-      
+
       this.consoleManager.saveApplicationProfile(applicationProfile);
-      
+
       return {
         content: [
           {
             type: 'text',
-            text: `Application profile '${name}' saved successfully`
-          } as TextContent
-        ]
+            text: `Application profile '${name}' saved successfully`,
+          } as TextContent,
+        ],
       };
     }
-    
+
     throw new Error(`Invalid profile type: ${profileType}`);
   }
-  
+
   private async handleListProfiles() {
     const connectionProfiles = this.consoleManager.listConnectionProfiles();
     const configManager = (this.consoleManager as any).configManager;
     const applicationProfiles = configManager.config.applicationProfiles;
-    
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            connectionProfiles,
-            applicationProfiles,
-            defaultProfile: configManager.config.defaultConnectionProfile
-          }, null, 2)
-        } as TextContent
-      ]
+          text: JSON.stringify(
+            {
+              connectionProfiles,
+              applicationProfiles,
+              defaultProfile: configManager.config.defaultConnectionProfile,
+            },
+            null,
+            2
+          ),
+        } as TextContent,
+      ],
     };
   }
-  
-  private async handleRemoveProfile(args: { profileType: string; name: string }) {
+
+  private async handleRemoveProfile(args: {
+    profileType: string;
+    name: string;
+  }) {
     const configManager = (this.consoleManager as any).configManager;
-    
+
     if (args.profileType === 'connection') {
       const removed = configManager.removeConnectionProfile(args.name);
       return {
         content: [
           {
             type: 'text',
-            text: removed ? `Connection profile '${args.name}' removed` : `Profile '${args.name}' not found`
-          } as TextContent
-        ]
+            text: removed
+              ? `Connection profile '${args.name}' removed`
+              : `Profile '${args.name}' not found`,
+          } as TextContent,
+        ],
       };
     }
-    
+
     // For application profiles, we'd need to add a removeApplicationProfile method
     throw new Error('Removing application profiles not yet implemented');
   }
-  
-  private async handleUseProfile(args: { profileName: string; command?: string; args?: string[]; cwd?: string; env?: any }) {
+
+  private async handleUseProfile(args: {
+    profileName: string;
+    command?: string;
+    args?: string[];
+    cwd?: string;
+    env?: any;
+  }) {
     console.error('[URGENT] handleUseProfile called with:', args);
-    this.logger.info(`handleUseProfile called with profile: ${args.profileName}`);
+    this.logger.info(
+      `handleUseProfile called with profile: ${args.profileName}`
+    );
     debugLog('[PROFILE] Using profile:', args.profileName);
     debugLog('[DEBUG] handleUseProfile called with:', args);
 
     try {
       // Load and validate the profile BEFORE creating the session
-      const profile = this.consoleManager.getConfigManager().getConnectionProfile(args.profileName);
+      const profile = this.consoleManager
+        .getConfigManager()
+        .getConnectionProfile(args.profileName);
       debugLog('[DEBUG] Profile loaded:', profile);
 
       if (!profile) {
         debugLog('[DEBUG] Profile not found, throwing error');
-        throw new McpError(ErrorCode.InvalidParams, `Profile not found: ${args.profileName}`);
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Profile not found: ${args.profileName}`
+        );
       }
 
       // Check for Windows SSH password authentication early
       if (profile.type === 'ssh' && profile.sshOptions) {
         const platform = require('os').platform();
-        console.error('[URGENT] Server-side Windows check - Platform detected:', platform);
+        console.error(
+          '[URGENT] Server-side Windows check - Platform detected:',
+          platform
+        );
         debugLog('[DEBUG] Platform detected:', platform);
         debugLog('[DEBUG] SSH options:', {
           hasPassword: !!profile.sshOptions.password,
-          hasPrivateKey: !!profile.sshOptions.privateKey
+          hasPrivateKey: !!profile.sshOptions.privateKey,
         });
 
-        if (platform === 'win32' && profile.sshOptions.password && !profile.sshOptions.privateKey) {
-          console.error('[URGENT] SERVER: Windows SSH password detected - throwing immediate error');
-          debugLog('[DEBUG] Windows SSH password detected - throwing immediate error');
+        if (
+          platform === 'win32' &&
+          profile.sshOptions.password &&
+          !profile.sshOptions.privateKey
+        ) {
+          console.error(
+            '[URGENT] SERVER: Windows SSH password detected - throwing immediate error'
+          );
+          debugLog(
+            '[DEBUG] Windows SSH password detected - throwing immediate error'
+          );
           // Fail immediately with clear error
           throw new McpError(
             ErrorCode.InvalidParams,
             'SSH password authentication is not supported on Windows. ' +
-            'Windows OpenSSH requires interactive terminal input for passwords. ' +
-            'Please use SSH key-based authentication instead:\n' +
-            '1. Generate an SSH key: ssh-keygen -t rsa -b 4096\n' +
-            '2. Copy the public key to the server: ssh-copy-id ubuntu@github-runner-server\n' +
-            '3. Update your profile to use the private key path instead of password'
+              'Windows OpenSSH requires interactive terminal input for passwords. ' +
+              'Please use SSH key-based authentication instead:\n' +
+              '1. Generate an SSH key: ssh-keygen -t rsa -b 4096\n' +
+              '2. Copy the public key to the server: ssh-copy-id ubuntu@github-runner-server\n' +
+              '3. Update your profile to use the private key path instead of password'
           );
         }
       }
 
-      debugLog('[DEBUG] Profile validation passed, proceeding with session creation');
+      debugLog(
+        '[DEBUG] Profile validation passed, proceeding with session creation'
+      );
 
       // Check if this is an SSH profile - route through SSH Bridge
       if (profile && profile.type === 'ssh') {
-        this.logger.info(`Profile ${args.profileName} is SSH type - routing through SSH bridge`);
+        this.logger.info(
+          `Profile ${args.profileName} is SSH type - routing through SSH bridge`
+        );
         debugLog('[PROFILE] SSH profile detected, using SSHBridge');
 
         // Use SSH bridge for SSH profiles
@@ -2060,7 +2628,7 @@ export class ConsoleAutomationServer {
           env: args.env,
           profileName: args.profileName,
           consoleType: 'ssh' as const,
-          sshOptions: profile.sshOptions
+          sshOptions: profile.sshOptions,
         };
 
         const sessionId = await this.sshBridge.createSession(sessionOptions);
@@ -2068,7 +2636,7 @@ export class ConsoleAutomationServer {
         // Store for recovery if needed
         this.sessionRecoveryMap.set(sessionId, {
           profileName: args.profileName,
-          type: 'ssh'
+          type: 'ssh',
         });
 
         debugLog('[PROFILE] SSH session created:', sessionId);
@@ -2077,17 +2645,23 @@ export class ConsoleAutomationServer {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({
-                sessionId,
-                profileUsed: args.profileName,
-                message: `Session created using profile: ${args.profileName}`,
-                consoleType: 'ssh'
-              }, null, 2)
-            } as TextContent
-          ]
+              text: JSON.stringify(
+                {
+                  sessionId,
+                  profileUsed: args.profileName,
+                  message: `Session created using profile: ${args.profileName}`,
+                  consoleType: 'ssh',
+                },
+                null,
+                2
+              ),
+            } as TextContent,
+          ],
         };
       } else {
-        this.logger.info(`Profile ${args.profileName} is not SSH - using ConsoleManager`);
+        this.logger.info(
+          `Profile ${args.profileName} is not SSH - using ConsoleManager`
+        );
         debugLog('[PROFILE] Non-SSH profile, using ConsoleManager');
 
         // Use regular console manager for non-SSH profiles
@@ -2096,12 +2670,13 @@ export class ConsoleAutomationServer {
           args: args.args,
           cwd: args.cwd,
           env: args.env,
-          profileName: args.profileName
+          profileName: args.profileName,
         } as any;
 
         debugLog('[DEBUG] Creating session with options:', sessionOptions);
 
-        const sessionId = await this.consoleManager.createSession(sessionOptions);
+        const sessionId =
+          await this.consoleManager.createSession(sessionOptions);
         const session = this.consoleManager.getSession(sessionId);
 
         debugLog('[DEBUG] Session created successfully:', sessionId);
@@ -2110,7 +2685,7 @@ export class ConsoleAutomationServer {
         if (sessionId) {
           this.sessionRecoveryMap.set(sessionId, {
             profileName: args.profileName,
-            type: 'profile'
+            type: 'profile',
           } as any);
         }
 
@@ -2118,14 +2693,18 @@ export class ConsoleAutomationServer {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({
-                sessionId,
-                profileUsed: args.profileName,
-                message: `Session created using profile: ${args.profileName}`,
-                consoleType: session?.type
-              }, null, 2)
-            } as TextContent
-          ]
+              text: JSON.stringify(
+                {
+                  sessionId,
+                  profileUsed: args.profileName,
+                  message: `Session created using profile: ${args.profileName}`,
+                  consoleType: session?.type,
+                },
+                null,
+                2
+              ),
+            } as TextContent,
+          ],
         };
       }
     } catch (error: any) {
@@ -2152,35 +2731,43 @@ export class ConsoleAutomationServer {
         command: args.command,
         args: args.args,
         timeout: args.timeout,
-        priority: args.priority
+        priority: args.priority,
       });
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: true,
-              jobId: result,
-              message: `Background job started: ${args.command}`,
-              sessionId: args.sessionId
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: true,
+                jobId: result,
+                message: `Background job started: ${args.command}`,
+                sessionId: args.sessionId,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message,
-              command: args.command,
-              sessionId: args.sessionId
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+                command: args.command,
+                sessionId: args.sessionId,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2200,72 +2787,84 @@ export class ConsoleAutomationServer {
         args: job.args,
         sessionId: job.sessionId,
         progress: job.progress,
-        duration: job.startedAt && job.completedAt
-          ? job.completedAt.getTime() - job.startedAt.getTime()
-          : undefined,
-        outputLines: job.output.length
+        duration:
+          job.startedAt && job.completedAt
+            ? job.completedAt.getTime() - job.startedAt.getTime()
+            : undefined,
+        outputLines: job.output.length,
       };
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(response, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(response, null, 2),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message,
-              jobId: args.jobId
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+                jobId: args.jobId,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
 
   private async handleGetJobOutput(args: { jobId: string; latest?: boolean }) {
     try {
-      const output = await this.sessionManager.getJobOutput(args.jobId, args.latest);
+      const output = await this.sessionManager.getJobOutput(
+        args.jobId,
+        args.latest
+      );
 
       const response = {
         jobId: args.jobId,
-        output: output.map(o => ({
+        output: output.map((o) => ({
           type: o.type,
           data: o.data,
           timestamp: o.timestamp,
-          sequence: o.sequence
+          sequence: o.sequence,
         })),
         totalLines: output.length,
-        latest: args.latest || false
+        latest: args.latest || false,
       };
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(response, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(response, null, 2),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message,
-              jobId: args.jobId
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+                jobId: args.jobId,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2278,26 +2877,34 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Job cancelled: ${args.jobId}`,
-              jobId: args.jobId
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: true,
+                message: `Job cancelled: ${args.jobId}`,
+                jobId: args.jobId,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message,
-              jobId: args.jobId
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+                jobId: args.jobId,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2306,7 +2913,7 @@ export class ConsoleAutomationServer {
     try {
       const jobs = await this.sessionManager.listJobs(args.sessionId);
 
-      const jobSummaries = jobs.map(job => ({
+      const jobSummaries = jobs.map((job) => ({
         jobId: job.id,
         sessionId: job.sessionId,
         command: job.command,
@@ -2315,40 +2922,45 @@ export class ConsoleAutomationServer {
         completedAt: job.completedAt,
         exitCode: job.exitCode,
         priority: job.priority,
-        duration: job.startedAt && job.completedAt
-          ? job.completedAt.getTime() - job.startedAt.getTime()
-          : undefined,
+        duration:
+          job.startedAt && job.completedAt
+            ? job.completedAt.getTime() - job.startedAt.getTime()
+            : undefined,
         outputLines: job.output.length,
-        hasError: !!job.error
+        hasError: !!job.error,
       }));
 
       const response = {
         jobs: jobSummaries,
         totalJobs: jobSummaries.length,
         sessionId: args.sessionId || 'all sessions',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(response, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(response, null, 2),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message,
-              sessionId: args.sessionId
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+                sessionId: args.sessionId,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2360,29 +2972,33 @@ export class ConsoleAutomationServer {
       const response = {
         jobId: args.jobId,
         progress: progress || { message: 'No progress information available' },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(response, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(response, null, 2),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message,
-              jobId: args.jobId
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+                jobId: args.jobId,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2395,22 +3011,26 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(result, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(result, null, 2),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message,
-              jobId: args.jobId
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+                jobId: args.jobId,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2423,57 +3043,76 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              metrics,
-              timestamp: new Date().toISOString()
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                metrics,
+                timestamp: new Date().toISOString(),
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
 
   private async handleCleanupJobs(args: { olderThan?: number }) {
     try {
-      const cutoffDate = args.olderThan ? new Date(Date.now() - args.olderThan) : undefined;
-      const cleanedCount = await this.sessionManager.cleanupCompletedJobs(cutoffDate);
+      const cutoffDate = args.olderThan
+        ? new Date(Date.now() - args.olderThan)
+        : undefined;
+      const cleanedCount =
+        await this.sessionManager.cleanupCompletedJobs(cutoffDate);
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Cleaned up ${cleanedCount} completed jobs`,
-              cleanedCount,
-              timestamp: new Date().toISOString()
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: true,
+                message: `Cleaned up ${cleanedCount} completed jobs`,
+                cleanedCount,
+                timestamp: new Date().toISOString(),
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2482,7 +3121,11 @@ export class ConsoleAutomationServer {
   // Phase 2: Assertion Framework Handlers
   // ============================================================================
 
-  private async handleAssertOutput(args: { sessionId: string; expected: string; type?: string }) {
+  private async handleAssertOutput(args: {
+    sessionId: string;
+    expected: string;
+    type?: string;
+  }) {
     try {
       const session = this.consoleManager.getSession(args.sessionId);
       if (!session) {
@@ -2490,13 +3133,13 @@ export class ConsoleAutomationServer {
       }
 
       const outputs = this.consoleManager.getOutput(args.sessionId);
-      const output = outputs.map(o => o.data).join('');
+      const output = outputs.map((o) => o.data).join('');
       const assertionType = args.type || 'output_contains';
 
       const assertion: any = {
         type: assertionType,
         expected: args.expected,
-        actual: output
+        actual: output,
       };
 
       const result = await this.assertionEngine.evaluate(assertion);
@@ -2505,34 +3148,46 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: result.passed,
-              message: result.message,
-              assertion: {
-                type: assertionType,
-                expected: args.expected,
-                actual: output.slice(0, 200) + (output.length > 200 ? '...' : '')
-              }
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: result.passed,
+                message: result.message,
+                assertion: {
+                  type: assertionType,
+                  expected: args.expected,
+                  actual:
+                    output.slice(0, 200) + (output.length > 200 ? '...' : ''),
+                },
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
 
-  private async handleAssertExitCode(args: { sessionId: string; expected: number }) {
+  private async handleAssertExitCode(args: {
+    sessionId: string;
+    expected: number;
+  }) {
     try {
       const session = this.consoleManager.getSession(args.sessionId);
       if (!session) {
@@ -2544,7 +3199,7 @@ export class ConsoleAutomationServer {
       const assertion: any = {
         type: 'exit_code',
         expected: args.expected,
-        actual: exitCode
+        actual: exitCode,
       };
 
       const result = await this.assertionEngine.evaluate(assertion);
@@ -2553,26 +3208,34 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: result.passed,
-              message: result.message,
-              exitCode,
-              expected: args.expected
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: result.passed,
+                message: result.message,
+                exitCode,
+                expected: args.expected,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2585,12 +3248,12 @@ export class ConsoleAutomationServer {
       }
 
       const outputs = this.consoleManager.getOutput(args.sessionId);
-      const output = outputs.map(o => o.data).join('');
+      const output = outputs.map((o) => o.data).join('');
 
       const assertion: any = {
         type: 'no_errors',
         expected: null,
-        actual: output
+        actual: output,
       };
 
       const result = await this.assertionEngine.evaluate(assertion);
@@ -2599,29 +3262,40 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: result.passed,
-              message: result.message
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: result.passed,
+                message: result.message,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
 
-  private async handleSaveSnapshot(args: { sessionId: string; metadata?: Record<string, any> }) {
+  private async handleSaveSnapshot(args: {
+    sessionId: string;
+    metadata?: Record<string, any>;
+  }) {
     try {
       const session = this.consoleManager.getSession(args.sessionId);
       if (!session) {
@@ -2629,7 +3303,7 @@ export class ConsoleAutomationServer {
       }
 
       const outputs = this.consoleManager.getOutput(args.sessionId);
-      const output = outputs.map(o => o.data).join('');
+      const output = outputs.map((o) => o.data).join('');
       const state = this.sessionManager.getSession(args.sessionId);
 
       const snapshot = await this.snapshotManager.capture(
@@ -2645,35 +3319,46 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: 'Snapshot saved successfully',
-              snapshot: {
-                sessionId: snapshot.sessionId,
-                timestamp: snapshot.timestamp,
-                hash: snapshot.hash,
-                filepath
-              }
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: true,
+                message: 'Snapshot saved successfully',
+                snapshot: {
+                  sessionId: snapshot.sessionId,
+                  timestamp: snapshot.timestamp,
+                  hash: snapshot.hash,
+                  filepath,
+                },
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
 
-  private async handleCompareSnapshots(args: { snapshotPath1: string; snapshotPath2: string }) {
+  private async handleCompareSnapshots(args: {
+    snapshotPath1: string;
+    snapshotPath2: string;
+  }) {
     try {
       const snapshot1 = await this.snapshotManager.load(args.snapshotPath1);
       const snapshot2 = await this.snapshotManager.load(args.snapshotPath2);
@@ -2684,31 +3369,39 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: true,
-              identical: diff.identical,
-              similarity: diff.similarity,
-              changes: {
-                added: diff.added.length,
-                removed: diff.removed.length,
-                changed: diff.changed.length
+            text: JSON.stringify(
+              {
+                success: true,
+                identical: diff.identical,
+                similarity: diff.similarity,
+                changes: {
+                  added: diff.added.length,
+                  removed: diff.removed.length,
+                  changed: diff.changed.length,
+                },
+                diff,
               },
-              diff
-            }, null, 2)
-          } as TextContent
-        ]
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2725,7 +3418,7 @@ export class ConsoleAutomationServer {
       const assertion: any = {
         type: 'state_equals',
         expected: args.expected,
-        actual: state
+        actual: state,
       };
 
       const result = await this.assertionEngine.evaluate(assertion);
@@ -2734,25 +3427,33 @@ export class ConsoleAutomationServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: result.passed,
-              message: result.message,
-              state
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: result.passed,
+                message: result.message,
+                state,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     } catch (error: any) {
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            }, null, 2)
-          } as TextContent
-        ]
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error.message,
+              },
+              null,
+              2
+            ),
+          } as TextContent,
+        ],
       };
     }
   }
@@ -2807,9 +3508,15 @@ export class ConsoleAutomationServer {
       debugLog('[DEBUG] Error classification:', classification);
 
       // NEVER terminate for SSH or network errors
-      if (classification.category === 'ssh' || classification.category === 'network') {
+      if (
+        classification.category === 'ssh' ||
+        classification.category === 'network'
+      ) {
         debugLog('[DEBUG] *** SSH/Network error - Server MUST continue ***');
-        this.logger.warn('SSH/Network error isolated, continuing:', error.message);
+        this.logger.warn(
+          'SSH/Network error isolated, continuing:',
+          error.message
+        );
         this.handleRecoverableError(error);
         return; // Explicitly return to prevent any default behavior
       }
@@ -2897,7 +3604,12 @@ export class ConsoleAutomationServer {
       // Clear stuck sessions
       const sessions = this.consoleManager.getAllSessions();
       for (const session of sessions) {
-        if (session.status === 'failed' || session.status === 'crashed' || session.status === 'terminated' || session.status === 'closed') {
+        if (
+          session.status === 'failed' ||
+          session.status === 'crashed' ||
+          session.status === 'terminated' ||
+          session.status === 'closed'
+        ) {
           try {
             await this.consoleManager.stopSession(session.id);
           } catch (e) {
@@ -2932,10 +3644,15 @@ export class ConsoleAutomationServer {
 
     this.connectionState = 'reconnecting';
 
-    while (this.reconnectAttempts < this.maxReconnectAttempts && !this.isShuttingDown) {
+    while (
+      this.reconnectAttempts < this.maxReconnectAttempts &&
+      !this.isShuttingDown
+    ) {
       this.reconnectAttempts++;
 
-      this.logger.info(`Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+      this.logger.info(
+        `Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`
+      );
 
       try {
         await this.reconnect();
@@ -2950,12 +3667,17 @@ export class ConsoleAutomationServer {
 
         return;
       } catch (error) {
-        this.logger.error(`Reconnection attempt ${this.reconnectAttempts} failed:`, error);
+        this.logger.error(
+          `Reconnection attempt ${this.reconnectAttempts} failed:`,
+          error
+        );
 
         // Exponential backoff with max delay of 30 seconds
         this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
 
-        await new Promise(resolve => setTimeout(resolve, this.reconnectDelay));
+        await new Promise((resolve) =>
+          setTimeout(resolve, this.reconnectDelay)
+        );
       }
     }
 
@@ -3011,74 +3733,84 @@ export class ConsoleAutomationServer {
 
   private classifyError(error: any): ErrorClassification {
     // SSH authentication errors
-    if (error.message?.includes('All configured authentication methods failed') ||
-        error.message?.includes('Authentication failed') ||
-        error.message?.includes('Permission denied') ||
-        error.message?.includes('Host key verification failed') ||
-        error.message?.includes('ssh') ||
-        error.message?.includes('SSH')) {
+    if (
+      error.message?.includes('All configured authentication methods failed') ||
+      error.message?.includes('Authentication failed') ||
+      error.message?.includes('Permission denied') ||
+      error.message?.includes('Host key verification failed') ||
+      error.message?.includes('ssh') ||
+      error.message?.includes('SSH')
+    ) {
       return {
         severity: 'recoverable',
         category: 'ssh',
         canRecover: true,
-        suggestedAction: 'Check SSH credentials and try again'
+        suggestedAction: 'Check SSH credentials and try again',
       };
     }
 
     // File/spawn errors (like SSH executable not found)
-    if (error.code === 'ENOENT' ||
-        error.syscall === 'spawn' ||
-        error.message?.includes('spawn') ||
-        error.message?.includes('ENOENT') ||
-        error.path?.includes('ssh') ||
-        error.spawnargs?.some((arg: string) => arg?.includes('ssh'))) {
+    if (
+      error.code === 'ENOENT' ||
+      error.syscall === 'spawn' ||
+      error.message?.includes('spawn') ||
+      error.message?.includes('ENOENT') ||
+      error.path?.includes('ssh') ||
+      error.spawnargs?.some((arg: string) => arg?.includes('ssh'))
+    ) {
       return {
         severity: 'recoverable',
         category: 'ssh',
         canRecover: true,
-        suggestedAction: 'SSH client not found, trying alternative'
+        suggestedAction: 'SSH client not found, trying alternative',
       };
     }
 
     // SSH connection timeout
-    if (error.message?.includes('connection timeout') ||
-        error.message?.includes('SSH connection timeout') ||
-        error.message?.includes('Operation timed out')) {
+    if (
+      error.message?.includes('connection timeout') ||
+      error.message?.includes('SSH connection timeout') ||
+      error.message?.includes('Operation timed out')
+    ) {
       return {
         severity: 'recoverable',
         category: 'ssh',
         canRecover: true,
-        suggestedAction: 'SSH connection timeout, will retry'
+        suggestedAction: 'SSH connection timeout, will retry',
       };
     }
 
     // Network errors
-    if (error.code === 'ECONNREFUSED' ||
-        error.code === 'ETIMEDOUT' ||
-        error.code === 'ENOTFOUND' ||
-        error.code === 'EHOSTUNREACH' ||
-        error.code === 'ENETUNREACH' ||
-        error.code === 'ECONNRESET' ||
-        error.message?.includes('ECONNRESET') ||
-        error.message?.includes('Connection refused') ||
-        error.message?.includes('No route to host')) {
+    if (
+      error.code === 'ECONNREFUSED' ||
+      error.code === 'ETIMEDOUT' ||
+      error.code === 'ENOTFOUND' ||
+      error.code === 'EHOSTUNREACH' ||
+      error.code === 'ENETUNREACH' ||
+      error.code === 'ECONNRESET' ||
+      error.message?.includes('ECONNRESET') ||
+      error.message?.includes('Connection refused') ||
+      error.message?.includes('No route to host')
+    ) {
       return {
         severity: 'recoverable',
         category: 'network',
         canRecover: true,
-        suggestedAction: 'Network issue detected, will retry'
+        suggestedAction: 'Network issue detected, will retry',
       };
     }
 
     // Resource exhaustion (critical)
-    if (error.message?.includes('out of memory') ||
-        error.message?.includes('EMFILE') ||
-        error.message?.includes('ENOMEM')) {
+    if (
+      error.message?.includes('out of memory') ||
+      error.message?.includes('EMFILE') ||
+      error.message?.includes('ENOMEM')
+    ) {
       return {
         severity: 'critical',
         category: 'resource',
         canRecover: false,
-        suggestedAction: 'Resource exhaustion, restart required'
+        suggestedAction: 'Resource exhaustion, restart required',
       };
     }
 
@@ -3088,7 +3820,7 @@ export class ConsoleAutomationServer {
         severity: 'recoverable',
         category: 'protocol',
         canRecover: true,
-        suggestedAction: 'MCP protocol error, operation can be retried'
+        suggestedAction: 'MCP protocol error, operation can be retried',
       };
     }
 
@@ -3097,7 +3829,7 @@ export class ConsoleAutomationServer {
       severity: 'recoverable',
       category: 'unknown',
       canRecover: true,
-      suggestedAction: 'Unknown error, attempting to continue'
+      suggestedAction: 'Unknown error, attempting to continue',
     };
   }
 
@@ -3126,7 +3858,8 @@ export class ConsoleAutomationServer {
       const recoveryInfo = this.sessionRecoveryMap.get(sessionId);
       if (recoveryInfo) {
         // Try to recreate the session with stored options
-        const newSessionId = await this.consoleManager.createSession(recoveryInfo);
+        const newSessionId =
+          await this.consoleManager.createSession(recoveryInfo);
         this.logger.info(`Session ${sessionId} recovered as ${newSessionId}`);
         return newSessionId;
       }
@@ -3144,13 +3877,22 @@ export class ConsoleAutomationServer {
     const originalStderrWrite = process.stderr.write.bind(process.stderr);
 
     // Override stdout.write to filter out non-MCP content
-    process.stdout.write = function(chunk: any, encoding?: any, callback?: any): boolean {
+    process.stdout.write = function (
+      chunk: any,
+      encoding?: any,
+      callback?: any
+    ): boolean {
       // Convert chunk to string for inspection
       const str = chunk?.toString ? chunk.toString() : String(chunk);
 
       // Only allow JSON-RPC messages through stdout
       // MCP protocol uses JSON-RPC 2.0 format
-      if (str.trim().startsWith('{') && (str.includes('"jsonrpc":"2.0"') || str.includes('"method"') || str.includes('"result"'))) {
+      if (
+        str.trim().startsWith('{') &&
+        (str.includes('"jsonrpc":"2.0"') ||
+          str.includes('"method"') ||
+          str.includes('"result"'))
+      ) {
         return originalStdoutWrite(chunk, encoding, callback);
       }
 
@@ -3160,7 +3902,11 @@ export class ConsoleAutomationServer {
     } as any;
 
     // Keep stderr as-is but log it for debugging
-    process.stderr.write = function(chunk: any, encoding?: any, callback?: any): boolean {
+    process.stderr.write = function (
+      chunk: any,
+      encoding?: any,
+      callback?: any
+    ): boolean {
       const str = chunk?.toString ? chunk.toString() : String(chunk);
       debugLog('[STDERR]', str);
       return originalStderrWrite(chunk, encoding, callback);
@@ -3172,7 +3918,10 @@ export class ConsoleAutomationServer {
   async start() {
     debugLog('[DEBUG] === SERVER START ===');
     debugLog('[DEBUG] Process argv:', process.argv);
-    debugLog('[DEBUG] Process env MCP_SERVER_MODE:', process.env.MCP_SERVER_MODE);
+    debugLog(
+      '[DEBUG] Process env MCP_SERVER_MODE:',
+      process.env.MCP_SERVER_MODE
+    );
 
     try {
       // Enable MCP server mode before any operations
@@ -3187,11 +3936,12 @@ export class ConsoleAutomationServer {
 
       this.connectionState = 'connected';
       debugLog('[DEBUG] Connection state set to:', this.connectionState);
-      this.logger.info('MCP server started successfully with persistence enabled');
+      this.logger.info(
+        'MCP server started successfully with persistence enabled'
+      );
       this.logger.info('Connection monitoring and auto-reconnection active');
       this.logger.info('Keepalive heartbeat active (15s interval)');
       debugLog('[DEBUG] Server initialization complete');
-
     } catch (error: any) {
       this.logger.error('Failed to start server:', error);
 

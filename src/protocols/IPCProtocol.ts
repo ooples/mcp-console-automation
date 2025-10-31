@@ -1,19 +1,26 @@
 import { EventEmitter } from 'events';
 import { Socket, createServer, Server, connect } from 'net';
 import { platform } from 'os';
-import { createReadStream, createWriteStream, unlink, access, chown, chmod } from 'fs';
+import {
+  createReadStream,
+  createWriteStream,
+  unlink,
+  access,
+  chown,
+  chmod,
+} from 'fs';
 import { promisify } from 'util';
 import { randomBytes, createCipher, createDecipher, createHash } from 'crypto';
 import { gzip, gunzip, deflate, inflate } from 'zlib';
 import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 
-import { 
-  IPCConnectionOptions, 
-  IPCSessionState, 
+import {
+  IPCConnectionOptions,
+  IPCSessionState,
   IPCMessage,
   ConsoleSession,
-  ConsoleOutput 
+  ConsoleOutput,
 } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 
@@ -29,7 +36,7 @@ const inflateAsync = promisify(inflate);
 /**
  * Production-ready IPC Protocol implementation supporting:
  * - Windows Named Pipes
- * - Unix Domain Sockets 
+ * - Unix Domain Sockets
  * - Docker Socket integration
  * - Windows Mailslots
  * - D-Bus integration
@@ -51,14 +58,14 @@ export class IPCProtocol extends EventEmitter {
   private keepAliveTimer?: NodeJS.Timeout;
   private messageBuffer: Buffer = Buffer.alloc(0);
   private pendingMessages: IPCMessage[] = [];
-  
+
   // Windows-specific handles
   private namedPipeHandle?: any;
   private mailslotHandle?: any;
-  
+
   // Unix-specific file descriptors
   private unixSocketFd?: number;
-  
+
   // Protocol-specific clients
   private dbusConnection?: any;
   private comInterface?: any;
@@ -68,7 +75,7 @@ export class IPCProtocol extends EventEmitter {
     super();
     this.options = options;
     this.logger = new Logger('IPCProtocol');
-    
+
     this.sessionState = {
       sessionId: this.generateSessionId(),
       connectionState: 'disconnected',
@@ -77,7 +84,7 @@ export class IPCProtocol extends EventEmitter {
       connectionInfo: {
         protocol: this.getProtocolName(),
         established: new Date(),
-        lastActivity: new Date()
+        lastActivity: new Date(),
       },
       statistics: {
         messagesReceived: 0,
@@ -85,8 +92,8 @@ export class IPCProtocol extends EventEmitter {
         bytesReceived: 0,
         bytesSent: 0,
         errors: 0,
-        reconnections: 0
-      }
+        reconnections: 0,
+      },
     };
 
     this.setupErrorHandling();
@@ -96,29 +103,44 @@ export class IPCProtocol extends EventEmitter {
     return `ipc-${Date.now()}-${randomBytes(8).toString('hex')}`;
   }
 
-  private detectIPCType(): 'named-pipe' | 'unix-socket' | 'docker-socket' | 'mailslot' | 'dbus' | 'com' {
+  private detectIPCType():
+    | 'named-pipe'
+    | 'unix-socket'
+    | 'docker-socket'
+    | 'mailslot'
+    | 'dbus'
+    | 'com' {
     if (this.options.namedPipe) return 'named-pipe';
     if (this.options.unixSocket) return 'unix-socket';
     if (this.options.dockerSocket) return 'docker-socket';
     if (this.options.mailslot) return 'mailslot';
     if (this.options.dbus) return 'dbus';
     if (this.options.com) return 'com';
-    
+
     // Auto-detect based on path
     if (platform() === 'win32') {
-      if (this.options.path.includes('\\pipe\\') || this.options.path.startsWith('\\\\.\\pipe\\')) {
+      if (
+        this.options.path.includes('\\pipe\\') ||
+        this.options.path.startsWith('\\\\.\\pipe\\')
+      ) {
         return 'named-pipe';
       }
-      if (this.options.path.includes('\\mailslot\\') || this.options.path.startsWith('\\\\.\\mailslot\\')) {
+      if (
+        this.options.path.includes('\\mailslot\\') ||
+        this.options.path.startsWith('\\\\.\\mailslot\\')
+      ) {
         return 'mailslot';
       }
     } else {
-      if (this.options.path.includes('/var/run/docker.sock') || this.options.path.includes('docker')) {
+      if (
+        this.options.path.includes('/var/run/docker.sock') ||
+        this.options.path.includes('docker')
+      ) {
         return 'docker-socket';
       }
       return 'unix-socket';
     }
-    
+
     return 'unix-socket';
   }
 
@@ -175,19 +197,26 @@ export class IPCProtocol extends EventEmitter {
       this.sessionState.connectionState = 'connected';
       this.sessionState.connectionInfo.established = new Date();
       this.updateLastActivity();
-      
+
       this.setupKeepAlive();
       this.processPendingMessages();
-      
+
       this.emit('connected', this.sessionState);
-      this.logger.info(`Connected to ${this.sessionState.ipcType} at ${this.options.path}`);
-      
+      this.logger.info(
+        `Connected to ${this.sessionState.ipcType} at ${this.options.path}`
+      );
     } catch (error) {
       this.sessionState.connectionState = 'error';
       this.sessionState.statistics.lastError = (error as Error).message;
-      this.logger.error(`Failed to connect to ${this.sessionState.ipcType}:`, error);
-      
-      if (this.options.reconnect && this.connectionAttempts < (this.options.maxReconnectAttempts || 5)) {
+      this.logger.error(
+        `Failed to connect to ${this.sessionState.ipcType}:`,
+        error
+      );
+
+      if (
+        this.options.reconnect &&
+        this.connectionAttempts < (this.options.maxReconnectAttempts || 5)
+      ) {
         await this.scheduleReconnect();
       } else {
         throw error;
@@ -205,17 +234,17 @@ export class IPCProtocol extends EventEmitter {
 
     const pipeOptions = this.options.namedPipe!;
     const pipeName = this.formatNamedPipePath(pipeOptions.pipeName);
-    
+
     try {
       // Use Node.js net module to connect to named pipe
       this.socket = connect(pipeName);
-      
+
       this.socket.on('connect', () => {
         this.logger.info(`Connected to Named Pipe: ${pipeName}`);
         this.sessionState.namedPipeState = {
           serverMode: false,
           clientCount: 1,
-          instanceId: 1
+          instanceId: 1,
         };
       });
 
@@ -235,14 +264,15 @@ export class IPCProtocol extends EventEmitter {
       await new Promise<void>((resolve, reject) => {
         this.socket!.on('connect', resolve);
         this.socket!.on('error', reject);
-        
+
         setTimeout(() => {
           reject(new Error('Named Pipe connection timeout'));
         }, pipeOptions.timeout || 30000);
       });
-
     } catch (error) {
-      throw new Error(`Failed to connect to Named Pipe ${pipeName}: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to connect to Named Pipe ${pipeName}: ${(error as Error).message}`
+      );
     }
   }
 
@@ -251,12 +281,14 @@ export class IPCProtocol extends EventEmitter {
    */
   private async connectUnixSocket(): Promise<void> {
     if (platform() === 'win32') {
-      throw new Error('Unix Domain Sockets are not natively supported on Windows');
+      throw new Error(
+        'Unix Domain Sockets are not natively supported on Windows'
+      );
     }
 
     const unixOptions = this.options.unixSocket!;
     let socketPath = unixOptions.socketPath || this.options.path;
-    
+
     // Handle abstract namespace on Linux
     if (unixOptions.abstract && platform() === 'linux') {
       socketPath = '\x00' + socketPath; // Abstract namespace prefix
@@ -264,13 +296,13 @@ export class IPCProtocol extends EventEmitter {
 
     try {
       this.socket = connect(socketPath);
-      
+
       this.socket.on('connect', () => {
         this.logger.info(`Connected to Unix Domain Socket: ${socketPath}`);
         this.sessionState.unixSocketState = {
           socketType: unixOptions.socketType || 'stream',
           abstract: unixOptions.abstract || false,
-          permissions: unixOptions.permissions || '0755'
+          permissions: unixOptions.permissions || '0755',
         };
       });
 
@@ -290,14 +322,15 @@ export class IPCProtocol extends EventEmitter {
       await new Promise<void>((resolve, reject) => {
         this.socket!.on('connect', resolve);
         this.socket!.on('error', reject);
-        
+
         setTimeout(() => {
           reject(new Error('Unix socket connection timeout'));
         }, 30000);
       });
-
     } catch (error) {
-      throw new Error(`Failed to connect to Unix Domain Socket ${socketPath}: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to connect to Unix Domain Socket ${socketPath}: ${(error as Error).message}`
+      );
     }
   }
 
@@ -306,21 +339,22 @@ export class IPCProtocol extends EventEmitter {
    */
   private async connectDockerSocket(): Promise<void> {
     const dockerOptions = this.options.dockerSocket!;
-    const socketPath = dockerOptions.socketPath || this.getDefaultDockerSocketPath();
-    
+    const socketPath =
+      dockerOptions.socketPath || this.getDefaultDockerSocketPath();
+
     try {
       this.socket = connect(socketPath);
-      
+
       this.socket.on('connect', async () => {
         this.logger.info(`Connected to Docker Socket: ${socketPath}`);
-        
+
         // Initialize Docker API connection
         await this.initializeDockerAPI();
-        
+
         this.sessionState.dockerSocketState = {
           apiVersion: dockerOptions.apiVersion || '1.41',
           serverInfo: {},
-          containers: []
+          containers: [],
         };
       });
 
@@ -340,14 +374,15 @@ export class IPCProtocol extends EventEmitter {
       await new Promise<void>((resolve, reject) => {
         this.socket!.on('connect', resolve);
         this.socket!.on('error', reject);
-        
+
         setTimeout(() => {
           reject(new Error('Docker socket connection timeout'));
         }, dockerOptions.timeout || 30000);
       });
-
     } catch (error) {
-      throw new Error(`Failed to connect to Docker Socket ${socketPath}: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to connect to Docker Socket ${socketPath}: ${(error as Error).message}`
+      );
     }
   }
 
@@ -361,12 +396,12 @@ export class IPCProtocol extends EventEmitter {
 
     const mailslotOptions = this.options.mailslot!;
     const mailslotName = this.formatMailslotPath(mailslotOptions.mailslotName);
-    
+
     try {
       // For now, simulate mailslot connection using named pipes
       // In a full implementation, this would use Windows API directly
       this.socket = connect(mailslotName);
-      
+
       this.socket.on('connect', () => {
         this.logger.info(`Connected to Mailslot: ${mailslotName}`);
       });
@@ -382,14 +417,15 @@ export class IPCProtocol extends EventEmitter {
       await new Promise<void>((resolve, reject) => {
         this.socket!.on('connect', resolve);
         this.socket!.on('error', reject);
-        
+
         setTimeout(() => {
           reject(new Error('Mailslot connection timeout'));
         }, mailslotOptions.readTimeout || 30000);
       });
-
     } catch (error) {
-      throw new Error(`Failed to connect to Mailslot ${mailslotName}: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to connect to Mailslot ${mailslotName}: ${(error as Error).message}`
+      );
     }
   }
 
@@ -402,20 +438,24 @@ export class IPCProtocol extends EventEmitter {
     }
 
     const dbusOptions = this.options.dbus!;
-    
+
     try {
       // Simulate D-Bus connection - in production would use dbus library
-      const busAddress = dbusOptions.busAddress || this.getDBusAddress(dbusOptions.busType || 'session');
-      
+      const busAddress =
+        dbusOptions.busAddress ||
+        this.getDBusAddress(dbusOptions.busType || 'session');
+
       // Use Unix socket to connect to D-Bus
       this.socket = connect(busAddress);
-      
+
       this.socket.on('connect', () => {
-        this.logger.info(`Connected to D-Bus: ${dbusOptions.busType || 'session'}`);
+        this.logger.info(
+          `Connected to D-Bus: ${dbusOptions.busType || 'session'}`
+        );
         this.sessionState.dbusState = {
           busType: dbusOptions.busType || 'session',
           serviceName: dbusOptions.serviceName,
-          ownedNames: []
+          ownedNames: [],
         };
       });
 
@@ -430,14 +470,15 @@ export class IPCProtocol extends EventEmitter {
       await new Promise<void>((resolve, reject) => {
         this.socket!.on('connect', resolve);
         this.socket!.on('error', reject);
-        
+
         setTimeout(() => {
           reject(new Error('D-Bus connection timeout'));
         }, dbusOptions.timeout || 30000);
       });
-
     } catch (error) {
-      throw new Error(`Failed to connect to D-Bus: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to connect to D-Bus: ${(error as Error).message}`
+      );
     }
   }
 
@@ -450,14 +491,16 @@ export class IPCProtocol extends EventEmitter {
     }
 
     const comOptions = this.options.com!;
-    
+
     try {
       // Simulate COM connection - in production would use Windows COM API
-      this.logger.info(`Connecting to COM object: ${comOptions.progId || comOptions.clsid}`);
-      
+      this.logger.info(
+        `Connecting to COM object: ${comOptions.progId || comOptions.clsid}`
+      );
+
       // Use spawn to create a COM automation bridge process
       const comProcess = spawn('cscript', ['/nologo', '-'], {
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
 
       // Write VBScript to interact with COM object
@@ -476,13 +519,14 @@ export class IPCProtocol extends EventEmitter {
       this.sessionState.comState = {
         progId: comOptions.progId,
         clsid: comOptions.clsid,
-        threadingModel: 'apartment'
+        threadingModel: 'apartment',
       };
 
       this.sessionState.connectionState = 'connected';
-      
     } catch (error) {
-      throw new Error(`Failed to connect to COM object: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to connect to COM object: ${(error as Error).message}`
+      );
     }
   }
 
@@ -501,7 +545,9 @@ export class IPCProtocol extends EventEmitter {
         await this.createUnixSocketServer();
         break;
       default:
-        throw new Error(`Server mode not supported for ${this.sessionState.ipcType}`);
+        throw new Error(
+          `Server mode not supported for ${this.sessionState.ipcType}`
+        );
     }
 
     this.sessionState.connectionState = 'ready';
@@ -518,7 +564,7 @@ export class IPCProtocol extends EventEmitter {
     const pipeName = this.formatNamedPipePath(pipeOptions.pipeName);
 
     this.server = createServer();
-    
+
     this.server.on('connection', (socket) => {
       this.handleClientConnection(socket);
     });
@@ -531,14 +577,16 @@ export class IPCProtocol extends EventEmitter {
       this.server!.listen(pipeName, () => {
         resolve();
       });
-      
+
       this.server!.on('error', reject);
     });
   }
 
   private async createUnixSocketServer(): Promise<void> {
     if (platform() === 'win32') {
-      throw new Error('Unix Domain Sockets are not natively supported on Windows');
+      throw new Error(
+        'Unix Domain Sockets are not natively supported on Windows'
+      );
     }
 
     const unixOptions = this.options.unixSocket!;
@@ -554,7 +602,7 @@ export class IPCProtocol extends EventEmitter {
     }
 
     this.server = createServer();
-    
+
     this.server.on('connection', (socket) => {
       this.handleClientConnection(socket);
     });
@@ -567,7 +615,7 @@ export class IPCProtocol extends EventEmitter {
       this.server!.listen(socketPath, () => {
         resolve();
       });
-      
+
       this.server!.on('error', reject);
     });
 
@@ -607,7 +655,10 @@ export class IPCProtocol extends EventEmitter {
   /**
    * Send message over IPC
    */
-  async sendMessage(payload: any, options?: Partial<IPCMessage>): Promise<void> {
+  async sendMessage(
+    payload: any,
+    options?: Partial<IPCMessage>
+  ): Promise<void> {
     const message: IPCMessage = {
       id: this.generateMessageId(),
       type: 'command',
@@ -616,10 +667,13 @@ export class IPCProtocol extends EventEmitter {
       payload,
       encoding: 'utf8',
       priority: 'normal',
-      ...options
+      ...options,
     };
 
-    if (this.sessionState.connectionState !== 'connected' && this.sessionState.connectionState !== 'ready') {
+    if (
+      this.sessionState.connectionState !== 'connected' &&
+      this.sessionState.connectionState !== 'ready'
+    ) {
       this.pendingMessages.push(message);
       return;
     }
@@ -627,15 +681,14 @@ export class IPCProtocol extends EventEmitter {
     try {
       const serializedMessage = await this.serializeMessage(message);
       const framedMessage = await this.frameMessage(serializedMessage);
-      
+
       await this.sendRawData(framedMessage);
-      
+
       this.sessionState.statistics.messagesSent++;
       this.sessionState.statistics.bytesSent += framedMessage.length;
       this.updateLastActivity();
-      
+
       this.emit('message-sent', message);
-      
     } catch (error) {
       this.sessionState.statistics.errors++;
       this.emit('error', error);
@@ -646,7 +699,10 @@ export class IPCProtocol extends EventEmitter {
   /**
    * Broadcast message (for mailslots and other broadcast protocols)
    */
-  async broadcastMessage(payload: any, options?: Partial<IPCMessage>): Promise<void> {
+  async broadcastMessage(
+    payload: any,
+    options?: Partial<IPCMessage>
+  ): Promise<void> {
     const message: IPCMessage = {
       id: this.generateMessageId(),
       type: 'broadcast',
@@ -655,7 +711,7 @@ export class IPCProtocol extends EventEmitter {
       payload,
       encoding: 'utf8',
       priority: 'normal',
-      ...options
+      ...options,
     };
 
     if (this.sessionState.ipcType === 'mailslot') {
@@ -669,39 +725,44 @@ export class IPCProtocol extends EventEmitter {
     // Implementation would use Windows Mailslot API for true broadcast
     const serializedMessage = await this.serializeMessage(message);
     const framedMessage = await this.frameMessage(serializedMessage);
-    
+
     await this.sendRawData(framedMessage);
-    
+
     this.sessionState.statistics.messagesSent++;
     this.sessionState.statistics.bytesSent += framedMessage.length;
     this.updateLastActivity();
-    
+
     this.emit('broadcast-sent', message);
   }
 
   /**
    * Handle incoming data
    */
-  private async handleIncomingData(data: Buffer, clientId?: string): Promise<void> {
+  private async handleIncomingData(
+    data: Buffer,
+    clientId?: string
+  ): Promise<void> {
     this.messageBuffer = Buffer.concat([this.messageBuffer, data]);
     this.sessionState.statistics.bytesReceived += data.length;
     this.updateLastActivity();
 
     try {
       const messages = await this.extractMessages();
-      
+
       for (const message of messages) {
         const deserializedMessage = await this.deserializeMessage(message);
         this.sessionState.statistics.messagesReceived++;
-        
+
         this.emit('message-received', deserializedMessage, clientId);
-        
+
         // Handle response messages
-        if (deserializedMessage.type === 'response' && deserializedMessage.correlationId) {
+        if (
+          deserializedMessage.type === 'response' &&
+          deserializedMessage.correlationId
+        ) {
           this.handleResponse(deserializedMessage);
         }
       }
-      
     } catch (error) {
       this.sessionState.statistics.errors++;
       this.emit('error', error);
@@ -711,7 +772,7 @@ export class IPCProtocol extends EventEmitter {
   private async handleDockerData(data: Buffer): Promise<void> {
     // Parse Docker API response
     const response = data.toString('utf8');
-    
+
     try {
       // Handle HTTP response format
       const [headers, body] = response.split('\r\n\r\n');
@@ -733,7 +794,7 @@ export class IPCProtocol extends EventEmitter {
   private async handleCOMMessage(data: Buffer): Promise<void> {
     // Parse COM automation response
     const response = data.toString('utf8').trim();
-    
+
     try {
       const jsonData = JSON.parse(response);
       this.emit('com-response', jsonData);
@@ -758,14 +819,21 @@ export class IPCProtocol extends EventEmitter {
     let buffer = Buffer.from(data, message.encoding || 'utf8');
 
     // Apply compression
-    if (this.options.messageFraming?.compression && this.options.messageFraming.compression !== 'none') {
-      buffer = Buffer.from(await this.compressData(buffer, this.options.messageFraming.compression));
+    if (
+      this.options.messageFraming?.compression &&
+      this.options.messageFraming.compression !== 'none'
+    ) {
+      buffer = Buffer.from(
+        await this.compressData(buffer, this.options.messageFraming.compression)
+      );
       message.compressed = true;
     }
 
     // Apply encryption
     if (this.options.messageFraming?.encryption) {
-      buffer = Buffer.from(await this.encryptData(buffer, this.options.messageFraming.encryption));
+      buffer = Buffer.from(
+        await this.encryptData(buffer, this.options.messageFraming.encryption)
+      );
       message.encrypted = true;
     }
 
@@ -777,12 +845,21 @@ export class IPCProtocol extends EventEmitter {
 
     // Apply decryption
     if (this.options.messageFraming?.encryption) {
-      data = await this.decryptData(data, this.options.messageFraming.encryption);
+      data = await this.decryptData(
+        data,
+        this.options.messageFraming.encryption
+      );
     }
 
     // Apply decompression
-    if (this.options.messageFraming?.compression && this.options.messageFraming.compression !== 'none') {
-      data = await this.decompressData(data, this.options.messageFraming.compression);
+    if (
+      this.options.messageFraming?.compression &&
+      this.options.messageFraming.compression !== 'none'
+    ) {
+      data = await this.decompressData(
+        data,
+        this.options.messageFraming.compression
+      );
     }
 
     const jsonString = data.toString('utf8');
@@ -790,22 +867,23 @@ export class IPCProtocol extends EventEmitter {
   }
 
   private async frameMessage(data: Buffer): Promise<Buffer> {
-    const framingProtocol = this.options.messageFraming?.protocol || 'length_prefixed';
-    
+    const framingProtocol =
+      this.options.messageFraming?.protocol || 'length_prefixed';
+
     switch (framingProtocol) {
       case 'length_prefixed':
         const lengthBytes = this.options.messageFraming?.lengthBytes || 4;
         const lengthBuffer = Buffer.alloc(lengthBytes);
         lengthBuffer.writeUIntLE(data.length, 0, lengthBytes);
         return Buffer.concat([lengthBuffer, data]);
-        
+
       case 'delimiter':
         const delimiter = this.options.messageFraming?.delimiter || '\n';
         return Buffer.concat([data, Buffer.from(delimiter, 'utf8')]);
-        
+
       case 'json_lines':
         return Buffer.concat([data, Buffer.from('\n', 'utf8')]);
-        
+
       case 'fixed_length':
         // Pad or truncate to fixed length
         const maxSize = this.options.messageFraming?.maxMessageSize || 1024;
@@ -815,7 +893,7 @@ export class IPCProtocol extends EventEmitter {
         const paddedBuffer = Buffer.alloc(maxSize);
         data.copy(paddedBuffer);
         return paddedBuffer;
-        
+
       default:
         return data;
     }
@@ -823,41 +901,54 @@ export class IPCProtocol extends EventEmitter {
 
   private async extractMessages(): Promise<Buffer[]> {
     const messages: Buffer[] = [];
-    const framingProtocol = this.options.messageFraming?.protocol || 'length_prefixed';
-    
+    const framingProtocol =
+      this.options.messageFraming?.protocol || 'length_prefixed';
+
     switch (framingProtocol) {
       case 'length_prefixed':
         const lengthBytes = this.options.messageFraming?.lengthBytes || 4;
-        
+
         while (this.messageBuffer.length >= lengthBytes) {
           const messageLength = this.messageBuffer.readUIntLE(0, lengthBytes);
-          
+
           if (this.messageBuffer.length >= lengthBytes + messageLength) {
-            const messageData = this.messageBuffer.slice(lengthBytes, lengthBytes + messageLength);
+            const messageData = this.messageBuffer.slice(
+              lengthBytes,
+              lengthBytes + messageLength
+            );
             messages.push(messageData);
-            this.messageBuffer = this.messageBuffer.slice(lengthBytes + messageLength);
+            this.messageBuffer = this.messageBuffer.slice(
+              lengthBytes + messageLength
+            );
           } else {
             break;
           }
         }
         break;
-        
+
       case 'delimiter':
       case 'json_lines':
-        const delimiter = framingProtocol === 'json_lines' ? '\n' : (this.options.messageFraming?.delimiter || '\n');
+        const delimiter =
+          framingProtocol === 'json_lines'
+            ? '\n'
+            : this.options.messageFraming?.delimiter || '\n';
         const delimiterBuffer = Buffer.from(delimiter, 'utf8');
-        
+
         let delimiterIndex;
-        while ((delimiterIndex = this.messageBuffer.indexOf(delimiterBuffer)) !== -1) {
+        while (
+          (delimiterIndex = this.messageBuffer.indexOf(delimiterBuffer)) !== -1
+        ) {
           const messageData = this.messageBuffer.slice(0, delimiterIndex);
           messages.push(messageData);
-          this.messageBuffer = this.messageBuffer.slice(delimiterIndex + delimiterBuffer.length);
+          this.messageBuffer = this.messageBuffer.slice(
+            delimiterIndex + delimiterBuffer.length
+          );
         }
         break;
-        
+
       case 'fixed_length':
         const fixedLength = this.options.messageFraming?.maxMessageSize || 1024;
-        
+
         while (this.messageBuffer.length >= fixedLength) {
           const messageData = this.messageBuffer.slice(0, fixedLength);
           messages.push(messageData);
@@ -865,7 +956,7 @@ export class IPCProtocol extends EventEmitter {
         }
         break;
     }
-    
+
     return messages;
   }
 
@@ -886,7 +977,10 @@ export class IPCProtocol extends EventEmitter {
     }
   }
 
-  private async decompressData(data: Buffer, algorithm: string): Promise<Buffer> {
+  private async decompressData(
+    data: Buffer,
+    algorithm: string
+  ): Promise<Buffer> {
     switch (algorithm) {
       case 'gzip':
         return await gunzipAsync(data);
@@ -941,7 +1035,7 @@ export class IPCProtocol extends EventEmitter {
    */
   private async scheduleReconnect(): Promise<void> {
     const delay = this.options.reconnectInterval || 5000;
-    
+
     this.reconnectTimer = setTimeout(async () => {
       try {
         await this.connect();
@@ -961,7 +1055,10 @@ export class IPCProtocol extends EventEmitter {
 
   private async sendKeepAlive(): Promise<void> {
     try {
-      await this.sendMessage({ type: 'ping' }, { type: 'event', priority: 'low' });
+      await this.sendMessage(
+        { type: 'ping' },
+        { type: 'event', priority: 'low' }
+      );
     } catch (error) {
       this.logger.error('Keep-alive failed:', error);
     }
@@ -970,12 +1067,12 @@ export class IPCProtocol extends EventEmitter {
   private handleDisconnection(): void {
     this.sessionState.connectionState = 'disconnected';
     this.emit('disconnected', this.sessionState);
-    
+
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer);
       this.keepAliveTimer = undefined;
     }
-    
+
     if (this.options.reconnect) {
       this.scheduleReconnect();
     }
@@ -1005,7 +1102,9 @@ export class IPCProtocol extends EventEmitter {
   }
 
   private getDefaultDockerSocketPath(): string {
-    return platform() === 'win32' ? '\\\\.\\pipe\\docker_engine' : '/var/run/docker.sock';
+    return platform() === 'win32'
+      ? '\\\\.\\pipe\\docker_engine'
+      : '/var/run/docker.sock';
   }
 
   private getDBusAddress(busType: string): string {
@@ -1040,7 +1139,7 @@ WScript.Echo "{""status"": ""connected"", ""progId"": ""${comOptions.progId}""}"
   private async processPendingMessages(): Promise<void> {
     const messages = [...this.pendingMessages];
     this.pendingMessages = [];
-    
+
     for (const message of messages) {
       try {
         await this.sendMessage(message.payload, message);
@@ -1065,9 +1164,10 @@ WScript.Echo "{""status"": ""connected"", ""progId"": ""${comOptions.progId}""}"
     return {
       ...this.sessionState.statistics,
       connectionState: this.sessionState.connectionState,
-      uptime: Date.now() - this.sessionState.connectionInfo.established.getTime(),
+      uptime:
+        Date.now() - this.sessionState.connectionInfo.established.getTime(),
       pendingMessages: this.pendingMessages.length,
-      queuedMessages: this.messageQueue.size
+      queuedMessages: this.messageQueue.size,
     };
   }
 
@@ -1076,48 +1176,48 @@ WScript.Echo "{""status"": ""connected"", ""progId"": ""${comOptions.progId}""}"
    */
   async disconnect(): Promise<void> {
     this.sessionState.connectionState = 'disconnected';
-    
+
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
-    
+
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer);
       this.keepAliveTimer = undefined;
     }
-    
+
     if (this.socket) {
       this.socket.destroy();
       this.socket = undefined;
     }
-    
+
     if (this.server) {
       this.server.close();
       this.server = undefined;
     }
-    
+
     // Clean up protocol-specific resources
     if (this.namedPipeHandle) {
       // Close Windows handle
       this.namedPipeHandle = undefined;
     }
-    
+
     if (this.mailslotHandle) {
       // Close mailslot handle
       this.mailslotHandle = undefined;
     }
-    
+
     if (this.dbusConnection) {
       // Close D-Bus connection
       this.dbusConnection = undefined;
     }
-    
+
     if (this.comInterface) {
       // Release COM interface
       this.comInterface = undefined;
     }
-    
+
     this.emit('disconnected', this.sessionState);
     this.logger.info('IPC connection closed');
   }

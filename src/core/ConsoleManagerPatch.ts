@@ -25,10 +25,14 @@ export class ConsoleManagerInteractivePatch {
     logger: any
   ): Promise<void> {
     // Check if this is an interactive command or session
-    const isInteractiveCommand = this.interactiveDetector.isInteractiveCommand(input);
-    const isInteractiveSession = this.interactiveDetector.isInteractive(sessionId);
-    
-    logger.debug(`Session ${sessionId} - Interactive command: ${isInteractiveCommand}, Interactive session: ${isInteractiveSession}`);
+    const isInteractiveCommand =
+      this.interactiveDetector.isInteractiveCommand(input);
+    const isInteractiveSession =
+      this.interactiveDetector.isInteractive(sessionId);
+
+    logger.debug(
+      `Session ${sessionId} - Interactive command: ${isInteractiveCommand}, Interactive session: ${isInteractiveSession}`
+    );
 
     // Track the command
     this.interactiveDetector.trackCommand(sessionId, input);
@@ -37,16 +41,23 @@ export class ConsoleManagerInteractivePatch {
     if (sshChannel) {
       // If in interactive mode or executing an interactive command, send directly
       if (isInteractiveSession || isInteractiveCommand) {
-        logger.debug(`Sending input directly to interactive SSH session ${sessionId}`);
-        
+        logger.debug(
+          `Sending input directly to interactive SSH session ${sessionId}`
+        );
+
         return new Promise<void>((resolve, reject) => {
           // Send input directly to SSH channel without queuing
           const writeCallback = (error?: Error) => {
             if (error) {
-              logger.error(`Failed to send input to SSH session ${sessionId}:`, error);
+              logger.error(
+                `Failed to send input to SSH session ${sessionId}:`,
+                error
+              );
               reject(error);
             } else {
-              logger.debug(`Input sent successfully to interactive SSH session ${sessionId}`);
+              logger.debug(
+                `Input sent successfully to interactive SSH session ${sessionId}`
+              );
               resolve();
             }
           };
@@ -54,11 +65,15 @@ export class ConsoleManagerInteractivePatch {
           // Write the input directly to the SSH stream
           // For interactive programs, we usually don't add \n automatically
           // as they handle their own input processing
-          if (isInteractiveSession && !input.endsWith('\n') && !input.endsWith('\r')) {
+          if (
+            isInteractiveSession &&
+            !input.endsWith('\n') &&
+            !input.endsWith('\r')
+          ) {
             // For most interactive programs, we still need to send Enter
             // but some special keys should be sent as-is
             const specialKeys = ['\x03', '\x04', '\x1b', '\t']; // Ctrl-C, Ctrl-D, ESC, TAB
-            if (!specialKeys.some(key => input.includes(key))) {
+            if (!specialKeys.some((key) => input.includes(key))) {
               sshChannel.write(input + '\n', writeCallback);
             } else {
               sshChannel.write(input, writeCallback);
@@ -69,7 +84,9 @@ export class ConsoleManagerInteractivePatch {
         });
       } else {
         // Use the existing command queue for non-interactive commands
-        logger.debug(`Using command queue for non-interactive SSH session ${sessionId}`);
+        logger.debug(
+          `Using command queue for non-interactive SSH session ${sessionId}`
+        );
         return addCommandToQueue(sessionId, input);
       }
     }
@@ -118,10 +135,13 @@ export function patchConsoleManagerForInteractive(consoleManager: any): void {
   const originalCleanup = consoleManager.cleanupSession.bind(consoleManager);
 
   // Replace sendInput method
-  consoleManager.sendInput = async function(sessionId: string, input: string): Promise<void> {
+  consoleManager.sendInput = async function (
+    sessionId: string,
+    input: string
+  ): Promise<void> {
     const session = this.sessions.get(sessionId);
     const sshChannel = this.sshChannels.get(sessionId);
-    
+
     if (sshChannel) {
       try {
         // Use the enhanced input handler for SSH sessions
@@ -135,11 +155,14 @@ export function patchConsoleManagerForInteractive(consoleManager: any): void {
         );
       } catch (error) {
         // Fall back to original behavior if patch fails
-        this.logger.warn(`Interactive patch failed, using original sendInput:`, error);
+        this.logger.warn(
+          `Interactive patch failed, using original sendInput:`,
+          error
+        );
         return originalSendInput(sessionId, input);
       }
     }
-    
+
     // Use original implementation for non-SSH sessions
     return originalSendInput(sessionId, input);
   };
@@ -147,7 +170,7 @@ export function patchConsoleManagerForInteractive(consoleManager: any): void {
   // Hook into output processing
   const originalAddToBuffer = consoleManager.addToBuffer?.bind(consoleManager);
   if (originalAddToBuffer) {
-    consoleManager.addToBuffer = function(sessionId: string, output: any) {
+    consoleManager.addToBuffer = function (sessionId: string, output: any) {
       // Process output for interactive mode detection
       if (output && output.data) {
         patch.processOutput(sessionId, output.data);
@@ -157,13 +180,13 @@ export function patchConsoleManagerForInteractive(consoleManager: any): void {
   }
 
   // Hook into cleanup
-  consoleManager.cleanupSession = function(sessionId: string) {
+  consoleManager.cleanupSession = function (sessionId: string) {
     patch.cleanupSession(sessionId);
     return originalCleanup(sessionId);
   };
 
   // Add method to check interactive status
-  consoleManager.isInteractiveSession = function(sessionId: string): boolean {
+  consoleManager.isInteractiveSession = function (sessionId: string): boolean {
     return patch.getDetector().isInteractive(sessionId);
   };
 

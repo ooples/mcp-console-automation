@@ -27,7 +27,7 @@ describe('CodeGenerator', () => {
     // Clean up output directory
     if (fs.existsSync(testOutputDir)) {
       const files = fs.readdirSync(testOutputDir);
-      files.forEach(file => {
+      files.forEach((file) => {
         fs.unlinkSync(path.join(testOutputDir, file));
       });
     }
@@ -44,31 +44,31 @@ describe('CodeGenerator', () => {
           type: 'create_session',
           timestamp: 0,
           data: { command: 'bash', cwd: '/tmp' },
-          sessionId: 'session1'
+          sessionId: 'session1',
         },
         {
           type: 'send_input',
           timestamp: 100,
           data: { input: 'echo "hello"' },
-          sessionId: 'session1'
+          sessionId: 'session1',
         },
         {
           type: 'wait_for_output',
           timestamp: 200,
           data: { pattern: 'hello', timeout: 5000 },
-          sessionId: 'session1'
-        }
+          sessionId: 'session1',
+        },
       ],
       metadata: {
         description: 'Sample test recording',
-        author: 'Test Author'
-      }
+        author: 'Test Author',
+      },
     };
 
     it('should generate JavaScript code', () => {
       const code = generator.generateCode(sampleRecording, {
         language: 'javascript',
-        framework: 'jest'
+        framework: 'jest',
       });
 
       expect(code).toContain('describe');
@@ -84,7 +84,7 @@ describe('CodeGenerator', () => {
     it('should generate TypeScript code', () => {
       const code = generator.generateCode(sampleRecording, {
         language: 'typescript',
-        framework: 'jest'
+        framework: 'jest',
       });
 
       expect(code).toContain('describe');
@@ -96,7 +96,7 @@ describe('CodeGenerator', () => {
     it('should generate Python code', () => {
       const code = generator.generateCode(sampleRecording, {
         language: 'python',
-        framework: 'pytest'
+        framework: 'pytest',
       });
 
       expect(code).toContain('import pytest');
@@ -109,18 +109,20 @@ describe('CodeGenerator', () => {
     it('should support mocha framework', () => {
       const code = generator.generateCode(sampleRecording, {
         language: 'javascript',
-        framework: 'mocha'
+        framework: 'mocha',
       });
 
       expect(code).toContain('before');
       expect(code).toContain('after');
-      expect(code).toContain("import { describe, it, before, after } from 'mocha'");
+      expect(code).toContain(
+        "import { describe, it, before, after } from 'mocha'"
+      );
     });
 
     it('should include setup code when includeSetup is true', () => {
       const code = generator.generateCode(sampleRecording, {
         language: 'javascript',
-        includeSetup: true
+        includeSetup: true,
       });
 
       expect(code).toContain('ConsoleManager');
@@ -130,18 +132,18 @@ describe('CodeGenerator', () => {
     it('should exclude setup code when includeSetup is false', () => {
       const code = generator.generateCode(sampleRecording, {
         language: 'javascript',
-        includeSetup: false
+        includeSetup: false,
       });
 
       // Setup code should be minimal or absent
-      const lines = code.split('\n').filter(l => l.trim().length > 0);
+      const lines = code.split('\n').filter((l) => l.trim().length > 0);
       expect(lines.length).toBeGreaterThan(0);
     });
 
     it('should include teardown code when includeTeardown is true', () => {
       const code = generator.generateCode(sampleRecording, {
         language: 'javascript',
-        includeTeardown: true
+        includeTeardown: true,
       });
 
       expect(code).toContain('stopSession');
@@ -150,11 +152,11 @@ describe('CodeGenerator', () => {
     it('should handle special characters in test names', () => {
       const recording = {
         ...sampleRecording,
-        name: 'test@#$%-with-special-chars'
+        name: 'test@#$%-with-special-chars',
       };
 
       const code = generator.generateCode(recording, {
-        language: 'javascript'
+        language: 'javascript',
       });
 
       expect(code).toContain('test');
@@ -169,13 +171,13 @@ describe('CodeGenerator', () => {
           {
             type: 'send_input',
             timestamp: 0,
-            data: { input: 'echo "hello\nworld\ttab"' }
-          }
-        ]
+            data: { input: 'echo "hello\nworld\ttab"' },
+          },
+        ],
       };
 
       const code = generator.generateCode(recording, {
-        language: 'javascript'
+        language: 'javascript',
       });
 
       expect(code).toContain('\\n');
@@ -192,9 +194,13 @@ describe('CodeGenerator', () => {
       recorder.recordSendInput('ls', 's1');
       recorder.stopRecording();
 
-      const code = generator.generateCodeFromFile('test-from-file', {
-        language: 'typescript'
-      }, testRecordingsDir);
+      const code = generator.generateCodeFromFile(
+        'test-from-file',
+        {
+          language: 'typescript',
+        },
+        testRecordingsDir
+      );
 
       expect(code).toContain('test_from_file');
       expect(code).toContain('createSession');
@@ -203,9 +209,13 @@ describe('CodeGenerator', () => {
 
     it('should throw error if recording file not found', () => {
       expect(() => {
-        generator.generateCodeFromFile('nonexistent', {
-          language: 'javascript'
-        }, testRecordingsDir);
+        generator.generateCodeFromFile(
+          'nonexistent',
+          {
+            language: 'javascript',
+          },
+          testRecordingsDir
+        );
       }).toThrow('Recording not found');
     });
   });
@@ -222,16 +232,20 @@ describe('CodeGenerator', () => {
             type: 'create_session',
             timestamp: 0,
             data: { command: 'bash' },
-            sessionId: 's1'
-          }
+            sessionId: 's1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const outputPath = path.join(testOutputDir, 'test-save.test.ts');
-      generator.generateAndSaveCode(recording, {
-        language: 'typescript'
-      }, outputPath);
+      generator.generateAndSaveCode(
+        recording,
+        {
+          language: 'typescript',
+        },
+        outputPath
+      );
 
       expect(fs.existsSync(outputPath)).toBe(true);
 
@@ -247,13 +261,17 @@ describe('CodeGenerator', () => {
         createdAt: new Date().toISOString(),
         duration: 100,
         steps: [],
-        metadata: {}
+        metadata: {},
       };
 
       const deepPath = path.join(testOutputDir, 'deep', 'nested', 'test.js');
-      generator.generateAndSaveCode(recording, {
-        language: 'javascript'
-      }, deepPath);
+      generator.generateAndSaveCode(
+        recording,
+        {
+          language: 'javascript',
+        },
+        deepPath
+      );
 
       expect(fs.existsSync(deepPath)).toBe(true);
     });
@@ -271,13 +289,15 @@ describe('CodeGenerator', () => {
             type: 'create_session',
             timestamp: 0,
             data: { command: 'bash', cwd: '/home', env: { VAR: 'value' } },
-            sessionId: 's1'
-          }
+            sessionId: 's1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
-      const code = generator.generateCode(recording, { language: 'javascript' });
+      const code = generator.generateCode(recording, {
+        language: 'javascript',
+      });
 
       expect(code).toContain('createSession');
       expect(code).toContain('"command": "bash"');
@@ -295,19 +315,21 @@ describe('CodeGenerator', () => {
             type: 'create_session',
             timestamp: 0,
             data: {},
-            sessionId: 's1'
+            sessionId: 's1',
           },
           {
             type: 'send_input',
             timestamp: 10,
             data: { input: 'pwd' },
-            sessionId: 's1'
-          }
+            sessionId: 's1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
-      const code = generator.generateCode(recording, { language: 'javascript' });
+      const code = generator.generateCode(recording, {
+        language: 'javascript',
+      });
 
       expect(code).toContain('sendInput');
       expect(code).toContain('pwd');
@@ -324,19 +346,21 @@ describe('CodeGenerator', () => {
             type: 'create_session',
             timestamp: 0,
             data: {},
-            sessionId: 's1'
+            sessionId: 's1',
           },
           {
             type: 'send_key',
             timestamp: 10,
             data: { key: 'ctrl+c' },
-            sessionId: 's1'
-          }
+            sessionId: 's1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
-      const code = generator.generateCode(recording, { language: 'javascript' });
+      const code = generator.generateCode(recording, {
+        language: 'javascript',
+      });
 
       expect(code).toContain('sendKey');
       expect(code).toContain('ctrl+c');
@@ -353,19 +377,21 @@ describe('CodeGenerator', () => {
             type: 'create_session',
             timestamp: 0,
             data: {},
-            sessionId: 's1'
+            sessionId: 's1',
           },
           {
             type: 'wait_for_output',
             timestamp: 10,
             data: { pattern: 'prompt>', timeout: 3000 },
-            sessionId: 's1'
-          }
+            sessionId: 's1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
-      const code = generator.generateCode(recording, { language: 'javascript' });
+      const code = generator.generateCode(recording, {
+        language: 'javascript',
+      });
 
       expect(code).toContain('waitForOutput');
       expect(code).toContain('prompt>');
@@ -382,13 +408,15 @@ describe('CodeGenerator', () => {
           {
             type: 'assert',
             timestamp: 0,
-            data: { type: 'output_contains', expected: 'test' }
-          }
+            data: { type: 'output_contains', expected: 'test' },
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
-      const code = generator.generateCode(recording, { language: 'javascript' });
+      const code = generator.generateCode(recording, {
+        language: 'javascript',
+      });
 
       expect(code).toContain('//');
       expect(code).toContain('Phase 2');
@@ -403,7 +431,7 @@ describe('CodeGenerator', () => {
         createdAt: new Date().toISOString(),
         duration: 100,
         steps: [],
-        metadata: {}
+        metadata: {},
       };
 
       const badGenerator = new CodeGenerator('nonexistent/templates');
@@ -422,10 +450,12 @@ describe('CodeGenerator', () => {
         createdAt: new Date().toISOString(),
         duration: 0,
         steps: [],
-        metadata: {}
+        metadata: {},
       };
 
-      const code = generator.generateCode(recording, { language: 'javascript' });
+      const code = generator.generateCode(recording, {
+        language: 'javascript',
+      });
 
       expect(code).toContain('empty_test');
       expect(code).toContain('describe');
@@ -441,11 +471,13 @@ describe('CodeGenerator', () => {
         metadata: {
           description: 'This is a test',
           author: 'Test Author',
-          tags: ['integration', 'ssh']
-        }
+          tags: ['integration', 'ssh'],
+        },
       };
 
-      const code = generator.generateCode(recording, { language: 'javascript' });
+      const code = generator.generateCode(recording, {
+        language: 'javascript',
+      });
 
       expect(code).toContain('This is a test');
     });
@@ -461,13 +493,15 @@ describe('CodeGenerator', () => {
           {
             type: 'send_input',
             timestamp: 0,
-            data: { input: longInput }
-          }
+            data: { input: longInput },
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
-      const code = generator.generateCode(recording, { language: 'javascript' });
+      const code = generator.generateCode(recording, {
+        language: 'javascript',
+      });
 
       expect(code).toContain('a'.repeat(10000));
     });

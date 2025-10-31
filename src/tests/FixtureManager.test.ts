@@ -59,7 +59,9 @@ describe('FixtureManager', () => {
     });
 
     it('should throw error for unregistered fixture', async () => {
-      await expect(manager.load('non-existent')).rejects.toThrow('not registered');
+      await expect(manager.load('non-existent')).rejects.toThrow(
+        'not registered'
+      );
     });
 
     it('should return cached fixture on second load', async () => {
@@ -85,8 +87,12 @@ describe('FixtureManager', () => {
     });
 
     it('should respect priority order', async () => {
-      manager.register('users', path.join(fixturesPath, 'users.json'), { priority: 5 });
-      manager.register('servers', path.join(fixturesPath, 'servers.json'), { priority: 10 });
+      manager.register('users', path.join(fixturesPath, 'users.json'), {
+        priority: 5,
+      });
+      manager.register('servers', path.join(fixturesPath, 'servers.json'), {
+        priority: 10,
+      });
 
       await manager.loadAll();
 

@@ -50,16 +50,19 @@ export class ErrorReporter {
       threshold: {
         critical: 1,
         high: 3,
-        total: 10
+        total: 10,
       },
-      cooldownMinutes: 15
+      cooldownMinutes: 15,
     };
   }
 
   /**
    * Format error report for console output
    */
-  formatForConsole(report: ErrorReport, options: ReportingOptions = {}): string {
+  formatForConsole(
+    report: ErrorReport,
+    options: ReportingOptions = {}
+  ): string {
     const lines: string[] = [];
     const { includeContext = false, includeRemediation = true } = options;
 
@@ -88,9 +91,13 @@ export class ErrorReporter {
     // Category breakdown
     if (Object.keys(report.summary.categoryBreakdown).length > 0) {
       lines.push('📂 CATEGORY BREAKDOWN');
-      Object.entries(report.summary.categoryBreakdown).forEach(([category, count]) => {
-        lines.push(`   ${this.getCategoryIcon(category)} ${category}: ${count}`);
-      });
+      Object.entries(report.summary.categoryBreakdown).forEach(
+        ([category, count]) => {
+          lines.push(
+            `   ${this.getCategoryIcon(category)} ${category}: ${count}`
+          );
+        }
+      );
       lines.push('');
     }
 
@@ -98,7 +105,7 @@ export class ErrorReporter {
     if (report.recommendations.length > 0) {
       lines.push('💡 RECOMMENDATIONS');
       lines.push('───────────────────────────────────────────────────────────');
-      report.recommendations.forEach(rec => lines.push(`• ${rec}`));
+      report.recommendations.forEach((rec) => lines.push(`• ${rec}`));
       lines.push('');
     }
 
@@ -106,7 +113,7 @@ export class ErrorReporter {
     if (report.analysis.rootCauseAnalysis.length > 0) {
       lines.push('🎯 ROOT CAUSE ANALYSIS');
       lines.push('───────────────────────────────────────────────────────────');
-      report.analysis.rootCauseAnalysis.forEach(root => {
+      report.analysis.rootCauseAnalysis.forEach((root) => {
         lines.push(`Cause: ${root.cause}`);
         lines.push(`Confidence: ${(root.confidence * 100).toFixed(1)}%`);
         lines.push(`Severity: ${root.severity.toUpperCase()}`);
@@ -122,26 +129,33 @@ export class ErrorReporter {
     if (report.errors.length > 0) {
       lines.push('🔥 DETAILED ERRORS');
       lines.push('───────────────────────────────────────────────────────────');
-      
+
       const filteredErrors = this.filterErrors(report.errors, options);
       filteredErrors.forEach((error, index) => {
-        lines.push(`[${index + 1}] Line ${error.line}: ${this.getSeverityIcon(error.pattern.severity)} ${error.pattern.severity.toUpperCase()}`);
+        lines.push(
+          `[${index + 1}] Line ${error.line}: ${this.getSeverityIcon(error.pattern.severity)} ${error.pattern.severity.toUpperCase()}`
+        );
         lines.push(`    Category: ${error.pattern.category}`);
         if (error.pattern.language) {
           lines.push(`    Language: ${error.pattern.language}`);
         }
         lines.push(`    Message: ${error.match}`);
-        
+
         if (error.extractedInfo?.filePath) {
-          lines.push(`    File: ${error.extractedInfo.filePath}:${error.extractedInfo.lineNumber || '?'}`);
+          lines.push(
+            `    File: ${error.extractedInfo.filePath}:${error.extractedInfo.lineNumber || '?'}`
+          );
         }
-        
+
         if (includeRemediation && error.extractedInfo?.suggestion) {
           lines.push(`    💡 Suggestion: ${error.extractedInfo.suggestion}`);
         }
-        
+
         if (includeContext && error.context) {
-          if (error.context.beforeLines && error.context.beforeLines.length > 0) {
+          if (
+            error.context.beforeLines &&
+            error.context.beforeLines.length > 0
+          ) {
             lines.push('    Context (before):');
             error.context.beforeLines.slice(-2).forEach((line, i) => {
               lines.push(`      ${error.line - 2 + i}: ${line}`);
@@ -154,17 +168,22 @@ export class ErrorReporter {
             });
           }
         }
-        
-        if (error.extractedInfo?.stackTrace && error.extractedInfo.stackTrace.length > 0) {
+
+        if (
+          error.extractedInfo?.stackTrace &&
+          error.extractedInfo.stackTrace.length > 0
+        ) {
           lines.push('    Stack Trace:');
-          error.extractedInfo.stackTrace.slice(0, 5).forEach(frame => {
+          error.extractedInfo.stackTrace.slice(0, 5).forEach((frame) => {
             lines.push(`      ${frame}`);
           });
           if (error.extractedInfo.stackTrace.length > 5) {
-            lines.push(`      ... (${error.extractedInfo.stackTrace.length - 5} more frames)`);
+            lines.push(
+              `      ... (${error.extractedInfo.stackTrace.length - 5} more frames)`
+            );
           }
         }
-        
+
         lines.push('');
       });
     }
@@ -191,18 +210,18 @@ export class ErrorReporter {
    */
   formatAsJson(report: ErrorReport, options: ReportingOptions = {}): string {
     const filteredErrors = this.filterErrors(report.errors, options);
-    
+
     const jsonReport = {
       meta: {
         version: '2.0.0',
         timestamp: new Date().toISOString(),
         platform: process.platform,
-        options
+        options,
       },
       summary: report.summary,
       analysis: {
         ...report.analysis,
-        errors: filteredErrors.map(error => ({
+        errors: filteredErrors.map((error) => ({
           line: error.line,
           type: error.pattern.type,
           category: error.pattern.category,
@@ -218,10 +237,12 @@ export class ErrorReporter {
           retryable: error.pattern.retryable || false,
           tags: error.pattern.tags || [],
           context: options.includeContext ? error.context : undefined,
-          stackTrace: options.includeStackTraces ? error.extractedInfo?.stackTrace : undefined
-        }))
+          stackTrace: options.includeStackTraces
+            ? error.extractedInfo?.stackTrace
+            : undefined,
+        })),
       },
-      recommendations: report.recommendations
+      recommendations: report.recommendations,
     };
 
     return JSON.stringify(jsonReport, null, 2);
@@ -230,7 +251,10 @@ export class ErrorReporter {
   /**
    * Format error report as Markdown for documentation
    */
-  formatAsMarkdown(report: ErrorReport, options: ReportingOptions = {}): string {
+  formatAsMarkdown(
+    report: ErrorReport,
+    options: ReportingOptions = {}
+  ): string {
     const lines: string[] = [];
     const { includeContext = false, includeRemediation = true } = options;
 
@@ -259,9 +283,11 @@ export class ErrorReporter {
       lines.push('');
       lines.push('| Category | Count |');
       lines.push('|----------|-------|');
-      Object.entries(report.summary.categoryBreakdown).forEach(([category, count]) => {
-        lines.push(`| ${category} | ${count} |`);
-      });
+      Object.entries(report.summary.categoryBreakdown).forEach(
+        ([category, count]) => {
+          lines.push(`| ${category} | ${count} |`);
+        }
+      );
       lines.push('');
     }
 
@@ -269,7 +295,7 @@ export class ErrorReporter {
     if (report.recommendations.length > 0) {
       lines.push('## Recommendations');
       lines.push('');
-      report.recommendations.forEach(rec => {
+      report.recommendations.forEach((rec) => {
         lines.push(`- ${rec.replace(/[🔥⚠️💡🌐🗄️🔨⚡🔒🔄🎯]/g, '').trim()}`);
       });
       lines.push('');
@@ -296,10 +322,12 @@ export class ErrorReporter {
     if (report.errors.length > 0) {
       lines.push('## Detailed Errors');
       lines.push('');
-      
+
       const filteredErrors = this.filterErrors(report.errors, options);
       filteredErrors.forEach((error, index) => {
-        lines.push(`### ${index + 1}. ${error.pattern.description} (Line ${error.line})`);
+        lines.push(
+          `### ${index + 1}. ${error.pattern.description} (Line ${error.line})`
+        );
         lines.push('');
         lines.push(`**Severity:** ${error.pattern.severity.toUpperCase()}`);
         lines.push(`**Category:** ${error.pattern.category}`);
@@ -307,22 +335,26 @@ export class ErrorReporter {
           lines.push(`**Language:** ${error.pattern.language}`);
         }
         lines.push(`**Message:** \`${error.match}\``);
-        
+
         if (error.extractedInfo?.filePath) {
-          lines.push(`**File:** ${error.extractedInfo.filePath}:${error.extractedInfo.lineNumber || '?'}`);
+          lines.push(
+            `**File:** ${error.extractedInfo.filePath}:${error.extractedInfo.lineNumber || '?'}`
+          );
         }
-        
+
         if (includeRemediation && error.extractedInfo?.suggestion) {
           lines.push(`**Suggestion:** ${error.extractedInfo.suggestion}`);
         }
-        
+
         if (includeContext && error.context) {
           lines.push('');
           lines.push('**Context:**');
           lines.push('```');
           if (error.context.beforeLines) {
             error.context.beforeLines.forEach((line, i) => {
-              lines.push(`${error.line - error.context.beforeLines!.length + i}: ${line}`);
+              lines.push(
+                `${error.line - error.context.beforeLines!.length + i}: ${line}`
+              );
             });
           }
           lines.push(`${error.line}: ${error.match}`);
@@ -333,7 +365,7 @@ export class ErrorReporter {
           }
           lines.push('```');
         }
-        
+
         lines.push('');
       });
     }
@@ -344,12 +376,18 @@ export class ErrorReporter {
   /**
    * Send error report to monitoring systems
    */
-  async sendToMonitoring(report: ErrorReport, integrations: MonitoringIntegration[]): Promise<void> {
+  async sendToMonitoring(
+    report: ErrorReport,
+    integrations: MonitoringIntegration[]
+  ): Promise<void> {
     const promises = integrations.map(async (integration) => {
       try {
         // Check if thresholds are met
         if (integration.threshold) {
-          const meetsThreshold = this.checkThreshold(report, integration.threshold);
+          const meetsThreshold = this.checkThreshold(
+            report,
+            integration.threshold
+          );
           if (!meetsThreshold) return;
         }
 
@@ -388,14 +426,19 @@ export class ErrorReporter {
     const now = new Date();
 
     // Check cooldown
-    if (lastAlert && (now.getTime() - lastAlert.getTime()) < (this.alertConfig.cooldownMinutes * 60 * 1000)) {
+    if (
+      lastAlert &&
+      now.getTime() - lastAlert.getTime() <
+        this.alertConfig.cooldownMinutes * 60 * 1000
+    ) {
       return;
     }
 
     // Check thresholds
-    const shouldAlert = report.analysis.criticalErrors >= this.alertConfig.threshold.critical ||
-                       report.analysis.highErrors >= this.alertConfig.threshold.high ||
-                       report.analysis.totalErrors >= this.alertConfig.threshold.total;
+    const shouldAlert =
+      report.analysis.criticalErrors >= this.alertConfig.threshold.critical ||
+      report.analysis.highErrors >= this.alertConfig.threshold.high ||
+      report.analysis.totalErrors >= this.alertConfig.threshold.total;
 
     if (!shouldAlert) return;
 
@@ -429,9 +472,12 @@ export class ErrorReporter {
   /**
    * Generate structured output for MCP responses
    */
-  generateMcpResponse(report: ErrorReport, options: ReportingOptions = {}): any {
+  generateMcpResponse(
+    report: ErrorReport,
+    options: ReportingOptions = {}
+  ): any {
     const filteredErrors = this.filterErrors(report.errors, options);
-    
+
     return {
       type: 'error_analysis',
       timestamp: new Date().toISOString(),
@@ -442,30 +488,30 @@ export class ErrorReporter {
           critical: report.summary.severityBreakdown.critical,
           high: report.summary.severityBreakdown.high,
           medium: report.summary.severityBreakdown.medium,
-          low: report.summary.severityBreakdown.low
+          low: report.summary.severityBreakdown.low,
         },
-        categories: report.summary.categoryBreakdown
+        categories: report.summary.categoryBreakdown,
       },
       analysis: {
-        root_causes: report.analysis.rootCauseAnalysis.map(root => ({
+        root_causes: report.analysis.rootCauseAnalysis.map((root) => ({
           cause: root.cause,
           confidence: root.confidence,
           severity: root.severity,
           affected_count: root.affectedErrors.length,
-          remediation: root.remediation
+          remediation: root.remediation,
         })),
-        correlated_errors: report.analysis.correlatedErrors.map(corr => ({
+        correlated_errors: report.analysis.correlatedErrors.map((corr) => ({
           primary_error: {
             line: corr.primaryError.line,
             message: corr.primaryError.match,
-            category: corr.primaryError.pattern.category
+            category: corr.primaryError.pattern.category,
           },
           related_count: corr.relatedErrors.length,
-          confidence: corr.confidence
+          confidence: corr.confidence,
         })),
-        retryable_count: report.analysis.retryableErrors.length
+        retryable_count: report.analysis.retryableErrors.length,
       },
-      errors: filteredErrors.map(error => ({
+      errors: filteredErrors.map((error) => ({
         line: error.line,
         severity: error.pattern.severity,
         category: error.pattern.category,
@@ -473,32 +519,41 @@ export class ErrorReporter {
         message: error.match,
         file: error.extractedInfo?.filePath,
         suggestion: error.extractedInfo?.suggestion,
-        retryable: error.pattern.retryable || false
+        retryable: error.pattern.retryable || false,
       })),
-      recommendations: report.recommendations.map(rec => 
+      recommendations: report.recommendations.map((rec) =>
         rec.replace(/[🔥⚠️💡🌐🗄️🔨⚡🔒🔄🎯]/g, '').trim()
       ),
-      actionable_insights: this.generateActionableInsights(report)
+      actionable_insights: this.generateActionableInsights(report),
     };
   }
 
   /**
    * Filter errors based on reporting options
    */
-  private filterErrors(errors: ParsedError[], options: ReportingOptions): ParsedError[] {
+  private filterErrors(
+    errors: ParsedError[],
+    options: ReportingOptions
+  ): ParsedError[] {
     let filtered = errors;
 
     if (options.severity) {
-      filtered = filtered.filter(error => error.pattern.severity === options.severity);
+      filtered = filtered.filter(
+        (error) => error.pattern.severity === options.severity
+      );
     }
 
     if (options.categories && options.categories.length > 0) {
-      filtered = filtered.filter(error => options.categories!.includes(error.pattern.category));
+      filtered = filtered.filter((error) =>
+        options.categories!.includes(error.pattern.category)
+      );
     }
 
     if (options.languages && options.languages.length > 0) {
-      filtered = filtered.filter(error => 
-        error.pattern.language && options.languages!.includes(error.pattern.language)
+      filtered = filtered.filter(
+        (error) =>
+          error.pattern.language &&
+          options.languages!.includes(error.pattern.language)
       );
     }
 
@@ -509,10 +564,16 @@ export class ErrorReporter {
    * Check if report meets monitoring threshold
    */
   private checkThreshold(report: ErrorReport, threshold: any): boolean {
-    if (threshold.criticalErrors && report.analysis.criticalErrors < threshold.criticalErrors) {
+    if (
+      threshold.criticalErrors &&
+      report.analysis.criticalErrors < threshold.criticalErrors
+    ) {
       return false;
     }
-    if (threshold.totalErrors && report.analysis.totalErrors < threshold.totalErrors) {
+    if (
+      threshold.totalErrors &&
+      report.analysis.totalErrors < threshold.totalErrors
+    ) {
       return false;
     }
     if (threshold.severityScore) {
@@ -528,25 +589,30 @@ export class ErrorReporter {
    * Calculate overall severity score
    */
   private calculateSeverityScore(report: ErrorReport): number {
-    return report.analysis.criticalErrors * 4 +
-           report.analysis.highErrors * 3 +
-           report.analysis.mediumErrors * 2 +
-           report.analysis.lowErrors * 1;
+    return (
+      report.analysis.criticalErrors * 4 +
+      report.analysis.highErrors * 3 +
+      report.analysis.mediumErrors * 2 +
+      report.analysis.lowErrors * 1
+    );
   }
 
   /**
    * Send webhook notification
    */
-  private async sendWebhook(report: ErrorReport, endpoint: string): Promise<void> {
+  private async sendWebhook(
+    report: ErrorReport,
+    endpoint: string
+  ): Promise<void> {
     const payload = this.generateMcpResponse(report);
-    
+
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -561,7 +627,10 @@ export class ErrorReporter {
   /**
    * Write report to file
    */
-  private async writeToFile(report: ErrorReport, filePath: string): Promise<void> {
+  private async writeToFile(
+    report: ErrorReport,
+    filePath: string
+  ): Promise<void> {
     const fs = await import('fs/promises');
     const content = this.formatAsJson(report);
     await fs.writeFile(filePath, content, 'utf8');
@@ -577,13 +646,15 @@ export class ErrorReporter {
       `Total Errors: ${report.analysis.totalErrors}`,
       `Critical: ${report.analysis.criticalErrors}`,
       `High: ${report.analysis.highErrors}`,
-      `Categories: ${Object.keys(report.summary.categoryBreakdown).join(', ')}`
+      `Categories: ${Object.keys(report.summary.categoryBreakdown).join(', ')}`,
     ];
 
     if (report.analysis.rootCauseAnalysis.length > 0) {
       lines.push('Root Causes:');
-      report.analysis.rootCauseAnalysis.forEach(root => {
-        lines.push(`- ${root.cause} (confidence: ${(root.confidence * 100).toFixed(0)}%)`);
+      report.analysis.rootCauseAnalysis.forEach((root) => {
+        lines.push(
+          `- ${root.cause} (confidence: ${(root.confidence * 100).toFixed(0)}%)`
+        );
       });
     }
 
@@ -598,24 +669,34 @@ export class ErrorReporter {
 
     // Priority insights based on severity
     if (report.analysis.criticalErrors > 0) {
-      insights.push(`IMMEDIATE ACTION: ${report.analysis.criticalErrors} critical errors need immediate attention`);
+      insights.push(
+        `IMMEDIATE ACTION: ${report.analysis.criticalErrors} critical errors need immediate attention`
+      );
     }
 
     // Category-specific insights
     const categoryCount = Object.keys(report.summary.categoryBreakdown).length;
     if (categoryCount > 3) {
-      insights.push(`SYSTEMIC ISSUES: Errors span ${categoryCount} categories, indicating broader system problems`);
+      insights.push(
+        `SYSTEMIC ISSUES: Errors span ${categoryCount} categories, indicating broader system problems`
+      );
     }
 
     // Root cause insights
-    const highConfidenceRootCauses = report.analysis.rootCauseAnalysis.filter(r => r.confidence > 0.8);
+    const highConfidenceRootCauses = report.analysis.rootCauseAnalysis.filter(
+      (r) => r.confidence > 0.8
+    );
     if (highConfidenceRootCauses.length > 0) {
-      insights.push(`ROOT CAUSE IDENTIFIED: ${highConfidenceRootCauses[0].cause} with ${(highConfidenceRootCauses[0].confidence * 100).toFixed(0)}% confidence`);
+      insights.push(
+        `ROOT CAUSE IDENTIFIED: ${highConfidenceRootCauses[0].cause} with ${(highConfidenceRootCauses[0].confidence * 100).toFixed(0)}% confidence`
+      );
     }
 
     // Retry insights
     if (report.analysis.retryableErrors.length > 0) {
-      insights.push(`RETRY OPPORTUNITY: ${report.analysis.retryableErrors.length} errors may be resolved by retrying`);
+      insights.push(
+        `RETRY OPPORTUNITY: ${report.analysis.retryableErrors.length} errors may be resolved by retrying`
+      );
     }
 
     return insights;
@@ -626,15 +707,15 @@ export class ErrorReporter {
    */
   private getCategoryIcon(category: string): string {
     const icons: Record<string, string> = {
-      'runtime': '🔥',
-      'compilation': '🔨',
-      'network': '🌐',
-      'database': '🗄️',
-      'performance': '⚡',
-      'security': '🔒',
-      'ssh': '🔑',
+      runtime: '🔥',
+      compilation: '🔨',
+      network: '🌐',
+      database: '🗄️',
+      performance: '⚡',
+      security: '🔒',
+      ssh: '🔑',
       'build-tool': '🛠️',
-      'configuration': '⚙️'
+      configuration: '⚙️',
     };
     return icons[category] || '❓';
   }
@@ -644,10 +725,10 @@ export class ErrorReporter {
    */
   private getSeverityIcon(severity: string): string {
     const icons: Record<string, string> = {
-      'critical': '🔴',
-      'high': '🟠',
-      'medium': '🟡',
-      'low': '🟢'
+      critical: '🔴',
+      high: '🟠',
+      medium: '🟡',
+      low: '🟢',
     };
     return icons[severity] || '⚪';
   }

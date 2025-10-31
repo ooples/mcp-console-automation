@@ -30,7 +30,7 @@ import {
   ConsoleOutput,
   ConsoleEvent,
   SessionOptions,
-  ConsoleType
+  ConsoleType,
 } from '../types/index.js';
 
 import {
@@ -39,7 +39,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 export interface AnsibleExecutionContext {
@@ -53,7 +53,15 @@ export interface AnsibleExecutionContext {
 }
 
 export interface AnsibleCallbackEvent {
-  eventType: 'task_start' | 'task_ok' | 'task_failed' | 'task_changed' | 'task_skipped' | 'task_unreachable' | 'playbook_start' | 'playbook_stats';
+  eventType:
+    | 'task_start'
+    | 'task_ok'
+    | 'task_failed'
+    | 'task_changed'
+    | 'task_skipped'
+    | 'task_unreachable'
+    | 'playbook_start'
+    | 'playbook_stats';
   host?: string;
   task?: string;
   play?: string;
@@ -118,9 +126,9 @@ export class AnsibleProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -133,7 +141,10 @@ export class AnsibleProtocol extends BaseProtocol {
     pythonPath: '/usr/bin/python3',
     playbookDir: '/etc/ansible/playbooks',
     rolesPath: ['/etc/ansible/roles', '~/.ansible/roles'],
-    collectionsPath: ['~/.ansible/collections', '/usr/share/ansible/collections'],
+    collectionsPath: [
+      '~/.ansible/collections',
+      '/usr/share/ansible/collections',
+    ],
     callbackPlugins: ['json', 'timer', 'profile_tasks'],
     stdoutCallback: 'json',
     logLevel: 'INFO',
@@ -147,13 +158,13 @@ export class AnsibleProtocol extends BaseProtocol {
     enableCallbacks: true,
     enableVault: true,
     enableCollections: true,
-    enableDryRun: true
+    enableDryRun: true,
   };
 
   constructor(config?: Partial<AnsibleProtocolConfig>) {
     super('ansible');
     this.config = { ...AnsibleProtocol.DEFAULT_CONFIG, ...config };
-    
+
     // Initialize capabilities
     this.capabilities = {
       supportsStreaming: true,
@@ -180,8 +191,8 @@ export class AnsibleProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
 
     this.initializeCallbacks();
@@ -217,7 +228,11 @@ export class AnsibleProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -238,13 +253,13 @@ export class AnsibleProtocol extends BaseProtocol {
         ok: {},
         dark: {},
         changed: {},
-        skipped: {}
+        skipped: {},
       },
-      callbacks: this.config.callbackPlugins.map(name => ({
+      callbacks: this.config.callbackPlugins.map((name) => ({
         name,
         type: 'stdout' as const,
-        enabled: true
-      }))
+        enabled: true,
+      })),
     };
 
     this.ansibleSessions.set(sessionId, ansibleSession);
@@ -253,7 +268,10 @@ export class AnsibleProtocol extends BaseProtocol {
     // Create session object
     const session: ConsoleSession = {
       id: sessionId,
-      command: ansibleOptions.playbookPath || ansibleOptions.inventory || 'ansible-playbook',
+      command:
+        ansibleOptions.playbookPath ||
+        ansibleOptions.inventory ||
+        'ansible-playbook',
       args: [],
       cwd: options.cwd || process.cwd(),
       env: { ...process.env, ...options.env },
@@ -264,12 +282,14 @@ export class AnsibleProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: 0
+      pid: 0,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Ansible session ${sessionId} created for ${ansibleOptions.playbookPath || ansibleOptions.inventory || 'Ansible automation'}`);
+    this.logger.info(
+      `Ansible session ${sessionId} created for ${ansibleOptions.playbookPath || ansibleOptions.inventory || 'Ansible automation'}`
+    );
     this.emit('session-created', { sessionId, type: 'ansible', session });
 
     return session;
@@ -291,17 +311,26 @@ export class AnsibleProtocol extends BaseProtocol {
       // Validate playbook before execution
       const validation = await this.validatePlaybook(playbookOptions.playbook);
       if (!validation.valid) {
-        throw new Error(`Playbook validation failed: ${validation.errors.join(', ')}`);
+        throw new Error(
+          `Playbook validation failed: ${validation.errors.join(', ')}`
+        );
       }
 
       // Setup execution environment
-      const context = await this.setupExecutionContext(sessionId, session.options);
-      
+      const context = await this.setupExecutionContext(
+        sessionId,
+        session.options
+      );
+
       // Prepare command arguments
       const args = await this.buildPlaybookCommand(playbookOptions, context);
 
       // Execute playbook
-      const process = await this.executeAnsibleCommand('ansible-playbook', args, context);
+      const process = await this.executeAnsibleCommand(
+        'ansible-playbook',
+        args,
+        context
+      );
       this.activeProcesses.set(sessionId, process);
 
       // Handle process output and events
@@ -309,10 +338,12 @@ export class AnsibleProtocol extends BaseProtocol {
 
       session.status = 'running';
       this.emit('session_started', { sessionId, type: 'playbook' });
-
     } catch (error) {
       session.status = 'failed';
-      this.logger.error(`Playbook execution failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Playbook execution failed for session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -334,13 +365,12 @@ export class AnsibleProtocol extends BaseProtocol {
     }
 
     try {
-      const context = await this.setupExecutionContext(sessionId, { ...session.options, ...options });
-      
-      const args = [
-        pattern,
-        '-i', inventory,
-        '-m', module
-      ];
+      const context = await this.setupExecutionContext(sessionId, {
+        ...session.options,
+        ...options,
+      });
+
+      const args = [pattern, '-i', inventory, '-m', module];
 
       if (moduleArgs) {
         args.push('-a', moduleArgs);
@@ -359,17 +389,23 @@ export class AnsibleProtocol extends BaseProtocol {
         args.push('--private-key', session.options.privateKey);
       }
 
-      const process = await this.executeAnsibleCommand('ansible', args, context);
+      const process = await this.executeAnsibleCommand(
+        'ansible',
+        args,
+        context
+      );
       this.activeProcesses.set(sessionId, process);
       this.setupProcessHandlers(sessionId, process);
 
       session.type = 'adhoc';
       session.status = 'running';
       this.emit('session_started', { sessionId, type: 'adhoc' });
-
     } catch (error) {
       session.status = 'failed';
-      this.logger.error(`Ad-hoc execution failed for session ${sessionId}:`, error);
+      this.logger.error(
+        `Ad-hoc execution failed for session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -388,19 +424,18 @@ export class AnsibleProtocol extends BaseProtocol {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    const context = await this.setupExecutionContext(sessionId, { ...session.options, ...options });
-    
-    const args = [
-      pattern,
-      '-i', inventory,
-      '-m', 'setup'
-    ];
+    const context = await this.setupExecutionContext(sessionId, {
+      ...session.options,
+      ...options,
+    });
+
+    const args = [pattern, '-i', inventory, '-m', 'setup'];
 
     // Add connection options
     this.addConnectionArgs(args, session.options);
 
     const process = await this.executeAnsibleCommand('ansible', args, context);
-    
+
     return new Promise((resolve, reject) => {
       let output = '';
       let errorOutput = '';
@@ -433,11 +468,13 @@ export class AnsibleProtocol extends BaseProtocol {
   /**
    * Validate playbook syntax and structure
    */
-  public async validatePlaybook(playbookPath: string): Promise<AnsibleValidationResult> {
+  public async validatePlaybook(
+    playbookPath: string
+  ): Promise<AnsibleValidationResult> {
     const result: AnsibleValidationResult = {
       valid: true,
       errors: [],
-      warnings: []
+      warnings: [],
     };
 
     try {
@@ -455,23 +492,27 @@ export class AnsibleProtocol extends BaseProtocol {
         result.syntax = { valid: true, errors: [] };
       } catch (yamlError) {
         result.valid = false;
-        result.syntax = { 
-          valid: false, 
-          errors: [`YAML syntax error: ${yamlError}`]
+        result.syntax = {
+          valid: false,
+          errors: [`YAML syntax error: ${yamlError}`],
         };
         result.errors.push(`Invalid YAML syntax: ${yamlError}`);
       }
 
       // Run ansible-playbook --syntax-check
       const args = ['--syntax-check', playbookPath];
-      
+
       try {
         const context = await this.setupExecutionContext('validation', {});
-        const process = await this.executeAnsibleCommand('ansible-playbook', args, context);
-        
+        const process = await this.executeAnsibleCommand(
+          'ansible-playbook',
+          args,
+          context
+        );
+
         await new Promise<void>((resolve, reject) => {
           let errorOutput = '';
-          
+
           process.stderr?.on('data', (data) => {
             errorOutput += data.toString();
           });
@@ -490,7 +531,6 @@ export class AnsibleProtocol extends BaseProtocol {
         result.valid = false;
         result.errors.push(`Syntax check failed: ${syntaxError}`);
       }
-
     } catch (error) {
       result.valid = false;
       result.errors.push(`Validation error: ${error}`);
@@ -517,7 +557,7 @@ export class AnsibleProtocol extends BaseProtocol {
       const tempPasswordFile = path.join(os.tmpdir(), `vault-${uuidv4()}.txt`);
       fs.writeFileSync(tempPasswordFile, password);
       args.unshift('--vault-password-file', tempPasswordFile);
-      
+
       // Clean up temp file after use
       setTimeout(() => {
         try {
@@ -529,7 +569,11 @@ export class AnsibleProtocol extends BaseProtocol {
     }
 
     const context = await this.setupExecutionContext('vault', {});
-    const process = await this.executeAnsibleCommand('ansible-vault', args, context);
+    const process = await this.executeAnsibleCommand(
+      'ansible-vault',
+      args,
+      context
+    );
 
     return new Promise((resolve, reject) => {
       let output = '';
@@ -581,7 +625,11 @@ export class AnsibleProtocol extends BaseProtocol {
     }
 
     const context = await this.setupExecutionContext('galaxy', {});
-    const process = await this.executeAnsibleCommand('ansible-galaxy', args, context);
+    const process = await this.executeAnsibleCommand(
+      'ansible-galaxy',
+      args,
+      context
+    );
 
     return new Promise((resolve, reject) => {
       let output = '';
@@ -608,22 +656,25 @@ export class AnsibleProtocol extends BaseProtocol {
   /**
    * Dynamic inventory management
    */
-  public async loadInventory(source: string, type: 'static' | 'dynamic' | 'plugin' = 'static'): Promise<AnsibleInventory> {
+  public async loadInventory(
+    source: string,
+    type: 'static' | 'dynamic' | 'plugin' = 'static'
+  ): Promise<AnsibleInventory> {
     let inventory: AnsibleInventory = {
       type,
       source,
       groups: {},
       hosts: {},
-      vars: {}
+      vars: {},
     };
 
     try {
       if (type === 'static') {
         if (fs.existsSync(source)) {
           const content = fs.readFileSync(source, 'utf8');
-          
+
           if (source.endsWith('.yml') || source.endsWith('.yaml')) {
-            inventory = { ...inventory, ...yaml.load(content) as any };
+            inventory = { ...inventory, ...(yaml.load(content) as any) };
             inventory.format = 'yaml';
           } else if (source.endsWith('.json')) {
             inventory = { ...inventory, ...JSON.parse(content) };
@@ -639,15 +690,15 @@ export class AnsibleProtocol extends BaseProtocol {
         const context = await this.setupExecutionContext('inventory', {});
         const process = spawn(source, ['--list'], {
           cwd: context.workingDirectory,
-          env: context.environment
+          env: context.environment,
         });
 
         const output = await new Promise<string>((resolve, reject) => {
           let stdout = '';
           let stderr = '';
 
-          process.stdout.on('data', (data) => stdout += data.toString());
-          process.stderr.on('data', (data) => stderr += data.toString());
+          process.stdout.on('data', (data) => (stdout += data.toString()));
+          process.stderr.on('data', (data) => (stderr += data.toString()));
 
           process.on('close', (code) => {
             if (code === 0) {
@@ -708,18 +759,26 @@ export class AnsibleProtocol extends BaseProtocol {
     this.logger.info(`Cancelled Ansible session ${sessionId}`);
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const session = this.ansibleSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
 
     // Parse command as playbook or adhoc command
-    if (command === 'playbook' || command.endsWith('.yml') || command.endsWith('.yaml')) {
+    if (
+      command === 'playbook' ||
+      command.endsWith('.yml') ||
+      command.endsWith('.yaml')
+    ) {
       const playbookOptions: AnsiblePlaybookOptions = {
         playbook: args?.[0] || command,
         inventory: args?.[1] || session.options.inventory || 'localhost,',
-        extraVars: args?.[2] ? JSON.parse(args[2]) : undefined
+        extraVars: args?.[2] ? JSON.parse(args[2]) : undefined,
       };
       await this.executePlaybook(sessionId, playbookOptions);
     } else {
@@ -750,7 +809,9 @@ export class AnsibleProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Ansible session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Ansible session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
@@ -808,8 +869,8 @@ export class AnsibleProtocol extends BaseProtocol {
         ...baseStatus,
         dependencies: {
           ansible: { available: true },
-          python: { available: true }
-        }
+          python: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -818,8 +879,8 @@ export class AnsibleProtocol extends BaseProtocol {
         errors: [...baseStatus.errors, `Ansible not available: ${error}`],
         dependencies: {
           ansible: { available: false },
-          python: { available: false }
-        }
+          python: { available: false },
+        },
       };
     }
   }
@@ -830,8 +891,8 @@ export class AnsibleProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -853,25 +914,30 @@ export class AnsibleProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Ansible session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Ansible session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const process = this.activeProcesses.get(sessionId);
-    return process && !process.killed || false;
+    return (process && !process.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -882,26 +948,26 @@ export class AnsibleProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.activeProcesses.size
+        connectionsActive: this.activeProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -919,7 +985,6 @@ export class AnsibleProtocol extends BaseProtocol {
     return Array.from(this.ansibleSessions.values());
   }
 
-
   // Private helper methods
 
   private async setupExecutionContext(
@@ -928,10 +993,12 @@ export class AnsibleProtocol extends BaseProtocol {
   ): Promise<AnsibleExecutionContext> {
     const context: AnsibleExecutionContext = {
       sessionId,
-      workingDirectory: options.playbookPath ? path.dirname(options.playbookPath) : this.config.playbookDir,
+      workingDirectory: options.playbookPath
+        ? path.dirname(options.playbookPath)
+        : this.config.playbookDir,
       environment: Object.fromEntries(
         Object.entries(process.env).filter(([_, value]) => value !== undefined)
-      ) as Record<string, string>
+      ) as Record<string, string>,
     };
 
     // Setup Python environment
@@ -959,17 +1026,27 @@ export class AnsibleProtocol extends BaseProtocol {
     }
 
     // Setup inventory
-    if (options.inventory || options.inventoryFile || this.config.inventoryFile) {
-      context.inventorySource = options.inventory || options.inventoryFile || this.config.inventoryFile;
+    if (
+      options.inventory ||
+      options.inventoryFile ||
+      this.config.inventoryFile
+    ) {
+      context.inventorySource =
+        options.inventory || options.inventoryFile || this.config.inventoryFile;
     }
 
     // Setup additional paths
-    context.environment.ANSIBLE_ROLES_PATH = (options.rolesPath || this.config.rolesPath).join(':');
-    context.environment.ANSIBLE_COLLECTIONS_PATH = (options.collectionsPath || this.config.collectionsPath).join(':');
+    context.environment.ANSIBLE_ROLES_PATH = (
+      options.rolesPath || this.config.rolesPath
+    ).join(':');
+    context.environment.ANSIBLE_COLLECTIONS_PATH = (
+      options.collectionsPath || this.config.collectionsPath
+    ).join(':');
 
     // Setup callback plugins
     context.environment.ANSIBLE_STDOUT_CALLBACK = this.config.stdoutCallback;
-    context.environment.ANSIBLE_CALLBACK_PLUGINS = this.config.callbackPlugins.join(',');
+    context.environment.ANSIBLE_CALLBACK_PLUGINS =
+      this.config.callbackPlugins.join(',');
 
     // Setup logging
     if (this.config.logPath) {
@@ -1112,7 +1189,7 @@ export class AnsibleProtocol extends BaseProtocol {
     const process = spawn(command, args, {
       cwd: context.workingDirectory,
       env: context.environment,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     if (!process.pid) {
@@ -1139,19 +1216,19 @@ export class AnsibleProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: output,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, consoleOutput);
     });
 
     process.stderr?.on('data', (data) => {
       const output = data.toString();
-      
+
       const consoleOutput: ConsoleOutput = {
         sessionId,
         type: 'stderr',
         data: output,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, consoleOutput);
     });
@@ -1189,7 +1266,7 @@ export class AnsibleProtocol extends BaseProtocol {
         try {
           // Try to parse as JSON callback
           const data = JSON.parse(line);
-          
+
           if (data.event) {
             const event: AnsibleCallbackEvent = {
               eventType: data.event,
@@ -1199,7 +1276,7 @@ export class AnsibleProtocol extends BaseProtocol {
               playbook: data.playbook,
               result: data.result,
               timestamp: new Date(),
-              sessionId
+              sessionId,
             };
 
             events.push(event);
@@ -1222,17 +1299,21 @@ export class AnsibleProtocol extends BaseProtocol {
       ok: {},
       dark: {},
       changed: {},
-      skipped: {}
+      skipped: {},
     };
 
     // Parse PLAY RECAP section
-    const recapMatch = output.match(/PLAY RECAP \*+([\s\S]*?)(?=\n\n|\nTASK|\n$|$)/);
+    const recapMatch = output.match(
+      /PLAY RECAP \*+([\s\S]*?)(?=\n\n|\nTASK|\n$|$)/
+    );
     if (recapMatch) {
       const recapSection = recapMatch[1];
-      const lines = recapSection.split('\n').filter(line => line.trim());
+      const lines = recapSection.split('\n').filter((line) => line.trim());
 
       for (const line of lines) {
-        const hostMatch = line.match(/^(\S+)\s+:\s+ok=(\d+)\s+changed=(\d+)\s+unreachable=(\d+)\s+failed=(\d+)\s+skipped=(\d+)/);
+        const hostMatch = line.match(
+          /^(\S+)\s+:\s+ok=(\d+)\s+changed=(\d+)\s+unreachable=(\d+)\s+failed=(\d+)\s+skipped=(\d+)/
+        );
         if (hostMatch) {
           const [, host, ok, changed, unreachable, failed, skipped] = hostMatch;
           stats.ok[host] = parseInt(ok);
@@ -1240,7 +1321,12 @@ export class AnsibleProtocol extends BaseProtocol {
           stats.dark[host] = parseInt(unreachable);
           stats.failures[host] = parseInt(failed);
           stats.skipped[host] = parseInt(skipped);
-          stats.processed[host] = parseInt(ok) + parseInt(changed) + parseInt(unreachable) + parseInt(failed) + parseInt(skipped);
+          stats.processed[host] =
+            parseInt(ok) +
+            parseInt(changed) +
+            parseInt(unreachable) +
+            parseInt(failed) +
+            parseInt(skipped);
         }
       }
     }
@@ -1264,7 +1350,9 @@ export class AnsibleProtocol extends BaseProtocol {
               const jsonData = line.substring(jsonStart);
               facts[host] = JSON.parse(jsonData);
             } catch (error) {
-              this.logger.warn(`Failed to parse facts for host ${host}: ${error}`);
+              this.logger.warn(
+                `Failed to parse facts for host ${host}: ${error}`
+              );
             }
           }
         }
@@ -1281,7 +1369,7 @@ export class AnsibleProtocol extends BaseProtocol {
       format: 'ini',
       groups: {},
       hosts: {},
-      vars: {}
+      vars: {},
     };
 
     const lines = content.split('\n');
@@ -1330,19 +1418,24 @@ export class AnsibleProtocol extends BaseProtocol {
 
   // Event handlers
   private handleCallbackEvent(event: AnsibleCallbackEvent): void {
-    this.logger.debug(`Callback event: ${event.eventType} for session ${event.sessionId}`);
-    
+    this.logger.debug(
+      `Callback event: ${event.eventType} for session ${event.sessionId}`
+    );
+
     if (this.monitoring) {
       // Log the callback event for monitoring purposes
       this.logger.info('Ansible callback event received', {
         sessionId: event.sessionId,
         eventType: event.eventType,
-        host: event.host || 'unknown'
+        host: event.host || 'unknown',
       });
     }
   }
 
-  private handleVaultRequest(event: { sessionId: string; vaultId: string }): void {
+  private handleVaultRequest(event: {
+    sessionId: string;
+    vaultId: string;
+  }): void {
     // Handle vault password requests
     const password = this.vaultPasswords.get(event.vaultId);
     if (password) {
@@ -1352,11 +1445,17 @@ export class AnsibleProtocol extends BaseProtocol {
     }
   }
 
-  private handleFactGathered(event: { sessionId: string; host: string; facts: any }): void {
+  private handleFactGathered(event: {
+    sessionId: string;
+    host: string;
+    facts: any;
+  }): void {
     const cacheKey = `${event.sessionId}:${event.host}`;
     this.factCache.set(cacheKey, event.facts);
-    
-    this.logger.debug(`Facts gathered for ${event.host} in session ${event.sessionId}`);
+
+    this.logger.debug(
+      `Facts gathered for ${event.host} in session ${event.sessionId}`
+    );
   }
 
   // Public API for vault password management
@@ -1373,7 +1472,7 @@ export class AnsibleProtocol extends BaseProtocol {
     if (host) {
       return this.factCache.get(`${sessionId}:${host}`);
     }
-    
+
     const facts: Record<string, any> = {};
     Array.from(this.factCache.entries()).forEach(([key, value]) => {
       if (key.startsWith(`${sessionId}:`)) {

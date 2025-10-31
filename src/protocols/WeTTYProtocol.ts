@@ -9,12 +9,12 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   SessionState,
   ProtocolCapabilities,
-  ProtocolHealthStatus
+  ProtocolHealthStatus,
 } from '../core/IProtocol.js';
 import { Logger } from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -139,8 +139,8 @@ export class WeTTYProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
 
     this.healthStatus = {
@@ -153,26 +153,26 @@ export class WeTTYProtocol extends BaseProtocol {
         totalSessions: 0,
         averageLatency: 0,
         successRate: 1.0,
-        uptime: 0
+        uptime: 0,
       },
       dependencies: {
         node: {
           available: true,
-          version: process.version
+          version: process.version,
         },
         wetty: {
           available: false,
-          version: 'checking...'
+          version: 'checking...',
         },
         express: {
           available: false,
-          version: 'checking...'
+          version: 'checking...',
         },
         ws: {
           available: false,
-          version: 'checking...'
-        }
-      }
+          version: 'checking...',
+        },
+      },
     };
 
     this.isInitialized = true;
@@ -192,7 +192,10 @@ export class WeTTYProtocol extends BaseProtocol {
       await new Promise((resolve, reject) => {
         wettyCheck.on('exit', (code) => {
           if (code === 0) {
-            this.healthStatus.dependencies.wetty = { available: true, version: 'system' };
+            this.healthStatus.dependencies.wetty = {
+              available: true,
+              version: 'system',
+            };
             resolve(undefined);
           } else {
             reject(new Error('WeTTY not found'));
@@ -201,23 +204,40 @@ export class WeTTYProtocol extends BaseProtocol {
         wettyCheck.on('error', reject);
       });
     } catch (error) {
-      this.logger.warn('WeTTY command not found, will use embedded implementation');
-      this.healthStatus.dependencies.wetty = { available: false, version: 'embedded' };
+      this.logger.warn(
+        'WeTTY command not found, will use embedded implementation'
+      );
+      this.healthStatus.dependencies.wetty = {
+        available: false,
+        version: 'embedded',
+      };
     }
 
     // Check for required modules
     try {
       require('express');
-      this.healthStatus.dependencies.express = { available: true, version: 'installed' };
+      this.healthStatus.dependencies.express = {
+        available: true,
+        version: 'installed',
+      };
     } catch {
-      this.healthStatus.dependencies.express = { available: false, version: 'not installed' };
+      this.healthStatus.dependencies.express = {
+        available: false,
+        version: 'not installed',
+      };
     }
 
     try {
       require('ws');
-      this.healthStatus.dependencies.ws = { available: true, version: 'installed' };
+      this.healthStatus.dependencies.ws = {
+        available: true,
+        version: 'installed',
+      };
     } catch {
-      this.healthStatus.dependencies.ws = { available: false, version: 'not installed' };
+      this.healthStatus.dependencies.ws = {
+        available: false,
+        version: 'not installed',
+      };
     }
 
     this.isInitialized = true;
@@ -228,7 +248,10 @@ export class WeTTYProtocol extends BaseProtocol {
    */
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
     const sessionId = `wetty-${Date.now()}-${uuidv4().substring(0, 8)}`;
-    const sessionState = await this.createSessionWithTypeDetection(sessionId, options);
+    const sessionState = await this.createSessionWithTypeDetection(
+      sessionId,
+      options
+    );
     return sessionState;
   }
 
@@ -244,12 +267,16 @@ export class WeTTYProtocol extends BaseProtocol {
 
     try {
       // Create WeTTY session
-      const wettySession = await this.createWeTTYSession(sessionId, wettyConfig);
+      const wettySession = await this.createWeTTYSession(
+        sessionId,
+        wettyConfig
+      );
 
       // Create console session
       const session: ConsoleSession = {
         id: sessionId,
-        command: options.command || wettyConfig.shell || process.env.SHELL || 'bash',
+        command:
+          options.command || wettyConfig.shell || process.env.SHELL || 'bash',
         args: options.args || wettyConfig.shellArgs || [],
         cwd: options.cwd || process.cwd(),
         env: options.environment || {},
@@ -263,8 +290,8 @@ export class WeTTYProtocol extends BaseProtocol {
           wettySession,
           webUrl: wettySession.webUrl,
           wsUrl: wettySession.wsUrl,
-          port: wettySession.port
-        }
+          port: wettySession.port,
+        },
       };
 
       this.sessions.set(sessionId, session);
@@ -276,7 +303,7 @@ export class WeTTYProtocol extends BaseProtocol {
         type: 'stdout',
         data: `WeTTY session started\nWeb URL: ${wettySession.webUrl}\nWebSocket URL: ${wettySession.wsUrl}\n`,
         timestamp: new Date(),
-        raw: ''
+        raw: '',
       });
 
       return session;
@@ -308,7 +335,7 @@ export class WeTTYProtocol extends BaseProtocol {
       logLevel: 'info',
       recordingSessions: false,
       sessionRecordingPath: undefined,
-      authProvider: 'none'
+      authProvider: 'none',
     };
 
     // SSH configuration if connecting to remote host
@@ -331,7 +358,7 @@ export class WeTTYProtocol extends BaseProtocol {
       cursorBlink: true,
       scrollback: 1000,
       tabStopWidth: 8,
-      rendererType: 'canvas'
+      rendererType: 'canvas',
     };
 
     return config;
@@ -341,13 +368,16 @@ export class WeTTYProtocol extends BaseProtocol {
    * Get next available port
    */
   private getNextPort(): number {
-    return this.basePort + (this.portCounter++);
+    return this.basePort + this.portCounter++;
   }
 
   /**
    * Create WeTTY session
    */
-  private async createWeTTYSession(sessionId: string, config: WeTTYSessionConfig): Promise<WeTTYSession> {
+  private async createWeTTYSession(
+    sessionId: string,
+    config: WeTTYSessionConfig
+  ): Promise<WeTTYSession> {
     const session: WeTTYSession = {
       sessionId,
       port: config.port!,
@@ -362,7 +392,7 @@ export class WeTTYProtocol extends BaseProtocol {
       bytesReceived: 0,
       bytesSent: 0,
       connectionCount: 0,
-      metadata: {}
+      metadata: {},
     };
 
     this.wettySessions.set(sessionId, session);
@@ -383,7 +413,11 @@ export class WeTTYProtocol extends BaseProtocol {
   /**
    * Start system WeTTY process
    */
-  private async startSystemWeTTY(sessionId: string, config: WeTTYSessionConfig, session: WeTTYSession): Promise<void> {
+  private async startSystemWeTTY(
+    sessionId: string,
+    config: WeTTYSessionConfig,
+    session: WeTTYSession
+  ): Promise<void> {
     const args: string[] = [];
 
     // Basic configuration
@@ -416,13 +450,15 @@ export class WeTTYProtocol extends BaseProtocol {
     }
 
     // Terminal options
-    if (config.terminalOptions?.cols) args.push('--width', config.terminalOptions.cols.toString());
-    if (config.terminalOptions?.rows) args.push('--height', config.terminalOptions.rows.toString());
+    if (config.terminalOptions?.cols)
+      args.push('--width', config.terminalOptions.cols.toString());
+    if (config.terminalOptions?.rows)
+      args.push('--height', config.terminalOptions.rows.toString());
 
     // Start WeTTY process
     const wettyProcess = spawn('wetty', args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env }
+      env: { ...process.env },
     });
 
     wettyProcess.stdout?.on('data', (data: Buffer) => {
@@ -440,7 +476,9 @@ export class WeTTYProtocol extends BaseProtocol {
     });
 
     wettyProcess.on('exit', (code) => {
-      this.logger.info(`WeTTY process exited for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `WeTTY process exited for session ${sessionId} with code ${code}`
+      );
       session.status = 'disconnected';
       this.handleSessionClose(sessionId);
     });
@@ -455,7 +493,11 @@ export class WeTTYProtocol extends BaseProtocol {
   /**
    * Start embedded WeTTY server
    */
-  private async startEmbeddedWeTTY(sessionId: string, config: WeTTYSessionConfig, session: WeTTYSession): Promise<void> {
+  private async startEmbeddedWeTTY(
+    sessionId: string,
+    config: WeTTYSessionConfig,
+    session: WeTTYSession
+  ): Promise<void> {
     try {
       const express = require('express');
       const app = express();
@@ -480,10 +522,13 @@ export class WeTTYProtocol extends BaseProtocol {
 
       // Create server
       const server = config.ssl
-        ? https.createServer({
-            key: config.sslKey,
-            cert: config.sslCert
-          }, app)
+        ? https.createServer(
+            {
+              key: config.sslKey,
+              cert: config.sslCert,
+            },
+            app
+          )
         : http.createServer(app);
 
       // Setup WebSocket server
@@ -500,7 +545,9 @@ export class WeTTYProtocol extends BaseProtocol {
       // Start server
       await new Promise<void>((resolve, reject) => {
         server.listen(config.port, config.host, () => {
-          this.logger.info(`Embedded WeTTY server started on ${config.host}:${config.port}`);
+          this.logger.info(
+            `Embedded WeTTY server started on ${config.host}:${config.port}`
+          );
           resolve();
         });
         server.on('error', reject);
@@ -511,9 +558,11 @@ export class WeTTYProtocol extends BaseProtocol {
       session.wss = wss;
       this.wettyServers.set(sessionId, server);
       this.wettyWebSockets.set(sessionId, wss);
-
     } catch (error) {
-      this.logger.error(`Failed to start embedded WeTTY for session ${sessionId}:`, error);
+      this.logger.error(
+        `Failed to start embedded WeTTY for session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -521,7 +570,12 @@ export class WeTTYProtocol extends BaseProtocol {
   /**
    * Handle WebSocket connection
    */
-  private handleWebSocketConnection(sessionId: string, connectionId: string, ws: WebSocket, config: WeTTYSessionConfig): void {
+  private handleWebSocketConnection(
+    sessionId: string,
+    connectionId: string,
+    ws: WebSocket,
+    config: WeTTYSessionConfig
+  ): void {
     const session = this.wettySessions.get(sessionId);
     if (!session) return;
 
@@ -531,33 +585,37 @@ export class WeTTYProtocol extends BaseProtocol {
     // Handle PTY output
     pty.stdout?.on('data', (data: Buffer) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'output',
-          data: data.toString('base64')
-        }));
+        ws.send(
+          JSON.stringify({
+            type: 'output',
+            data: data.toString('base64'),
+          })
+        );
         session.bytesSent += data.length;
         this.addToOutputBuffer(sessionId, {
           sessionId,
           type: 'stdout',
           data: data.toString(),
           timestamp: new Date(),
-          raw: data.toString()
+          raw: data.toString(),
         });
       }
     });
 
     pty.stderr?.on('data', (data: Buffer) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'error',
-          data: data.toString('base64')
-        }));
+        ws.send(
+          JSON.stringify({
+            type: 'error',
+            data: data.toString('base64'),
+          })
+        );
         this.addToOutputBuffer(sessionId, {
           sessionId,
           type: 'stderr',
           data: data.toString(),
           timestamp: new Date(),
-          raw: data.toString()
+          raw: data.toString(),
         });
       }
     });
@@ -590,7 +648,10 @@ export class WeTTYProtocol extends BaseProtocol {
 
         session.lastActivity = new Date();
       } catch (error) {
-        this.logger.error(`Error processing WebSocket message for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error processing WebSocket message for session ${sessionId}:`,
+          error
+        );
       }
     });
 
@@ -611,17 +672,19 @@ export class WeTTYProtocol extends BaseProtocol {
     });
 
     // Send initial connection message
-    ws.send(JSON.stringify({
-      type: 'connected',
-      sessionId,
-      connectionId,
-      config: {
-        cols: config.terminalOptions?.cols || 80,
-        rows: config.terminalOptions?.rows || 24,
-        fontSize: config.terminalOptions?.fontSize || 14,
-        theme: config.terminalOptions?.theme || 'dark'
-      }
-    }));
+    ws.send(
+      JSON.stringify({
+        type: 'connected',
+        sessionId,
+        connectionId,
+        config: {
+          cols: config.terminalOptions?.cols || 80,
+          rows: config.terminalOptions?.rows || 24,
+          fontSize: config.terminalOptions?.fontSize || 14,
+          theme: config.terminalOptions?.theme || 'dark',
+        },
+      })
+    );
   }
 
   /**
@@ -645,7 +708,7 @@ export class WeTTYProtocol extends BaseProtocol {
     const pty = spawn(shell, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
-      cwd: process.cwd()
+      cwd: process.cwd(),
     });
 
     return pty;
@@ -739,11 +802,15 @@ export class WeTTYProtocol extends BaseProtocol {
 
         ws.onclose = () => {
             term.write('\\r\\n\\x1b[33mConnection closed\\x1b[0m\\r\\n');
-            ${config.reconnect ? `
+            ${
+              config.reconnect
+                ? `
             setTimeout(() => {
                 window.location.reload();
             }, ${config.reconnectTime || 10000});
-            ` : ''}
+            `
+                : ''
+            }
         };
 
         // Keep connection alive
@@ -769,7 +836,7 @@ export class WeTTYProtocol extends BaseProtocol {
           background: '#ffffff',
           foreground: '#000000',
           cursor: '#000000',
-          selection: 'rgba(0, 0, 0, 0.3)'
+          selection: 'rgba(0, 0, 0, 0.3)',
         };
       case 'dark':
       default:
@@ -777,7 +844,7 @@ export class WeTTYProtocol extends BaseProtocol {
           background: '#1e1e1e',
           foreground: '#d4d4d4',
           cursor: '#d4d4d4',
-          selection: 'rgba(255, 255, 255, 0.3)'
+          selection: 'rgba(255, 255, 255, 0.3)',
         };
     }
   }
@@ -803,7 +870,10 @@ export class WeTTYProtocol extends BaseProtocol {
   /**
    * Wait for server to start
    */
-  private async waitForServerStart(port: number, timeout: number): Promise<void> {
+  private async waitForServerStart(
+    port: number,
+    timeout: number
+  ): Promise<void> {
     const startTime = Date.now();
 
     while (Date.now() - startTime < timeout) {
@@ -817,23 +887,29 @@ export class WeTTYProtocol extends BaseProtocol {
         });
         return;
       } catch {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
 
-    throw new Error(`Server failed to start on port ${port} within ${timeout}ms`);
+    throw new Error(
+      `Server failed to start on port ${port} within ${timeout}ms`
+    );
   }
 
   /**
    * Handle process output
    */
-  private handleProcessOutput(sessionId: string, data: string, type: 'stdout' | 'stderr'): void {
+  private handleProcessOutput(
+    sessionId: string,
+    data: string,
+    type: 'stdout' | 'stderr'
+  ): void {
     this.addToOutputBuffer(sessionId, {
       sessionId,
       type,
       data,
       timestamp: new Date(),
-      raw: data
+      raw: data,
     });
   }
 
@@ -845,7 +921,7 @@ export class WeTTYProtocol extends BaseProtocol {
     if (!session) return;
 
     // Close all WebSocket connections
-    session.connections.forEach(ws => {
+    session.connections.forEach((ws) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
@@ -860,7 +936,11 @@ export class WeTTYProtocol extends BaseProtocol {
   /**
    * Execute command in session
    */
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const session = this.sessions.get(sessionId);
     const wettySession = this.wettySessions.get(sessionId);
 
@@ -871,12 +951,14 @@ export class WeTTYProtocol extends BaseProtocol {
     const fullCommand = args ? `${command} ${args.join(' ')}` : command;
 
     // Send command to all connected clients
-    wettySession.connections.forEach(ws => {
+    wettySession.connections.forEach((ws) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'input',
-          data: Buffer.from(fullCommand + '\n').toString('base64')
-        }));
+        ws.send(
+          JSON.stringify({
+            type: 'input',
+            data: Buffer.from(fullCommand + '\n').toString('base64'),
+          })
+        );
       }
     });
 
@@ -894,12 +976,14 @@ export class WeTTYProtocol extends BaseProtocol {
     }
 
     // Send input to all connected clients
-    wettySession.connections.forEach(ws => {
+    wettySession.connections.forEach((ws) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'input',
-          data: Buffer.from(input).toString('base64')
-        }));
+        ws.send(
+          JSON.stringify({
+            type: 'input',
+            data: Buffer.from(input).toString('base64'),
+          })
+        );
       }
     });
 
@@ -917,7 +1001,7 @@ export class WeTTYProtocol extends BaseProtocol {
     this.logger.info(`Closing WeTTY session ${sessionId}`);
 
     // Close WebSocket connections
-    wettySession.connections.forEach(ws => ws.close());
+    wettySession.connections.forEach((ws) => ws.close());
 
     // Stop process
     const process = this.wettyProcesses.get(sessionId);
@@ -961,7 +1045,7 @@ export class WeTTYProtocol extends BaseProtocol {
 
     // Check server health
     let healthyServers = 0;
-    this.wettyServers.forEach(server => {
+    this.wettyServers.forEach((server) => {
       if (server.listening) healthyServers++;
     });
 
@@ -972,8 +1056,8 @@ export class WeTTYProtocol extends BaseProtocol {
       ...this.healthStatus,
       metrics: {
         ...baseHealth.metrics,
-        activeSessions: this.wettySessions.size
-      }
+        activeSessions: this.wettySessions.size,
+      },
     };
   }
 
@@ -985,7 +1069,7 @@ export class WeTTYProtocol extends BaseProtocol {
 
     // Close all sessions
     const sessionIds = Array.from(this.wettySessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
 
     // Clean up
     await super.cleanup();

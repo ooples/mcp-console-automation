@@ -11,7 +11,7 @@ import {
   TestDefinition,
   TestHook,
   SuiteConfig,
-  Assertion
+  Assertion,
 } from '../types/test-framework.js';
 
 export class TestSuiteManager {
@@ -102,7 +102,10 @@ export class TestSuiteManager {
   /**
    * Set suite-level teardown hook
    */
-  async setSuiteTeardown(suiteName: string, teardown: TestHook): Promise<TestSuite> {
+  async setSuiteTeardown(
+    suiteName: string,
+    teardown: TestHook
+  ): Promise<TestSuite> {
     const suite = this.suites.get(suiteName);
     if (!suite) {
       throw new Error(`Test suite "${suiteName}" not found`);
@@ -115,7 +118,10 @@ export class TestSuiteManager {
   /**
    * Update suite configuration
    */
-  async updateConfig(suiteName: string, config: Partial<SuiteConfig>): Promise<TestSuite> {
+  async updateConfig(
+    suiteName: string,
+    config: Partial<SuiteConfig>
+  ): Promise<TestSuite> {
     const suite = this.suites.get(suiteName);
     if (!suite) {
       throw new Error(`Test suite "${suiteName}" not found`);
@@ -156,7 +162,11 @@ export class TestSuiteManager {
     // Convert suite to JSON-serializable format (remove function references)
     const serializable = this.serializeSuite(suite);
 
-    await fs.writeFile(filePath, JSON.stringify(serializable, null, 2), 'utf-8');
+    await fs.writeFile(
+      filePath,
+      JSON.stringify(serializable, null, 2),
+      'utf-8'
+    );
     return filePath;
   }
 
@@ -229,7 +239,7 @@ export class TestSuiteManager {
     return {
       name: suite.name,
       description: suite.description,
-      tests: suite.tests.map(test => ({
+      tests: suite.tests.map((test) => ({
         name: test.name,
         description: test.description,
         recording: test.recording,

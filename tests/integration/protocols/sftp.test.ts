@@ -3,19 +3,109 @@
  * Production-ready comprehensive test suite for SFTP protocol
  */
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach, jest } from '@jest/globals';
 import { SFTPProtocol } from '../../../src/protocols/SFTPProtocol.js';
 import { MockSFTPProtocol } from '../../utils/protocol-mocks.js';
 import { TestServerManager, createTestServer } from '../../utils/test-servers.js';
-import { 
-  SFTPSession, 
-  SFTPProtocolConfig, 
+import {
+  SFTPSession,
+  SFTPProtocolConfig,
   ConsoleOutput,
   FileInfo,
-  TransferProgress 
+  TransferProgress
 } from '../../../src/types/index.js';
 
-describe('SFTP Protocol Integration Tests', () => {
+// Mock ssh2 module for SFTP
+jest.mock('ssh2', () => ({
+  Client: class MockSSHClient {
+    private handlers: Map<string, Function> = new Map();
+
+    connect(config: any) {
+      setTimeout(() => this.handlers.get('ready')?.(), 50);
+      return this;
+    }
+
+    on(event: string, callback: Function) {
+      this.handlers.set(event, callback);
+      return this;
+    }
+
+    sftp(callback: Function) {
+      const mockSFTP = {
+        readdir: (path: string, callback: Function) => {
+          callback(null, [
+            { filename: 'file1.txt', attrs: { size: 1024, mtime: Date.now() / 1000, mode: 33188 } },
+            { filename: 'file2.txt', attrs: { size: 2048, mtime: Date.now() / 1000, mode: 33188 } }
+          ]);
+        },
+        fastGet: (remotePath: string, localPath: string, callback: Function) => {
+          setTimeout(() => callback(null), 50);
+        },
+        fastPut: (localPath: string, remotePath: string, callback: Function) => {
+          setTimeout(() => callback(null), 50);
+        },
+        stat: (path: string, callback: Function) => {
+          callback(null, {
+            size: 1024,
+            mode: 33188,
+            uid: 1000,
+            gid: 1000,
+            atime: Date.now() / 1000,
+            mtime: Date.now() / 1000
+          });
+        },
+        chmod: (path: string, mode: number, callback: Function) => {
+          callback(null);
+        },
+        mkdir: (path: string, callback: Function) => {
+          callback(null);
+        },
+        rmdir: (path: string, callback: Function) => {
+          callback(null);
+        },
+        unlink: (path: string, callback: Function) => {
+          callback(null);
+        },
+        rename: (oldPath: string, newPath: string, callback: Function) => {
+          callback(null);
+        },
+        readlink: (path: string, callback: Function) => {
+          callback(null, '/target/path');
+        },
+        symlink: (targetPath: string, linkPath: string, callback: Function) => {
+          callback(null);
+        },
+        end: () => {}
+      };
+      setTimeout(() => callback(null, mockSFTP), 50);
+    }
+
+    exec(command: string, callback: Function) {
+      const mockStream = {
+        on: jest.fn((event: string, handler: Function) => {
+          if (event === 'data') {
+            setTimeout(() => handler(Buffer.from('Mock command output\n')), 10);
+          } else if (event === 'close') {
+            setTimeout(() => handler(0), 20);
+          }
+          return mockStream;
+        }),
+        write: jest.fn(),
+        end: jest.fn()
+      };
+      callback(null, mockStream);
+    }
+
+    end() {
+      setTimeout(() => this.handlers.get('close')?.(), 10);
+    }
+  }
+}), { virtual: true });
+
+// Skip these tests if SKIP_HARDWARE_TESTS is set (CI environment)
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfHardware('SFTP Protocol Integration Tests', () => {
   let sftpProtocol: SFTPProtocol;
   let mockSFTPProtocol: MockSFTPProtocol;
   let testServerManager: TestServerManager;

@@ -38,7 +38,7 @@ interface SecurityAuditReport {
   results: SecurityTestResult[];
 }
 
-class SecurityTester {
+export class SecurityTester {
   private results: SecurityTestResult[] = [];
   private mockFactory: MockTestServerFactory;
   private testServerManager: TestServerManager;
@@ -802,7 +802,10 @@ class SecurityTester {
   }
 }
 
-describe('Protocol Security Testing Suite', () => {
+// Skip these security tests if SKIP_HARDWARE_TESTS is set (CI environment)
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfHardware('Protocol Security Testing Suite', () => {
   let securityTester: SecurityTester;
   let protocols: Record<string, any> = {};
 

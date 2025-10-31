@@ -30,7 +30,7 @@ import {
   ConsoleOutput,
   ConsoleEvent,
   SessionOptions,
-  ConsoleType
+  ConsoleType,
 } from '../types/index.js';
 
 // Docker API compatibility layer - handles optional dockerode dependency
@@ -62,7 +62,9 @@ try {
   Docker = require('dockerode');
 } catch (error) {
   // dockerode is optional dependency
-  console.warn('Docker support requires dockerode package. Install with: npm install dockerode');
+  console.warn(
+    'Docker support requires dockerode package. Install with: npm install dockerode'
+  );
 }
 
 export interface DockerProtocolEvents {
@@ -70,23 +72,37 @@ export interface DockerProtocolEvents {
   'container-started': (containerId: string, session: DockerSession) => void;
   'container-stopped': (containerId: string, session: DockerSession) => void;
   'container-removed': (containerId: string, session: DockerSession) => void;
-  'container-error': (containerId: string, error: Error, session: DockerSession) => void;
+  'container-error': (
+    containerId: string,
+    error: Error,
+    session: DockerSession
+  ) => void;
   'exec-created': (execId: string, session: DockerSession) => void;
   'exec-started': (execId: string, session: DockerSession) => void;
-  'exec-completed': (execId: string, exitCode: number, session: DockerSession) => void;
+  'exec-completed': (
+    execId: string,
+    exitCode: number,
+    session: DockerSession
+  ) => void;
   'health-check': (result: DockerHealthCheck, session: DockerSession) => void;
   'log-stream': (logEntry: DockerLogEntry, session: DockerSession) => void;
   'metrics-collected': (metrics: DockerMetrics, session: DockerSession) => void;
   'docker-event': (event: DockerEvent) => void;
   'connection-error': (error: Error) => void;
-  'reconnected': (connection: DockerAPI) => void;
-  'output': (output: ConsoleOutput) => void;
-  'sessionClosed': (sessionId: string) => void;
+  reconnected: (connection: DockerAPI) => void;
+  output: (output: ConsoleOutput) => void;
+  sessionClosed: (sessionId: string) => void;
 }
 
 export declare interface DockerProtocol {
-  on<U extends keyof DockerProtocolEvents>(event: U, listener: DockerProtocolEvents[U]): this;
-  emit<U extends keyof DockerProtocolEvents>(event: U, ...args: Parameters<DockerProtocolEvents[U]>): boolean;
+  on<U extends keyof DockerProtocolEvents>(
+    event: U,
+    listener: DockerProtocolEvents[U]
+  ): this;
+  emit<U extends keyof DockerProtocolEvents>(
+    event: U,
+    ...args: Parameters<DockerProtocolEvents[U]>
+  ): boolean;
 }
 
 /**
@@ -154,9 +170,13 @@ export class DockerProtocol extends BaseProtocol {
     this.dockerAvailable = Docker !== null;
 
     if (!this.dockerAvailable) {
-      this.logger.warn('Docker (dockerode) is not available. Install with: npm install dockerode');
+      this.logger.warn(
+        'Docker (dockerode) is not available. Install with: npm install dockerode'
+      );
       this.connectionHealthy = false;
-      throw new Error('Docker (dockerode) is not available. Install with: npm install dockerode');
+      throw new Error(
+        'Docker (dockerode) is not available. Install with: npm install dockerode'
+      );
     }
 
     // Initialize Docker connection with comprehensive error handling
@@ -171,7 +191,9 @@ export class DockerProtocol extends BaseProtocol {
     }
 
     this.isInitialized = true;
-    this.logger.info('Docker protocol initialized with session management fixes');
+    this.logger.info(
+      'Docker protocol initialized with session management fixes'
+    );
   }
 
   /**
@@ -184,14 +206,14 @@ export class DockerProtocol extends BaseProtocol {
 
     try {
       const connectionOptions: any = { ...this.config.connection };
-      
+
       // Auto-detect Docker socket path based on platform
       if (!connectionOptions.socketPath && !connectionOptions.host) {
         const platform = os.platform();
         if (platform === 'win32') {
           // Windows Docker Desktop or Docker in WSL2
           connectionOptions.socketPath = '\\\\.\\pipe\\docker_engine';
-          
+
           // Try WSL2 socket as fallback
           if (!this.testConnection(connectionOptions)) {
             connectionOptions.socketPath = '/var/run/docker.sock';
@@ -210,19 +232,24 @@ export class DockerProtocol extends BaseProtocol {
 
       // Test connection
       this.testDockerConnection();
-      
+
       this.logger.info('Docker connection initialized successfully', {
         socketPath: connectionOptions.socketPath,
         host: connectionOptions.host,
-        port: connectionOptions.port
+        port: connectionOptions.port,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Failed to initialize Docker connection', { error: errorMessage });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to initialize Docker connection', {
+        error: errorMessage,
+      });
       this.connectionHealthy = false;
-      this.emit('connection-error', error instanceof Error ? error : new Error(errorMessage));
-      
+      this.emit(
+        'connection-error',
+        error instanceof Error ? error : new Error(errorMessage)
+      );
+
       // Attempt reconnection
       this.scheduleReconnection();
     }
@@ -239,8 +266,11 @@ export class DockerProtocol extends BaseProtocol {
       return true;
     } catch (error) {
       this.connectionHealthy = false;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.warn('Docker connection test failed', { error: errorMessage });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.warn('Docker connection test failed', {
+        error: errorMessage,
+      });
       return false;
     }
   }
@@ -264,8 +294,11 @@ export class DockerProtocol extends BaseProtocol {
    */
   private setupConnectionMonitoring(): void {
     setInterval(async () => {
-      if (!await this.testDockerConnection()) {
-        this.emit('connection-error', new Error('Docker connection health check failed'));
+      if (!(await this.testDockerConnection())) {
+        this.emit(
+          'connection-error',
+          new Error('Docker connection health check failed')
+        );
         this.scheduleReconnection();
       }
     }, 30000); // Check every 30 seconds
@@ -284,7 +317,9 @@ export class DockerProtocol extends BaseProtocol {
     this.reconnectAttempts++;
 
     setTimeout(() => {
-      this.logger.info(`Attempting Docker reconnection (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      this.logger.info(
+        `Attempting Docker reconnection (${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+      );
       this.initializeDockerConnection();
     }, delay);
   }
@@ -294,10 +329,14 @@ export class DockerProtocol extends BaseProtocol {
    */
   private startEventMonitoring(): void {
     if (!this.docker) return;
-    
+
     try {
       const eventsStream = this.docker.getEvents({});
-      if (typeof eventsStream === 'object' && eventsStream && 'on' in eventsStream) {
+      if (
+        typeof eventsStream === 'object' &&
+        eventsStream &&
+        'on' in eventsStream
+      ) {
         const stream = eventsStream as any;
 
         stream.on('data', (chunk: Buffer) => {
@@ -312,18 +351,25 @@ export class DockerProtocol extends BaseProtocol {
               }
             }
           } catch (error) {
-            this.logger.warn('Failed to parse Docker event', { error: (error as Error).message, chunk: chunk.toString() });
+            this.logger.warn('Failed to parse Docker event', {
+              error: (error as Error).message,
+              chunk: chunk.toString(),
+            });
           }
         });
 
         stream.on('error', (error: Error) => {
-          this.logger.error('Docker event stream error', { error: error.message });
+          this.logger.error('Docker event stream error', {
+            error: error.message,
+          });
         });
       } else {
         this.logger.warn('Docker events API not available or incompatible');
       }
     } catch (error) {
-      this.logger.error('Failed to initialize Docker event monitoring', { error: (error as Error).message });
+      this.logger.error('Failed to initialize Docker event monitoring', {
+        error: (error as Error).message,
+      });
     }
   }
 
@@ -333,7 +379,9 @@ export class DockerProtocol extends BaseProtocol {
   private handleDockerEvent(event: DockerEvent): void {
     if (event.type === 'container') {
       const containerId = event.actor.id;
-      const session = Array.from(this.dockerSessions.values()).find(s => s.containerId === containerId);
+      const session = Array.from(this.dockerSessions.values()).find(
+        (s) => s.containerId === containerId
+      );
 
       if (session) {
         switch (event.action) {
@@ -373,7 +421,9 @@ export class DockerProtocol extends BaseProtocol {
     sessionState: SessionState
   ): Promise<ConsoleSession> {
     if (!this.dockerAvailable || !this.docker) {
-      throw new Error('Docker (dockerode) is not available. Install with: npm install dockerode');
+      throw new Error(
+        'Docker (dockerode) is not available. Install with: npm install dockerode'
+      );
     }
 
     if (!this.connectionHealthy) {
@@ -410,9 +460,14 @@ export class DockerProtocol extends BaseProtocol {
         containerName: containerOptions.name,
         isExecSession: false,
         isRunning: false,
-        autoCleanup: containerOptions.hostConfig?.autoRemove || this.config.autoCleanup,
-        volumeMounts: this.parseVolumeMounts(containerOptions.hostConfig?.binds),
-        portMappings: this.parsePortMappings(containerOptions.hostConfig?.portBindings)
+        autoCleanup:
+          containerOptions.hostConfig?.autoRemove || this.config.autoCleanup,
+        volumeMounts: this.parseVolumeMounts(
+          containerOptions.hostConfig?.binds
+        ),
+        portMappings: this.parsePortMappings(
+          containerOptions.hostConfig?.portBindings
+        ),
       };
 
       this.dockerSessions.set(sessionId, dockerSession);
@@ -426,7 +481,9 @@ export class DockerProtocol extends BaseProtocol {
 
         // Get container info and update session
         const containerInfo = await container.inspect();
-        dockerSession.containerState = this.parseContainerState(containerInfo.State);
+        dockerSession.containerState = this.parseContainerState(
+          containerInfo.State
+        );
         dockerSession.networkSettings = containerInfo.NetworkSettings;
         dockerSession.pid = containerInfo.State.Pid;
 
@@ -464,25 +521,28 @@ export class DockerProtocol extends BaseProtocol {
         activeCommands: dockerSession.activeCommands,
         lastActivity: dockerSession.lastActivity,
         dockerOptions,
-        pid: dockerSession.pid
+        pid: dockerSession.pid,
       };
 
       this.sessions.set(sessionId, consoleSession);
       this.outputBuffers.set(sessionId, []);
 
-      this.logger.info(`Docker session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`, {
-        containerId,
-        image: containerOptions.image,
-        name: containerOptions.name
-      });
+      this.logger.info(
+        `Docker session ${sessionId} created (${sessionState.isOneShot ? 'one-shot' : 'persistent'})`,
+        {
+          containerId,
+          image: containerOptions.image,
+          name: containerOptions.name,
+        }
+      );
 
       return consoleSession;
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to create Docker session', {
         sessionId,
-        error: errorMessage
+        error: errorMessage,
       });
 
       // Cleanup on failure
@@ -494,19 +554,24 @@ export class DockerProtocol extends BaseProtocol {
   /**
    * Create a Docker exec session
    */
-  async createExecSession(sessionOptions: SessionOptions & { containerId: string }): Promise<DockerSession> {
+  async createExecSession(
+    sessionOptions: SessionOptions & { containerId: string }
+  ): Promise<DockerSession> {
     if (!this.dockerAvailable || !this.docker) {
-      throw new Error('Docker (dockerode) is not available. Install with: npm install dockerode');
+      throw new Error(
+        'Docker (dockerode) is not available. Install with: npm install dockerode'
+      );
     }
-    
+
     if (!this.connectionHealthy) {
       throw new Error('Docker connection is not healthy');
     }
 
     const sessionId = uuidv4();
     const { containerId } = sessionOptions;
-    
-    const container = this.containers.get(containerId) || this.docker.getContainer(containerId);
+
+    const container =
+      this.containers.get(containerId) || this.docker.getContainer(containerId);
     if (!container) {
       throw new Error(`Container ${containerId} not found`);
     }
@@ -517,18 +582,20 @@ export class DockerProtocol extends BaseProtocol {
       attachStderr: true,
       attachStdin: true,
       tty: true,
-      env: sessionOptions.env ? Object.entries(sessionOptions.env).map(([k, v]) => `${k}=${v}`) : undefined,
+      env: sessionOptions.env
+        ? Object.entries(sessionOptions.env).map(([k, v]) => `${k}=${v}`)
+        : undefined,
       user: sessionOptions.dockerExecOptions?.user,
       workingDir: sessionOptions.cwd,
       privileged: sessionOptions.dockerExecOptions?.privileged || false,
-      ...sessionOptions.dockerExecOptions
+      ...sessionOptions.dockerExecOptions,
     };
 
     try {
       // Create exec instance
       const exec = await container.exec(execOptions);
       const execId = exec.id;
-      
+
       this.execSessions.set(execId, exec);
 
       // Build session object
@@ -550,7 +617,7 @@ export class DockerProtocol extends BaseProtocol {
         execId,
         isExecSession: true,
         isRunning: false,
-        autoCleanup: true
+        autoCleanup: true,
       };
 
       this.sessions.set(sessionId, session);
@@ -561,23 +628,27 @@ export class DockerProtocol extends BaseProtocol {
         sessionId,
         execId,
         containerId,
-        command: sessionOptions.command
+        command: sessionOptions.command,
       });
 
       return session;
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to create Docker exec session', {
         sessionId,
         containerId,
-        error: errorMessage
+        error: errorMessage,
       });
       throw error instanceof Error ? error : new Error(errorMessage);
     }
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const dockerSession = this.dockerSessions.get(sessionId);
     const sessionState = await this.getSessionState(sessionId);
 
@@ -596,12 +667,22 @@ export class DockerProtocol extends BaseProtocol {
 
           // Get container info
           const containerInfo = await container.inspect();
-          dockerSession.containerState = this.parseContainerState(containerInfo.State);
+          dockerSession.containerState = this.parseContainerState(
+            containerInfo.State
+          );
           dockerSession.networkSettings = containerInfo.NetworkSettings;
           dockerSession.pid = containerInfo.State.Pid;
 
-          this.emit('container-created', dockerSession.containerId!, dockerSession);
-          this.emit('container-started', dockerSession.containerId!, dockerSession);
+          this.emit(
+            'container-created',
+            dockerSession.containerId!,
+            dockerSession
+          );
+          this.emit(
+            'container-started',
+            dockerSession.containerId!,
+            dockerSession
+          );
         }
       }
 
@@ -620,7 +701,6 @@ export class DockerProtocol extends BaseProtocol {
           this.markSessionComplete(sessionId, 0);
         }, 1000); // Give time for output to be captured
       }
-
     } catch (error) {
       this.logger.error(`Failed to execute Docker command: ${error}`);
       throw error;
@@ -630,7 +710,10 @@ export class DockerProtocol extends BaseProtocol {
   /**
    * Execute command in exec session
    */
-  private async executeExecCommand(session: DockerSession, command: string): Promise<void> {
+  private async executeExecCommand(
+    session: DockerSession,
+    command: string
+  ): Promise<void> {
     const exec = this.execSessions.get(session.execId!);
     if (!exec) {
       throw new Error(`Exec session ${session.execId} not found`);
@@ -644,7 +727,7 @@ export class DockerProtocol extends BaseProtocol {
         stdin: true,
         stdout: true,
         stderr: true,
-        tty: true
+        tty: true,
       });
 
       this.emit('exec-started', session.execId!, session);
@@ -659,7 +742,7 @@ export class DockerProtocol extends BaseProtocol {
           type: 'stdout',
           data: stripAnsi(data),
           timestamp: new Date(),
-          raw: data
+          raw: data,
         };
 
         this.addToOutputBuffer(session.id, consoleOutput);
@@ -676,19 +759,19 @@ export class DockerProtocol extends BaseProtocol {
           type: 'stderr',
           data: error.message,
           timestamp: new Date(),
-          raw: error.message
+          raw: error.message,
         };
         this.addToOutputBuffer(session.id, consoleOutput);
       });
-
     } catch (error) {
       session.executionState = 'idle';
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to execute command in exec session', {
         sessionId: session.id,
         execId: session.execId,
         command,
-        error: errorMessage
+        error: errorMessage,
       });
       throw error instanceof Error ? error : new Error(errorMessage);
     }
@@ -697,7 +780,10 @@ export class DockerProtocol extends BaseProtocol {
   /**
    * Execute command in container session
    */
-  private async executeContainerCommand(session: DockerSession, command: string): Promise<void> {
+  private async executeContainerCommand(
+    session: DockerSession,
+    command: string
+  ): Promise<void> {
     const container = this.containers.get(session.containerId!);
     if (!container) {
       throw new Error(`Container ${session.containerId} not found`);
@@ -708,12 +794,12 @@ export class DockerProtocol extends BaseProtocol {
         cmd: ['sh', '-c', command],
         attachStdout: true,
         attachStderr: true,
-        tty: false
+        tty: false,
       });
 
       const stream = await exec.start({
         hijack: false,
-        stdin: false
+        stdin: false,
       });
 
       stream.on('data', (chunk: Buffer) => {
@@ -723,7 +809,7 @@ export class DockerProtocol extends BaseProtocol {
           type: 'stdout',
           data: stripAnsi(data),
           timestamp: new Date(),
-          raw: data
+          raw: data,
         };
 
         this.addToOutputBuffer(session.id, consoleOutput);
@@ -740,7 +826,7 @@ export class DockerProtocol extends BaseProtocol {
               type: 'stderr',
               data: `Command failed with exit code ${exitCode}`,
               timestamp: new Date(),
-              raw: `Command failed with exit code ${exitCode}`
+              raw: `Command failed with exit code ${exitCode}`,
             };
             this.addToOutputBuffer(session.id, errorOutput);
           }
@@ -750,7 +836,7 @@ export class DockerProtocol extends BaseProtocol {
             type: 'stderr',
             data: `Failed to inspect command result: ${inspectError}`,
             timestamp: new Date(),
-            raw: `Failed to inspect command result: ${inspectError}`
+            raw: `Failed to inspect command result: ${inspectError}`,
           };
           this.addToOutputBuffer(session.id, errorOutput);
         }
@@ -762,18 +848,18 @@ export class DockerProtocol extends BaseProtocol {
           type: 'stderr',
           data: error.message,
           timestamp: new Date(),
-          raw: error.message
+          raw: error.message,
         };
         this.addToOutputBuffer(session.id, errorOutput);
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to execute command in container', {
         sessionId: session.id,
         containerId: session.containerId,
         command,
-        error: errorMessage
+        error: errorMessage,
       });
       throw error instanceof Error ? error : new Error(errorMessage);
     }
@@ -790,11 +876,17 @@ export class DockerProtocol extends BaseProtocol {
       const exec = this.execSessions.get(dockerSession.execId!);
       if (exec) {
         // Send input to exec session stream (if available)
-        this.logger.info('Input sent to Docker exec session', { sessionId, input });
+        this.logger.info('Input sent to Docker exec session', {
+          sessionId,
+          input,
+        });
       }
     } else {
       // For container sessions, we'd typically use docker exec for interactive commands
-      this.logger.info('Input sent to Docker container session', { sessionId, input });
+      this.logger.info('Input sent to Docker container session', {
+        sessionId,
+        input,
+      });
     }
   }
 
@@ -813,7 +905,11 @@ export class DockerProtocol extends BaseProtocol {
 
             if (dockerSession.autoCleanup) {
               await container.remove();
-              this.emit('container-removed', dockerSession.containerId!, dockerSession);
+              this.emit(
+                'container-removed',
+                dockerSession.containerId!,
+                dockerSession
+              );
             }
           }
 
@@ -826,14 +922,14 @@ export class DockerProtocol extends BaseProtocol {
         this.logger.info('Docker session stopped', {
           sessionId,
           containerId: dockerSession.containerId,
-          isExecSession: dockerSession.isExecSession
+          isExecSession: dockerSession.isExecSession,
         });
-
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         this.logger.error('Failed to stop Docker session', {
           sessionId,
-          error: errorMessage
+          error: errorMessage,
         });
       }
     }
@@ -848,7 +944,10 @@ export class DockerProtocol extends BaseProtocol {
   /**
    * Get session output
    */
-  async getSessionOutput(sessionId: string, options?: { since?: Date; limit?: number }): Promise<ConsoleOutput[]> {
+  async getSessionOutput(
+    sessionId: string,
+    options?: { since?: Date; limit?: number }
+  ): Promise<ConsoleOutput[]> {
     const dockerSession = this.dockerSessions.get(sessionId);
     if (!dockerSession) {
       throw new Error(`Docker session ${sessionId} not found`);
@@ -868,7 +967,7 @@ export class DockerProtocol extends BaseProtocol {
       const logOptions: any = {
         stdout: true,
         stderr: true,
-        timestamps: true
+        timestamps: true,
       };
 
       if (options?.since) {
@@ -883,12 +982,12 @@ export class DockerProtocol extends BaseProtocol {
       const logs = stream.toString();
 
       return this.parseDockerLogs(logs, sessionId);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to get session output', {
         sessionId,
-        error: errorMessage
+        error: errorMessage,
       });
       throw error instanceof Error ? error : new Error(errorMessage);
     }
@@ -898,16 +997,19 @@ export class DockerProtocol extends BaseProtocol {
    * Get container information
    */
   async getContainerInfo(containerId: string): Promise<DockerContainerInfo> {
-    const container = this.containers.get(containerId) || this.docker!.getContainer(containerId);
-    
+    const container =
+      this.containers.get(containerId) ||
+      this.docker!.getContainer(containerId);
+
     try {
       const containerInfo = await container.inspect();
       return this.parseContainerInfo(containerInfo);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to get container info', {
         containerId,
-        error: errorMessage
+        error: errorMessage,
       });
       throw error instanceof Error ? error : new Error(errorMessage);
     }
@@ -921,26 +1023,29 @@ export class DockerProtocol extends BaseProtocol {
 
     const checkInterval = this.config.healthCheck.interval;
     const checkId = `health-${session.id}`;
-    
+
     const healthCheckInterval = setInterval(async () => {
       try {
         const healthResult = await this.performHealthCheck(session);
         this.emit('health-check', healthResult, session);
-        
-        if (healthResult.status === 'unhealthy' && healthResult.consecutiveFailures >= 3) {
+
+        if (
+          healthResult.status === 'unhealthy' &&
+          healthResult.consecutiveFailures >= 3
+        ) {
           this.logger.warn('Container health check failing consistently', {
             sessionId: session.id,
             containerId: session.containerId,
-            consecutiveFailures: healthResult.consecutiveFailures
+            consecutiveFailures: healthResult.consecutiveFailures,
           });
         }
-        
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         this.logger.error('Health check failed', {
           sessionId: session.id,
           containerId: session.containerId,
-          error: errorMessage
+          error: errorMessage,
         });
       }
     }, checkInterval);
@@ -951,7 +1056,9 @@ export class DockerProtocol extends BaseProtocol {
   /**
    * Perform container health check
    */
-  private async performHealthCheck(session: DockerSession): Promise<DockerHealthCheck> {
+  private async performHealthCheck(
+    session: DockerSession
+  ): Promise<DockerHealthCheck> {
     const container = this.containers.get(session.containerId!);
     if (!container) {
       throw new Error(`Container ${session.containerId} not found`);
@@ -965,7 +1072,7 @@ export class DockerProtocol extends BaseProtocol {
     try {
       const containerInfo = await container.inspect();
       const health = containerInfo.State.Health;
-      
+
       if (health) {
         switch (health.Status) {
           case 'healthy':
@@ -980,7 +1087,7 @@ export class DockerProtocol extends BaseProtocol {
           default:
             status = 'none';
         }
-        
+
         if (health.Log && health.Log.length > 0) {
           const lastLog = health.Log[health.Log.length - 1];
           output = lastLog.Output;
@@ -991,14 +1098,13 @@ export class DockerProtocol extends BaseProtocol {
       } else {
         status = 'unhealthy';
       }
-
     } catch (error) {
       status = 'unhealthy';
       output = error instanceof Error ? error.message : String(error);
     }
 
     const duration = Date.now() - startTime;
-    
+
     return {
       containerId: session.containerId!,
       checkId: uuidv4(),
@@ -1010,7 +1116,7 @@ export class DockerProtocol extends BaseProtocol {
       retryCount: 0,
       maxRetries: this.config.healthCheck.retries,
       consecutiveFailures: status === 'unhealthy' ? 1 : 0,
-      healthScore: status === 'healthy' ? 100 : status === 'starting' ? 50 : 0
+      healthScore: status === 'healthy' ? 100 : status === 'starting' ? 50 : 0,
     };
   }
 
@@ -1028,11 +1134,11 @@ export class DockerProtocol extends BaseProtocol {
         follow: true,
         stdout: true,
         stderr: true,
-        timestamps: this.config.logStreaming.timestamps
+        timestamps: this.config.logStreaming.timestamps,
       };
 
       const logStream = container.logs(logOptions) as any;
-      
+
       if (logStream && typeof logStream.on === 'function') {
         const passThrough = new PassThrough();
         this.logStreams.set(session.id, passThrough);
@@ -1040,19 +1146,22 @@ export class DockerProtocol extends BaseProtocol {
         logStream.pipe(passThrough);
 
         passThrough.on('data', (chunk: Buffer) => {
-          const logEntries = this.parseDockerLogChunk(chunk, session.containerId!);
-          
+          const logEntries = this.parseDockerLogChunk(
+            chunk,
+            session.containerId!
+          );
+
           for (const logEntry of logEntries) {
             this.emit('log-stream', logEntry, session);
-            
+
             const consoleOutput: ConsoleOutput = {
               sessionId: session.id,
               type: logEntry.stream as 'stdout' | 'stderr',
               data: logEntry.message,
               timestamp: logEntry.timestamp,
-              raw: chunk.toString()
+              raw: chunk.toString(),
             };
-            
+
             this.emit('output', consoleOutput);
           }
         });
@@ -1061,17 +1170,17 @@ export class DockerProtocol extends BaseProtocol {
           this.logger.error('Log stream error', {
             sessionId: session.id,
             containerId: session.containerId,
-            error: error.message
+            error: error.message,
           });
         });
       }
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to start log streaming', {
         sessionId: session.id,
         containerId: session.containerId,
-        error: errorMessage
+        error: errorMessage,
       });
     }
   }
@@ -1088,16 +1197,20 @@ export class DockerProtocol extends BaseProtocol {
     const metricsInterval = setInterval(async () => {
       try {
         const stats = await container.stats({ stream: false });
-        const metrics = this.parseContainerStats(stats, session.containerId!, session.containerName);
-        
+        const metrics = this.parseContainerStats(
+          stats,
+          session.containerId!,
+          session.containerName
+        );
+
         this.emit('metrics-collected', metrics, session);
-        
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         this.logger.error('Failed to collect container metrics', {
           sessionId: session.id,
           containerId: session.containerId,
-          error: errorMessage
+          error: errorMessage,
         });
       }
     }, 10000); // Collect metrics every 10 seconds
@@ -1108,15 +1221,26 @@ export class DockerProtocol extends BaseProtocol {
   /**
    * Parse container options from session options
    */
-  private parseContainerOptions(sessionOptions: SessionOptions): DockerContainerOptions {
-    const dockerContainerOptions = sessionOptions.dockerContainerOptions || {} as DockerContainerOptions;
-    
+  private parseContainerOptions(
+    sessionOptions: SessionOptions
+  ): DockerContainerOptions {
+    const dockerContainerOptions =
+      sessionOptions.dockerContainerOptions || ({} as DockerContainerOptions);
+
     const baseOptions = {
       image: dockerContainerOptions.image || 'ubuntu:latest',
-      name: dockerContainerOptions.name || `console-session-${uuidv4().substring(0, 8)}`,
-      cmd: dockerContainerOptions.cmd || [sessionOptions.command, ...(sessionOptions.args || [])],
-      workingDir: dockerContainerOptions.workingDir || sessionOptions.cwd || '/app',
-      env: dockerContainerOptions.env || this.formatEnvironment(sessionOptions.env),
+      name:
+        dockerContainerOptions.name ||
+        `console-session-${uuidv4().substring(0, 8)}`,
+      cmd: dockerContainerOptions.cmd || [
+        sessionOptions.command,
+        ...(sessionOptions.args || []),
+      ],
+      workingDir:
+        dockerContainerOptions.workingDir || sessionOptions.cwd || '/app',
+      env:
+        dockerContainerOptions.env ||
+        this.formatEnvironment(sessionOptions.env),
       attachStdin: true,
       attachStdout: true,
       attachStderr: true,
@@ -1125,23 +1249,39 @@ export class DockerProtocol extends BaseProtocol {
       stdinOnce: false,
       hostConfig: {
         autoRemove: this.config.autoCleanup,
-        ...(dockerContainerOptions.hostConfig || {})
-      }
+        ...(dockerContainerOptions.hostConfig || {}),
+      },
     };
 
     // Merge additional options without overriding base properties
-    const { image, name, cmd, workingDir, env, attachStdin, attachStdout, attachStderr, tty, openStdin, stdinOnce, hostConfig, ...additionalOptions } = dockerContainerOptions;
-    
+    const {
+      image,
+      name,
+      cmd,
+      workingDir,
+      env,
+      attachStdin,
+      attachStdout,
+      attachStderr,
+      tty,
+      openStdin,
+      stdinOnce,
+      hostConfig,
+      ...additionalOptions
+    } = dockerContainerOptions;
+
     return {
       ...baseOptions,
-      ...additionalOptions
+      ...additionalOptions,
     };
   }
 
   /**
    * Format environment variables
    */
-  private formatEnvironment(env?: Record<string, string>): string[] | undefined {
+  private formatEnvironment(
+    env?: Record<string, string>
+  ): string[] | undefined {
     if (!env) return undefined;
     return Object.entries(env).map(([key, value]) => `${key}=${value}`);
   }
@@ -1149,9 +1289,11 @@ export class DockerProtocol extends BaseProtocol {
   /**
    * Parse environment variables
    */
-  private parseEnvironment(env?: string[] | Record<string, string>): Record<string, string> {
+  private parseEnvironment(
+    env?: string[] | Record<string, string>
+  ): Record<string, string> {
     if (!env) return {};
-    
+
     if (Array.isArray(env)) {
       const result: Record<string, string> = {};
       for (const envVar of env) {
@@ -1160,22 +1302,26 @@ export class DockerProtocol extends BaseProtocol {
       }
       return result;
     }
-    
+
     return env as Record<string, string>;
   }
 
   /**
    * Parse volume mounts
    */
-  private parseVolumeMounts(binds?: string[]): Array<{ hostPath: string; containerPath: string; mode?: 'ro' | 'rw' }> | undefined {
+  private parseVolumeMounts(
+    binds?: string[]
+  ):
+    | Array<{ hostPath: string; containerPath: string; mode?: 'ro' | 'rw' }>
+    | undefined {
     if (!binds) return undefined;
-    
-    return binds.map(bind => {
+
+    return binds.map((bind) => {
       const parts = bind.split(':');
       const hostPath = parts[0];
       const containerPath = parts[1];
       const mode = parts[2] as 'ro' | 'rw' | undefined;
-      
+
       return { hostPath, containerPath, mode };
     });
   }
@@ -1183,16 +1329,18 @@ export class DockerProtocol extends BaseProtocol {
   /**
    * Parse port mappings
    */
-  private parsePortMappings(portBindings?: Record<string, Array<{ hostPort: string }>>): Record<string, string> | undefined {
+  private parsePortMappings(
+    portBindings?: Record<string, Array<{ hostPort: string }>>
+  ): Record<string, string> | undefined {
     if (!portBindings) return undefined;
-    
+
     const mappings: Record<string, string> = {};
     for (const [containerPort, bindings] of Object.entries(portBindings)) {
       if (bindings.length > 0) {
         mappings[containerPort] = bindings[0].hostPort;
       }
     }
-    
+
     return mappings;
   }
 
@@ -1212,16 +1360,18 @@ export class DockerProtocol extends BaseProtocol {
       error: state.Error,
       startedAt: new Date(state.StartedAt),
       finishedAt: new Date(state.FinishedAt),
-      health: state.Health ? {
-        status: state.Health.Status,
-        failingStreak: state.Health.FailingStreak,
-        log: state.Health.Log?.map((log: any) => ({
-          start: new Date(log.Start),
-          end: new Date(log.End),
-          exitCode: log.ExitCode,
-          output: log.Output
-        }))
-      } : undefined
+      health: state.Health
+        ? {
+            status: state.Health.Status,
+            failingStreak: state.Health.FailingStreak,
+            log: state.Health.Log?.map((log: any) => ({
+              start: new Date(log.Start),
+              end: new Date(log.End),
+              exitCode: log.ExitCode,
+              output: log.Output,
+            })),
+          }
+        : undefined,
     };
   }
 
@@ -1238,30 +1388,46 @@ export class DockerProtocol extends BaseProtocol {
       created: new Date(containerInfo.Created),
       state: this.parseContainerState(containerInfo.State),
       status: containerInfo.State.Status,
-      ports: containerInfo.NetworkSettings.Ports ? Object.entries(containerInfo.NetworkSettings.Ports).flatMap(([port, bindings]: [string, any]) => 
-        (bindings || []).map((binding: any) => ({
-          privatePort: parseInt(port.split('/')[0]),
-          publicPort: binding.HostPort ? parseInt(binding.HostPort) : undefined,
-          type: port.split('/')[1] as 'tcp' | 'udp',
-          ip: binding.HostIp
-        }))
-      ) : [],
+      ports: containerInfo.NetworkSettings.Ports
+        ? Object.entries(containerInfo.NetworkSettings.Ports).flatMap(
+            ([port, bindings]: [string, any]) =>
+              (bindings || []).map((binding: any) => ({
+                privatePort: parseInt(port.split('/')[0]),
+                publicPort: binding.HostPort
+                  ? parseInt(binding.HostPort)
+                  : undefined,
+                type: port.split('/')[1] as 'tcp' | 'udp',
+                ip: binding.HostIp,
+              }))
+          )
+        : [],
       labels: containerInfo.Config.Labels || {},
       sizeRw: containerInfo.SizeRw,
       sizeRootFs: containerInfo.SizeRootFs,
       hostConfig: containerInfo.HostConfig,
       networkSettings: containerInfo.NetworkSettings,
-      mounts: containerInfo.Mounts || []
+      mounts: containerInfo.Mounts || [],
     };
   }
 
   /**
    * Parse container stats for metrics
    */
-  private parseContainerStats(stats: any, containerId: string, containerName?: string): DockerMetrics {
-    const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - (stats.precpu_stats.cpu_usage?.total_usage || 0);
-    const systemDelta = stats.cpu_stats.system_cpu_usage - (stats.precpu_stats.system_cpu_usage || 0);
-    const cpuPercent = systemDelta > 0 ? (cpuDelta / systemDelta) * stats.cpu_stats.online_cpus * 100 : 0;
+  private parseContainerStats(
+    stats: any,
+    containerId: string,
+    containerName?: string
+  ): DockerMetrics {
+    const cpuDelta =
+      stats.cpu_stats.cpu_usage.total_usage -
+      (stats.precpu_stats.cpu_usage?.total_usage || 0);
+    const systemDelta =
+      stats.cpu_stats.system_cpu_usage -
+      (stats.precpu_stats.system_cpu_usage || 0);
+    const cpuPercent =
+      systemDelta > 0
+        ? (cpuDelta / systemDelta) * stats.cpu_stats.online_cpus * 100
+        : 0;
 
     return {
       containerId,
@@ -1272,7 +1438,8 @@ export class DockerProtocol extends BaseProtocol {
         system: stats.cpu_stats.cpu_usage.usage_in_kernelmode || 0,
         user: stats.cpu_stats.cpu_usage.usage_in_usermode || 0,
         throttledTime: stats.cpu_stats.throttling_data?.throttled_time || 0,
-        throttledPeriods: stats.cpu_stats.throttling_data?.throttled_periods || 0
+        throttledPeriods:
+          stats.cpu_stats.throttling_data?.throttled_periods || 0,
       },
       memory: {
         usage: stats.memory_stats.usage || 0,
@@ -1280,19 +1447,31 @@ export class DockerProtocol extends BaseProtocol {
         cache: stats.memory_stats.stats?.cache || 0,
         rss: stats.memory_stats.stats?.rss || 0,
         maxUsage: stats.memory_stats.max_usage || 0,
-        failCount: stats.memory_stats.failcnt || 0
+        failCount: stats.memory_stats.failcnt || 0,
       },
       network: this.parseNetworkStats(stats.networks || {}),
       blockIO: {
-        readBytes: stats.blkio_stats.io_service_bytes_recursive?.find((io: any) => io.op === 'Read')?.value || 0,
-        writeBytes: stats.blkio_stats.io_service_bytes_recursive?.find((io: any) => io.op === 'Write')?.value || 0,
-        readOps: stats.blkio_stats.io_serviced_recursive?.find((io: any) => io.op === 'Read')?.value || 0,
-        writeOps: stats.blkio_stats.io_serviced_recursive?.find((io: any) => io.op === 'Write')?.value || 0
+        readBytes:
+          stats.blkio_stats.io_service_bytes_recursive?.find(
+            (io: any) => io.op === 'Read'
+          )?.value || 0,
+        writeBytes:
+          stats.blkio_stats.io_service_bytes_recursive?.find(
+            (io: any) => io.op === 'Write'
+          )?.value || 0,
+        readOps:
+          stats.blkio_stats.io_serviced_recursive?.find(
+            (io: any) => io.op === 'Read'
+          )?.value || 0,
+        writeOps:
+          stats.blkio_stats.io_serviced_recursive?.find(
+            (io: any) => io.op === 'Write'
+          )?.value || 0,
       },
       pids: {
         current: stats.pids_stats?.current || 0,
-        limit: stats.pids_stats?.limit || 0
-      }
+        limit: stats.pids_stats?.limit || 0,
+      },
     };
   }
 
@@ -1311,32 +1490,55 @@ export class DockerProtocol extends BaseProtocol {
   } {
     const networkValues = Object.values(networks);
     if (networkValues.length === 0) {
-      return { rxBytes: 0, txBytes: 0, rxPackets: 0, txPackets: 0, rxErrors: 0, txErrors: 0, rxDropped: 0, txDropped: 0 };
+      return {
+        rxBytes: 0,
+        txBytes: 0,
+        rxPackets: 0,
+        txPackets: 0,
+        rxErrors: 0,
+        txErrors: 0,
+        rxDropped: 0,
+        txDropped: 0,
+      };
     }
-    
-    return networkValues.reduce((acc, net: any) => ({
-      rxBytes: acc.rxBytes + (net?.rx_bytes || 0),
-      txBytes: acc.txBytes + (net?.tx_bytes || 0),
-      rxPackets: acc.rxPackets + (net?.rx_packets || 0),
-      txPackets: acc.txPackets + (net?.tx_packets || 0),
-      rxErrors: acc.rxErrors + (net?.rx_errors || 0),
-      txErrors: acc.txErrors + (net?.tx_errors || 0),
-      rxDropped: acc.rxDropped + (net?.rx_dropped || 0),
-      txDropped: acc.txDropped + (net?.tx_dropped || 0)
-    }), { rxBytes: 0, txBytes: 0, rxPackets: 0, txPackets: 0, rxErrors: 0, txErrors: 0, rxDropped: 0, txDropped: 0 });
+
+    return networkValues.reduce(
+      (acc, net: any) => ({
+        rxBytes: acc.rxBytes + (net?.rx_bytes || 0),
+        txBytes: acc.txBytes + (net?.tx_bytes || 0),
+        rxPackets: acc.rxPackets + (net?.rx_packets || 0),
+        txPackets: acc.txPackets + (net?.tx_packets || 0),
+        rxErrors: acc.rxErrors + (net?.rx_errors || 0),
+        txErrors: acc.txErrors + (net?.tx_errors || 0),
+        rxDropped: acc.rxDropped + (net?.rx_dropped || 0),
+        txDropped: acc.txDropped + (net?.tx_dropped || 0),
+      }),
+      {
+        rxBytes: 0,
+        txBytes: 0,
+        rxPackets: 0,
+        txPackets: 0,
+        rxErrors: 0,
+        txErrors: 0,
+        rxDropped: 0,
+        txDropped: 0,
+      }
+    );
   }
 
   /**
    * Parse Docker logs
    */
   private parseDockerLogs(logs: string, sessionId: string): ConsoleOutput[] {
-    const lines = logs.split('\n').filter(line => line.trim());
+    const lines = logs.split('\n').filter((line) => line.trim());
     const outputs: ConsoleOutput[] = [];
-    
+
     for (const line of lines) {
       // Docker logs format: timestamp stream message
-      const match = line.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(stdout|stderr)\s+(.*)$/);
-      
+      const match = line.match(
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(stdout|stderr)\s+(.*)$/
+      );
+
       if (match) {
         const [, timestamp, stream, message] = match;
         outputs.push({
@@ -1344,7 +1546,7 @@ export class DockerProtocol extends BaseProtocol {
           type: stream as 'stdout' | 'stderr',
           data: stripAnsi(message),
           timestamp: new Date(timestamp),
-          raw: message
+          raw: message,
         });
       } else if (line.trim()) {
         // Fallback for non-timestamped logs
@@ -1353,44 +1555,47 @@ export class DockerProtocol extends BaseProtocol {
           type: 'stdout',
           data: stripAnsi(line),
           timestamp: new Date(),
-          raw: line
+          raw: line,
         });
       }
     }
-    
+
     return outputs;
   }
 
   /**
    * Parse Docker log chunk
    */
-  private parseDockerLogChunk(chunk: Buffer, containerId: string): DockerLogEntry[] {
+  private parseDockerLogChunk(
+    chunk: Buffer,
+    containerId: string
+  ): DockerLogEntry[] {
     const logs: DockerLogEntry[] = [];
-    
+
     // Docker multiplexed stream format
     let offset = 0;
     while (offset < chunk.length) {
       if (chunk.length - offset < 8) break;
-      
+
       const streamType = chunk.readUInt8(offset);
       const size = chunk.readUInt32BE(offset + 4);
-      
+
       if (chunk.length - offset < 8 + size) break;
-      
+
       const message = chunk.slice(offset + 8, offset + 8 + size).toString();
       const stream = streamType === 1 ? 'stdout' : 'stderr';
-      
+
       logs.push({
         timestamp: new Date(),
         stream,
         message: stripAnsi(message),
         containerId,
-        raw: chunk.slice(offset + 8, offset + 8 + size)
+        raw: chunk.slice(offset + 8, offset + 8 + size),
       });
-      
+
       offset += 8 + size;
     }
-    
+
     return logs;
   }
 
@@ -1458,11 +1663,15 @@ export class DockerProtocol extends BaseProtocol {
   /**
    * Get connection health details
    */
-  getConnectionHealth(): { healthy: boolean; lastCheck: Date; reconnectAttempts: number } {
+  getConnectionHealth(): {
+    healthy: boolean;
+    lastCheck: Date;
+    reconnectAttempts: number;
+  } {
     return {
       healthy: this.connectionHealthy,
       lastCheck: this.lastHealthCheck,
-      reconnectAttempts: this.reconnectAttempts
+      reconnectAttempts: this.reconnectAttempts,
     };
   }
 
@@ -1470,7 +1679,7 @@ export class DockerProtocol extends BaseProtocol {
     this.logger.info('Disposing Docker protocol');
 
     // Stop all health checks
-    Array.from(this.healthChecks.keys()).forEach(id => {
+    Array.from(this.healthChecks.keys()).forEach((id) => {
       const interval = this.healthChecks.get(id);
       if (interval) {
         clearInterval(interval);
@@ -1479,7 +1688,7 @@ export class DockerProtocol extends BaseProtocol {
     this.healthChecks.clear();
 
     // Stop all metrics collection
-    Array.from(this.metricsIntervals.keys()).forEach(sessionId => {
+    Array.from(this.metricsIntervals.keys()).forEach((sessionId) => {
       const interval = this.metricsIntervals.get(sessionId);
       if (interval) {
         clearInterval(interval);
@@ -1488,7 +1697,7 @@ export class DockerProtocol extends BaseProtocol {
     this.metricsIntervals.clear();
 
     // Close all log streams
-    Array.from(this.logStreams.keys()).forEach(sessionId => {
+    Array.from(this.logStreams.keys()).forEach((sessionId) => {
       const stream = this.logStreams.get(sessionId);
       if (stream) {
         stream.destroy();
@@ -1507,8 +1716,12 @@ export class DockerProtocol extends BaseProtocol {
       try {
         await this.closeSession(sessionId);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.warn('Failed to stop session during cleanup', { sessionId, error: errorMessage });
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        this.logger.warn('Failed to stop session during cleanup', {
+          sessionId,
+          error: errorMessage,
+        });
       }
     }
 

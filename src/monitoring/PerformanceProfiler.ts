@@ -88,14 +88,16 @@ export class PerformanceProfiler extends EventEmitter {
   private config: ProfilerConfig;
   private profileSessions: Map<string, ProfileSession> = new Map();
   private slaMetrics: Map<string, SLAMetrics> = new Map();
-  private lastSystemStats?: si.Systeminformation.CurrentLoadData & si.Systeminformation.MemData & si.Systeminformation.FsStatsData;
+  private lastSystemStats?: si.Systeminformation.CurrentLoadData &
+    si.Systeminformation.MemData &
+    si.Systeminformation.FsStatsData;
   private samplingTimer: NodeJS.Timeout | null = null;
   private isRunning: boolean = false;
 
   constructor(config?: Partial<ProfilerConfig>) {
     super();
     this.logger = new Logger('PerformanceProfiler');
-    
+
     this.config = {
       enabled: true,
       samplingInterval: 1000, // 1 second
@@ -108,10 +110,10 @@ export class PerformanceProfiler extends EventEmitter {
         cpu: 80,
         memory: 85,
         diskIO: 100, // MB/s
-        networkIO: 50 // MB/s
+        networkIO: 50, // MB/s
       },
       retentionDays: 7,
-      ...config
+      ...config,
     };
   }
 
@@ -130,9 +132,12 @@ export class PerformanceProfiler extends EventEmitter {
     }, this.config.samplingInterval);
 
     // Start cleanup timer
-    setInterval(() => {
-      this.cleanupOldProfiles();
-    }, 60 * 60 * 1000); // Cleanup every hour
+    setInterval(
+      () => {
+        this.cleanupOldProfiles();
+      },
+      60 * 60 * 1000
+    ); // Cleanup every hour
   }
 
   // Stop performance profiling
@@ -149,7 +154,7 @@ export class PerformanceProfiler extends EventEmitter {
     }
 
     // Finalize all active profile sessions
-    this.profileSessions.forEach(session => {
+    this.profileSessions.forEach((session) => {
       if (session.isActive) {
         this.stopProfiling(session.id);
       }
@@ -168,7 +173,7 @@ export class PerformanceProfiler extends EventEmitter {
       startTime: new Date(),
       samples: [],
       bottlenecks: [],
-      isActive: true
+      isActive: true,
     };
 
     this.profileSessions.set(profileId, profileSession);
@@ -179,7 +184,9 @@ export class PerformanceProfiler extends EventEmitter {
       this.startSLAMonitoring(sessionId);
     }
 
-    this.logger.info(`Started profiling session: ${profileId}${sessionId ? ` (${sessionId})` : ''}`);
+    this.logger.info(
+      `Started profiling session: ${profileId}${sessionId ? ` (${sessionId})` : ''}`
+    );
     return profileId;
   }
 
@@ -219,7 +226,7 @@ export class PerformanceProfiler extends EventEmitter {
         si.currentLoad(),
         si.mem(),
         si.fsStats(),
-        si.networkStats()
+        si.networkStats(),
       ]);
 
       // Get Node.js process metrics
@@ -227,24 +234,44 @@ export class PerformanceProfiler extends EventEmitter {
       const processCpu = cpuUsage();
 
       // Calculate rates if we have previous data
-      let diskReadRate = 0, diskWriteRate = 0;
-      let networkInRate = 0, networkOutRate = 0;
+      let diskReadRate = 0,
+        diskWriteRate = 0;
+      let networkInRate = 0,
+        networkOutRate = 0;
 
       if (this.lastSystemStats) {
-        const timeDiff = (Date.now() - (this.lastSystemStats as any).timestamp) / 1000;
-        
+        const timeDiff =
+          (Date.now() - (this.lastSystemStats as any).timestamp) / 1000;
+
         // Calculate disk I/O rates (using fsData rIO and wIO)
         if (fsData && (this.lastSystemStats as any).rIO !== undefined) {
-          diskReadRate = (((fsData as any).rIO || 0) - ((this.lastSystemStats as any).rIO || 0)) / timeDiff / 1024 / 1024; // MB/s
-          diskWriteRate = (((fsData as any).wIO || 0) - ((this.lastSystemStats as any).wIO || 0)) / timeDiff / 1024 / 1024; // MB/s
+          diskReadRate =
+            (((fsData as any).rIO || 0) -
+              ((this.lastSystemStats as any).rIO || 0)) /
+            timeDiff /
+            1024 /
+            1024; // MB/s
+          diskWriteRate =
+            (((fsData as any).wIO || 0) -
+              ((this.lastSystemStats as any).wIO || 0)) /
+            timeDiff /
+            1024 /
+            1024; // MB/s
         }
 
         // Calculate network I/O rates
         if (networkData && networkData.length > 0) {
-          const totalIn = networkData.reduce((sum, iface) => sum + iface.rx_bytes, 0);
-          const totalOut = networkData.reduce((sum, iface) => sum + iface.tx_bytes, 0);
+          const totalIn = networkData.reduce(
+            (sum, iface) => sum + iface.rx_bytes,
+            0
+          );
+          const totalOut = networkData.reduce(
+            (sum, iface) => sum + iface.tx_bytes,
+            0
+          );
           const lastTotalIn = (this.lastSystemStats as any).totalNetworkIn || 0;
-          const lastTotalOut = (this.lastSystemStats as any).totalNetworkOut || 0;
+          const lastTotalOut =
+            (this.lastSystemStats as any).totalNetworkOut || 0;
 
           networkInRate = (totalIn - lastTotalIn) / timeDiff / 1024 / 1024; // MB/s
           networkOutRate = (totalOut - lastTotalOut) / timeDiff / 1024 / 1024; // MB/s
@@ -257,30 +284,32 @@ export class PerformanceProfiler extends EventEmitter {
         cpu: {
           usage: cpuData.currentLoad,
           user: cpuData.currentLoadUser || 0,
-          system: cpuData.currentLoadSystem || 0
+          system: cpuData.currentLoadSystem || 0,
         },
         memory: {
           rss: processMemory.rss,
           heapUsed: processMemory.heapUsed,
           heapTotal: processMemory.heapTotal,
-          external: processMemory.external
+          external: processMemory.external,
         },
         disk: {
           readRate: Math.max(0, diskReadRate),
           writeRate: Math.max(0, diskWriteRate),
           totalRead: (fsData as any)?.rIO || 0,
-          totalWrite: (fsData as any)?.wIO || 0
+          totalWrite: (fsData as any)?.wIO || 0,
         },
         network: {
           inRate: Math.max(0, networkInRate),
           outRate: Math.max(0, networkOutRate),
-          totalIn: networkData?.reduce((sum, iface) => sum + iface.rx_bytes, 0) || 0,
-          totalOut: networkData?.reduce((sum, iface) => sum + iface.tx_bytes, 0) || 0
-        }
+          totalIn:
+            networkData?.reduce((sum, iface) => sum + iface.rx_bytes, 0) || 0,
+          totalOut:
+            networkData?.reduce((sum, iface) => sum + iface.tx_bytes, 0) || 0,
+        },
       };
 
       // Add sample to all active profile sessions
-      this.profileSessions.forEach(session => {
+      this.profileSessions.forEach((session) => {
         if (session.isActive) {
           session.samples.push(sample);
 
@@ -300,42 +329,59 @@ export class PerformanceProfiler extends EventEmitter {
         ...memData,
         ...fsData,
         timestamp: Date.now(),
-        totalNetworkIn: networkData?.reduce((sum, iface) => sum + iface.rx_bytes, 0) || 0,
-        totalNetworkOut: networkData?.reduce((sum, iface) => sum + iface.tx_bytes, 0) || 0
+        totalNetworkIn:
+          networkData?.reduce((sum, iface) => sum + iface.rx_bytes, 0) || 0,
+        totalNetworkOut:
+          networkData?.reduce((sum, iface) => sum + iface.tx_bytes, 0) || 0,
       } as any;
-
     } catch (error) {
       this.logger.error(`Failed to collect performance sample: ${error}`);
     }
   }
 
   // Detect performance bottlenecks
-  private detectBottlenecks(session: ProfileSession, sample: PerformanceSample): void {
+  private detectBottlenecks(
+    session: ProfileSession,
+    sample: PerformanceSample
+  ): void {
     const bottlenecks: Bottleneck[] = [];
 
     // CPU bottleneck
-    if (this.config.enableCpuProfiling && sample.cpu.usage > this.config.bottleneckThresholds.cpu) {
+    if (
+      this.config.enableCpuProfiling &&
+      sample.cpu.usage > this.config.bottleneckThresholds.cpu
+    ) {
       bottlenecks.push({
         type: 'cpu',
-        severity: sample.cpu.usage > 95 ? 'critical' : sample.cpu.usage > 90 ? 'high' : 'medium',
+        severity:
+          sample.cpu.usage > 95
+            ? 'critical'
+            : sample.cpu.usage > 90
+              ? 'high'
+              : 'medium',
         description: `High CPU usage: ${sample.cpu.usage.toFixed(1)}%`,
         timestamp: sample.timestamp,
         duration: 0, // Will be calculated when bottleneck ends
-        impact: sample.cpu.usage / 100
+        impact: sample.cpu.usage / 100,
       });
     }
 
     // Memory bottleneck
     if (this.config.enableMemoryProfiling) {
-      const memoryUsagePercent = (sample.memory.rss / (1024 * 1024 * 1024)); // Convert to GB
+      const memoryUsagePercent = sample.memory.rss / (1024 * 1024 * 1024); // Convert to GB
       if (memoryUsagePercent > this.config.bottleneckThresholds.memory / 100) {
         bottlenecks.push({
           type: 'memory',
-          severity: memoryUsagePercent > 0.95 ? 'critical' : memoryUsagePercent > 0.90 ? 'high' : 'medium',
+          severity:
+            memoryUsagePercent > 0.95
+              ? 'critical'
+              : memoryUsagePercent > 0.9
+                ? 'high'
+                : 'medium',
           description: `High memory usage: ${(memoryUsagePercent * 100).toFixed(1)}%`,
           timestamp: sample.timestamp,
           duration: 0,
-          impact: memoryUsagePercent
+          impact: memoryUsagePercent,
         });
       }
     }
@@ -346,11 +392,16 @@ export class PerformanceProfiler extends EventEmitter {
       if (totalDiskIO > this.config.bottleneckThresholds.diskIO) {
         bottlenecks.push({
           type: 'disk',
-          severity: totalDiskIO > 200 ? 'critical' : totalDiskIO > 150 ? 'high' : 'medium',
+          severity:
+            totalDiskIO > 200
+              ? 'critical'
+              : totalDiskIO > 150
+                ? 'high'
+                : 'medium',
           description: `High disk I/O: ${totalDiskIO.toFixed(1)} MB/s`,
           timestamp: sample.timestamp,
           duration: 0,
-          impact: Math.min(totalDiskIO / 1000, 1) // Normalize to 0-1
+          impact: Math.min(totalDiskIO / 1000, 1), // Normalize to 0-1
         });
       }
     }
@@ -361,62 +412,79 @@ export class PerformanceProfiler extends EventEmitter {
       if (totalNetworkIO > this.config.bottleneckThresholds.networkIO) {
         bottlenecks.push({
           type: 'network',
-          severity: totalNetworkIO > 100 ? 'critical' : totalNetworkIO > 75 ? 'high' : 'medium',
+          severity:
+            totalNetworkIO > 100
+              ? 'critical'
+              : totalNetworkIO > 75
+                ? 'high'
+                : 'medium',
           description: `High network I/O: ${totalNetworkIO.toFixed(1)} MB/s`,
           timestamp: sample.timestamp,
           duration: 0,
-          impact: Math.min(totalNetworkIO / 100, 1) // Normalize to 0-1
+          impact: Math.min(totalNetworkIO / 100, 1), // Normalize to 0-1
         });
       }
     }
 
     // Add new bottlenecks and emit events
-    bottlenecks.forEach(bottleneck => {
+    bottlenecks.forEach((bottleneck) => {
       session.bottlenecks.push(bottleneck);
       this.emit('bottleneck-detected', bottleneck, session.sessionId);
     });
   }
 
   // Generate performance profile from session
-  private generatePerformanceProfile(session: ProfileSession): PerformanceProfile {
+  private generatePerformanceProfile(
+    session: ProfileSession
+  ): PerformanceProfile {
     if (session.samples.length === 0) {
       return {
         sessionId: session.sessionId || session.id,
         command: session.command || '',
         startTime: session.startTime,
         endTime: session.endTime,
-        duration: session.endTime ? session.endTime.getTime() - session.startTime.getTime() : 0,
+        duration: session.endTime
+          ? session.endTime.getTime() - session.startTime.getTime()
+          : 0,
         metrics: {
           avgCpuUsage: 0,
           peakMemoryUsage: 0,
           totalDiskIO: 0,
-          totalNetworkIO: 0
+          totalNetworkIO: 0,
         },
-        bottlenecks: session.bottlenecks
+        bottlenecks: session.bottlenecks,
       };
     }
 
     // Calculate metrics
-    const avgCpuUsage = session.samples.reduce((sum, s) => sum + s.cpu.usage, 0) / session.samples.length;
-    const peakMemoryUsage = Math.max(...session.samples.map(s => s.memory.rss));
-    const totalDiskIO = session.samples[session.samples.length - 1].disk.totalRead + 
-                       session.samples[session.samples.length - 1].disk.totalWrite;
-    const totalNetworkIO = session.samples[session.samples.length - 1].network.totalIn + 
-                          session.samples[session.samples.length - 1].network.totalOut;
+    const avgCpuUsage =
+      session.samples.reduce((sum, s) => sum + s.cpu.usage, 0) /
+      session.samples.length;
+    const peakMemoryUsage = Math.max(
+      ...session.samples.map((s) => s.memory.rss)
+    );
+    const totalDiskIO =
+      session.samples[session.samples.length - 1].disk.totalRead +
+      session.samples[session.samples.length - 1].disk.totalWrite;
+    const totalNetworkIO =
+      session.samples[session.samples.length - 1].network.totalIn +
+      session.samples[session.samples.length - 1].network.totalOut;
 
     return {
       sessionId: session.sessionId || session.id,
       command: session.command || '',
       startTime: session.startTime,
       endTime: session.endTime,
-      duration: session.endTime ? session.endTime.getTime() - session.startTime.getTime() : 0,
+      duration: session.endTime
+        ? session.endTime.getTime() - session.startTime.getTime()
+        : 0,
       metrics: {
         avgCpuUsage,
         peakMemoryUsage,
         totalDiskIO,
-        totalNetworkIO
+        totalNetworkIO,
       },
-      bottlenecks: session.bottlenecks
+      bottlenecks: session.bottlenecks,
     };
   }
 
@@ -428,7 +496,7 @@ export class PerformanceProfiler extends EventEmitter {
       availability: 100,
       errorRate: 0,
       throughput: 0,
-      slaBreaches: []
+      slaBreaches: [],
     };
 
     this.slaMetrics.set(sessionId, slaMetrics);
@@ -440,8 +508,9 @@ export class PerformanceProfiler extends EventEmitter {
     const metrics = this.slaMetrics.get(sessionId);
     if (metrics && !metrics.endTime) {
       metrics.endTime = new Date();
-      metrics.responseTime = metrics.endTime.getTime() - metrics.startTime.getTime();
-      
+      metrics.responseTime =
+        metrics.endTime.getTime() - metrics.startTime.getTime();
+
       this.emit('sla-metrics', metrics);
       this.logger.debug(`Stopped SLA monitoring for session: ${sessionId}`);
     }
@@ -457,7 +526,11 @@ export class PerformanceProfiler extends EventEmitter {
     let compliant = true;
 
     // Check response time SLA
-    if (slaConfig.responseTime && metrics.responseTime && metrics.responseTime > slaConfig.responseTime) {
+    if (
+      slaConfig.responseTime &&
+      metrics.responseTime &&
+      metrics.responseTime > slaConfig.responseTime
+    ) {
       const breach: SLABreach = {
         id: uuidv4(),
         timestamp: metrics.endTime,
@@ -465,7 +538,10 @@ export class PerformanceProfiler extends EventEmitter {
         metric: 'response_time',
         threshold: slaConfig.responseTime,
         actual: metrics.responseTime,
-        severity: metrics.responseTime > slaConfig.responseTime * 2 ? 'critical' : 'high'
+        severity:
+          metrics.responseTime > slaConfig.responseTime * 2
+            ? 'critical'
+            : 'high',
       };
 
       metrics.slaBreaches.push(breach);
@@ -474,7 +550,10 @@ export class PerformanceProfiler extends EventEmitter {
     }
 
     // Check availability SLA
-    if (slaConfig.availabilityThreshold && metrics.availability < slaConfig.availabilityThreshold) {
+    if (
+      slaConfig.availabilityThreshold &&
+      metrics.availability < slaConfig.availabilityThreshold
+    ) {
       const breach: SLABreach = {
         id: uuidv4(),
         timestamp: metrics.endTime,
@@ -482,7 +561,7 @@ export class PerformanceProfiler extends EventEmitter {
         metric: 'availability',
         threshold: slaConfig.availabilityThreshold,
         actual: metrics.availability,
-        severity: metrics.availability < 90 ? 'critical' : 'high'
+        severity: metrics.availability < 90 ? 'critical' : 'high',
       };
 
       metrics.slaBreaches.push(breach);
@@ -491,7 +570,10 @@ export class PerformanceProfiler extends EventEmitter {
     }
 
     // Check error rate SLA
-    if (slaConfig.errorRateThreshold && metrics.errorRate > slaConfig.errorRateThreshold) {
+    if (
+      slaConfig.errorRateThreshold &&
+      metrics.errorRate > slaConfig.errorRateThreshold
+    ) {
       const breach: SLABreach = {
         id: uuidv4(),
         timestamp: metrics.endTime,
@@ -499,7 +581,10 @@ export class PerformanceProfiler extends EventEmitter {
         metric: 'error_rate',
         threshold: slaConfig.errorRateThreshold,
         actual: metrics.errorRate,
-        severity: metrics.errorRate > slaConfig.errorRateThreshold * 2 ? 'critical' : 'high'
+        severity:
+          metrics.errorRate > slaConfig.errorRateThreshold * 2
+            ? 'critical'
+            : 'high',
       };
 
       metrics.slaBreaches.push(breach);
@@ -530,7 +615,7 @@ export class PerformanceProfiler extends EventEmitter {
 
   // Get all performance profiles
   getPerformanceProfiles(): PerformanceProfile[] {
-    return Array.from(this.profileSessions.values()).map(session => 
+    return Array.from(this.profileSessions.values()).map((session) =>
       this.generatePerformanceProfile(session)
     );
   }
@@ -556,38 +641,47 @@ export class PerformanceProfiler extends EventEmitter {
     slaBreaches: number;
   } {
     const profiles = Array.from(this.profileSessions.values());
-    const allBottlenecks = profiles.flatMap(p => p.bottlenecks);
-    const completedProfiles = profiles.filter(p => !p.isActive);
-    
+    const allBottlenecks = profiles.flatMap((p) => p.bottlenecks);
+    const completedProfiles = profiles.filter((p) => !p.isActive);
+
     const bottlenecksBySeverity = {
-      low: allBottlenecks.filter(b => b.severity === 'low').length,
-      medium: allBottlenecks.filter(b => b.severity === 'medium').length,
-      high: allBottlenecks.filter(b => b.severity === 'high').length,
-      critical: allBottlenecks.filter(b => b.severity === 'critical').length
+      low: allBottlenecks.filter((b) => b.severity === 'low').length,
+      medium: allBottlenecks.filter((b) => b.severity === 'medium').length,
+      high: allBottlenecks.filter((b) => b.severity === 'high').length,
+      critical: allBottlenecks.filter((b) => b.severity === 'critical').length,
     };
 
-    const avgProfileDuration = completedProfiles.length > 0 ?
-      completedProfiles.reduce((sum, p) => 
-        sum + (p.endTime ? p.endTime.getTime() - p.startTime.getTime() : 0), 0
-      ) / completedProfiles.length : 0;
+    const avgProfileDuration =
+      completedProfiles.length > 0
+        ? completedProfiles.reduce(
+            (sum, p) =>
+              sum +
+              (p.endTime ? p.endTime.getTime() - p.startTime.getTime() : 0),
+            0
+          ) / completedProfiles.length
+        : 0;
 
-    const allSLABreaches = Array.from(this.slaMetrics.values()).flatMap(m => m.slaBreaches);
+    const allSLABreaches = Array.from(this.slaMetrics.values()).flatMap(
+      (m) => m.slaBreaches
+    );
 
     return {
-      activeProfiles: profiles.filter(p => p.isActive).length,
+      activeProfiles: profiles.filter((p) => p.isActive).length,
       totalProfiles: profiles.length,
       totalBottlenecks: allBottlenecks.length,
       bottlenecksBySeverity,
       avgProfileDuration,
       slaMetrics: this.slaMetrics.size,
-      slaBreaches: allSLABreaches.length
+      slaBreaches: allSLABreaches.length,
     };
   }
 
   // Clean up old profiles
   private cleanupOldProfiles(): void {
-    const cutoffTime = new Date(Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000);
-    
+    const cutoffTime = new Date(
+      Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000
+    );
+
     // Clean up profile sessions
     for (const [id, session] of Array.from(this.profileSessions.entries())) {
       if (!session.isActive && session.startTime < cutoffTime) {
@@ -614,7 +708,7 @@ export class PerformanceProfiler extends EventEmitter {
     try {
       const [cpuData, memData] = await Promise.all([
         si.currentLoad(),
-        si.mem()
+        si.mem(),
       ]);
 
       const processMemory = memoryUsage();
@@ -624,26 +718,26 @@ export class PerformanceProfiler extends EventEmitter {
         cpu: {
           usage: cpuData.currentLoad,
           user: cpuData.currentLoadUser || 0,
-          system: cpuData.currentLoadSystem || 0
+          system: cpuData.currentLoadSystem || 0,
         },
         memory: {
           rss: processMemory.rss,
           heapUsed: processMemory.heapUsed,
           heapTotal: processMemory.heapTotal,
-          external: processMemory.external
+          external: processMemory.external,
         },
         disk: {
           readRate: 0,
           writeRate: 0,
           totalRead: 0,
-          totalWrite: 0
+          totalWrite: 0,
         },
         network: {
           inRate: 0,
           outRate: 0,
           totalIn: 0,
-          totalOut: 0
-        }
+          totalOut: 0,
+        },
       };
     } catch (error) {
       this.logger.error(`Failed to get current performance: ${error}`);

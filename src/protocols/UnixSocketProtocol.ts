@@ -6,7 +6,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -14,7 +14,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Unix Socket Protocol connection options
@@ -195,7 +195,10 @@ export class UnixSocketProtocol extends BaseProtocol {
   public readonly capabilities: ProtocolCapabilities;
 
   private sockets = new Map<string, net.Socket | net.Server>();
-  private socketStates = new Map<string, 'connecting' | 'connected' | 'disconnected' | 'error'>();
+  private socketStates = new Map<
+    string,
+    'connecting' | 'connected' | 'disconnected' | 'error'
+  >();
 
   // Compatibility property for old ProtocolFactory interface
   public get healthStatus(): ProtocolHealthStatus {
@@ -209,9 +212,9 @@ export class UnixSocketProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -243,8 +246,8 @@ export class UnixSocketProtocol extends BaseProtocol {
         windows: false, // Unix domain sockets are primarily Unix/Linux
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -271,12 +274,16 @@ export class UnixSocketProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const data = JSON.stringify({
       type: 'command',
       command,
       args: args || [],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
     await this.sendInput(sessionId, data + '\n');
   }
@@ -301,7 +308,9 @@ export class UnixSocketProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Unix socket session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Unix socket session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -325,12 +334,19 @@ export class UnixSocketProtocol extends BaseProtocol {
       this.logger.info(`Unix socket session ${sessionId} closed`);
       this.emit('session-closed', sessionId);
     } catch (error) {
-      this.logger.error(`Error closing Unix socket session ${sessionId}:`, error);
+      this.logger.error(
+        `Error closing Unix socket session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -368,12 +384,14 @@ export class UnixSocketProtocol extends BaseProtocol {
       type: this.type,
       streaming: options.streaming,
       executionState: 'idle',
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Unix socket session ${sessionId} created for path ${socketOptions.socketPath}`);
+    this.logger.info(
+      `Unix socket session ${sessionId} created for path ${socketOptions.socketPath}`
+    );
     this.emit('session-created', { sessionId, type: 'unix-socket', session });
 
     return session;
@@ -382,7 +400,7 @@ export class UnixSocketProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -391,8 +409,8 @@ export class UnixSocketProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -414,27 +432,32 @@ export class UnixSocketProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       metadata: {
-        socketState: this.socketStates.get(sessionId) || 'unknown'
-      }
+        socketState: this.socketStates.get(sessionId) || 'unknown',
+      },
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Unix socket session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Unix socket session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const socket = this.sockets.get(sessionId);
     const state = this.socketStates.get(sessionId);
-    return socket && state === 'connected' || false;
+    return (socket && state === 'connected') || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -445,26 +468,26 @@ export class UnixSocketProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.sockets.size
+        connectionsActive: this.sockets.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -476,8 +499,8 @@ export class UnixSocketProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          'unix-sockets': { available: true }
-        }
+          'unix-sockets': { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -485,8 +508,8 @@ export class UnixSocketProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Unix sockets not available: ${error}`],
         dependencies: {
-          'unix-sockets': { available: false }
-        }
+          'unix-sockets': { available: false },
+        },
       };
     }
   }
@@ -521,7 +544,10 @@ export class UnixSocketProtocol extends BaseProtocol {
     });
   }
 
-  private async createUnixServer(sessionId: string, options: UnixSocketConnectionOptions): Promise<net.Server> {
+  private async createUnixServer(
+    sessionId: string,
+    options: UnixSocketConnectionOptions
+  ): Promise<net.Server> {
     return new Promise((resolve, reject) => {
       const server = net.createServer((socket) => {
         this.setupSocketHandlers(sessionId, socket, options);
@@ -534,7 +560,9 @@ export class UnixSocketProtocol extends BaseProtocol {
 
       server.listen(options.socketPath, () => {
         this.socketStates.set(sessionId, 'connected');
-        this.logger.info(`Unix socket server listening on ${options.socketPath}`);
+        this.logger.info(
+          `Unix socket server listening on ${options.socketPath}`
+        );
 
         // Set socket permissions if specified
         if (options.socketMode) {
@@ -552,13 +580,18 @@ export class UnixSocketProtocol extends BaseProtocol {
     });
   }
 
-  private async createUnixClient(sessionId: string, options: UnixSocketConnectionOptions): Promise<net.Socket> {
+  private async createUnixClient(
+    sessionId: string,
+    options: UnixSocketConnectionOptions
+  ): Promise<net.Socket> {
     return new Promise((resolve, reject) => {
       const socket = net.createConnection(options.socketPath);
 
       socket.on('connect', () => {
         this.socketStates.set(sessionId, 'connected');
-        this.logger.info(`Unix socket client connected to ${options.socketPath}`);
+        this.logger.info(
+          `Unix socket client connected to ${options.socketPath}`
+        );
         this.setupSocketHandlers(sessionId, socket, options);
         resolve(socket);
       });
@@ -573,20 +606,26 @@ export class UnixSocketProtocol extends BaseProtocol {
       if (options.connectTimeout) {
         socket.setTimeout(options.connectTimeout, () => {
           socket.destroy();
-          reject(new Error(`Connection timeout after ${options.connectTimeout}ms`));
+          reject(
+            new Error(`Connection timeout after ${options.connectTimeout}ms`)
+          );
         });
       }
     });
   }
 
-  private setupSocketHandlers(sessionId: string, socket: net.Socket, options: UnixSocketConnectionOptions): void {
+  private setupSocketHandlers(
+    sessionId: string,
+    socket: net.Socket,
+    options: UnixSocketConnectionOptions
+  ): void {
     // Set up data handling
     socket.on('data', (data) => {
       const output: ConsoleOutput = {
         sessionId,
         type: 'stdout',
         data: data.toString(options.encoding || 'utf-8'),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -634,7 +673,10 @@ export class UnixSocketProtocol extends BaseProtocol {
           socket.close();
         }
       } catch (error) {
-        this.logger.error(`Error closing Unix socket for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error closing Unix socket for session ${sessionId}:`,
+          error
+        );
       }
     }
 

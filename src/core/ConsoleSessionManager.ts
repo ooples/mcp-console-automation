@@ -22,7 +22,7 @@ export class ConsoleSessionManager {
 
   async createSession(options: SessionOptions): Promise<string> {
     const sessionId = await this.consoleManager.createSession(options);
-    
+
     this.sessions.set(sessionId, {
       id: sessionId,
       consoleType: options.consoleType || 'auto',
@@ -30,7 +30,7 @@ export class ConsoleSessionManager {
       startTime: new Date(),
       createdAt: new Date(),
       command: options.command,
-      status: 'active'
+      status: 'active',
     });
 
     return sessionId;
@@ -38,7 +38,7 @@ export class ConsoleSessionManager {
 
   async stopSession(sessionId: string): Promise<void> {
     await this.consoleManager.stopSession(sessionId);
-    
+
     const session = this.sessions.get(sessionId);
     if (session) {
       session.running = false;
@@ -55,16 +55,18 @@ export class ConsoleSessionManager {
   }
 
   cleanupStoppedSessions(): void {
-    const stoppedSessions = Array.from(this.sessions.entries())
-      .filter(([_, info]) => !info.running);
-    
+    const stoppedSessions = Array.from(this.sessions.entries()).filter(
+      ([_, info]) => !info.running
+    );
+
     stoppedSessions.forEach(([id, _]) => {
       this.sessions.delete(id);
     });
   }
 
   getActiveSessions(): SessionInfo[] {
-    return Array.from(this.sessions.values())
-      .filter(session => session.running);
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.running
+    );
   }
 }

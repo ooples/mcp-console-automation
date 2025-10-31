@@ -45,7 +45,9 @@ describe('AssertionEngine', () => {
         actual: 'Test completed successfully',
       };
 
-      await expect(engine.assert(assertion)).rejects.toThrow('does not contain');
+      await expect(engine.assert(assertion)).rejects.toThrow(
+        'does not contain'
+      );
     });
   });
 
@@ -255,19 +257,27 @@ describe('AssertionEngine', () => {
   describe('evaluateAll', () => {
     it('should evaluate multiple assertions', async () => {
       const assertions: Assertion[] = [
-        { type: 'output_contains', expected: 'success', actual: 'success message' },
+        {
+          type: 'output_contains',
+          expected: 'success',
+          actual: 'success message',
+        },
         { type: 'exit_code', expected: 0, actual: 0 },
         { type: 'no_errors', expected: null, actual: 'all good' },
       ];
 
       const results = await engine.evaluateAll(assertions);
       expect(results).toHaveLength(3);
-      expect(results.every(r => r.passed)).toBe(true);
+      expect(results.every((r) => r.passed)).toBe(true);
     });
 
     it('should continue evaluating after failures', async () => {
       const assertions: Assertion[] = [
-        { type: 'output_contains', expected: 'error', actual: 'success message' },
+        {
+          type: 'output_contains',
+          expected: 'error',
+          actual: 'success message',
+        },
         { type: 'exit_code', expected: 0, actual: 0 },
         { type: 'no_errors', expected: null, actual: 'all good' },
       ];
@@ -283,7 +293,11 @@ describe('AssertionEngine', () => {
   describe('assertAll', () => {
     it('should pass when all assertions pass', async () => {
       const assertions: Assertion[] = [
-        { type: 'output_contains', expected: 'success', actual: 'success message' },
+        {
+          type: 'output_contains',
+          expected: 'success',
+          actual: 'success message',
+        },
         { type: 'exit_code', expected: 0, actual: 0 },
       ];
 
@@ -292,7 +306,11 @@ describe('AssertionEngine', () => {
 
     it('should throw on first failure', async () => {
       const assertions: Assertion[] = [
-        { type: 'output_contains', expected: 'error', actual: 'success message' },
+        {
+          type: 'output_contains',
+          expected: 'error',
+          actual: 'success message',
+        },
         { type: 'exit_code', expected: 0, actual: 0 },
       ];
 
@@ -303,7 +321,11 @@ describe('AssertionEngine', () => {
   describe('checkAll', () => {
     it('should return passed status and results', async () => {
       const assertions: Assertion[] = [
-        { type: 'output_contains', expected: 'success', actual: 'success message' },
+        {
+          type: 'output_contains',
+          expected: 'success',
+          actual: 'success message',
+        },
         { type: 'exit_code', expected: 0, actual: 0 },
       ];
 
@@ -314,7 +336,11 @@ describe('AssertionEngine', () => {
 
     it('should indicate failure without throwing', async () => {
       const assertions: Assertion[] = [
-        { type: 'output_contains', expected: 'error', actual: 'success message' },
+        {
+          type: 'output_contains',
+          expected: 'error',
+          actual: 'success message',
+        },
         { type: 'exit_code', expected: 0, actual: 0 },
       ];
 
@@ -366,8 +392,8 @@ describe('AssertionEngine', () => {
 
       const matchers = engine.getCustomMatchers();
       expect(matchers).toHaveLength(2);
-      expect(matchers.map(m => m.name)).toContain('test1');
-      expect(matchers.map(m => m.name)).toContain('test2');
+      expect(matchers.map((m) => m.name)).toContain('test1');
+      expect(matchers.map((m) => m.name)).toContain('test2');
     });
   });
 });

@@ -19,7 +19,17 @@ export interface PromptPattern {
  */
 export interface PromptDetectorConfig {
   sessionId: string;
-  shellType?: 'bash' | 'zsh' | 'fish' | 'tcsh' | 'csh' | 'dash' | 'sh' | 'powershell' | 'cmd' | 'auto';
+  shellType?:
+    | 'bash'
+    | 'zsh'
+    | 'fish'
+    | 'tcsh'
+    | 'csh'
+    | 'dash'
+    | 'sh'
+    | 'powershell'
+    | 'cmd'
+    | 'auto';
   hostname?: string;
   username?: string;
   customPrompts?: PromptPattern[];
@@ -66,7 +76,7 @@ export class PromptDetector {
       description: 'Standard bash prompt: user@host:path$',
       shellType: 'bash',
       priority: 10,
-      contextual: true
+      contextual: true,
     },
     {
       name: 'bash_root',
@@ -74,38 +84,39 @@ export class PromptDetector {
       description: 'Root bash prompt: user@host:path#',
       shellType: 'bash',
       priority: 10,
-      contextual: true
+      contextual: true,
     },
     {
       name: 'bash_simple',
       pattern: /(?:^|\n)(\$)\s*$/m,
       description: 'Simple bash prompt: $',
       shellType: 'bash',
-      priority: 5
+      priority: 5,
     },
     {
       name: 'bash_root_simple',
       pattern: /(?:^|\n)(#)\s*$/m,
       description: 'Simple root prompt: #',
       shellType: 'bash',
-      priority: 5
+      priority: 5,
     },
 
     // Zsh prompts
     {
       name: 'zsh_standard',
-      pattern: /(?:^|\n)([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\s+[~\/][^%#\n]*\s*[%#])\s*$/m,
+      pattern:
+        /(?:^|\n)([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\s+[~\/][^%#\n]*\s*[%#])\s*$/m,
       description: 'Standard zsh prompt: user@host path %',
       shellType: 'zsh',
       priority: 10,
-      contextual: true
+      contextual: true,
     },
     {
       name: 'zsh_simple',
       pattern: /(?:^|\n)([%])\s*$/m,
       description: 'Simple zsh prompt: %',
       shellType: 'zsh',
-      priority: 5
+      priority: 5,
     },
 
     // Fish shell prompts
@@ -115,7 +126,7 @@ export class PromptDetector {
       description: 'Fish shell prompt: user@host path>',
       shellType: 'fish',
       priority: 10,
-      contextual: true
+      contextual: true,
     },
 
     // Ubuntu-specific patterns
@@ -125,7 +136,7 @@ export class PromptDetector {
       description: 'Ubuntu default prompt: ubuntu@hostname:path$',
       shellType: 'bash',
       priority: 15,
-      contextual: true
+      contextual: true,
     },
 
     // Generic Unix prompts
@@ -134,14 +145,14 @@ export class PromptDetector {
       pattern: /(?:^|\n)([a-zA-Z0-9._-]+:[~\/][^$#\n]*\$)\s*$/m,
       description: 'Unix-style user prompt: user:path$',
       priority: 7,
-      contextual: true
+      contextual: true,
     },
     {
       name: 'unix_root_colon',
       pattern: /(?:^|\n)([a-zA-Z0-9._-]+:[~\/][^$#\n]*#)\s*$/m,
       description: 'Unix-style root prompt: user:path#',
       priority: 7,
-      contextual: true
+      contextual: true,
     },
 
     // Alpine Linux prompts
@@ -150,7 +161,7 @@ export class PromptDetector {
       pattern: /(?:^|\n)([a-zA-Z0-9._-]+:[~\/][^#\n]*#)\s*$/m,
       description: 'Alpine Linux prompt: hostname:path#',
       priority: 8,
-      contextual: true
+      contextual: true,
     },
 
     // Docker container prompts
@@ -159,7 +170,7 @@ export class PromptDetector {
       pattern: /(?:^|\n)(root@[a-zA-Z0-9]+:[~\/][^#\n]*#)\s*$/m,
       description: 'Docker root prompt: root@containerid:path#',
       priority: 12,
-      contextual: true
+      contextual: true,
     },
 
     // Windows prompts (if running WSL or Windows SSH)
@@ -169,7 +180,7 @@ export class PromptDetector {
       description: 'Windows CMD prompt: C:\\path>',
       shellType: 'cmd',
       priority: 8,
-      contextual: true
+      contextual: true,
     },
     {
       name: 'powershell_standard',
@@ -177,7 +188,7 @@ export class PromptDetector {
       description: 'PowerShell prompt: PS C:\\path>',
       shellType: 'powershell',
       priority: 8,
-      contextual: true
+      contextual: true,
     },
 
     // Minimal prompts (low priority, used as fallbacks)
@@ -185,25 +196,25 @@ export class PromptDetector {
       name: 'minimal_dollar',
       pattern: /(?:^|\n)(\$)\s*$/m,
       description: 'Minimal dollar prompt: $',
-      priority: 2
+      priority: 2,
     },
     {
       name: 'minimal_hash',
       pattern: /(?:^|\n)(#)\s*$/m,
       description: 'Minimal hash prompt: #',
-      priority: 2
+      priority: 2,
     },
     {
       name: 'minimal_percent',
       pattern: /(?:^|\n)(%)\s*$/m,
       description: 'Minimal percent prompt: %',
-      priority: 2
+      priority: 2,
     },
     {
       name: 'minimal_gt',
       pattern: /(?:^|\n)(>)\s*$/m,
       description: 'Minimal greater-than prompt: >',
-      priority: 1
+      priority: 1,
     },
 
     // Multi-line prompts
@@ -212,17 +223,18 @@ export class PromptDetector {
       pattern: /(?:^|\n)[^\n]*\n(\s*[-=]>\s*)$/m,
       description: 'Multi-line arrow prompt',
       priority: 6,
-      multiline: true
+      multiline: true,
     },
 
     // Colored prompts (after ANSI stripping, will look for common patterns)
     {
       name: 'colored_user_host',
-      pattern: /(?:^|\n)([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+.*[:\s][~\/][^$#%>\n]*[$#%>])\s*$/m,
+      pattern:
+        /(?:^|\n)([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+.*[:\s][~\/][^$#%>\n]*[$#%>])\s*$/m,
       description: 'Colored user@host prompt (ANSI stripped)',
       priority: 9,
-      contextual: true
-    }
+      contextual: true,
+    },
   ];
 
   constructor() {
@@ -239,17 +251,20 @@ export class PromptDetector {
       timeout: 5000,
       maxOutputBuffer: 10000,
       adaptiveLearning: true,
-      ...config
+      ...config,
     });
-    
+
     this.outputBuffers.set(config.sessionId, '');
     this.learnedPrompts.set(config.sessionId, []);
 
-    this.logger.info(`Configured prompt detection for session ${config.sessionId}`, {
-      shellType: config.shellType,
-      customPrompts: config.customPrompts?.length || 0,
-      adaptiveLearning: config.adaptiveLearning
-    });
+    this.logger.info(
+      `Configured prompt detection for session ${config.sessionId}`,
+      {
+        shellType: config.shellType,
+        customPrompts: config.customPrompts?.length || 0,
+        adaptiveLearning: config.adaptiveLearning,
+      }
+    );
   }
 
   /**
@@ -259,7 +274,9 @@ export class PromptDetector {
     this.sessionConfigs.delete(sessionId);
     this.outputBuffers.delete(sessionId);
     this.learnedPrompts.delete(sessionId);
-    this.logger.debug(`Removed prompt detection config for session ${sessionId}`);
+    this.logger.debug(
+      `Removed prompt detection config for session ${sessionId}`
+    );
   }
 
   /**
@@ -290,10 +307,13 @@ export class PromptDetector {
   /**
    * Detect prompt in the given output
    */
-  detectPrompt(sessionId: string, output: string): PromptDetectionResult | null {
+  detectPrompt(
+    sessionId: string,
+    output: string
+  ): PromptDetectionResult | null {
     const startTime = Date.now();
     const config = this.sessionConfigs.get(sessionId);
-    
+
     if (!config) {
       return null;
     }
@@ -313,7 +333,7 @@ export class PromptDetector {
     // Try each pattern
     for (const pattern of patterns) {
       const result = this.tryPattern(pattern, cleanOutput, output);
-      
+
       if (result.detected && result.confidence > highestConfidence) {
         highestConfidence = result.confidence;
         bestMatch = result;
@@ -322,7 +342,7 @@ export class PromptDetector {
 
     if (bestMatch) {
       bestMatch.timeTaken = Date.now() - startTime;
-      
+
       // Learn from successful detection if adaptive learning is enabled
       if (config.adaptiveLearning && bestMatch.confidence > 0.8) {
         this.learnFromDetection(sessionId, bestMatch);
@@ -332,7 +352,7 @@ export class PromptDetector {
         pattern: bestMatch.pattern?.name,
         confidence: bestMatch.confidence,
         matchedText: bestMatch.matchedText.substring(0, 50),
-        timeTaken: bestMatch.timeTaken
+        timeTaken: bestMatch.timeTaken,
       });
     }
 
@@ -342,7 +362,10 @@ export class PromptDetector {
   /**
    * Wait for a prompt to appear in the output
    */
-  async waitForPrompt(sessionId: string, timeout?: number): Promise<PromptDetectionResult> {
+  async waitForPrompt(
+    sessionId: string,
+    timeout?: number
+  ): Promise<PromptDetectionResult> {
     const config = this.sessionConfigs.get(sessionId);
     const actualTimeout = timeout || config?.timeout || 5000;
     const startTime = Date.now();
@@ -360,7 +383,11 @@ export class PromptDetector {
 
         if (Date.now() - startTime > actualTimeout) {
           clearInterval(checkInterval);
-          reject(new Error(`Timeout waiting for prompt in session ${sessionId} after ${actualTimeout}ms`));
+          reject(
+            new Error(
+              `Timeout waiting for prompt in session ${sessionId} after ${actualTimeout}ms`
+            )
+          );
           return;
         }
       }, 100);
@@ -371,8 +398,8 @@ export class PromptDetector {
    * Enhanced waitForOutput method with prompt-aware matching
    */
   async waitForOutput(
-    sessionId: string, 
-    pattern: string | RegExp, 
+    sessionId: string,
+    pattern: string | RegExp,
     options: {
       timeout?: number;
       requirePrompt?: boolean;
@@ -384,12 +411,13 @@ export class PromptDetector {
     const timeout = options.timeout || config?.timeout || 5000;
     const startTime = Date.now();
 
-    const searchRegex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+    const searchRegex =
+      typeof pattern === 'string' ? new RegExp(pattern) : pattern;
 
     return new Promise((resolve, reject) => {
       const checkInterval = setInterval(() => {
         let currentOutput = this.outputBuffers.get(sessionId) || '';
-        
+
         // Strip ANSI if requested
         if (options.stripAnsi !== false) {
           currentOutput = this.stripAnsiSequences(currentOutput);
@@ -397,7 +425,7 @@ export class PromptDetector {
 
         // Check if pattern matches
         const patternMatch = searchRegex.test(currentOutput);
-        
+
         // Check for prompt if required
         let promptResult: PromptDetectionResult | null = null;
         if (options.requirePrompt) {
@@ -405,32 +433,41 @@ export class PromptDetector {
         }
 
         // Resolve if pattern matches and prompt is found (if required)
-        if (patternMatch && (!options.requirePrompt || (promptResult && promptResult.detected))) {
+        if (
+          patternMatch &&
+          (!options.requirePrompt || (promptResult && promptResult.detected))
+        ) {
           clearInterval(checkInterval);
           resolve({
             output: currentOutput,
-            promptDetected: promptResult || undefined
+            promptDetected: promptResult || undefined,
           });
           return;
         }
 
         if (Date.now() - startTime > timeout) {
           clearInterval(checkInterval);
-          
+
           // Provide debug information on timeout
           const debugInfo = {
             sessionId,
             pattern: pattern.toString(),
             outputLength: currentOutput.length,
             lastOutput: currentOutput.slice(-200),
-            promptResult: promptResult ? {
-              detected: promptResult.detected,
-              confidence: promptResult.confidence,
-              pattern: promptResult.pattern?.name
-            } : null
+            promptResult: promptResult
+              ? {
+                  detected: promptResult.detected,
+                  confidence: promptResult.confidence,
+                  pattern: promptResult.pattern?.name,
+                }
+              : null,
           };
 
-          reject(new Error(`Timeout waiting for pattern: ${pattern}. Debug: ${JSON.stringify(debugInfo)}`));
+          reject(
+            new Error(
+              `Timeout waiting for pattern: ${pattern}. Debug: ${JSON.stringify(debugInfo)}`
+            )
+          );
           return;
         }
       }, 100);
@@ -466,10 +503,10 @@ export class PromptDetector {
     const learned = this.learnedPrompts.get(sessionId) || [];
     learned.push(pattern);
     this.learnedPrompts.set(sessionId, learned);
-    
+
     this.logger.info(`Added learned pattern for session ${sessionId}`, {
       patternName: pattern.name,
-      description: pattern.description
+      description: pattern.description,
     });
   }
 
@@ -490,7 +527,7 @@ export class PromptDetector {
       totalPatterns: this.getAvailablePatterns(sessionId).length,
       learnedPatterns: learned.length,
       bufferSize: buffer.length,
-      shellType: config?.shellType
+      shellType: config?.shellType,
     };
   }
 
@@ -499,23 +536,23 @@ export class PromptDetector {
   private stripAnsiSequences(text: string): string {
     // Use strip-ansi for basic ANSI removal, then additional cleanup
     let cleaned = stripAnsi(text);
-    
+
     // Additional ANSI sequence patterns that might be missed
     const additionalAnsiPatterns = [
-      /\x1B\[[\d;]*[mK]/g,        // CSI sequences
+      /\x1B\[[\d;]*[mK]/g, // CSI sequences
       /\x1B\][\d;]*;[^\x07]*\x07/g, // OSC sequences
-      /\x1B\[\?[\d;]*[hlH]/g,     // Private mode sequences
+      /\x1B\[\?[\d;]*[hlH]/g, // Private mode sequences
       /\x1B\[[\d;]*[ABCDEFGJKST]/g, // Cursor control
-      /\x1B[=>]/g,                // Application keypad
-      /\r/g,                      // Carriage returns that might interfere
+      /\x1B[=>]/g, // Application keypad
+      /\r/g, // Carriage returns that might interfere
     ];
 
-    additionalAnsiPatterns.forEach(pattern => {
+    additionalAnsiPatterns.forEach((pattern) => {
       cleaned = cleaned.replace(pattern, '');
     });
 
     // Clean up excessive whitespace but preserve structure
-    cleaned = cleaned.replace(/\r\n/g, '\n');  // Normalize line endings
+    cleaned = cleaned.replace(/\r\n/g, '\n'); // Normalize line endings
     cleaned = cleaned.replace(/\n\n+/g, '\n\n'); // Limit consecutive newlines
 
     return cleaned;
@@ -524,7 +561,7 @@ export class PromptDetector {
   private getAvailablePatterns(sessionId: string): PromptPattern[] {
     const config = this.sessionConfigs.get(sessionId);
     const learned = this.learnedPrompts.get(sessionId) || [];
-    
+
     let patterns: PromptPattern[] = [...this.DEFAULT_PATTERNS];
 
     // Add custom patterns from config
@@ -533,21 +570,30 @@ export class PromptDetector {
     }
 
     // Add learned patterns (with higher priority)
-    const boostedLearned = learned.map(p => ({ ...p, priority: p.priority + 5 }));
+    const boostedLearned = learned.map((p) => ({
+      ...p,
+      priority: p.priority + 5,
+    }));
     patterns = [...patterns, ...boostedLearned];
 
     // Filter by shell type if specified
     if (config?.shellType && config.shellType !== 'auto') {
-      patterns = patterns.filter(p => !p.shellType || p.shellType === config.shellType);
+      patterns = patterns.filter(
+        (p) => !p.shellType || p.shellType === config.shellType
+      );
     }
 
     // Sort by priority (highest first)
     return patterns.sort((a, b) => b.priority - a.priority);
   }
 
-  private tryPattern(pattern: PromptPattern, cleanOutput: string, originalOutput: string): PromptDetectionResult {
+  private tryPattern(
+    pattern: PromptPattern,
+    cleanOutput: string,
+    originalOutput: string
+  ): PromptDetectionResult {
     const match = pattern.pattern.exec(cleanOutput);
-    
+
     if (!match) {
       return {
         detected: false,
@@ -557,17 +603,22 @@ export class PromptDetector {
         context: {
           beforePrompt: '',
           promptLine: '',
-          afterPrompt: ''
+          afterPrompt: '',
         },
-        timeTaken: 0
+        timeTaken: 0,
       };
     }
 
     const matchedText = match[1] || match[0];
     const position = match.index || 0;
-    
+
     // Calculate confidence based on various factors
-    let confidence = this.calculateConfidence(pattern, matchedText, cleanOutput, position);
+    let confidence = this.calculateConfidence(
+      pattern,
+      matchedText,
+      cleanOutput,
+      position
+    );
 
     // Extract context
     const beforePrompt = cleanOutput.substring(0, position);
@@ -583,16 +634,16 @@ export class PromptDetector {
       context: {
         beforePrompt: beforePrompt.split('\n').slice(-2).join('\n'),
         promptLine,
-        afterPrompt: afterPrompt.split('\n').slice(0, 2).join('\n')
+        afterPrompt: afterPrompt.split('\n').slice(0, 2).join('\n'),
       },
-      timeTaken: 0 // Will be set by caller
+      timeTaken: 0, // Will be set by caller
     };
   }
 
   private calculateConfidence(
-    pattern: PromptPattern, 
-    matchedText: string, 
-    output: string, 
+    pattern: PromptPattern,
+    matchedText: string,
+    output: string,
     position: number
   ): number {
     let confidence = 0.5; // Base confidence
@@ -620,31 +671,36 @@ export class PromptDetector {
     }
 
     // Adjust based on pattern priority
-    confidence += (pattern.priority / 20);
+    confidence += pattern.priority / 20;
 
     // Ensure confidence is between 0 and 1
     return Math.min(1, Math.max(0, confidence));
   }
 
-  private learnFromDetection(sessionId: string, result: PromptDetectionResult): void {
+  private learnFromDetection(
+    sessionId: string,
+    result: PromptDetectionResult
+  ): void {
     if (!result.pattern || !result.detected) return;
 
     const learned = this.learnedPrompts.get(sessionId) || [];
-    
+
     // Check if we already learned a similar pattern
-    const similarExists = learned.some(p => 
-      p.pattern.toString() === result.pattern!.pattern.toString() ||
-      p.name === result.pattern!.name
+    const similarExists = learned.some(
+      (p) =>
+        p.pattern.toString() === result.pattern!.pattern.toString() ||
+        p.name === result.pattern!.name
     );
 
-    if (!similarExists && learned.length < 10) { // Limit learned patterns
+    if (!similarExists && learned.length < 10) {
+      // Limit learned patterns
       const learnedPattern: PromptPattern = {
         name: `learned_${Date.now()}`,
         pattern: result.pattern.pattern,
         description: `Learned pattern from ${result.pattern.description}`,
         shellType: result.pattern.shellType,
         priority: Math.min(15, result.pattern.priority + 3), // Boost priority but cap it
-        contextual: result.pattern.contextual
+        contextual: result.pattern.contextual,
       };
 
       learned.push(learnedPattern);
@@ -652,7 +708,7 @@ export class PromptDetector {
 
       this.logger.debug(`Learned new prompt pattern for session ${sessionId}`, {
         pattern: learnedPattern.name,
-        confidence: result.confidence
+        confidence: result.confidence,
       });
     }
   }
@@ -673,11 +729,11 @@ export class PromptDetector {
       bufferPreview: buffer.slice(-200),
       learnedPatternCount: learned.length,
       totalPatternCount: patterns.length,
-      availablePatterns: patterns.map(p => ({
+      availablePatterns: patterns.map((p) => ({
         name: p.name,
         priority: p.priority,
-        shellType: p.shellType
-      }))
+        shellType: p.shellType,
+      })),
     };
   }
 }

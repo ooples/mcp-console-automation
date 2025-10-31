@@ -6,7 +6,7 @@ import {
   ConsoleSession,
   ConsoleOutput,
   SessionOptions,
-  CommandExecution
+  CommandExecution,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -14,7 +14,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 /**
@@ -40,9 +40,9 @@ export class LocalProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -101,38 +101,65 @@ export class LocalProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-
   async createSession(options: SessionOptions): Promise<ConsoleSession> {
-    console.error(`[DEBUG-HANG] LocalProtocol.createSession called with:`, JSON.stringify({
-      command: options.command,
-      args: options.args,
-      cwd: options.cwd,
-      consoleType: options.consoleType,
-      hasEnv: !!options.env,
-      streaming: options.streaming,
-      timeout: options.timeout,
-      isOneShot: options.isOneShot
-    }, null, 2));
+    console.error(
+      `[DEBUG-HANG] LocalProtocol.createSession called with:`,
+      JSON.stringify(
+        {
+          command: options.command,
+          args: options.args,
+          cwd: options.cwd,
+          consoleType: options.consoleType,
+          hasEnv: !!options.env,
+          streaming: options.streaming,
+          timeout: options.timeout,
+          isOneShot: options.isOneShot,
+        },
+        null,
+        2
+      )
+    );
 
     const sessionId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    console.error(`[DEBUG-HANG] Generated sessionId: ${sessionId}, calling createSessionWithTypeDetection`);
-    const result = await this.createSessionWithTypeDetection(sessionId, options);
-    console.error(`[DEBUG-HANG] createSessionWithTypeDetection completed for sessionId: ${sessionId}`);
+    console.error(
+      `[DEBUG-HANG] Generated sessionId: ${sessionId}, calling createSessionWithTypeDetection`
+    );
+    const result = await this.createSessionWithTypeDetection(
+      sessionId,
+      options
+    );
+    console.error(
+      `[DEBUG-HANG] createSessionWithTypeDetection completed for sessionId: ${sessionId}`
+    );
     return result;
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
-    console.error(`[DEBUG-HANG] LocalProtocol.doCreateSession called, sessionId: ${sessionId}`);
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
+    console.error(
+      `[DEBUG-HANG] LocalProtocol.doCreateSession called, sessionId: ${sessionId}`
+    );
 
     if (!this.isInitialized) {
-      console.error(`[DEBUG-HANG] Protocol not initialized, calling initialize()`);
+      console.error(
+        `[DEBUG-HANG] Protocol not initialized, calling initialize()`
+      );
       await this.initialize();
     }
 
     try {
-      console.error(`[DEBUG-HANG] LocalProtocol received options:`, JSON.stringify(options, null, 2));
+      console.error(
+        `[DEBUG-HANG] LocalProtocol received options:`,
+        JSON.stringify(options, null, 2)
+      );
       const shellInfo = this.getShellInfo(options);
-      console.error(`[DEBUG-HANG] Got shell info:`, JSON.stringify(shellInfo, null, 2));
+      console.error(
+        `[DEBUG-HANG] Got shell info:`,
+        JSON.stringify(shellInfo, null, 2)
+      );
 
       const spawnOptions: SpawnOptions = {
         cwd: options.cwd || process.cwd(),
@@ -140,16 +167,32 @@ export class LocalProtocol extends BaseProtocol {
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false,
       };
-      console.error(`[DEBUG-HANG] About to spawn process with command: ${shellInfo.command}, args:`, shellInfo.args);
-      console.error(`[DEBUG-HANG] Spawn options:`, JSON.stringify({
-        cwd: spawnOptions.cwd,
-        stdio: spawnOptions.stdio,
-        shell: spawnOptions.shell,
-        hasEnv: !!spawnOptions.env
-      }, null, 2));
+      console.error(
+        `[DEBUG-HANG] About to spawn process with command: ${shellInfo.command}, args:`,
+        shellInfo.args
+      );
+      console.error(
+        `[DEBUG-HANG] Spawn options:`,
+        JSON.stringify(
+          {
+            cwd: spawnOptions.cwd,
+            stdio: spawnOptions.stdio,
+            shell: spawnOptions.shell,
+            hasEnv: !!spawnOptions.env,
+          },
+          null,
+          2
+        )
+      );
 
-      const childProcess = spawn(shellInfo.command, shellInfo.args, spawnOptions);
-      console.error(`[DEBUG-HANG] Process spawned, PID: ${childProcess.pid}, killed: ${childProcess.killed}`);
+      const childProcess = spawn(
+        shellInfo.command,
+        shellInfo.args,
+        spawnOptions
+      );
+      console.error(
+        `[DEBUG-HANG] Process spawned, PID: ${childProcess.pid}, killed: ${childProcess.killed}`
+      );
 
       const localSession: LocalSession = {
         id: sessionId,
@@ -163,11 +206,15 @@ export class LocalProtocol extends BaseProtocol {
       };
 
       // Setup process event handlers
-      console.error(`[DEBUG-HANG] Setting up process handlers for sessionId: ${sessionId}`);
+      console.error(
+        `[DEBUG-HANG] Setting up process handlers for sessionId: ${sessionId}`
+      );
       this.setupProcessHandlers(localSession);
 
       this.localSessions.set(sessionId, localSession);
-      console.error(`[DEBUG-HANG] LocalSession stored and ConsoleSession created for sessionId: ${sessionId}`);
+      console.error(
+        `[DEBUG-HANG] LocalSession stored and ConsoleSession created for sessionId: ${sessionId}`
+      );
 
       const consoleSession: ConsoleSession = {
         id: sessionId,
@@ -175,7 +222,9 @@ export class LocalProtocol extends BaseProtocol {
         args: shellInfo.args,
         cwd: options.cwd || process.cwd(),
         env: Object.fromEntries(
-          Object.entries({ ...process.env, ...options.env }).filter(([_, value]) => typeof value === 'string')
+          Object.entries({ ...process.env, ...options.env }).filter(
+            ([_, value]) => typeof value === 'string'
+          )
         ) as Record<string, string>,
         createdAt: new Date(),
         pid: childProcess.pid ?? undefined,
@@ -189,34 +238,54 @@ export class LocalProtocol extends BaseProtocol {
 
       this.sessions.set(sessionId, consoleSession);
 
-      this.logger.info(`Local session ${sessionId} created for shell: ${this.type}`);
-      console.error(`[DEBUG-HANG] About to emit 'session-created' event for sessionId: ${sessionId}`);
-      this.emit('session-created', { sessionId, type: this.type, session: consoleSession });
-      console.error(`[DEBUG-HANG] 'session-created' event emitted, returning ConsoleSession for sessionId: ${sessionId}`);
+      this.logger.info(
+        `Local session ${sessionId} created for shell: ${this.type}`
+      );
+      console.error(
+        `[DEBUG-HANG] About to emit 'session-created' event for sessionId: ${sessionId}`
+      );
+      this.emit('session-created', {
+        sessionId,
+        type: this.type,
+        session: consoleSession,
+      });
+      console.error(
+        `[DEBUG-HANG] 'session-created' event emitted, returning ConsoleSession for sessionId: ${sessionId}`
+      );
 
       return consoleSession;
-
     } catch (error) {
       this.logger.error(`Failed to create local session: ${error}`);
       throw error;
     }
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    console.error(`[DEBUG-HANG] LocalProtocol.executeCommand called with sessionId: ${sessionId}, command: ${command}, args:`, args);
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    console.error(
+      `[DEBUG-HANG] LocalProtocol.executeCommand called with sessionId: ${sessionId}, command: ${command}, args:`,
+      args
+    );
 
     const localSession = this.localSessions.get(sessionId);
     const session = this.sessions.get(sessionId);
 
     if (!localSession || !localSession.isActive || !session) {
-      console.error(`[DEBUG-HANG] Session ${sessionId} not found or inactive - localSession exists: ${!!localSession}, isActive: ${localSession?.isActive}, session exists: ${!!session}`);
+      console.error(
+        `[DEBUG-HANG] Session ${sessionId} not found or inactive - localSession exists: ${!!localSession}, isActive: ${localSession?.isActive}, session exists: ${!!session}`
+      );
       throw new Error(`Session ${sessionId} not found or inactive`);
     }
 
     try {
       const fullCommand = args ? `${command} ${args.join(' ')}` : command;
       const commandWithNewline = fullCommand + '\n';
-      console.error(`[DEBUG-HANG] About to write to stdin: "${commandWithNewline}"`);
+      console.error(
+        `[DEBUG-HANG] About to write to stdin: "${commandWithNewline}"`
+      );
 
       if (localSession.process.stdin) {
         localSession.process.stdin.write(commandWithNewline);
@@ -228,16 +297,21 @@ export class LocalProtocol extends BaseProtocol {
         throw new Error('Session stdin is not available');
       }
 
-      console.error(`[DEBUG-HANG] About to emit 'command-executed' event for sessionId: ${sessionId}`);
+      console.error(
+        `[DEBUG-HANG] About to emit 'command-executed' event for sessionId: ${sessionId}`
+      );
       this.emit('command-executed', {
         sessionId,
         command: fullCommand,
         timestamp: new Date(),
       });
-      console.error(`[DEBUG-HANG] 'command-executed' event emitted for sessionId: ${sessionId}`);
-
+      console.error(
+        `[DEBUG-HANG] 'command-executed' event emitted for sessionId: ${sessionId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to execute command in session ${sessionId}: ${error}`);
+      this.logger.error(
+        `Failed to execute command in session ${sessionId}: ${error}`
+      );
       throw error;
     }
   }
@@ -264,9 +338,10 @@ export class LocalProtocol extends BaseProtocol {
         input,
         timestamp: new Date(),
       });
-
     } catch (error) {
-      this.logger.error(`Failed to send input to session ${sessionId}: ${error}`);
+      this.logger.error(
+        `Failed to send input to session ${sessionId}: ${error}`
+      );
       throw error;
     }
   }
@@ -278,11 +353,14 @@ export class LocalProtocol extends BaseProtocol {
 
     // Check if caller expects string (old interface) or ConsoleOutput[] (new interface)
     // For now, always return string for compatibility with ProtocolFactory
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Separate method for getting structured output
-  async getOutputArray(sessionId: string, since?: Date): Promise<ConsoleOutput[]> {
+  async getOutputArray(
+    sessionId: string,
+    since?: Date
+  ): Promise<ConsoleOutput[]> {
     return await super.getOutput(sessionId, since);
   }
 
@@ -292,8 +370,8 @@ export class LocalProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -315,19 +393,24 @@ export class LocalProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
@@ -345,26 +428,26 @@ export class LocalProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0] // Default load averages
+        load: [0, 0, 0], // Default load averages
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.localSessions.size
+        connectionsActive: this.localSessions.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -403,7 +486,6 @@ export class LocalProtocol extends BaseProtocol {
 
       // CRITICAL FIX: Emit proper object structure instead of just sessionId string
       this.emit('session-closed', { sessionId, exitCode: 0 }); // Manual closure = success
-
     } catch (error) {
       this.logger.error(`Failed to close session ${sessionId}: ${error}`);
       throw error;
@@ -419,8 +501,8 @@ export class LocalProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          shell: { available: true }
-        }
+          shell: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -428,8 +510,8 @@ export class LocalProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Shell not available: ${error}`],
         dependencies: {
-          shell: { available: false }
-        }
+          shell: { available: false },
+        },
       };
     }
   }
@@ -439,7 +521,7 @@ export class LocalProtocol extends BaseProtocol {
 
     // Close all active sessions
     const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
 
     this.sessions.clear();
     this.localSessions.clear();
@@ -447,7 +529,10 @@ export class LocalProtocol extends BaseProtocol {
     this.isInitialized = false;
   }
 
-  private getShellInfo(options?: SessionOptions): { command: string; args: string[] } {
+  private getShellInfo(options?: SessionOptions): {
+    command: string;
+    args: string[];
+  } {
     switch (this.type) {
       case 'cmd':
         return { command: 'cmd.exe', args: ['/k'] };
@@ -455,13 +540,13 @@ export class LocalProtocol extends BaseProtocol {
         // For one-shot sessions, don't use -NoExit so PowerShell closes after command
         return {
           command: 'powershell.exe',
-          args: options?.isOneShot ? ['-NoLogo'] : ['-NoLogo', '-NoExit']
+          args: options?.isOneShot ? ['-NoLogo'] : ['-NoLogo', '-NoExit'],
         };
       case 'pwsh':
         // For one-shot sessions, don't use -NoExit so PowerShell Core closes after command
         return {
           command: 'pwsh',
-          args: options?.isOneShot ? ['-NoLogo'] : ['-NoLogo', '-NoExit']
+          args: options?.isOneShot ? ['-NoLogo'] : ['-NoLogo', '-NoExit'],
         };
       case 'bash':
         return { command: 'bash', args: ['--login'] };
@@ -476,13 +561,16 @@ export class LocalProtocol extends BaseProtocol {
     }
   }
 
-  private getDefaultShell(options?: SessionOptions): { command: string; args: string[] } {
+  private getDefaultShell(options?: SessionOptions): {
+    command: string;
+    args: string[];
+  } {
     switch (platform()) {
       case 'win32':
         // For one-shot sessions, don't use -NoExit so PowerShell closes after command
         return {
           command: 'powershell.exe',
-          args: options?.isOneShot ? ['-NoLogo'] : ['-NoLogo', '-NoExit']
+          args: options?.isOneShot ? ['-NoLogo'] : ['-NoLogo', '-NoExit'],
         };
       case 'darwin':
         return { command: 'zsh', args: ['-l'] };
@@ -496,25 +584,39 @@ export class LocalProtocol extends BaseProtocol {
       const shellInfo = this.getShellInfo();
       const versionArgs = this.getVersionArgs();
 
-      this.logger.debug(`Validating shell: ${shellInfo.command} ${versionArgs.join(' ')}`);
+      this.logger.debug(
+        `Validating shell: ${shellInfo.command} ${versionArgs.join(' ')}`
+      );
 
       const testProcess = spawn(shellInfo.command, versionArgs, {
         stdio: 'ignore',
-        windowsHide: true
+        windowsHide: true,
       });
 
       testProcess.on('close', (code) => {
-        this.logger.debug(`Shell validation for ${shellInfo.command} exited with code: ${code}`);
+        this.logger.debug(
+          `Shell validation for ${shellInfo.command} exited with code: ${code}`
+        );
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(`Shell ${shellInfo.command} not available (exit code: ${code ?? 'unknown'})`));
+          reject(
+            new Error(
+              `Shell ${shellInfo.command} not available (exit code: ${code ?? 'unknown'})`
+            )
+          );
         }
       });
 
       testProcess.on('error', (error) => {
-        this.logger.error(`Shell validation error for ${shellInfo.command}: ${error.message}`);
-        reject(new Error(`Shell ${shellInfo.command} not available: ${error.message}`));
+        this.logger.error(
+          `Shell validation error for ${shellInfo.command}: ${error.message}`
+        );
+        reject(
+          new Error(
+            `Shell ${shellInfo.command} not available: ${error.message}`
+          )
+        );
       });
 
       // Timeout after 5 seconds
@@ -544,7 +646,10 @@ export class LocalProtocol extends BaseProtocol {
       case 'auto':
         // For auto mode, use the default shell's version command
         const defaultShell = this.getDefaultShell();
-        if (defaultShell.command.includes('powershell') || defaultShell.command.includes('pwsh')) {
+        if (
+          defaultShell.command.includes('powershell') ||
+          defaultShell.command.includes('pwsh')
+        ) {
           return ['-Command', '$PSVersionTable.PSVersion.ToString()'];
         } else if (defaultShell.command.includes('cmd')) {
           return ['/C', 'ver'];
@@ -557,18 +662,26 @@ export class LocalProtocol extends BaseProtocol {
   }
 
   private setupProcessHandlers(session: LocalSession): void {
-    console.error(`[DEBUG-HANG] setupProcessHandlers called for sessionId: ${session.id}`);
+    console.error(
+      `[DEBUG-HANG] setupProcessHandlers called for sessionId: ${session.id}`
+    );
 
     if (!session.process) {
-      console.error(`[DEBUG-HANG] ERROR: No process found for session ${session.id}`);
+      console.error(
+        `[DEBUG-HANG] ERROR: No process found for session ${session.id}`
+      );
       return;
     }
 
-    console.error(`[DEBUG-HANG] Setting up stdout handler for sessionId: ${session.id}`);
+    console.error(
+      `[DEBUG-HANG] Setting up stdout handler for sessionId: ${session.id}`
+    );
     // Handle stdout
     session.process.stdout?.on('data', (data: Buffer) => {
       const text = data.toString();
-      console.error(`[DEBUG-HANG] stdout data received for sessionId: ${session.id}, length: ${text.length}`);
+      console.error(
+        `[DEBUG-HANG] stdout data received for sessionId: ${session.id}, length: ${text.length}`
+      );
       session.outputBuffer += text;
       session.lastActivity = new Date();
 
@@ -582,15 +695,21 @@ export class LocalProtocol extends BaseProtocol {
 
       // Add to BaseProtocol's output buffer
       this.addToOutputBuffer(session.id, output);
-      console.error(`[DEBUG-HANG] Emitting 'output' event for sessionId: ${session.id}`);
+      console.error(
+        `[DEBUG-HANG] Emitting 'output' event for sessionId: ${session.id}`
+      );
       this.emit('output', output);
     });
 
-    console.error(`[DEBUG-HANG] Setting up stderr handler for sessionId: ${session.id}`);
+    console.error(
+      `[DEBUG-HANG] Setting up stderr handler for sessionId: ${session.id}`
+    );
     // Handle stderr
     session.process.stderr?.on('data', (data: Buffer) => {
       const text = data.toString();
-      console.error(`[DEBUG-HANG] stderr data received for sessionId: ${session.id}, length: ${text.length}`);
+      console.error(
+        `[DEBUG-HANG] stderr data received for sessionId: ${session.id}, length: ${text.length}`
+      );
       session.errorBuffer += text;
       session.lastActivity = new Date();
 
@@ -604,33 +723,55 @@ export class LocalProtocol extends BaseProtocol {
 
       // Add to BaseProtocol's output buffer
       this.addToOutputBuffer(session.id, output);
-      console.error(`[DEBUG-HANG] Emitting 'output' event for stderr, sessionId: ${session.id}`);
+      console.error(
+        `[DEBUG-HANG] Emitting 'output' event for stderr, sessionId: ${session.id}`
+      );
       this.emit('output', output);
     });
 
-    console.error(`[DEBUG-HANG] Setting up process close handler for sessionId: ${session.id}`);
+    console.error(
+      `[DEBUG-HANG] Setting up process close handler for sessionId: ${session.id}`
+    );
     // Handle process exit
-    session.process.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
-      console.error(`[DEBUG-HANG] Process close event fired for sessionId: ${session.id}, code: ${code}, signal: ${signal}`);
-      session.isActive = false;
-      this.logger.info(`Local session ${session.id} closed with code: ${code}, signal: ${signal}`);
+    session.process.on(
+      'close',
+      (code: number | null, signal: NodeJS.Signals | null) => {
+        console.error(
+          `[DEBUG-HANG] Process close event fired for sessionId: ${session.id}, code: ${code}, signal: ${signal}`
+        );
+        session.isActive = false;
+        this.logger.info(
+          `Local session ${session.id} closed with code: ${code}, signal: ${signal}`
+        );
 
-      console.error(`[DEBUG-HANG] Emitting 'session-closed' event for sessionId: ${session.id}`);
-      // CRITICAL FIX: Emit proper object structure with actual exit code
-      this.emit('session-closed', { sessionId: session.id, exitCode: code || 0 });
-      this.sessions.delete(session.id);
-      this.localSessions.delete(session.id);
-      // Session count is managed by BaseProtocol
-    });
+        console.error(
+          `[DEBUG-HANG] Emitting 'session-closed' event for sessionId: ${session.id}`
+        );
+        // CRITICAL FIX: Emit proper object structure with actual exit code
+        this.emit('session-closed', {
+          sessionId: session.id,
+          exitCode: code || 0,
+        });
+        this.sessions.delete(session.id);
+        this.localSessions.delete(session.id);
+        // Session count is managed by BaseProtocol
+      }
+    );
 
-    console.error(`[DEBUG-HANG] Setting up process error handler for sessionId: ${session.id}`);
+    console.error(
+      `[DEBUG-HANG] Setting up process error handler for sessionId: ${session.id}`
+    );
     // Handle process errors
     session.process.on('error', (error) => {
-      console.error(`[DEBUG-HANG] Process error event fired for sessionId: ${session.id}, error: ${error.message}`);
+      console.error(
+        `[DEBUG-HANG] Process error event fired for sessionId: ${session.id}, error: ${error.message}`
+      );
       session.isActive = false;
       this.logger.error(`Local session ${session.id} error: ${error}`);
 
-      console.error(`[DEBUG-HANG] Emitting 'error' event for sessionId: ${session.id}`);
+      console.error(
+        `[DEBUG-HANG] Emitting 'error' event for sessionId: ${session.id}`
+      );
       this.emit('error', {
         sessionId: session.id,
         error: error.message,
@@ -638,7 +779,9 @@ export class LocalProtocol extends BaseProtocol {
       });
     });
 
-    console.error(`[DEBUG-HANG] All process handlers set up for sessionId: ${session.id}`);
+    console.error(
+      `[DEBUG-HANG] All process handlers set up for sessionId: ${session.id}`
+    );
   }
 }
 

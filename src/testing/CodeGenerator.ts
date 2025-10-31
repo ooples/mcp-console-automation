@@ -7,7 +7,11 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { TestRecording, RecordingStep, CodeGenerationOptions } from '../types/test-framework.js';
+import {
+  TestRecording,
+  RecordingStep,
+  CodeGenerationOptions,
+} from '../types/test-framework.js';
 import { TestRecorder } from './TestRecorder.js';
 
 interface TemplateData {
@@ -78,7 +82,8 @@ export class CodeGenerator {
     options: CodeGenerationOptions
   ): TemplateData {
     const testName = this.sanitizeTestName(recording.name);
-    const description = recording.metadata.description || `Test: ${recording.name}`;
+    const description =
+      recording.metadata.description || `Test: ${recording.name}`;
     const sessionId = this.extractSessionId(recording);
 
     const imports = this.generateImports(options);
@@ -106,9 +111,13 @@ export class CodeGenerator {
     switch (options.language) {
       case 'javascript':
       case 'typescript':
-        imports.push("import { ConsoleManager } from '@mcp/console-automation';");
+        imports.push(
+          "import { ConsoleManager } from '@mcp/console-automation';"
+        );
         if (options.framework === 'jest') {
-          imports.push("import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';");
+          imports.push(
+            "import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';"
+          );
         } else if (options.framework === 'mocha') {
           imports.push("import { describe, it, before, after } from 'mocha';");
           imports.push("import { expect } from 'chai';");
@@ -132,7 +141,10 @@ export class CodeGenerator {
   /**
    * Generate setup code
    */
-  private generateSetup(recording: TestRecording, options: CodeGenerationOptions): string {
+  private generateSetup(
+    recording: TestRecording,
+    options: CodeGenerationOptions
+  ): string {
     if (!options.includeSetup) {
       return '';
     }
@@ -158,7 +170,10 @@ export class CodeGenerator {
   /**
    * Generate teardown code
    */
-  private generateTeardown(recording: TestRecording, options: CodeGenerationOptions): string {
+  private generateTeardown(
+    recording: TestRecording,
+    options: CodeGenerationOptions
+  ): string {
     if (!options.includeTeardown) {
       return '';
     }
@@ -185,7 +200,10 @@ export class CodeGenerator {
   /**
    * Generate test steps
    */
-  private generateSteps(recording: TestRecording, options: CodeGenerationOptions): string[] {
+  private generateSteps(
+    recording: TestRecording,
+    options: CodeGenerationOptions
+  ): string[] {
     const steps: string[] = [];
 
     for (const step of recording.steps) {
@@ -201,7 +219,10 @@ export class CodeGenerator {
   /**
    * Generate code for a single step
    */
-  private generateStepCode(step: RecordingStep, options: CodeGenerationOptions): string {
+  private generateStepCode(
+    step: RecordingStep,
+    options: CodeGenerationOptions
+  ): string {
     const lang = options.language;
 
     switch (step.type) {
@@ -341,7 +362,10 @@ export class CodeGenerator {
     result = result.replace(/\{\{IMPORTS\}\}/g, data.imports.join('\n'));
     result = result.replace(/\{\{SETUP\}\}/g, this.indent(data.setup, 2));
     result = result.replace(/\{\{TEARDOWN\}\}/g, this.indent(data.teardown, 2));
-    result = result.replace(/\{\{STEPS\}\}/g, data.steps.map(s => this.indent(s, 2)).join('\n\n'));
+    result = result.replace(
+      /\{\{STEPS\}\}/g,
+      data.steps.map((s) => this.indent(s, 2)).join('\n\n')
+    );
 
     // Framework-specific replacements
     if (options.framework === 'jest') {
@@ -358,13 +382,11 @@ export class CodeGenerator {
   // Helper methods
 
   private sanitizeTestName(name: string): string {
-    return name
-      .replace(/[^a-zA-Z0-9_]/g, '_')
-      .replace(/^[0-9]/, '_$&');
+    return name.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
   }
 
   private extractSessionId(recording: TestRecording): string {
-    const createStep = recording.steps.find(s => s.type === 'create_session');
+    const createStep = recording.steps.find((s) => s.type === 'create_session');
     return createStep?.sessionId || 'session';
   }
 
@@ -382,7 +404,7 @@ export class CodeGenerator {
     const indentation = ' '.repeat(spaces);
     return text
       .split('\n')
-      .map(line => line ? indentation + line : line)
+      .map((line) => (line ? indentation + line : line))
       .join('\n');
   }
 }

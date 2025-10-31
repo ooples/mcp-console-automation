@@ -78,7 +78,9 @@ describe('WorkerPool', () => {
       }));
 
       const startTime = Date.now();
-      const results = await Promise.all(tasks.map((task) => pool.executeTask(task)));
+      const results = await Promise.all(
+        tasks.map((task) => pool.executeTask(task))
+      );
       const duration = Date.now() - startTime;
 
       expect(results).toHaveLength(5);

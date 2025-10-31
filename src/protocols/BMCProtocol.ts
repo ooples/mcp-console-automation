@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // BMC Protocol connection options
@@ -70,9 +70,9 @@ export class BMCProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -104,8 +104,8 @@ export class BMCProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -132,8 +132,13 @@ export class BMCProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -154,7 +159,9 @@ export class BMCProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to BMC session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to BMC session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -185,7 +192,11 @@ export class BMCProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -204,7 +215,11 @@ export class BMCProtocol extends BaseProtocol {
     const bmcProcess = spawn(ipmiCommand[0], ipmiCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(bmcOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(bmcOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -213,7 +228,7 @@ export class BMCProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -223,7 +238,7 @@ export class BMCProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -234,7 +249,9 @@ export class BMCProtocol extends BaseProtocol {
     });
 
     bmcProcess.on('close', (code) => {
-      this.logger.info(`BMC process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `BMC process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -247,7 +264,11 @@ export class BMCProtocol extends BaseProtocol {
       command: ipmiCommand[0],
       args: ipmiCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(bmcOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(bmcOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -255,12 +276,14 @@ export class BMCProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: bmcProcess.pid
+      pid: bmcProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`BMC session ${sessionId} created for ${bmcOptions.bmcHost}`);
+    this.logger.info(
+      `BMC session ${sessionId} created for ${bmcOptions.bmcHost}`
+    );
     this.emit('session-created', { sessionId, type: 'bmc', session });
 
     return session;
@@ -269,7 +292,7 @@ export class BMCProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -278,8 +301,8 @@ export class BMCProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -301,25 +324,30 @@ export class BMCProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in BMC session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in BMC session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const bmcProcess = this.bmcProcesses.get(sessionId);
-    return bmcProcess && !bmcProcess.killed || false;
+    return (bmcProcess && !bmcProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -330,26 +358,26 @@ export class BMCProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.bmcProcesses.size
+        connectionsActive: this.bmcProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -361,8 +389,8 @@ export class BMCProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          ipmi: { available: true }
-        }
+          ipmi: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -370,8 +398,8 @@ export class BMCProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `IPMI not available: ${error}`],
         dependencies: {
-          ipmi: { available: false }
-        }
+          ipmi: { available: false },
+        },
       };
     }
   }
@@ -506,7 +534,9 @@ export class BMCProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: BMCConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: BMCConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // IPMI environment variables
@@ -553,7 +583,10 @@ export class BMCProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing BMC process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing BMC process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // PowerShell Remoting Protocol connection options
@@ -23,7 +23,14 @@ interface PSRemotingConnectionOptions extends SessionOptions {
   applicationName?: string;
   configurationName?: string;
   sessionOption?: Record<string, any>;
-  authentication?: 'Default' | 'Basic' | 'Negotiate' | 'NegotiateWithImplicitCredential' | 'Credssp' | 'Digest' | 'Kerberos';
+  authentication?:
+    | 'Default'
+    | 'Basic'
+    | 'Negotiate'
+    | 'NegotiateWithImplicitCredential'
+    | 'Credssp'
+    | 'Digest'
+    | 'Kerberos';
   certificateThumbprint?: string;
   credential?: {
     username: string;
@@ -60,7 +67,13 @@ interface PSRemotingConnectionOptions extends SessionOptions {
   maxShells?: number;
   maxShellsPerUser?: number;
   shellTimeoutMs?: number;
-  executionPolicy?: 'Restricted' | 'AllSigned' | 'RemoteSigned' | 'Unrestricted' | 'Bypass' | 'Undefined';
+  executionPolicy?:
+    | 'Restricted'
+    | 'AllSigned'
+    | 'RemoteSigned'
+    | 'Unrestricted'
+    | 'Bypass'
+    | 'Undefined';
   psVersion?: string;
   enableClr?: boolean;
   clrVersion?: string;
@@ -151,9 +164,9 @@ export class PSRemotingProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -180,13 +193,19 @@ export class PSRemotingProtocol extends BaseProtocol {
       maxConcurrentSessions: 32, // PowerShell Remoting can handle many concurrent sessions
       defaultTimeout: 300000, // PowerShell operations can take longer
       supportedEncodings: ['utf-8', 'utf-16le', 'ascii'],
-      supportedAuthMethods: ['basic', 'negotiate', 'kerberos', 'credssp', 'digest'],
+      supportedAuthMethods: [
+        'basic',
+        'negotiate',
+        'kerberos',
+        'credssp',
+        'digest',
+      ],
       platformSupport: {
         windows: true, // Primary PowerShell Remoting platform
         linux: true, // PowerShell Core with SSH remoting
         macos: true, // PowerShell Core with SSH remoting
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -197,9 +216,14 @@ export class PSRemotingProtocol extends BaseProtocol {
       // Check if PowerShell is available
       await this.checkPowerShellAvailability();
       this.isInitialized = true;
-      this.logger.info('PowerShell Remoting protocol initialized with enterprise features');
+      this.logger.info(
+        'PowerShell Remoting protocol initialized with enterprise features'
+      );
     } catch (error: any) {
-      this.logger.error('Failed to initialize PowerShell Remoting protocol', error);
+      this.logger.error(
+        'Failed to initialize PowerShell Remoting protocol',
+        error
+      );
       throw error;
     }
   }
@@ -213,8 +237,13 @@ export class PSRemotingProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\r\n');
   }
 
@@ -235,7 +264,9 @@ export class PSRemotingProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to PowerShell Remoting session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to PowerShell Remoting session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -261,12 +292,19 @@ export class PSRemotingProtocol extends BaseProtocol {
       this.logger.info(`PowerShell Remoting session ${sessionId} closed`);
       this.emit('session-closed', sessionId);
     } catch (error) {
-      this.logger.error(`Error closing PowerShell Remoting session ${sessionId}:`, error);
+      this.logger.error(
+        `Error closing PowerShell Remoting session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -275,18 +313,28 @@ export class PSRemotingProtocol extends BaseProtocol {
 
     // Validate required PowerShell Remoting parameters
     if (!psremotingOptions.computerName) {
-      throw new Error('Computer name is required for PowerShell Remoting protocol');
+      throw new Error(
+        'Computer name is required for PowerShell Remoting protocol'
+      );
     }
 
     // Build PowerShell Remoting command
     const psremotingCommand = this.buildPSRemotingCommand(psremotingOptions);
 
     // Spawn PowerShell Remoting process
-    const psremotingProcess = spawn(psremotingCommand[0], psremotingCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(psremotingOptions), ...options.env }
-    });
+    const psremotingProcess = spawn(
+      psremotingCommand[0],
+      psremotingCommand.slice(1),
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: options.cwd || process.cwd(),
+        env: {
+          ...process.env,
+          ...this.buildEnvironment(psremotingOptions),
+          ...options.env,
+        },
+      }
+    );
 
     // Set up output handling
     psremotingProcess.stdout?.on('data', (data) => {
@@ -294,7 +342,7 @@ export class PSRemotingProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -304,18 +352,23 @@ export class PSRemotingProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     psremotingProcess.on('error', (error) => {
-      this.logger.error(`PowerShell Remoting process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `PowerShell Remoting process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     psremotingProcess.on('close', (code) => {
-      this.logger.info(`PowerShell Remoting process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `PowerShell Remoting process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -328,7 +381,11 @@ export class PSRemotingProtocol extends BaseProtocol {
       command: psremotingCommand[0],
       args: psremotingCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(psremotingOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(psremotingOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -336,12 +393,14 @@ export class PSRemotingProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: psremotingProcess.pid
+      pid: psremotingProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`PowerShell Remoting session ${sessionId} created for computer ${psremotingOptions.computerName}`);
+    this.logger.info(
+      `PowerShell Remoting session ${sessionId} created for computer ${psremotingOptions.computerName}`
+    );
     this.emit('session-created', { sessionId, type: 'psremoting', session });
 
     return session;
@@ -350,7 +409,7 @@ export class PSRemotingProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -359,8 +418,8 @@ export class PSRemotingProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -382,25 +441,30 @@ export class PSRemotingProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in PowerShell Remoting session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in PowerShell Remoting session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const psremotingProcess = this.psremotingProcesses.get(sessionId);
-    return psremotingProcess && !psremotingProcess.killed || false;
+    return (psremotingProcess && !psremotingProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -411,26 +475,26 @@ export class PSRemotingProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.psremotingProcesses.size
+        connectionsActive: this.psremotingProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -442,8 +506,8 @@ export class PSRemotingProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          powershell: { available: true }
-        }
+          powershell: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -451,8 +515,8 @@ export class PSRemotingProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `PowerShell not available: ${error}`],
         dependencies: {
-          powershell: { available: false }
-        }
+          powershell: { available: false },
+        },
       };
     }
   }
@@ -460,49 +524,75 @@ export class PSRemotingProtocol extends BaseProtocol {
   private async checkPowerShellAvailability(): Promise<void> {
     return new Promise((resolve, reject) => {
       // Try PowerShell Core first, then Windows PowerShell
-      const testProcess = spawn('pwsh', ['-Command', 'Get-Host'], { stdio: 'pipe' });
+      const testProcess = spawn('pwsh', ['-Command', 'Get-Host'], {
+        stdio: 'pipe',
+      });
 
       testProcess.on('close', (code) => {
         if (code === 0) {
           resolve();
         } else {
           // Try Windows PowerShell
-          const fallbackProcess = spawn('powershell', ['-Command', 'Get-Host'], { stdio: 'pipe' });
+          const fallbackProcess = spawn(
+            'powershell',
+            ['-Command', 'Get-Host'],
+            { stdio: 'pipe' }
+          );
 
           fallbackProcess.on('close', (fallbackCode) => {
             if (fallbackCode === 0) {
               resolve();
             } else {
-              reject(new Error('PowerShell not found. Please install PowerShell Core or Windows PowerShell.'));
+              reject(
+                new Error(
+                  'PowerShell not found. Please install PowerShell Core or Windows PowerShell.'
+                )
+              );
             }
           });
 
           fallbackProcess.on('error', () => {
-            reject(new Error('PowerShell not found. Please install PowerShell Core or Windows PowerShell.'));
+            reject(
+              new Error(
+                'PowerShell not found. Please install PowerShell Core or Windows PowerShell.'
+              )
+            );
           });
         }
       });
 
       testProcess.on('error', () => {
         // Try Windows PowerShell
-        const fallbackProcess = spawn('powershell', ['-Command', 'Get-Host'], { stdio: 'pipe' });
+        const fallbackProcess = spawn('powershell', ['-Command', 'Get-Host'], {
+          stdio: 'pipe',
+        });
 
         fallbackProcess.on('close', (fallbackCode) => {
           if (fallbackCode === 0) {
             resolve();
           } else {
-            reject(new Error('PowerShell not found. Please install PowerShell Core or Windows PowerShell.'));
+            reject(
+              new Error(
+                'PowerShell not found. Please install PowerShell Core or Windows PowerShell.'
+              )
+            );
           }
         });
 
         fallbackProcess.on('error', () => {
-          reject(new Error('PowerShell not found. Please install PowerShell Core or Windows PowerShell.'));
+          reject(
+            new Error(
+              'PowerShell not found. Please install PowerShell Core or Windows PowerShell.'
+            )
+          );
         });
       });
     });
   }
 
-  private buildPSRemotingCommand(options: PSRemotingConnectionOptions): string[] {
+  private buildPSRemotingCommand(
+    options: PSRemotingConnectionOptions
+  ): string[] {
     const command = [];
 
     // PowerShell executable
@@ -580,7 +670,9 @@ export class PSRemotingProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnterPSSessionCommand(options: PSRemotingConnectionOptions): string {
+  private buildEnterPSSessionCommand(
+    options: PSRemotingConnectionOptions
+  ): string {
     let cmd = 'Enter-PSSession';
 
     // Computer name
@@ -653,7 +745,9 @@ export class PSRemotingProtocol extends BaseProtocol {
     return cmd;
   }
 
-  private buildNewPSSessionCommand(options: PSRemotingConnectionOptions): string {
+  private buildNewPSSessionCommand(
+    options: PSRemotingConnectionOptions
+  ): string {
     let cmd = '$session = New-PSSession';
 
     // Computer name
@@ -747,7 +841,7 @@ export class PSRemotingProtocol extends BaseProtocol {
     }
 
     if (options.argumentList && options.argumentList.length > 0) {
-      cmd += ` -ArgumentList ${options.argumentList.map(arg => `'${arg}'`).join(', ')}`;
+      cmd += ` -ArgumentList ${options.argumentList.map((arg) => `'${arg}'`).join(', ')}`;
     }
 
     if (options.enableNetworkAccess) {
@@ -799,7 +893,9 @@ export class PSRemotingProtocol extends BaseProtocol {
     return cmd;
   }
 
-  private buildEnvironment(options: PSRemotingConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: PSRemotingConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // PowerShell environment variables
@@ -825,7 +921,8 @@ export class PSRemotingProtocol extends BaseProtocol {
     }
 
     if (options.maxMemoryPerShellMB) {
-      env.PSREMOTING_MAX_MEMORY_PER_SHELL = options.maxMemoryPerShellMB.toString();
+      env.PSREMOTING_MAX_MEMORY_PER_SHELL =
+        options.maxMemoryPerShellMB.toString();
     }
 
     // Culture settings
@@ -953,7 +1050,10 @@ export class PSRemotingProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing PowerShell Remoting process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing PowerShell Remoting process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

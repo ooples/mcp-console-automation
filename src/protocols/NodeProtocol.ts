@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Node.js Protocol connection options
@@ -62,9 +62,9 @@ export class NodeProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -96,8 +96,8 @@ export class NodeProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -120,8 +120,13 @@ export class NodeProtocol extends BaseProtocol {
     return await this.createSessionWithTypeDetection(sessionId, options);
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -142,12 +147,14 @@ export class NodeProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Node.js session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Node.js session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -186,8 +193,8 @@ export class NodeProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          node: { available: true }
-        }
+          node: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -195,8 +202,8 @@ export class NodeProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Node.js not available: ${error}`],
         dependencies: {
-          node: { available: false }
-        }
+          node: { available: false },
+        },
       };
     }
   }
@@ -205,7 +212,11 @@ export class NodeProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -219,7 +230,11 @@ export class NodeProtocol extends BaseProtocol {
     const nodeProcess = spawn(nodeCommand[0], nodeCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(nodeOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(nodeOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -228,7 +243,7 @@ export class NodeProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -238,18 +253,23 @@ export class NodeProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     nodeProcess.on('error', (error) => {
-      this.logger.error(`Node.js process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Node.js process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     nodeProcess.on('close', (code) => {
-      this.logger.info(`Node.js process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Node.js process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -262,7 +282,11 @@ export class NodeProtocol extends BaseProtocol {
       command: nodeCommand[0],
       args: nodeCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(nodeOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(nodeOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -270,12 +294,14 @@ export class NodeProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: nodeProcess.pid
+      pid: nodeProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Node.js session ${sessionId} created for ${nodeOptions.scriptFile || nodeOptions.moduleEntry || nodeOptions.repl ? 'REPL' : 'Node.js application'}`);
+    this.logger.info(
+      `Node.js session ${sessionId} created for ${nodeOptions.scriptFile || nodeOptions.moduleEntry || nodeOptions.repl ? 'REPL' : 'Node.js application'}`
+    );
     this.emit('session-created', { sessionId, type: 'node', session });
 
     return session;
@@ -287,8 +313,8 @@ export class NodeProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -310,25 +336,30 @@ export class NodeProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Node.js session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Node.js session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const nodeProcess = this.nodeProcesses.get(sessionId);
-    return nodeProcess && !nodeProcess.killed || false;
+    return (nodeProcess && !nodeProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -339,26 +370,26 @@ export class NodeProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.nodeProcesses.size
+        connectionsActive: this.nodeProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -370,7 +401,9 @@ export class NodeProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Node.js runtime not found. Please install Node.js.'));
+          reject(
+            new Error('Node.js runtime not found. Please install Node.js.')
+          );
         }
       });
 
@@ -457,7 +490,9 @@ export class NodeProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: NodeConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: NodeConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Custom environment variables
@@ -486,7 +521,10 @@ export class NodeProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Node.js process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Node.js process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

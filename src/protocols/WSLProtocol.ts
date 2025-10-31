@@ -19,7 +19,7 @@ import {
   ConsoleOutput,
   SessionOptions,
   ExtendedErrorPattern,
-  WSLErrorPattern
+  WSLErrorPattern,
 } from '../types/index.js';
 
 const execAsync = promisify(exec);
@@ -80,7 +80,10 @@ export class WSLProtocol {
 
     try {
       const { stdout } = await execAsync('wsl --status', { timeout: 5000 });
-      return stdout.includes('Default Distribution') || stdout.includes('Windows Subsystem for Linux');
+      return (
+        stdout.includes('Default Distribution') ||
+        stdout.includes('Windows Subsystem for Linux')
+      );
     } catch (error) {
       try {
         // Try alternative check
@@ -97,8 +100,12 @@ export class WSLProtocol {
    */
   public async getSystemInfo(forceRefresh = false): Promise<WSLSystemInfo> {
     const now = new Date();
-    if (!forceRefresh && this.wslSystemInfo && 
-        (now.getTime() - this.lastSystemInfoUpdate.getTime()) < this.systemInfoCacheTimeout) {
+    if (
+      !forceRefresh &&
+      this.wslSystemInfo &&
+      now.getTime() - this.lastSystemInfoUpdate.getTime() <
+        this.systemInfoCacheTimeout
+    ) {
       return this.wslSystemInfo;
     }
 
@@ -131,7 +138,7 @@ export class WSLProtocol {
         hyperVEnabled,
         virtualizationEnabled,
         kernelVersion,
-        availableDistributions
+        availableDistributions,
       };
 
       this.lastSystemInfoUpdate = now;
@@ -160,11 +167,15 @@ export class WSLProtocol {
    */
   public async getInstalledDistributions(): Promise<WSLDistribution[]> {
     try {
-      const { stdout } = await execAsync('wsl --list --verbose', { timeout: 10000 });
-      const lines = stdout.split('\n').filter(line => line.trim() && !line.includes('NAME'));
-      
+      const { stdout } = await execAsync('wsl --list --verbose', {
+        timeout: 10000,
+      });
+      const lines = stdout
+        .split('\n')
+        .filter((line) => line.trim() && !line.includes('NAME'));
+
       const distributions: WSLDistribution[] = [];
-      
+
       for (const line of lines) {
         const parts = line.trim().replace(/\s+/g, ' ').split(' ');
         if (parts.length >= 3) {
@@ -189,21 +200,25 @@ export class WSLProtocol {
             kernel: distributionInfo.kernel,
             memoryUsage: distributionInfo.memoryUsage,
             cpuUsage: distributionInfo.cpuUsage,
-            networkAddress: distributionInfo.networkAddress
+            networkAddress: distributionInfo.networkAddress,
           });
         }
       }
 
       return distributions;
     } catch (error) {
-      throw new Error(`Failed to get installed distributions: ${error.message}`);
+      throw new Error(
+        `Failed to get installed distributions: ${error.message}`
+      );
     }
   }
 
   /**
    * Get detailed information about a specific distribution
    */
-  private async getDistributionDetails(distributionName: string): Promise<Partial<WSLDistribution>> {
+  private async getDistributionDetails(
+    distributionName: string
+  ): Promise<Partial<WSLDistribution>> {
     const details: Partial<WSLDistribution> = {};
 
     try {
@@ -221,7 +236,8 @@ export class WSLProtocol {
           `wsl -d ${distributionName} -- uname -m`,
           { timeout: 3000 }
         );
-        details.architecture = archOutput.trim() === 'aarch64' ? 'arm64' : 'x64';
+        details.architecture =
+          archOutput.trim() === 'aarch64' ? 'arm64' : 'x64';
       } catch (archError) {
         details.architecture = 'x64';
       }
@@ -233,7 +249,10 @@ export class WSLProtocol {
           { timeout: 3000 }
         );
         const ips = ipOutput.trim().split(' ');
-        details.networkAddress = ips.find(ip => ip.startsWith('172.') || ip.startsWith('192.168.')) || ips[0];
+        details.networkAddress =
+          ips.find(
+            (ip) => ip.startsWith('172.') || ip.startsWith('192.168.')
+          ) || ips[0];
       } catch (ipError) {
         // Network address not available
       }
@@ -248,7 +267,6 @@ export class WSLProtocol {
       } catch (kernelError) {
         // Kernel version not available
       }
-
     } catch (error) {
       // Distribution might not be running or accessible
     }
@@ -262,7 +280,9 @@ export class WSLProtocol {
   private async getDefaultDistribution(): Promise<string | undefined> {
     try {
       const distributions = await this.getInstalledDistributions();
-      const defaultDist = distributions.find(dist => dist.defaultDistribution);
+      const defaultDist = distributions.find(
+        (dist) => dist.defaultDistribution
+      );
       return defaultDist?.name;
     } catch (error) {
       return undefined;
@@ -286,7 +306,10 @@ export class WSLProtocol {
    */
   private async checkHyperVStatus(): Promise<boolean> {
     try {
-      const { stdout } = await execAsync('bcdedit /enum | findstr hypervisorlaunchtype', { timeout: 5000 });
+      const { stdout } = await execAsync(
+        'bcdedit /enum | findstr hypervisorlaunchtype',
+        { timeout: 5000 }
+      );
       return stdout.toLowerCase().includes('auto');
     } catch (error) {
       return false;
@@ -298,7 +321,10 @@ export class WSLProtocol {
    */
   private async checkVirtualizationSupport(): Promise<boolean> {
     try {
-      const { stdout } = await execAsync('systeminfo | findstr /C:"Hyper-V Requirements"', { timeout: 10000 });
+      const { stdout } = await execAsync(
+        'systeminfo | findstr /C:"Hyper-V Requirements"',
+        { timeout: 10000 }
+      );
       return !stdout.toLowerCase().includes('no');
     } catch (error) {
       return true; // Assume it's supported if we can't determine
@@ -311,8 +337,10 @@ export class WSLProtocol {
   private async getKernelVersion(): Promise<string> {
     try {
       const distributions = await this.getInstalledDistributions();
-      const runningDist = distributions.find(dist => dist.state === 'Running');
-      
+      const runningDist = distributions.find(
+        (dist) => dist.state === 'Running'
+      );
+
       if (runningDist) {
         const { stdout } = await execAsync(
           `wsl -d ${runningDist.name} -- uname -r`,
@@ -332,13 +360,19 @@ export class WSLProtocol {
   /**
    * Get available distributions from Microsoft Store
    */
-  private async getAvailableDistributions(): Promise<WSLAvailableDistribution[]> {
+  private async getAvailableDistributions(): Promise<
+    WSLAvailableDistribution[]
+  > {
     try {
-      const { stdout } = await execAsync('wsl --list --online', { timeout: 15000 });
-      const lines = stdout.split('\n').filter(line => line.trim() && !line.includes('NAME'));
-      
+      const { stdout } = await execAsync('wsl --list --online', {
+        timeout: 15000,
+      });
+      const lines = stdout
+        .split('\n')
+        .filter((line) => line.trim() && !line.includes('NAME'));
+
       const available: WSLAvailableDistribution[] = [];
-      
+
       for (const line of lines) {
         const parts = line.trim().split(/\s{2,}/); // Split by multiple spaces
         if (parts.length >= 2) {
@@ -347,7 +381,7 @@ export class WSLProtocol {
             friendlyName: parts[1] || parts[0],
             source: 'microsoft-store',
             architecture: 'x64',
-            verified: true
+            verified: true,
           });
         }
       }
@@ -364,21 +398,21 @@ export class WSLProtocol {
    */
   public async createSession(options: SessionOptions): Promise<WSLSession> {
     const wslOptions = options.wslOptions || {};
-    
+
     // Ensure WSL is available
-    if (!await this.checkWSLAvailability()) {
+    if (!(await this.checkWSLAvailability())) {
       throw new Error('WSL is not available on this system');
     }
 
     // Get system info to validate distribution
     const systemInfo = await this.getSystemInfo();
-    
+
     // Determine distribution to use
     let distribution = wslOptions.distribution;
     if (!distribution) {
-      distribution = wslOptions.defaultDistribution ? 
-        systemInfo.defaultDistribution : 
-        systemInfo.installedDistributions[0]?.name;
+      distribution = wslOptions.defaultDistribution
+        ? systemInfo.defaultDistribution
+        : systemInfo.installedDistributions[0]?.name;
     }
 
     if (!distribution) {
@@ -386,7 +420,9 @@ export class WSLProtocol {
     }
 
     // Validate distribution exists
-    const distInfo = systemInfo.installedDistributions.find(d => d.name === distribution);
+    const distInfo = systemInfo.installedDistributions.find(
+      (d) => d.name === distribution
+    );
     if (!distInfo) {
       throw new Error(`Distribution '${distribution}' not found`);
     }
@@ -400,14 +436,20 @@ export class WSLProtocol {
     const sessionId = `wsl-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // Prepare command and environment
-    const { command, args, env } = await this.prepareSessionCommand(options, wslOptions, distribution);
+    const { command, args, env } = await this.prepareSessionCommand(
+      options,
+      wslOptions,
+      distribution
+    );
 
     // Create the session
     const session: WSLSession = {
       id: sessionId,
       command: command,
       args: args,
-      cwd: options.cwd || await this.translatePath(process.cwd(), 'windows-to-linux'),
+      cwd:
+        options.cwd ||
+        (await this.translatePath(process.cwd(), 'windows-to-linux')),
       env: env,
       createdAt: new Date(),
       status: 'running',
@@ -421,7 +463,7 @@ export class WSLProtocol {
       pathTranslations: new Map(),
       environmentVariables: new Map(),
       executionState: 'idle',
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     // Store session
@@ -437,16 +479,15 @@ export class WSLProtocol {
    * Prepare WSL command and environment
    */
   private async prepareSessionCommand(
-    options: SessionOptions, 
-    wslOptions: WSLConnectionOptions, 
+    options: SessionOptions,
+    wslOptions: WSLConnectionOptions,
     distribution: string
   ): Promise<{ command: string; args: string[]; env: Record<string, string> }> {
-    
     const args: string[] = [];
-    
+
     // Add distribution parameter
     args.push('-d', distribution);
-    
+
     // Add user parameter if specified
     if (wslOptions.user) {
       args.push('-u', wslOptions.user);
@@ -454,13 +495,16 @@ export class WSLProtocol {
 
     // Add working directory if specified
     if (options.cwd) {
-      const linuxPath = await this.translatePath(options.cwd, 'windows-to-linux');
+      const linuxPath = await this.translatePath(
+        options.cwd,
+        'windows-to-linux'
+      );
       args.push('-cd', linuxPath);
     }
 
     // Prepare environment variables
     const env = { ...process.env, ...options.env };
-    
+
     // Add WSL-specific environment variables
     if (wslOptions.interopEnabled !== false) {
       env.WSLENV = this.buildWSLEnvString(env);
@@ -483,7 +527,7 @@ export class WSLProtocol {
     return {
       command: 'wsl',
       args,
-      env
+      env,
     };
   }
 
@@ -492,10 +536,10 @@ export class WSLProtocol {
    */
   private buildWSLEnvString(env: Record<string, string>): string {
     const wslEnvVars: string[] = [];
-    
+
     // Common variables that should be passed through
     const commonVars = ['PATH', 'HOME', 'USER', 'SHELL', 'TERM', 'PWD'];
-    
+
     for (const [key, value] of Object.entries(env)) {
       if (commonVars.includes(key) || key.startsWith('WSL_')) {
         wslEnvVars.push(key);
@@ -514,10 +558,10 @@ export class WSLProtocol {
         `wsl -d ${distribution} -- df -h | grep "/mnt/"`,
         { timeout: 5000 }
       );
-      
-      const lines = stdout.split('\n').filter(line => line.trim());
+
+      const lines = stdout.split('\n').filter((line) => line.trim());
       const mountPoints: string[] = [];
-      
+
       for (const line of lines) {
         const match = line.match(/\/mnt\/([a-z])/);
         if (match) {
@@ -538,7 +582,9 @@ export class WSLProtocol {
     try {
       await execAsync(`wsl -d ${distribution} --exec true`, { timeout: 30000 });
     } catch (error) {
-      throw new Error(`Failed to start distribution '${distribution}': ${error.message}`);
+      throw new Error(
+        `Failed to start distribution '${distribution}': ${error.message}`
+      );
     }
   }
 
@@ -549,7 +595,9 @@ export class WSLProtocol {
     try {
       await execAsync(`wsl --terminate ${distribution}`, { timeout: 10000 });
     } catch (error) {
-      throw new Error(`Failed to stop distribution '${distribution}': ${error.message}`);
+      throw new Error(
+        `Failed to stop distribution '${distribution}': ${error.message}`
+      );
     }
   }
 
@@ -558,7 +606,7 @@ export class WSLProtocol {
    */
   public async restartDistribution(distribution: string): Promise<void> {
     await this.stopDistribution(distribution);
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for shutdown
+    await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for shutdown
     await this.startDistribution(distribution);
   }
 
@@ -576,17 +624,22 @@ export class WSLProtocol {
   /**
    * Install a new distribution
    */
-  public async installDistribution(distribution: string, installPath?: string): Promise<void> {
+  public async installDistribution(
+    distribution: string,
+    installPath?: string
+  ): Promise<void> {
     try {
       let command = `wsl --install -d ${distribution}`;
       if (installPath) {
         // For sideload installations
         command = `wsl --import ${distribution} ${installPath}`;
       }
-      
+
       await execAsync(command, { timeout: 300000 }); // 5 minutes timeout for installation
     } catch (error) {
-      throw new Error(`Failed to install distribution '${distribution}': ${error.message}`);
+      throw new Error(
+        `Failed to install distribution '${distribution}': ${error.message}`
+      );
     }
   }
 
@@ -597,16 +650,21 @@ export class WSLProtocol {
     try {
       await execAsync(`wsl --unregister ${distribution}`, { timeout: 30000 });
     } catch (error) {
-      throw new Error(`Failed to uninstall distribution '${distribution}': ${error.message}`);
+      throw new Error(
+        `Failed to uninstall distribution '${distribution}': ${error.message}`
+      );
     }
   }
 
   /**
    * Path translation between Windows and Linux
    */
-  public async translatePath(path: string, direction: 'windows-to-linux' | 'linux-to-windows'): Promise<string> {
+  public async translatePath(
+    path: string,
+    direction: 'windows-to-linux' | 'linux-to-windows'
+  ): Promise<string> {
     const cacheKey = `${direction}:${path}`;
-    
+
     if (this.pathTranslationCache.has(cacheKey)) {
       return this.pathTranslationCache.get(cacheKey)!;
     }
@@ -668,10 +726,9 @@ export class WSLProtocol {
 
     // For other paths, try to resolve using WSL
     try {
-      const { stdout } = await execAsync(
-        `wsl -- wslpath -w "${linuxPath}"`,
-        { timeout: 3000 }
-      );
+      const { stdout } = await execAsync(`wsl -- wslpath -w "${linuxPath}"`, {
+        timeout: 3000,
+      });
       return stdout.trim();
     } catch (error) {
       // Fallback to direct conversion
@@ -683,43 +740,42 @@ export class WSLProtocol {
    * Execute a command in WSL
    */
   public async executeCommand(
-    sessionId: string, 
-    command: string, 
-    args?: string[], 
+    sessionId: string,
+    command: string,
+    args?: string[],
     options?: { timeout?: number; cwd?: string }
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    
     const session = this.activeSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
 
     const fullCommand = args ? `${command} ${args.join(' ')}` : command;
-    
+
     const wslArgs = ['-d', session.distribution];
-    
+
     if (options?.cwd) {
-      const linuxCwd = await this.translatePath(options.cwd, 'windows-to-linux');
+      const linuxCwd = await this.translatePath(
+        options.cwd,
+        'windows-to-linux'
+      );
       wslArgs.push('-cd', linuxCwd);
     }
-    
+
     wslArgs.push('--', 'bash', '-c', fullCommand);
 
     try {
-      const { stdout, stderr } = await execAsync(
-        `wsl ${wslArgs.join(' ')}`,
-        { 
-          timeout: options?.timeout || 30000,
-          maxBuffer: 1024 * 1024 * 10 // 10MB buffer
-        }
-      );
+      const { stdout, stderr } = await execAsync(`wsl ${wslArgs.join(' ')}`, {
+        timeout: options?.timeout || 30000,
+        maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+      });
 
       return { stdout, stderr, exitCode: 0 };
     } catch (error: any) {
       return {
         stdout: error.stdout || '',
         stderr: error.stderr || error.message,
-        exitCode: error.code || 1
+        exitCode: error.code || 1,
       };
     }
   }
@@ -748,13 +804,15 @@ export class WSLProtocol {
           severity: 'critical',
           message: 'WSL service is not running',
           resolution: 'Try running "wsl --shutdown" and then restart WSL',
-          autoFixAvailable: true
+          autoFixAvailable: true,
         });
       }
 
       // Check if distribution is responsive
       try {
-        await execAsync(`wsl -d ${distribution} --exec echo "test"`, { timeout: 10000 });
+        await execAsync(`wsl -d ${distribution} --exec echo "test"`, {
+          timeout: 10000,
+        });
         distributionResponsive = true;
       } catch (error) {
         issues.push({
@@ -762,40 +820,38 @@ export class WSLProtocol {
           severity: 'high',
           message: `Distribution ${distribution} is not responsive`,
           resolution: `Try restarting the distribution: wsl --terminate ${distribution}`,
-          autoFixAvailable: true
+          autoFixAvailable: true,
         });
       }
 
       // Check network connectivity
       if (distributionResponsive) {
         try {
-          await execAsync(
-            `wsl -d ${distribution} -- ping -c 1 8.8.8.8`,
-            { timeout: 10000 }
-          );
+          await execAsync(`wsl -d ${distribution} -- ping -c 1 8.8.8.8`, {
+            timeout: 10000,
+          });
           networkConnectivity = true;
         } catch (error) {
           issues.push({
             type: 'network',
             severity: 'medium',
             message: 'Network connectivity issues detected',
-            resolution: 'Check network configuration and DNS settings'
+            resolution: 'Check network configuration and DNS settings',
           });
         }
 
         // Check filesystem accessibility
         try {
-          await execAsync(
-            `wsl -d ${distribution} -- ls /tmp`,
-            { timeout: 5000 }
-          );
+          await execAsync(`wsl -d ${distribution} -- ls /tmp`, {
+            timeout: 5000,
+          });
           filesystemAccessible = true;
         } catch (error) {
           issues.push({
             type: 'filesystem',
             severity: 'high',
             message: 'Filesystem access issues detected',
-            resolution: 'Distribution filesystem may be corrupted'
+            resolution: 'Distribution filesystem may be corrupted',
           });
         }
 
@@ -843,11 +899,11 @@ export class WSLProtocol {
 
       // Determine overall status
       let status: WSLHealthStatus['status'] = 'healthy';
-      if (issues.some(issue => issue.severity === 'critical')) {
+      if (issues.some((issue) => issue.severity === 'critical')) {
         status = 'critical';
-      } else if (issues.some(issue => issue.severity === 'high')) {
+      } else if (issues.some((issue) => issue.severity === 'high')) {
         status = 'critical';
-      } else if (issues.some(issue => issue.severity === 'medium')) {
+      } else if (issues.some((issue) => issue.severity === 'medium')) {
         status = 'warning';
       } else if (!wslServiceRunning || !distributionResponsive) {
         status = 'unavailable';
@@ -864,9 +920,8 @@ export class WSLProtocol {
         memoryUsage,
         diskUsage,
         lastHealthCheck: new Date(),
-        issues
+        issues,
       };
-
     } catch (error) {
       return {
         distribution,
@@ -878,12 +933,14 @@ export class WSLProtocol {
         memoryUsage: 0,
         diskUsage: 0,
         lastHealthCheck: new Date(),
-        issues: [{
-          type: 'configuration',
-          severity: 'critical',
-          message: `Health check failed: ${error.message}`,
-          resolution: 'Check WSL installation and configuration'
-        }]
+        issues: [
+          {
+            type: 'configuration',
+            severity: 'critical',
+            message: `Health check failed: ${error.message}`,
+            resolution: 'Check WSL installation and configuration',
+          },
+        ],
       };
     }
   }
@@ -898,11 +955,16 @@ export class WSLProtocol {
     const interval = setInterval(async () => {
       try {
         const healthStatus = await this.getHealthStatus(session.distribution);
-        
+
         // Handle critical issues
-        if (healthStatus.status === 'critical' || healthStatus.status === 'unavailable') {
-          const criticalIssues = healthStatus.issues.filter(issue => issue.severity === 'critical');
-          
+        if (
+          healthStatus.status === 'critical' ||
+          healthStatus.status === 'unavailable'
+        ) {
+          const criticalIssues = healthStatus.issues.filter(
+            (issue) => issue.severity === 'critical'
+          );
+
           for (const issue of criticalIssues) {
             if (issue.autoFixAvailable) {
               await this.attemptAutoRecovery(session, issue);
@@ -910,7 +972,10 @@ export class WSLProtocol {
           }
         }
       } catch (error) {
-        console.error(`Health monitoring failed for session ${sessionId}:`, error);
+        console.error(
+          `Health monitoring failed for session ${sessionId}:`,
+          error
+        );
       }
     }, 30000); // Check every 30 seconds
 
@@ -920,13 +985,16 @@ export class WSLProtocol {
   /**
    * Attempt automatic recovery for issues
    */
-  private async attemptAutoRecovery(session: WSLSession, issue: WSLHealthIssue): Promise<void> {
+  private async attemptAutoRecovery(
+    session: WSLSession,
+    issue: WSLHealthIssue
+  ): Promise<void> {
     try {
       switch (issue.type) {
         case 'configuration':
           if (issue.message.includes('WSL service is not running')) {
             await execAsync('wsl --shutdown', { timeout: 10000 });
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            await new Promise((resolve) => setTimeout(resolve, 3000));
             await this.startDistribution(session.distribution);
           } else if (issue.message.includes('not responsive')) {
             await this.restartDistribution(session.distribution);
@@ -988,7 +1056,7 @@ export class WSLProtocol {
   public async getWSLConfig(): Promise<WSLConfig> {
     const config: WSLConfig = {
       global: {},
-      distributions: {}
+      distributions: {},
     };
 
     try {
@@ -1008,7 +1076,8 @@ export class WSLProtocol {
             { timeout: 5000 }
           );
           if (stdout.trim()) {
-            config.distributions[dist.name] = this.parseDistributionConfig(stdout);
+            config.distributions[dist.name] =
+              this.parseDistributionConfig(stdout);
           }
         } catch (error) {
           // No wsl.conf or not accessible
@@ -1031,7 +1100,7 @@ export class WSLProtocol {
 
     for (const line of lines) {
       const trimmedLine = line.trim();
-      
+
       if (trimmedLine.startsWith('[') && trimmedLine.endsWith(']')) {
         currentSection = trimmedLine.slice(1, -1).toLowerCase();
       } else if (trimmedLine.includes('=') && currentSection === 'wsl2') {
@@ -1053,7 +1122,10 @@ export class WSLProtocol {
             config.localhostForwarding = cleanValue.toLowerCase() === 'true';
             break;
           case 'networkingmode':
-            config.networkingMode = cleanValue as 'mirrored' | 'nat' | 'bridged';
+            config.networkingMode = cleanValue as
+              | 'mirrored'
+              | 'nat'
+              | 'bridged';
             break;
           case 'firewall':
             config.firewall = cleanValue.toLowerCase() === 'true';
@@ -1074,14 +1146,16 @@ export class WSLProtocol {
   /**
    * Parse distribution wsl.conf file content
    */
-  private parseDistributionConfig(content: string): WSLConfig['distributions'][string] {
+  private parseDistributionConfig(
+    content: string
+  ): WSLConfig['distributions'][string] {
     const config: WSLConfig['distributions'][string] = {};
     const lines = content.split('\n');
     let currentSection = '';
 
     for (const line of lines) {
       const trimmedLine = line.trim();
-      
+
       if (trimmedLine.startsWith('[') && trimmedLine.endsWith(']')) {
         currentSection = trimmedLine.slice(1, -1).toLowerCase();
       } else if (trimmedLine.includes('=')) {
@@ -1140,8 +1214,9 @@ export class WSLProtocol {
         severity: 'high',
         category: 'wsl-installation',
         wslVersion: 1,
-        remediation: 'Check file paths and permissions for distribution installation',
-        retryable: false
+        remediation:
+          'Check file paths and permissions for distribution installation',
+        retryable: false,
       },
       {
         pattern: /WslRegisterDistribution failed with error: 0x8007019e/,
@@ -1150,16 +1225,17 @@ export class WSLProtocol {
         severity: 'critical',
         category: 'wsl-configuration',
         remediation: 'Enable WSL feature in Windows Features or via PowerShell',
-        retryable: false
+        retryable: false,
       },
       {
-        pattern: /The Windows Subsystem for Linux optional component is not enabled/,
+        pattern:
+          /The Windows Subsystem for Linux optional component is not enabled/,
         type: 'error',
         description: 'WSL optional component not enabled',
         severity: 'critical',
         category: 'wsl-configuration',
         remediation: 'Enable WSL in Windows Features',
-        retryable: false
+        retryable: false,
       },
       {
         pattern: /Element not found/,
@@ -1168,7 +1244,7 @@ export class WSLProtocol {
         severity: 'medium',
         category: 'wsl-distribution',
         remediation: 'Check distribution name and installation status',
-        retryable: true
+        retryable: true,
       },
       {
         pattern: /The system cannot find the file specified/,
@@ -1178,7 +1254,7 @@ export class WSLProtocol {
         category: 'wsl-filesystem',
         filesystemRelated: true,
         remediation: 'Reinstall WSL or the specific distribution',
-        retryable: true
+        retryable: true,
       },
       {
         pattern: /A connection with the server could not be established/,
@@ -1189,7 +1265,7 @@ export class WSLProtocol {
         networkRelated: true,
         wslVersion: 2,
         remediation: 'Check network configuration and restart WSL',
-        retryable: true
+        retryable: true,
       },
       {
         pattern: /systemd.*failed/i,
@@ -1200,7 +1276,7 @@ export class WSLProtocol {
         systemdRelated: true,
         wslVersion: 2,
         remediation: 'Check systemd configuration and service status',
-        retryable: true
+        retryable: true,
       },
       {
         pattern: /mount.*failed/i,
@@ -1210,7 +1286,7 @@ export class WSLProtocol {
         category: 'wsl-filesystem',
         filesystemRelated: true,
         remediation: 'Check mount points and file system integrity',
-        retryable: true
+        retryable: true,
       },
       {
         pattern: /docker.*not found/i,
@@ -1219,7 +1295,7 @@ export class WSLProtocol {
         severity: 'low',
         category: 'wsl-docker',
         remediation: 'Install Docker in WSL distribution',
-        retryable: false
+        retryable: false,
       },
       {
         pattern: /permission denied.*\/mnt\//i,
@@ -1229,8 +1305,8 @@ export class WSLProtocol {
         category: 'wsl-permissions',
         filesystemRelated: true,
         remediation: 'Check WSL mount permissions and Windows file permissions',
-        retryable: false
-      }
+        retryable: false,
+      },
     ];
   }
 
@@ -1239,7 +1315,7 @@ export class WSLProtocol {
    */
   public async cleanup(): Promise<void> {
     // Stop all health monitoring
-    Array.from(this.healthCheckIntervals.keys()).forEach(sessionId => {
+    Array.from(this.healthCheckIntervals.keys()).forEach((sessionId) => {
       this.stopHealthMonitoring(sessionId);
     });
 

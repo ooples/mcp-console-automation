@@ -90,7 +90,10 @@ export abstract class TestReporter {
   /**
    * Save report content to file
    */
-  protected async saveReport(content: string, outputPath: string): Promise<void> {
+  protected async saveReport(
+    content: string,
+    outputPath: string
+  ): Promise<void> {
     const dir = path.dirname(outputPath);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(outputPath, content, 'utf-8');
@@ -129,7 +132,7 @@ export abstract class TestReporter {
       '"': '&quot;',
       "'": '&#039;',
     };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    return text.replace(/[&<>"']/g, (m) => map[m]);
   }
 
   /**
@@ -143,6 +146,6 @@ export abstract class TestReporter {
       '"': '&quot;',
       "'": '&apos;',
     };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    return text.replace(/[&<>"']/g, (m) => map[m]);
   }
 }

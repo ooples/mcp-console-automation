@@ -1,5 +1,9 @@
 import { ErrorDetector } from '../core/ErrorDetector.js';
-import { ErrorReporter, ReportingOptions, MonitoringIntegration } from '../core/ErrorReporting.js';
+import {
+  ErrorReporter,
+  ReportingOptions,
+  MonitoringIntegration,
+} from '../core/ErrorReporting.js';
 import { ErrorPatterns } from '../patterns/ErrorPatterns.js';
 
 /**
@@ -17,9 +21,9 @@ export class ErrorDetectionDemo {
       threshold: {
         critical: 1,
         high: 3,
-        total: 5
+        total: 5,
       },
-      cooldownMinutes: 10
+      cooldownMinutes: 10,
     });
   }
 
@@ -63,7 +67,9 @@ IndexError: list index out of range
 `;
 
     const report = this.errorDetector.generateReport(errorLogs);
-    console.log(this.errorReporter.formatForConsole(report, { includeRemediation: true }));
+    console.log(
+      this.errorReporter.formatForConsole(report, { includeRemediation: true })
+    );
   }
 
   private async demoCompilationErrors(): Promise<void> {
@@ -87,7 +93,7 @@ error[E0425]: cannot find value 'undefined_var' in this scope
     const report = this.errorDetector.generateReport(compilationLogs);
     const options: ReportingOptions = {
       includeRemediation: true,
-      categories: ['compilation']
+      categories: ['compilation'],
     };
     console.log(this.errorReporter.formatForConsole(report, options));
   }
@@ -105,10 +111,12 @@ error[E0425]: cannot find value 'undefined_var' in this scope
 `;
 
     const report = this.errorDetector.generateReport(networkLogs);
-    console.log(this.errorReporter.formatForConsole(report, { 
-      includeRemediation: true,
-      categories: ['network']
-    }));
+    console.log(
+      this.errorReporter.formatForConsole(report, {
+        includeRemediation: true,
+        categories: ['network'],
+      })
+    );
   }
 
   private async demoSSHErrors(): Promise<void> {
@@ -128,10 +136,12 @@ Connection to production-server.com closed by remote host.
 `;
 
     const report = this.errorDetector.generateReport(sshLogs);
-    console.log(this.errorReporter.formatForConsole(report, { 
-      includeRemediation: true,
-      categories: ['ssh']
-    }));
+    console.log(
+      this.errorReporter.formatForConsole(report, {
+        includeRemediation: true,
+        categories: ['ssh'],
+      })
+    );
   }
 
   private async demoBuildToolErrors(): Promise<void> {
@@ -150,10 +160,12 @@ make: *** [all] Error 1
 `;
 
     const report = this.errorDetector.generateReport(buildLogs);
-    console.log(this.errorReporter.formatForConsole(report, { 
-      includeRemediation: true,
-      categories: ['build-tool']
-    }));
+    console.log(
+      this.errorReporter.formatForConsole(report, {
+        includeRemediation: true,
+        categories: ['build-tool'],
+      })
+    );
   }
 
   private async demoDatabaseErrors(): Promise<void> {
@@ -172,10 +184,12 @@ Deadlock found when trying to get lock; try restarting transaction
 `;
 
     const report = this.errorDetector.generateReport(dbLogs);
-    console.log(this.errorReporter.formatForConsole(report, { 
-      includeRemediation: true,
-      categories: ['database']
-    }));
+    console.log(
+      this.errorReporter.formatForConsole(report, {
+        includeRemediation: true,
+        categories: ['database'],
+      })
+    );
   }
 
   private async demoPerformanceIssues(): Promise<void> {
@@ -193,10 +207,12 @@ I/O error: Disk read error on /dev/sda1
 `;
 
     const report = this.errorDetector.generateReport(perfLogs);
-    console.log(this.errorReporter.formatForConsole(report, { 
-      includeRemediation: true,
-      categories: ['performance']
-    }));
+    console.log(
+      this.errorReporter.formatForConsole(report, {
+        includeRemediation: true,
+        categories: ['performance'],
+      })
+    );
   }
 
   private async demoSecurityErrors(): Promise<void> {
@@ -213,10 +229,12 @@ Forbidden: Access to /sensitive-data denied
 `;
 
     const report = this.errorDetector.generateReport(securityLogs);
-    console.log(this.errorReporter.formatForConsole(report, { 
-      includeRemediation: true,
-      categories: ['security']
-    }));
+    console.log(
+      this.errorReporter.formatForConsole(report, {
+        includeRemediation: true,
+        categories: ['security'],
+      })
+    );
   }
 
   private async demoComplexScenario(): Promise<void> {
@@ -242,11 +260,13 @@ Forbidden: Access to /sensitive-data denied
 `;
 
     const report = this.errorDetector.generateReport(complexLogs);
-    
-    console.log(this.errorReporter.formatForConsole(report, { 
-      includeRemediation: true,
-      includeContext: false
-    }));
+
+    console.log(
+      this.errorReporter.formatForConsole(report, {
+        includeRemediation: true,
+        includeContext: false,
+      })
+    );
 
     // Demo structured output for APIs
     console.log('\n📊 MCP Structured Response:');
@@ -267,25 +287,27 @@ Forbidden: Access to /sensitive-data denied
         type: 'console',
         threshold: {
           criticalErrors: 1,
-          totalErrors: 5
-        }
+          totalErrors: 5,
+        },
       },
       {
         type: 'file',
         filePath: './error-report.json',
         threshold: {
-          severityScore: 10
-        }
+          severityScore: 10,
+        },
       },
       {
         type: 'custom',
         customHandler: async (report) => {
-          console.log(`📧 Custom handler: Sending alert for ${report.analysis.totalErrors} errors`);
+          console.log(
+            `📧 Custom handler: Sending alert for ${report.analysis.totalErrors} errors`
+          );
         },
         threshold: {
-          criticalErrors: 2
-        }
-      }
+          criticalErrors: 2,
+        },
+      },
     ];
 
     try {
@@ -314,7 +336,7 @@ Forbidden: Access to /sensitive-data denied
       severity: 'high',
       remediation: 'Check application-specific logs and configuration',
       tags: ['custom', 'myapp'],
-      retryable: false
+      retryable: false,
     });
 
     const customLogs = `
@@ -324,7 +346,9 @@ Forbidden: Access to /sensitive-data denied
 `;
 
     const report = this.errorDetector.generateReport(customLogs);
-    console.log(this.errorReporter.formatForConsole(report, { includeRemediation: true }));
+    console.log(
+      this.errorReporter.formatForConsole(report, { includeRemediation: true })
+    );
   }
 
   /**
@@ -337,25 +361,25 @@ Forbidden: Access to /sensitive-data denied
     // Show patterns by category
     console.log('🌐 Network patterns:');
     const networkPatterns = ErrorPatterns.getPatternsByCategory('network');
-    networkPatterns.slice(0, 3).forEach(pattern => {
+    networkPatterns.slice(0, 3).forEach((pattern) => {
       console.log(`  - ${pattern.description}: ${pattern.pattern}`);
     });
 
     console.log('\n☕ Java patterns:');
     const javaPatterns = ErrorPatterns.getPatternsByLanguage('java');
-    javaPatterns.slice(0, 3).forEach(pattern => {
+    javaPatterns.slice(0, 3).forEach((pattern) => {
       console.log(`  - ${pattern.description}: ${pattern.pattern}`);
     });
 
     console.log('\n🔴 Critical patterns:');
     const criticalPatterns = ErrorPatterns.getPatternsBySeverity('critical');
-    criticalPatterns.slice(0, 3).forEach(pattern => {
+    criticalPatterns.slice(0, 3).forEach((pattern) => {
       console.log(`  - ${pattern.description}: ${pattern.pattern}`);
     });
 
     console.log('\n🔄 Retryable patterns:');
     const retryablePatterns = ErrorPatterns.getRetryablePatterns();
-    retryablePatterns.slice(0, 3).forEach(pattern => {
+    retryablePatterns.slice(0, 3).forEach((pattern) => {
       console.log(`  - ${pattern.description}: ${pattern.pattern}`);
     });
   }
@@ -364,12 +388,12 @@ Forbidden: Access to /sensitive-data denied
 // Usage example
 export async function runErrorDetectionDemo(): Promise<void> {
   const demo = new ErrorDetectionDemo();
-  
+
   try {
     await demo.runDemo();
     demo.demoCustomPatterns();
     demo.demoPatternFiltering();
-    
+
     console.log('\n🎉 Demo completed successfully!');
     console.log('═══════════════════════════════════════════════════════════');
   } catch (error) {

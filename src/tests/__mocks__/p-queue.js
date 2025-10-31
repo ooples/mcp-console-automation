@@ -50,5 +50,4 @@ class PQueue {
   }
 }
 
-module.exports = PQueue;
-module.exports.default = PQueue;
+export default PQueue;

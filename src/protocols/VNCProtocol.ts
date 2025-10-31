@@ -29,9 +29,12 @@ import {
   ConsoleOutput,
   SessionOptions,
   ConsoleSession,
-  ConsoleType
+  ConsoleType,
 } from '../types/index.js';
-import { ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
+import {
+  ProtocolCapabilities,
+  ProtocolHealthStatus,
+} from '../core/ProtocolFactory.js';
 
 // RFB Protocol Constants (RFC 6143)
 const RFB_PROTOCOL_VERSION_3_3 = 'RFB 003.003\n';
@@ -49,7 +52,7 @@ const RFB_CLIENT_MESSAGES = {
   ENABLE_CONTINUOUS_UPDATES: 150, // TigerVNC extension
   FENCE: 248, // TigerVNC fence extension
   XVP: 250, // Xvp extension
-  QEMU: 255 // QEMU extension
+  QEMU: 255, // QEMU extension
 } as const;
 
 const RFB_SERVER_MESSAGES = {
@@ -61,7 +64,7 @@ const RFB_SERVER_MESSAGES = {
   END_OF_CONTINUOUS_UPDATES: 150, // TigerVNC extension
   FENCE: 248, // TigerVNC fence extension
   XVP: 250, // Xvp extension
-  QEMU: 255 // QEMU extension
+  QEMU: 255, // QEMU extension
 } as const;
 
 // Encoding Constants
@@ -88,7 +91,7 @@ const RFB_ENCODINGS = {
   ZLIB: 6,
   ZLIBHEX: 8,
   JPEG: 21, // TurboVNC
-  JRLE: 22  // TurboVNC
+  JRLE: 22, // TurboVNC
 } as const;
 
 // Security Types
@@ -104,7 +107,7 @@ const RFB_SECURITY_TYPES = {
   VENCRYPT: 19,
   SASL: 20,
   MD5_HASH: 21,
-  XVP: 22
+  XVP: 22,
 } as const;
 
 // VeNCrypt Sub-types
@@ -117,7 +120,7 @@ const VENCRYPT_SUBTYPES = {
   X509_VNC: 261,
   X509_PLAIN: 262,
   TLS_SASL: 263,
-  X509_SASL: 264
+  X509_SASL: 264,
 } as const;
 
 // Key mappings for keyboard events
@@ -128,28 +131,49 @@ const KEY_MAPPINGS = {
   RETURN: 0xff0d,
   ESCAPE: 0xff1b,
   DELETE: 0xffff,
-  
+
   // Function keys
-  F1: 0xffbe, F2: 0xffbf, F3: 0xffc0, F4: 0xffc1,
-  F5: 0xffc2, F6: 0xffc3, F7: 0xffc4, F8: 0xffc5,
-  F9: 0xffc6, F10: 0xffc7, F11: 0xffc8, F12: 0xffc9,
-  
+  F1: 0xffbe,
+  F2: 0xffbf,
+  F3: 0xffc0,
+  F4: 0xffc1,
+  F5: 0xffc2,
+  F6: 0xffc3,
+  F7: 0xffc4,
+  F8: 0xffc5,
+  F9: 0xffc6,
+  F10: 0xffc7,
+  F11: 0xffc8,
+  F12: 0xffc9,
+
   // Arrow keys
-  LEFT: 0xff51, UP: 0xff52, RIGHT: 0xff53, DOWN: 0xff54,
-  
+  LEFT: 0xff51,
+  UP: 0xff52,
+  RIGHT: 0xff53,
+  DOWN: 0xff54,
+
   // Modifier keys
-  SHIFT_L: 0xffe1, SHIFT_R: 0xffe2,
-  CONTROL_L: 0xffe3, CONTROL_R: 0xffe4,
-  META_L: 0xffe7, META_R: 0xffe8,
-  ALT_L: 0xffe9, ALT_R: 0xffea,
-  
+  SHIFT_L: 0xffe1,
+  SHIFT_R: 0xffe2,
+  CONTROL_L: 0xffe3,
+  CONTROL_R: 0xffe4,
+  META_L: 0xffe7,
+  META_R: 0xffe8,
+  ALT_L: 0xffe9,
+  ALT_R: 0xffea,
+
   // Special keys
-  HOME: 0xff50, END: 0xff57,
-  PAGE_UP: 0xff55, PAGE_DOWN: 0xff56,
-  INSERT: 0xff63, PRINT: 0xff61,
-  MENU: 0xff67, PAUSE: 0xff13,
-  CAPS_LOCK: 0xffe5, NUM_LOCK: 0xff7f,
-  SCROLL_LOCK: 0xff14
+  HOME: 0xff50,
+  END: 0xff57,
+  PAGE_UP: 0xff55,
+  PAGE_DOWN: 0xff56,
+  INSERT: 0xff63,
+  PRINT: 0xff61,
+  MENU: 0xff67,
+  PAUSE: 0xff13,
+  CAPS_LOCK: 0xffe5,
+  NUM_LOCK: 0xff7f,
+  SCROLL_LOCK: 0xff14,
 } as const;
 
 /**
@@ -166,13 +190,16 @@ export class VNCProtocol extends BaseProtocol {
   private defaultOptions: Partial<VNCConnectionOptions>;
   private config: VNCProtocolConfig;
   private vncProcesses: Map<string, ChildProcess> = new Map();
-  private vncViewers: Map<string, { process: ChildProcess; pid: number; port: number }> = new Map();
+  private vncViewers: Map<
+    string,
+    { process: ChildProcess; pid: number; port: number }
+  > = new Map();
 
   // Required properties for VNC protocol functionality
   public options: Partial<VNCConnectionOptions>;
   public connectionId: string;
   public session?: VNCSession;
-  
+
   // Protocol state
   private protocolVersion: string = '';
   private securityTypes: number[] = [];
@@ -181,42 +208,42 @@ export class VNCProtocol extends BaseProtocol {
   private pixelFormat: any;
   private framebufferWidth: number = 0;
   private framebufferHeight: number = 0;
-  
+
   // Buffers and state management
   private receiveBuffer: Buffer = Buffer.alloc(0);
   private expectedMessageLength: number = 0;
   private messageHandler?: (data: Buffer) => void;
   private isConnected: boolean = false;
   private isAuthenticated: boolean = false;
-  
+
   // Performance tracking
   private performanceMetrics: VNCPerformanceMetrics;
   private lastFrameTime: number = 0;
   private frameCount: number = 0;
   private bytesReceived: number = 0;
   private bytesSent: number = 0;
-  
+
   // Encoding support
   private supportedEncodings: Map<number, string> = new Map();
   private compressionLevel: number = 6;
   private qualityLevel: number = 6;
-  
+
   // File transfer state
   private activeFileTransfers: Map<string, VNCFileTransfer> = new Map();
   private clipboardData: string = '';
-  
+
   // TLS/Encryption state
   private tlsSocket?: TLSSocket;
   private encryptionEnabled: boolean = false;
-  
+
   // Recording state
   private recordingStream?: fs.WriteStream;
   private recordingStartTime?: Date;
-  
+
   // Multi-monitor support
   private monitors: VNCMonitorConfig[] = [];
   private primaryMonitor: number = 0;
-  
+
   // Repeater support
   private repeaterConnection?: Socket;
   private repeaterMode: 'mode1' | 'mode2' = 'mode1';
@@ -273,7 +300,7 @@ export class VNCProtocol extends BaseProtocol {
         tightvnc: { available: true, version: '1.0' },
         tigervnc: { available: true, version: '1.0' },
         realvnc: { available: true, version: '1.0' },
-        ultravnc: { available: true, version: '1.0' }
+        ultravnc: { available: true, version: '1.0' },
       },
     };
 
@@ -303,9 +330,17 @@ export class VNCProtocol extends BaseProtocol {
         blueMax: 255,
         redShift: 16,
         greenShift: 8,
-        blueShift: 0
+        blueShift: 0,
       },
-      supportedEncodings: ['zrle', 'hextile', 'rre', 'raw', 'copyrect', 'cursor', 'desktopsize'],
+      supportedEncodings: [
+        'zrle',
+        'hextile',
+        'rre',
+        'raw',
+        'copyrect',
+        'cursor',
+        'desktopsize',
+      ],
       authMethod: 'vencrypt',
       timeout: 30000,
       keepAlive: true,
@@ -337,7 +372,7 @@ export class VNCProtocol extends BaseProtocol {
       bufferSize: 65536,
       maxUpdateRate: 60,
       enableLazyUpdates: false,
-      debugLevel: 'info'
+      debugLevel: 'info',
     };
   }
 
@@ -348,12 +383,19 @@ export class VNCProtocol extends BaseProtocol {
       connectionTimeout: 30000,
       readTimeout: 60000,
       writeTimeout: 30000,
-      preferredEncodings: ['zrle', 'hextile', 'tight', 'rre', 'raw', 'copyrect'],
+      preferredEncodings: [
+        'zrle',
+        'hextile',
+        'tight',
+        'rre',
+        'raw',
+        'copyrect',
+      ],
       defaultPixelFormat: {
         bitsPerPixel: 32,
         depth: 24,
         bigEndianFlag: false,
-        trueColorFlag: true
+        trueColorFlag: true,
       },
       allowedSecurityTypes: ['vencrypt', 'tls', 'vnc'],
       requireEncryption: false,
@@ -378,7 +420,7 @@ export class VNCProtocol extends BaseProtocol {
       enableTightVNCExtensions: true,
       enableRealVNCExtensions: true,
       enableTigerVNCExtensions: true,
-      enableTurboVNCExtensions: true
+      enableTurboVNCExtensions: true,
     };
   }
 
@@ -397,8 +439,14 @@ export class VNCProtocol extends BaseProtocol {
     this.supportedEncodings.set(RFB_ENCODINGS.CURSOR, 'Cursor');
     this.supportedEncodings.set(RFB_ENCODINGS.DESKTOP_SIZE, 'DesktopSize');
     this.supportedEncodings.set(RFB_ENCODINGS.LAST_RECT, 'LastRect');
-    this.supportedEncodings.set(RFB_ENCODINGS.PSEUDO_EXTENDED_DESKTOP_SIZE, 'ExtendedDesktopSize');
-    this.supportedEncodings.set(RFB_ENCODINGS.PSEUDO_CONTINUOUS_UPDATES, 'ContinuousUpdates');
+    this.supportedEncodings.set(
+      RFB_ENCODINGS.PSEUDO_EXTENDED_DESKTOP_SIZE,
+      'ExtendedDesktopSize'
+    );
+    this.supportedEncodings.set(
+      RFB_ENCODINGS.PSEUDO_CONTINUOUS_UPDATES,
+      'ContinuousUpdates'
+    );
     this.supportedEncodings.set(RFB_ENCODINGS.PSEUDO_FENCE, 'Fence');
   }
 
@@ -420,7 +468,7 @@ export class VNCProtocol extends BaseProtocol {
       networkIO: 0,
       pixelChanges: 0,
       screenUpdateArea: 0,
-      cursorUpdates: 0
+      cursorUpdates: 0,
     };
   }
 
@@ -429,8 +477,10 @@ export class VNCProtocol extends BaseProtocol {
    */
   public async connect(): Promise<VNCSession> {
     try {
-      this.logger.info(`Connecting to VNC server at ${this.options.host}:${this.options.port}`);
-      
+      this.logger.info(
+        `Connecting to VNC server at ${this.options.host}:${this.options.port}`
+      );
+
       // Handle VNC Repeater connection if configured
       if (this.options.repeater?.enabled) {
         await this.connectViaRepeater();
@@ -440,7 +490,7 @@ export class VNCProtocol extends BaseProtocol {
 
       // Initialize session
       this.session = this.createVNCSession();
-      
+
       // Start session recording if enabled
       if (this.options.recordSession) {
         await this.startSessionRecording();
@@ -448,12 +498,13 @@ export class VNCProtocol extends BaseProtocol {
 
       // Begin RFB protocol handshake
       await this.performHandshake();
-      
-      this.logger.info(`Successfully connected to VNC server: ${this.session.serverName || 'Unknown'}`);
-      this.emit('connected', this.session);
-      
-      return this.session;
 
+      this.logger.info(
+        `Successfully connected to VNC server: ${this.session.serverName || 'Unknown'}`
+      );
+      this.emit('connected', this.session);
+
+      return this.session;
     } catch (error) {
       this.logger.error('Failed to connect to VNC server:', error);
       this.emit('error', error);
@@ -466,27 +517,32 @@ export class VNCProtocol extends BaseProtocol {
       const connectOptions = {
         host: this.options.host,
         port: this.options.port,
-        timeout: this.options.timeout
+        timeout: this.options.timeout,
       };
 
       // Handle proxy connection if configured
       if (this.options.proxy) {
         // Proxy support would be implemented here
-        this.logger.warn('Proxy support not yet implemented, connecting directly');
+        this.logger.warn(
+          'Proxy support not yet implemented, connecting directly'
+        );
       }
 
       this.socket = createConnection(connectOptions);
-      
+
       this.socket.setTimeout(this.options.timeout || 30000);
-      
+
       this.socket.on('connect', () => {
         this.logger.debug('TCP connection established');
         this.isConnected = true;
-        
+
         if (this.options.keepAlive) {
-          this.socket!.setKeepAlive(true, this.options.keepAliveInterval || 30000);
+          this.socket!.setKeepAlive(
+            true,
+            this.options.keepAliveInterval || 30000
+          );
         }
-        
+
         resolve();
       });
 
@@ -522,14 +578,16 @@ export class VNCProtocol extends BaseProtocol {
 
     const { host, port, id, mode } = this.options.repeater;
     this.repeaterMode = mode || 'mode1';
-    
-    this.logger.info(`Connecting via VNC repeater: ${host}:${port} (${this.repeaterMode})`);
-    
+
+    this.logger.info(
+      `Connecting via VNC repeater: ${host}:${port} (${this.repeaterMode})`
+    );
+
     return new Promise((resolve, reject) => {
       this.repeaterConnection = createConnection({
         host: host || this.options.host,
         port: port || 5901,
-        timeout: this.options.timeout
+        timeout: this.options.timeout,
       });
 
       this.repeaterConnection.on('connect', async () => {
@@ -538,7 +596,7 @@ export class VNCProtocol extends BaseProtocol {
             // Mode 1: Send ID then connect
             const idBuffer = Buffer.from(id || '000000000000');
             await this.writeData(idBuffer);
-            
+
             // Wait for repeater response then establish VNC connection
             this.socket = this.repeaterConnection;
             resolve();
@@ -575,7 +633,7 @@ export class VNCProtocol extends BaseProtocol {
       framebufferInfo: {
         width: this.framebufferWidth,
         height: this.framebufferHeight,
-        pixelFormat: this.pixelFormat || this.options.pixelFormat
+        pixelFormat: this.pixelFormat || this.options.pixelFormat,
       },
       supportedEncodings: this.options.supportedEncodings || [],
       serverCapabilities: {
@@ -586,7 +644,7 @@ export class VNCProtocol extends BaseProtocol {
         fence: false,
         fileTransfer: this.options.enableFileTransfer || false,
         clipboardTransfer: this.options.enableClipboard || false,
-        audio: false
+        audio: false,
       },
       status: 'connecting',
       connectionTime: new Date(),
@@ -601,29 +659,41 @@ export class VNCProtocol extends BaseProtocol {
         avgFrameRate: 0,
         bandwidth: 0,
         compression: 1.0,
-        latency: 0
+        latency: 0,
       },
       errorCount: 0,
       warnings: [],
       monitors: this.options.monitors || [],
-      metadata: {}
+      metadata: {},
     };
   }
 
   private mapSecurityType(securityTypeNumber: number): VNCSecurityType {
     switch (securityTypeNumber) {
-      case RFB_SECURITY_TYPES.NONE: return 'none';
-      case RFB_SECURITY_TYPES.VNC_AUTH: return 'vnc';
-      case RFB_SECURITY_TYPES.RA2: return 'ra2';
-      case RFB_SECURITY_TYPES.RA2NE: return 'ra2ne';
-      case RFB_SECURITY_TYPES.TIGHT: return 'tight';
-      case RFB_SECURITY_TYPES.ULTRA: return 'ultra';
-      case RFB_SECURITY_TYPES.TLS: return 'tls';
-      case RFB_SECURITY_TYPES.VENCRYPT: return 'vencrypt';
-      case RFB_SECURITY_TYPES.SASL: return 'sasl';
-      case RFB_SECURITY_TYPES.MD5_HASH: return 'md5hash';
-      case RFB_SECURITY_TYPES.XVP: return 'xvp';
-      default: return 'vnc';
+      case RFB_SECURITY_TYPES.NONE:
+        return 'none';
+      case RFB_SECURITY_TYPES.VNC_AUTH:
+        return 'vnc';
+      case RFB_SECURITY_TYPES.RA2:
+        return 'ra2';
+      case RFB_SECURITY_TYPES.RA2NE:
+        return 'ra2ne';
+      case RFB_SECURITY_TYPES.TIGHT:
+        return 'tight';
+      case RFB_SECURITY_TYPES.ULTRA:
+        return 'ultra';
+      case RFB_SECURITY_TYPES.TLS:
+        return 'tls';
+      case RFB_SECURITY_TYPES.VENCRYPT:
+        return 'vencrypt';
+      case RFB_SECURITY_TYPES.SASL:
+        return 'sasl';
+      case RFB_SECURITY_TYPES.MD5_HASH:
+        return 'md5hash';
+      case RFB_SECURITY_TYPES.XVP:
+        return 'xvp';
+      default:
+        return 'vnc';
     }
   }
 
@@ -634,27 +704,26 @@ export class VNCProtocol extends BaseProtocol {
     try {
       // Step 1: Protocol Version Negotiation
       await this.negotiateProtocolVersion();
-      
+
       // Step 2: Security Negotiation
       await this.negotiateSecurity();
-      
+
       // Step 3: Authentication
       await this.performAuthentication();
-      
+
       // Step 4: Client Initialization
       await this.performClientInit();
-      
+
       // Step 5: Server Initialization
       await this.handleServerInit();
-      
+
       // Step 6: Set encodings and pixel format
       await this.configureSession();
-      
+
       this.isAuthenticated = true;
       if (this.session) {
         this.session.status = 'connected';
       }
-      
     } catch (error) {
       this.logger.error('Handshake failed:', error);
       throw error;
@@ -667,7 +736,7 @@ export class VNCProtocol extends BaseProtocol {
         if (data.length >= 12) {
           const version = data.slice(0, 12).toString();
           this.logger.debug(`Server protocol version: ${version.trim()}`);
-          
+
           // Determine client protocol version to use
           let clientVersion: string;
           if (this.options.rfbProtocolVersion === 'auto') {
@@ -680,24 +749,36 @@ export class VNCProtocol extends BaseProtocol {
             }
           } else {
             switch (this.options.rfbProtocolVersion) {
-              case '3.8': clientVersion = RFB_PROTOCOL_VERSION_3_8; break;
-              case '3.7': clientVersion = RFB_PROTOCOL_VERSION_3_7; break;
-              case '3.3': clientVersion = RFB_PROTOCOL_VERSION_3_3; break;
-              default: clientVersion = RFB_PROTOCOL_VERSION_3_8; break;
+              case '3.8':
+                clientVersion = RFB_PROTOCOL_VERSION_3_8;
+                break;
+              case '3.7':
+                clientVersion = RFB_PROTOCOL_VERSION_3_7;
+                break;
+              case '3.3':
+                clientVersion = RFB_PROTOCOL_VERSION_3_3;
+                break;
+              default:
+                clientVersion = RFB_PROTOCOL_VERSION_3_8;
+                break;
             }
           }
-          
+
           this.protocolVersion = clientVersion.trim();
-          this.logger.debug(`Using client protocol version: ${this.protocolVersion}`);
-          
+          this.logger.debug(
+            `Using client protocol version: ${this.protocolVersion}`
+          );
+
           // Send client protocol version
-          this.writeData(Buffer.from(clientVersion)).then(() => {
-            this.messageHandler = undefined;
-            resolve();
-          }).catch(reject);
+          this.writeData(Buffer.from(clientVersion))
+            .then(() => {
+              this.messageHandler = undefined;
+              resolve();
+            })
+            .catch(reject);
         }
       };
-      
+
       this.expectedMessageLength = 12;
     });
   }
@@ -710,7 +791,9 @@ export class VNCProtocol extends BaseProtocol {
             // RFB 3.3: Server decides security type
             if (data.length >= 4) {
               this.selectedSecurity = data.readUInt32BE(0);
-              this.logger.debug(`Server selected security type: ${this.selectedSecurity}`);
+              this.logger.debug(
+                `Server selected security type: ${this.selectedSecurity}`
+              );
               this.messageHandler = undefined;
               resolve();
             }
@@ -721,25 +804,29 @@ export class VNCProtocol extends BaseProtocol {
               // Server error
               const reasonLength = data.readUInt32BE(1);
               const reason = data.slice(5, 5 + reasonLength).toString();
-              reject(new Error(`Server security negotiation failed: ${reason}`));
+              reject(
+                new Error(`Server security negotiation failed: ${reason}`)
+              );
               return;
             }
-            
+
             this.securityTypes = [];
             for (let i = 0; i < numTypes; i++) {
               this.securityTypes.push(data.readUInt8(1 + i));
             }
-            
-            this.logger.debug(`Server security types: ${this.securityTypes.join(', ')}`);
-            
+
+            this.logger.debug(
+              `Server security types: ${this.securityTypes.join(', ')}`
+            );
+
             // Select preferred security type
             this.selectedSecurity = this.selectPreferredSecurity();
-            
+
             // Send selected security type
             const securityBuffer = Buffer.allocUnsafe(1);
             securityBuffer.writeUInt8(this.selectedSecurity, 0);
             await this.writeData(securityBuffer);
-            
+
             this.messageHandler = undefined;
             resolve();
           }
@@ -747,8 +834,9 @@ export class VNCProtocol extends BaseProtocol {
           reject(error);
         }
       };
-      
-      this.expectedMessageLength = this.protocolVersion === 'RFB 003.003' ? 4 : 1;
+
+      this.expectedMessageLength =
+        this.protocolVersion === 'RFB 003.003' ? 4 : 1;
     });
   }
 
@@ -757,20 +845,25 @@ export class VNCProtocol extends BaseProtocol {
       RFB_SECURITY_TYPES.VENCRYPT,
       RFB_SECURITY_TYPES.TLS,
       RFB_SECURITY_TYPES.VNC_AUTH,
-      RFB_SECURITY_TYPES.NONE
+      RFB_SECURITY_TYPES.NONE,
     ];
-    
+
     for (const preferred of preferenceOrder) {
       if (this.securityTypes.includes(preferred)) {
         // Check if this security type is allowed by configuration
-        if (preferred === RFB_SECURITY_TYPES.NONE && !this.options.allowInsecure) {
+        if (
+          preferred === RFB_SECURITY_TYPES.NONE &&
+          !this.options.allowInsecure
+        ) {
           continue;
         }
         return preferred;
       }
     }
-    
-    throw new Error(`No compatible security type found. Server offers: ${this.securityTypes.join(', ')}`);
+
+    throw new Error(
+      `No compatible security type found. Server offers: ${this.securityTypes.join(', ')}`
+    );
   }
 
   private async performAuthentication(): Promise<void> {
@@ -810,11 +903,14 @@ export class VNCProtocol extends BaseProtocol {
         try {
           if (data.length >= 16) {
             const challenge = data.slice(0, 16);
-            const response = this.vncAuthChallenge(challenge, this.options.password!);
-            
+            const response = this.vncAuthChallenge(
+              challenge,
+              this.options.password!
+            );
+
             await this.writeData(response);
             await this.waitForSecurityResult();
-            
+
             this.messageHandler = undefined;
             resolve();
           }
@@ -822,7 +918,7 @@ export class VNCProtocol extends BaseProtocol {
           reject(error);
         }
       };
-      
+
       this.expectedMessageLength = 16;
     });
   }
@@ -832,33 +928,33 @@ export class VNCProtocol extends BaseProtocol {
     const key = Buffer.alloc(8);
     const passwordBytes = Buffer.from(password.slice(0, 8), 'binary');
     passwordBytes.copy(key);
-    
+
     // VNC DES key has bits in reverse order
     for (let i = 0; i < 8; i++) {
       let byte = key[i];
-      byte = ((byte & 0xF0) >> 4) | ((byte & 0x0F) << 4);
-      byte = ((byte & 0xCC) >> 2) | ((byte & 0x33) << 2);
-      byte = ((byte & 0xAA) >> 1) | ((byte & 0x55) << 1);
+      byte = ((byte & 0xf0) >> 4) | ((byte & 0x0f) << 4);
+      byte = ((byte & 0xcc) >> 2) | ((byte & 0x33) << 2);
+      byte = ((byte & 0xaa) >> 1) | ((byte & 0x55) << 1);
       key[i] = byte;
     }
-    
+
     const cipher = crypto.createCipheriv('des-ecb', key, null);
     cipher.setAutoPadding(false);
-    
+
     return Buffer.concat([cipher.update(challenge), cipher.final()]);
   }
 
   private async authenticateTLS(): Promise<void> {
     this.logger.debug('Starting TLS authentication');
     await this.upgradToTLS();
-    
+
     // After TLS upgrade, continue with sub-authentication
     await this.negotiateSecurity(); // Re-negotiate security over TLS
   }
 
   private async authenticateVeNCrypt(): Promise<void> {
     this.logger.debug('Starting VeNCrypt authentication');
-    
+
     // VeNCrypt version negotiation
     return new Promise((resolve, reject) => {
       this.messageHandler = async (data: Buffer) => {
@@ -866,12 +962,14 @@ export class VNCProtocol extends BaseProtocol {
           if (data.length >= 2) {
             const majorVersion = data.readUInt8(0);
             const minorVersion = data.readUInt8(1);
-            this.logger.debug(`VeNCrypt server version: ${majorVersion}.${minorVersion}`);
-            
+            this.logger.debug(
+              `VeNCrypt server version: ${majorVersion}.${minorVersion}`
+            );
+
             // Send client version (0.2)
             const versionBuffer = Buffer.from([0, 2]);
             await this.writeData(versionBuffer);
-            
+
             // Continue with VeNCrypt handshake
             this.messageHandler = this.handleVeNCryptHandshake.bind(this);
             this.expectedMessageLength = 1;
@@ -880,7 +978,7 @@ export class VNCProtocol extends BaseProtocol {
           reject(error);
         }
       };
-      
+
       this.expectedMessageLength = 2;
     });
   }
@@ -895,25 +993,25 @@ export class VNCProtocol extends BaseProtocol {
     this.messageHandler = async (data: Buffer) => {
       const numSubtypes = data.readUInt8(0);
       const subtypes: number[] = [];
-      
+
       for (let i = 0; i < numSubtypes; i++) {
         subtypes.push(data.readUInt32BE(1 + i * 4));
       }
-      
+
       this.logger.debug(`VeNCrypt subtypes: ${subtypes.join(', ')}`);
-      
+
       // Select preferred subtype
       const selectedSubtype = this.selectVeNCryptSubtype(subtypes);
-      
+
       // Send selected subtype
       const subtypeBuffer = Buffer.allocUnsafe(4);
       subtypeBuffer.writeUInt32BE(selectedSubtype, 0);
       await this.writeData(subtypeBuffer);
-      
+
       // Handle subtype-specific authentication
       await this.handleVeNCryptSubtype(selectedSubtype);
     };
-    
+
     this.expectedMessageLength = 1; // Will be updated when we know the number of subtypes
   }
 
@@ -923,16 +1021,18 @@ export class VNCProtocol extends BaseProtocol {
       VENCRYPT_SUBTYPES.X509_PLAIN,
       VENCRYPT_SUBTYPES.TLS_VNC,
       VENCRYPT_SUBTYPES.TLS_PLAIN,
-      VENCRYPT_SUBTYPES.PLAIN
+      VENCRYPT_SUBTYPES.PLAIN,
     ];
-    
+
     for (const preferred of preferenceOrder) {
       if (subtypes.includes(preferred)) {
         return preferred;
       }
     }
-    
-    throw new Error(`No compatible VeNCrypt subtype found. Server offers: ${subtypes.join(', ')}`);
+
+    throw new Error(
+      `No compatible VeNCrypt subtype found. Server offers: ${subtypes.join(', ')}`
+    );
   }
 
   private async handleVeNCryptSubtype(subtype: number): Promise<void> {
@@ -959,9 +1059,9 @@ export class VNCProtocol extends BaseProtocol {
     return new Promise((resolve, reject) => {
       const tlsOptions: any = {
         socket: this.socket,
-        rejectUnauthorized: this.options.tlsOptions?.rejectUnauthorized ?? true
+        rejectUnauthorized: this.options.tlsOptions?.rejectUnauthorized ?? true,
       };
-      
+
       if (this.options.tlsOptions?.certificates) {
         const certs = this.options.tlsOptions.certificates;
         if (certs.ca) tlsOptions.ca = certs.ca;
@@ -969,21 +1069,21 @@ export class VNCProtocol extends BaseProtocol {
         if (certs.key) tlsOptions.key = certs.key;
         if (certs.passphrase) tlsOptions.passphrase = certs.passphrase;
       }
-      
+
       this.tlsSocket = tlsConnect(tlsOptions);
       this.socket = this.tlsSocket;
       this.encryptionEnabled = true;
-      
+
       this.tlsSocket.on('secureConnect', () => {
         this.logger.debug('TLS connection established');
         resolve();
       });
-      
+
       this.tlsSocket.on('error', (error) => {
         this.logger.error('TLS connection failed:', error);
         reject(error);
       });
-      
+
       // Re-attach data handler
       this.tlsSocket.on('data', (data: Buffer) => {
         this.handleIncomingData(data);
@@ -998,19 +1098,19 @@ export class VNCProtocol extends BaseProtocol {
 
     const username = Buffer.from(this.options.username, 'utf8');
     const password = Buffer.from(this.options.password, 'utf8');
-    
+
     const authBuffer = Buffer.alloc(4 + username.length + 4 + password.length);
     let offset = 0;
-    
+
     authBuffer.writeUInt32BE(username.length, offset);
     offset += 4;
     username.copy(authBuffer, offset);
     offset += username.length;
-    
+
     authBuffer.writeUInt32BE(password.length, offset);
     offset += 4;
     password.copy(authBuffer, offset);
-    
+
     await this.writeData(authBuffer);
     await this.waitForSecurityResult();
   }
@@ -1020,7 +1120,7 @@ export class VNCProtocol extends BaseProtocol {
       this.messageHandler = (data: Buffer) => {
         if (data.length >= 4) {
           const result = data.readUInt32BE(0);
-          
+
           if (result === 0) {
             this.logger.debug('Authentication successful');
             this.messageHandler = undefined;
@@ -1028,19 +1128,19 @@ export class VNCProtocol extends BaseProtocol {
           } else {
             // Authentication failed
             let reason = 'Authentication failed';
-            
+
             if (this.protocolVersion !== 'RFB 003.003' && data.length > 4) {
               const reasonLength = data.readUInt32BE(4);
               if (data.length >= 8 + reasonLength) {
                 reason = data.slice(8, 8 + reasonLength).toString();
               }
             }
-            
+
             reject(new Error(reason));
           }
         }
       };
-      
+
       this.expectedMessageLength = 4;
     });
   }
@@ -1049,7 +1149,7 @@ export class VNCProtocol extends BaseProtocol {
     // Send ClientInit message
     const sharedFlag = this.options.sharedConnection ? 1 : 0;
     const clientInitBuffer = Buffer.from([sharedFlag]);
-    
+
     await this.writeData(clientInitBuffer);
     this.logger.debug(`Sent ClientInit: shared=${sharedFlag}`);
   }
@@ -1062,11 +1162,11 @@ export class VNCProtocol extends BaseProtocol {
             this.logger.warn('ServerInit message too short');
             return;
           }
-          
+
           // Parse ServerInit message
           this.framebufferWidth = data.readUInt16BE(0);
           this.framebufferHeight = data.readUInt16BE(2);
-          
+
           const pixelFormat = {
             bitsPerPixel: data.readUInt8(4),
             depth: data.readUInt8(5),
@@ -1077,111 +1177,130 @@ export class VNCProtocol extends BaseProtocol {
             blueMax: data.readUInt16BE(12),
             redShift: data.readUInt8(14),
             greenShift: data.readUInt8(15),
-            blueShift: data.readUInt8(16)
+            blueShift: data.readUInt8(16),
           };
-          
+
           this.pixelFormat = pixelFormat;
-          
+
           // Desktop name
           const nameLength = data.readUInt32BE(20);
           let desktopName = '';
           if (data.length >= 24 + nameLength) {
             desktopName = data.slice(24, 24 + nameLength).toString('utf8');
           }
-          
+
           this.serverInit = {
             framebufferWidth: this.framebufferWidth,
             framebufferHeight: this.framebufferHeight,
             pixelFormat,
-            desktopName
+            desktopName,
           };
-          
-          this.logger.debug(`ServerInit: ${this.framebufferWidth}x${this.framebufferHeight}, ${desktopName}`);
-          
+
+          this.logger.debug(
+            `ServerInit: ${this.framebufferWidth}x${this.framebufferHeight}, ${desktopName}`
+          );
+
           if (this.session) {
             this.session.serverName = desktopName;
             this.session.framebufferInfo = {
               width: this.framebufferWidth,
               height: this.framebufferHeight,
-              pixelFormat
+              pixelFormat,
             };
           }
-          
+
           this.messageHandler = this.handleServerMessage.bind(this);
           this.expectedMessageLength = 1; // Server messages start with 1-byte type
-          
+
           resolve();
         } catch (error) {
           reject(error);
         }
       };
-      
+
       this.expectedMessageLength = 24; // Minimum ServerInit size
     });
   }
 
   private async configureSession(): Promise<void> {
     // Set pixel format if different from server default
-    if (this.options.pixelFormat && 
-        JSON.stringify(this.options.pixelFormat) !== JSON.stringify(this.pixelFormat)) {
+    if (
+      this.options.pixelFormat &&
+      JSON.stringify(this.options.pixelFormat) !==
+        JSON.stringify(this.pixelFormat)
+    ) {
       await this.setPixelFormat(this.options.pixelFormat);
     }
-    
+
     // Set supported encodings
     await this.setEncodings();
-    
+
     // Request initial framebuffer update
-    await this.requestFramebufferUpdate(0, 0, this.framebufferWidth, this.framebufferHeight, false);
-    
+    await this.requestFramebufferUpdate(
+      0,
+      0,
+      this.framebufferWidth,
+      this.framebufferHeight,
+      false
+    );
+
     this.logger.debug('Session configuration completed');
   }
 
   private async setPixelFormat(pixelFormat: any): Promise<void> {
     const buffer = Buffer.allocUnsafe(20);
     let offset = 0;
-    
+
     buffer.writeUInt8(RFB_CLIENT_MESSAGES.SET_PIXEL_FORMAT, offset++);
     buffer.writeUInt8(0, offset++); // padding
     buffer.writeUInt8(0, offset++); // padding
     buffer.writeUInt8(0, offset++); // padding
-    
+
     buffer.writeUInt8(pixelFormat.bitsPerPixel || 32, offset++);
     buffer.writeUInt8(pixelFormat.depth || 24, offset++);
     buffer.writeUInt8(pixelFormat.bigEndianFlag ? 1 : 0, offset++);
     buffer.writeUInt8(pixelFormat.trueColorFlag ? 1 : 0, offset++);
-    buffer.writeUInt16BE(pixelFormat.redMax || 255, offset); offset += 2;
-    buffer.writeUInt16BE(pixelFormat.greenMax || 255, offset); offset += 2;
-    buffer.writeUInt16BE(pixelFormat.blueMax || 255, offset); offset += 2;
+    buffer.writeUInt16BE(pixelFormat.redMax || 255, offset);
+    offset += 2;
+    buffer.writeUInt16BE(pixelFormat.greenMax || 255, offset);
+    offset += 2;
+    buffer.writeUInt16BE(pixelFormat.blueMax || 255, offset);
+    offset += 2;
     buffer.writeUInt8(pixelFormat.redShift || 16, offset++);
     buffer.writeUInt8(pixelFormat.greenShift || 8, offset++);
     buffer.writeUInt8(pixelFormat.blueShift || 0, offset++);
     buffer.writeUInt8(0, offset++); // padding
     buffer.writeUInt8(0, offset++); // padding
     buffer.writeUInt8(0, offset++); // padding
-    
+
     await this.writeData(buffer);
     this.pixelFormat = pixelFormat;
-    
+
     this.logger.debug('Set pixel format:', pixelFormat);
   }
 
   private async setEncodings(): Promise<void> {
-    const encodings = this.mapEncodingsToNumbers(this.options.supportedEncodings || []);
-    
+    const encodings = this.mapEncodingsToNumbers(
+      this.options.supportedEncodings || []
+    );
+
     const buffer = Buffer.allocUnsafe(4 + encodings.length * 4);
     let offset = 0;
-    
+
     buffer.writeUInt8(RFB_CLIENT_MESSAGES.SET_ENCODINGS, offset++);
     buffer.writeUInt8(0, offset++); // padding
-    buffer.writeUInt16BE(encodings.length, offset); offset += 2;
-    
+    buffer.writeUInt16BE(encodings.length, offset);
+    offset += 2;
+
     for (const encoding of encodings) {
       buffer.writeInt32BE(encoding, offset);
       offset += 4;
     }
-    
+
     await this.writeData(buffer);
-    this.logger.debug(`Set encodings: ${this.options.supportedEncodings?.join(', ')}`);
+    this.logger.debug(
+      `Set encodings: ${this.options.supportedEncodings?.join(', ')}`
+    );
   }
 
   private mapEncodingsToNumbers(encodings: VNCEncoding[]): number[] {
@@ -1204,12 +1323,12 @@ export class VNCProtocol extends BaseProtocol {
       fence: RFB_ENCODINGS.PSEUDO_FENCE,
       x11cursor: RFB_ENCODINGS.PSEUDO_X_CURSOR,
       richcursor: RFB_ENCODINGS.CURSOR,
-      wmvi: 0x574D5649
+      wmvi: 0x574d5649,
     };
-    
+
     return encodings
-      .map(encoding => encodingMap[encoding])
-      .filter(num => num !== undefined);
+      .map((encoding) => encodingMap[encoding])
+      .filter((num) => num !== undefined);
   }
 
   /**
@@ -1218,18 +1337,24 @@ export class VNCProtocol extends BaseProtocol {
   private handleIncomingData(data: Buffer): void {
     this.receiveBuffer = Buffer.concat([this.receiveBuffer, data]);
     this.bytesReceived += data.length;
-    
+
     // Update performance metrics
     this.updateNetworkMetrics();
-    
+
     // Process complete messages
-    while (this.receiveBuffer.length >= this.expectedMessageLength && 
-           (this.messageHandler || this.expectedMessageLength > 0)) {
-      
+    while (
+      this.receiveBuffer.length >= this.expectedMessageLength &&
+      (this.messageHandler || this.expectedMessageLength > 0)
+    ) {
       if (this.messageHandler) {
-        const messageData = this.receiveBuffer.slice(0, this.expectedMessageLength);
-        this.receiveBuffer = this.receiveBuffer.slice(this.expectedMessageLength);
-        
+        const messageData = this.receiveBuffer.slice(
+          0,
+          this.expectedMessageLength
+        );
+        this.receiveBuffer = this.receiveBuffer.slice(
+          this.expectedMessageLength
+        );
+
         this.messageHandler(messageData);
       } else {
         // Default server message handling
@@ -1240,9 +1365,9 @@ export class VNCProtocol extends BaseProtocol {
 
   private processServerMessage(): void {
     if (this.receiveBuffer.length < 1) return;
-    
+
     const messageType = this.receiveBuffer.readUInt8(0);
-    
+
     switch (messageType) {
       case RFB_SERVER_MESSAGES.FRAMEBUFFER_UPDATE:
         this.handleFramebufferUpdate();
@@ -1269,29 +1394,29 @@ export class VNCProtocol extends BaseProtocol {
 
   private handleFramebufferUpdate(): void {
     if (this.receiveBuffer.length < 4) return;
-    
+
     const numRectangles = this.receiveBuffer.readUInt16BE(2);
-    
+
     if (this.receiveBuffer.length < 4 + numRectangles * 12) return;
-    
+
     const rectangles: VNCRectangle[] = [];
     let offset = 4;
-    
+
     for (let i = 0; i < numRectangles; i++) {
       if (this.receiveBuffer.length < offset + 12) return;
-      
+
       const x = this.receiveBuffer.readUInt16BE(offset);
       const y = this.receiveBuffer.readUInt16BE(offset + 2);
       const width = this.receiveBuffer.readUInt16BE(offset + 4);
       const height = this.receiveBuffer.readUInt16BE(offset + 6);
       const encoding = this.receiveBuffer.readInt32BE(offset + 8);
-      
+
       offset += 12;
-      
+
       // Calculate expected data size based on encoding
       let dataSize = 0;
       let data: Buffer;
-      
+
       switch (encoding) {
         case RFB_ENCODINGS.RAW:
           dataSize = width * height * (this.pixelFormat.bitsPerPixel / 8);
@@ -1309,46 +1434,57 @@ export class VNCProtocol extends BaseProtocol {
           break;
         default:
           // For complex encodings, we need to parse the data to determine size
-          dataSize = this.calculateEncodingDataSize(encoding, width, height, offset);
+          dataSize = this.calculateEncodingDataSize(
+            encoding,
+            width,
+            height,
+            offset
+          );
           break;
       }
-      
+
       if (this.receiveBuffer.length < offset + dataSize) return;
-      
+
       data = this.receiveBuffer.slice(offset, offset + dataSize);
       offset += dataSize;
-      
+
       rectangles.push({
-        x, y, width, height,
+        x,
+        y,
+        width,
+        height,
         encoding: this.mapEncodingNumberToString(encoding),
-        data
+        data,
       });
-      
+
       // Handle pseudo-encodings
       if (encoding === RFB_ENCODINGS.DESKTOP_SIZE) {
         this.handleDesktopResize(width, height);
-      } else if (encoding === RFB_ENCODINGS.CURSOR || encoding === RFB_ENCODINGS.PSEUDO_X_CURSOR) {
+      } else if (
+        encoding === RFB_ENCODINGS.CURSOR ||
+        encoding === RFB_ENCODINGS.PSEUDO_X_CURSOR
+      ) {
         this.handleCursorUpdate(x, y, width, height, data);
       }
     }
-    
+
     // Remove processed data from buffer
     this.receiveBuffer = this.receiveBuffer.slice(offset);
-    
+
     // Create framebuffer update event
     const update: VNCFramebufferUpdate = {
       messageType: RFB_SERVER_MESSAGES.FRAMEBUFFER_UPDATE,
       rectangles,
       timestamp: new Date(),
-      sequenceNumber: this.frameCount++
+      sequenceNumber: this.frameCount++,
     };
-    
+
     // Update performance metrics
     this.updateFrameMetrics();
-    
+
     // Emit framebuffer update event
     this.emit('framebufferUpdate', update);
-    
+
     // Process rectangles for recording
     if (this.recordingStream) {
       this.recordFramebufferUpdate(update);
@@ -1361,7 +1497,12 @@ export class VNCProtocol extends BaseProtocol {
     return pixelData + maskData;
   }
 
-  private calculateEncodingDataSize(encoding: number, width: number, height: number, offset: number): number {
+  private calculateEncodingDataSize(
+    encoding: number,
+    width: number,
+    height: number,
+    offset: number
+  ): number {
     // This is a simplified implementation
     // In a full implementation, you would need to parse the encoding-specific data
     switch (encoding) {
@@ -1380,7 +1521,11 @@ export class VNCProtocol extends BaseProtocol {
     }
   }
 
-  private calculateRREDataSize(width: number, height: number, offset: number): number {
+  private calculateRREDataSize(
+    width: number,
+    height: number,
+    offset: number
+  ): number {
     if (this.receiveBuffer.length < offset + 4) return 0;
     const numSubrects = this.receiveBuffer.readUInt32BE(offset);
     const bgPixelSize = this.pixelFormat.bitsPerPixel / 8;
@@ -1388,51 +1533,59 @@ export class VNCProtocol extends BaseProtocol {
     return 4 + bgPixelSize + numSubrects * subrectSize;
   }
 
-  private calculateHextileDataSize(width: number, height: number, offset: number): number {
+  private calculateHextileDataSize(
+    width: number,
+    height: number,
+    offset: number
+  ): number {
     // Hextile divides rectangle into 16x16 tiles
     let dataSize = 0;
     let currentOffset = offset;
-    
+
     for (let ty = 0; ty < height; ty += 16) {
       for (let tx = 0; tx < width; tx += 16) {
         if (this.receiveBuffer.length < currentOffset + 1) return 0;
-        
+
         const subencoding = this.receiveBuffer.readUInt8(currentOffset);
         currentOffset += 1;
         dataSize += 1;
-        
+
         const tileWidth = Math.min(16, width - tx);
         const tileHeight = Math.min(16, height - ty);
         const pixelSize = this.pixelFormat.bitsPerPixel / 8;
-        
-        if (subencoding & 0x01) { // Raw
+
+        if (subencoding & 0x01) {
+          // Raw
           const tileDataSize = tileWidth * tileHeight * pixelSize;
           currentOffset += tileDataSize;
           dataSize += tileDataSize;
         } else {
           // Parse other hextile subencodings
-          if (subencoding & 0x02) { // Background specified
+          if (subencoding & 0x02) {
+            // Background specified
             currentOffset += pixelSize;
             dataSize += pixelSize;
           }
-          if (subencoding & 0x04) { // Foreground specified
+          if (subencoding & 0x04) {
+            // Foreground specified
             currentOffset += pixelSize;
             dataSize += pixelSize;
           }
-          if (subencoding & 0x08) { // Any subrects
+          if (subencoding & 0x08) {
+            // Any subrects
             if (this.receiveBuffer.length < currentOffset + 1) return 0;
             const numSubrects = this.receiveBuffer.readUInt8(currentOffset);
             currentOffset += 1;
             dataSize += 1;
-            
-            const subrectSize = (subencoding & 0x10) ? 2 : 2 + pixelSize; // Subrects coloured
+
+            const subrectSize = subencoding & 0x10 ? 2 : 2 + pixelSize; // Subrects coloured
             currentOffset += numSubrects * subrectSize;
             dataSize += numSubrects * subrectSize;
           }
         }
       }
     }
-    
+
     return dataSize;
   }
 
@@ -1446,84 +1599,110 @@ export class VNCProtocol extends BaseProtocol {
     // Tight encoding has a complex structure
     // This is a simplified version
     if (this.receiveBuffer.length < offset + 1) return 0;
-    
+
     const compressionControl = this.receiveBuffer.readUInt8(offset);
     let dataSize = 1;
     let currentOffset = offset + 1;
-    
+
     // Parse length
     let length = 0;
     if (compressionControl & 0x80) {
       // JPEG
       if (this.receiveBuffer.length < currentOffset + 3) return 0;
-      length = this.receiveBuffer.readUInt8(currentOffset) |
-               (this.receiveBuffer.readUInt8(currentOffset + 1) << 8) |
-               (this.receiveBuffer.readUInt8(currentOffset + 2) << 16);
+      length =
+        this.receiveBuffer.readUInt8(currentOffset) |
+        (this.receiveBuffer.readUInt8(currentOffset + 1) << 8) |
+        (this.receiveBuffer.readUInt8(currentOffset + 2) << 16);
       dataSize += 3;
     } else {
       // Basic or fill compression
       if (this.receiveBuffer.length < currentOffset + 1) return 0;
       const byte1 = this.receiveBuffer.readUInt8(currentOffset);
       dataSize += 1;
-      
+
       if (byte1 & 0x80) {
         if (this.receiveBuffer.length < currentOffset + 2) return 0;
         const byte2 = this.receiveBuffer.readUInt8(currentOffset + 1);
         dataSize += 1;
-        
+
         if (byte2 & 0x80) {
           if (this.receiveBuffer.length < currentOffset + 3) return 0;
           const byte3 = this.receiveBuffer.readUInt8(currentOffset + 2);
-          length = (byte1 & 0x7F) | ((byte2 & 0x7F) << 7) | ((byte3 & 0x7F) << 14);
+          length =
+            (byte1 & 0x7f) | ((byte2 & 0x7f) << 7) | ((byte3 & 0x7f) << 14);
           dataSize += 1;
         } else {
-          length = (byte1 & 0x7F) | ((byte2 & 0x7F) << 7);
+          length = (byte1 & 0x7f) | ((byte2 & 0x7f) << 7);
         }
       } else {
-        length = byte1 & 0x7F;
+        length = byte1 & 0x7f;
       }
     }
-    
+
     return dataSize + length;
   }
 
   private mapEncodingNumberToString(encoding: number): VNCEncoding {
     switch (encoding) {
-      case RFB_ENCODINGS.RAW: return 'raw';
-      case RFB_ENCODINGS.COPY_RECT: return 'copyrect';
-      case RFB_ENCODINGS.RRE: return 'rre';
-      case RFB_ENCODINGS.HEXTILE: return 'hextile';
-      case RFB_ENCODINGS.TRLE: return 'trle';
-      case RFB_ENCODINGS.ZRLE: return 'zrle';
-      case RFB_ENCODINGS.TIGHT: return 'tight';
-      case RFB_ENCODINGS.ULTRA: return 'ultra';
-      case RFB_ENCODINGS.ZLIBHEX: return 'zlibhex';
-      case RFB_ENCODINGS.JPEG: return 'jpeg';
-      case RFB_ENCODINGS.JRLE: return 'jrle';
-      case RFB_ENCODINGS.CURSOR: return 'cursor';
-      case RFB_ENCODINGS.DESKTOP_SIZE: return 'desktopsize';
-      case RFB_ENCODINGS.LAST_RECT: return 'lastrect';
-      case RFB_ENCODINGS.PSEUDO_CONTINUOUS_UPDATES: return 'continuous';
-      case RFB_ENCODINGS.PSEUDO_FENCE: return 'fence';
-      case RFB_ENCODINGS.PSEUDO_X_CURSOR: return 'x11cursor';
-      default: return 'raw';
+      case RFB_ENCODINGS.RAW:
+        return 'raw';
+      case RFB_ENCODINGS.COPY_RECT:
+        return 'copyrect';
+      case RFB_ENCODINGS.RRE:
+        return 'rre';
+      case RFB_ENCODINGS.HEXTILE:
+        return 'hextile';
+      case RFB_ENCODINGS.TRLE:
+        return 'trle';
+      case RFB_ENCODINGS.ZRLE:
+        return 'zrle';
+      case RFB_ENCODINGS.TIGHT:
+        return 'tight';
+      case RFB_ENCODINGS.ULTRA:
+        return 'ultra';
+      case RFB_ENCODINGS.ZLIBHEX:
+        return 'zlibhex';
+      case RFB_ENCODINGS.JPEG:
+        return 'jpeg';
+      case RFB_ENCODINGS.JRLE:
+        return 'jrle';
+      case RFB_ENCODINGS.CURSOR:
+        return 'cursor';
+      case RFB_ENCODINGS.DESKTOP_SIZE:
+        return 'desktopsize';
+      case RFB_ENCODINGS.LAST_RECT:
+        return 'lastrect';
+      case RFB_ENCODINGS.PSEUDO_CONTINUOUS_UPDATES:
+        return 'continuous';
+      case RFB_ENCODINGS.PSEUDO_FENCE:
+        return 'fence';
+      case RFB_ENCODINGS.PSEUDO_X_CURSOR:
+        return 'x11cursor';
+      default:
+        return 'raw';
     }
   }
 
   private handleDesktopResize(width: number, height: number): void {
     this.framebufferWidth = width;
     this.framebufferHeight = height;
-    
+
     if (this.session) {
       this.session.framebufferInfo.width = width;
       this.session.framebufferInfo.height = height;
     }
-    
+
     this.logger.debug(`Desktop resized to ${width}x${height}`);
     this.emit('desktopResize', { width, height });
   }
 
-  private handleCursorUpdate(x: number, y: number, width: number, height: number, data: Buffer): void {
+  private handleCursorUpdate(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    data: Buffer
+  ): void {
     this.emit('cursorUpdate', { x, y, width, height, data });
   }
 
@@ -1537,29 +1716,29 @@ export class VNCProtocol extends BaseProtocol {
   private handleBell(): void {
     this.logger.debug('Received Bell message');
     this.emit('bell');
-    
+
     if (this.options.bellCommand) {
       // Execute custom bell command
       const { spawn } = require('child_process');
       spawn(this.options.bellCommand, [], { detached: true, stdio: 'ignore' });
     }
-    
+
     // Remove bell message from buffer
     this.receiveBuffer = this.receiveBuffer.slice(1);
   }
 
   private handleServerCutText(): void {
     if (this.receiveBuffer.length < 8) return;
-    
+
     const length = this.receiveBuffer.readUInt32BE(4);
-    
+
     if (this.receiveBuffer.length < 8 + length) return;
-    
+
     const text = this.receiveBuffer.slice(8, 8 + length).toString('utf8');
     this.receiveBuffer = this.receiveBuffer.slice(8 + length);
-    
+
     this.clipboardData = text;
-    
+
     // Create clipboard sync event
     const clipboardSync: VNCClipboardSync = {
       sessionId: this.connectionId,
@@ -1567,12 +1746,12 @@ export class VNCProtocol extends BaseProtocol {
       contentType: 'text',
       content: text,
       timestamp: new Date(),
-      size: length
+      size: length,
     };
-    
+
     this.logger.debug(`Received clipboard data: ${text.length} characters`);
     this.emit('clipboardSync', clipboardSync);
-    
+
     if (this.session) {
       this.session.statistics.clipboardTransfers++;
     }
@@ -1588,33 +1767,36 @@ export class VNCProtocol extends BaseProtocol {
   /**
    * Client input methods
    */
-  public async sendKeyEvent(key: number | string, down: boolean): Promise<void> {
+  public async sendKeyEvent(
+    key: number | string,
+    down: boolean
+  ): Promise<void> {
     if (!this.isAuthenticated) {
       throw new Error('Not authenticated');
     }
-    
+
     const keyCode = typeof key === 'string' ? this.mapKeyToCode(key) : key;
-    
+
     const buffer = Buffer.allocUnsafe(8);
     buffer.writeUInt8(RFB_CLIENT_MESSAGES.KEY_EVENT, 0);
     buffer.writeUInt8(down ? 1 : 0, 1);
     buffer.writeUInt16BE(0, 2); // padding
     buffer.writeUInt32BE(keyCode, 4);
-    
+
     await this.writeData(buffer);
-    
+
     if (this.session) {
       this.session.statistics.keyboardEvents++;
     }
-    
+
     // Create key event
     const keyEvent: VNCKeyEvent = {
       messageType: RFB_CLIENT_MESSAGES.KEY_EVENT,
       downFlag: down,
       key: keyCode,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
-    
+
     this.emit('keyEvent', keyEvent);
   }
 
@@ -1624,41 +1806,46 @@ export class VNCProtocol extends BaseProtocol {
     if (namedKey) {
       return namedKey;
     }
-    
+
     // For single characters, use their Unicode code point
     if (key.length === 1) {
       return key.charCodeAt(0);
     }
-    
+
     // Default to space
     return 0x20;
   }
 
-  public async sendPointerEvent(x: number, y: number, buttonMask: number): Promise<void> {
+  public async sendPointerEvent(
+    x: number,
+    y: number,
+    buttonMask: number
+  ): Promise<void> {
     if (!this.isAuthenticated) {
       throw new Error('Not authenticated');
     }
-    
+
     const buffer = Buffer.allocUnsafe(6);
     buffer.writeUInt8(RFB_CLIENT_MESSAGES.POINTER_EVENT, 0);
     buffer.writeUInt8(buttonMask, 1);
     buffer.writeUInt16BE(x, 2);
     buffer.writeUInt16BE(y, 4);
-    
+
     await this.writeData(buffer);
-    
+
     if (this.session) {
       this.session.statistics.mouseEvents++;
     }
-    
+
     // Create pointer event
     const pointerEvent: VNCPointerEvent = {
       messageType: RFB_CLIENT_MESSAGES.POINTER_EVENT,
       buttonMask,
-      x, y,
-      timestamp: new Date()
+      x,
+      y,
+      timestamp: new Date(),
     };
-    
+
     this.emit('pointerEvent', pointerEvent);
   }
 
@@ -1666,21 +1853,21 @@ export class VNCProtocol extends BaseProtocol {
     if (!this.isAuthenticated) {
       throw new Error('Not authenticated');
     }
-    
+
     const textBuffer = Buffer.from(text, 'utf8');
     const buffer = Buffer.allocUnsafe(8 + textBuffer.length);
-    
+
     buffer.writeUInt8(RFB_CLIENT_MESSAGES.CLIENT_CUT_TEXT, 0);
     buffer.writeUInt8(0, 1); // padding
     buffer.writeUInt8(0, 2); // padding
     buffer.writeUInt8(0, 3); // padding
     buffer.writeUInt32BE(textBuffer.length, 4);
     textBuffer.copy(buffer, 8);
-    
+
     await this.writeData(buffer);
-    
+
     this.clipboardData = text;
-    
+
     // Create clipboard sync event
     const clipboardSync: VNCClipboardSync = {
       sessionId: this.connectionId,
@@ -1688,21 +1875,27 @@ export class VNCProtocol extends BaseProtocol {
       contentType: 'text',
       content: text,
       timestamp: new Date(),
-      size: textBuffer.length
+      size: textBuffer.length,
     };
-    
+
     this.emit('clipboardSync', clipboardSync);
-    
+
     if (this.session) {
       this.session.statistics.clipboardTransfers++;
     }
   }
 
-  public async requestFramebufferUpdate(x: number, y: number, width: number, height: number, incremental: boolean): Promise<void> {
+  public async requestFramebufferUpdate(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    incremental: boolean
+  ): Promise<void> {
     if (!this.isAuthenticated) {
       throw new Error('Not authenticated');
     }
-    
+
     const buffer = Buffer.allocUnsafe(10);
     buffer.writeUInt8(RFB_CLIENT_MESSAGES.FRAMEBUFFER_UPDATE_REQUEST, 0);
     buffer.writeUInt8(incremental ? 1 : 0, 1);
@@ -1710,20 +1903,23 @@ export class VNCProtocol extends BaseProtocol {
     buffer.writeUInt16BE(y, 4);
     buffer.writeUInt16BE(width, 6);
     buffer.writeUInt16BE(height, 8);
-    
+
     await this.writeData(buffer);
   }
 
   /**
    * File transfer methods
    */
-  public async uploadFile(localPath: string, remotePath: string): Promise<VNCFileTransfer> {
+  public async uploadFile(
+    localPath: string,
+    remotePath: string
+  ): Promise<VNCFileTransfer> {
     if (!this.options.enableFileTransfer) {
       throw new Error('File transfer is disabled');
     }
-    
+
     const transferId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     const fileTransfer: VNCFileTransfer = {
       transferId,
       sessionId: this.connectionId,
@@ -1735,24 +1931,27 @@ export class VNCProtocol extends BaseProtocol {
       progress: 0,
       speed: 0,
       status: 'queued',
-      startTime: new Date()
+      startTime: new Date(),
     };
-    
+
     this.activeFileTransfers.set(transferId, fileTransfer);
-    
+
     // Start file transfer (implementation would depend on VNC server extension)
     this.logger.info(`Starting file upload: ${localPath} -> ${remotePath}`);
-    
+
     return fileTransfer;
   }
 
-  public async downloadFile(remotePath: string, localPath: string): Promise<VNCFileTransfer> {
+  public async downloadFile(
+    remotePath: string,
+    localPath: string
+  ): Promise<VNCFileTransfer> {
     if (!this.options.enableFileTransfer) {
       throw new Error('File transfer is disabled');
     }
-    
+
     const transferId = `download-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     const fileTransfer: VNCFileTransfer = {
       transferId,
       sessionId: this.connectionId,
@@ -1764,14 +1963,14 @@ export class VNCProtocol extends BaseProtocol {
       progress: 0,
       speed: 0,
       status: 'queued',
-      startTime: new Date()
+      startTime: new Date(),
     };
-    
+
     this.activeFileTransfers.set(transferId, fileTransfer);
-    
+
     // Start file transfer (implementation would depend on VNC server extension)
     this.logger.info(`Starting file download: ${remotePath} -> ${localPath}`);
-    
+
     return fileTransfer;
   }
 
@@ -1782,51 +1981,53 @@ export class VNCProtocol extends BaseProtocol {
     if (!this.options.recordSession || !this.options.recordingPath) {
       return;
     }
-    
+
     const recordingDir = path.dirname(this.options.recordingPath);
     if (!fs.existsSync(recordingDir)) {
       fs.mkdirSync(recordingDir, { recursive: true });
     }
-    
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `vnc-session-${timestamp}.${this.options.recordingFormat || 'fbs'}`;
     const filepath = path.join(recordingDir, filename);
-    
+
     this.recordingStream = fs.createWriteStream(filepath);
     this.recordingStartTime = new Date();
-    
+
     if (this.session) {
       this.session.recording = {
         active: true,
         startTime: this.recordingStartTime,
         filePath: filepath,
         format: this.options.recordingFormat || 'fbs',
-        fileSize: 0
+        fileSize: 0,
       };
     }
-    
+
     // Write FBS header
     if (this.options.recordingFormat === 'fbs') {
       this.writeFBSHeader();
     }
-    
+
     this.logger.info(`Session recording started: ${filepath}`);
   }
 
   private writeFBSHeader(): void {
     if (!this.recordingStream || !this.serverInit) return;
-    
+
     // FBS format header
     const header = Buffer.alloc(12);
     header.write('FBS 001.000\n', 0, 12);
-    
+
     this.recordingStream.write(header);
-    
+
     // Write server initialization data
-    const serverInitBuffer = Buffer.alloc(24 + this.serverInit.desktopName.length);
+    const serverInitBuffer = Buffer.alloc(
+      24 + this.serverInit.desktopName.length
+    );
     serverInitBuffer.writeUInt16BE(this.serverInit.framebufferWidth, 0);
     serverInitBuffer.writeUInt16BE(this.serverInit.framebufferHeight, 2);
-    
+
     const pf = this.serverInit.pixelFormat;
     serverInitBuffer.writeUInt8(pf.bitsPerPixel, 4);
     serverInitBuffer.writeUInt8(pf.depth, 5);
@@ -1838,31 +2039,31 @@ export class VNCProtocol extends BaseProtocol {
     serverInitBuffer.writeUInt8(pf.redShift, 14);
     serverInitBuffer.writeUInt8(pf.greenShift, 15);
     serverInitBuffer.writeUInt8(pf.blueShift, 16);
-    
+
     serverInitBuffer.writeUInt32BE(this.serverInit.desktopName.length, 20);
     Buffer.from(this.serverInit.desktopName, 'utf8').copy(serverInitBuffer, 24);
-    
+
     this.recordingStream.write(serverInitBuffer);
   }
 
   private recordFramebufferUpdate(update: VNCFramebufferUpdate): void {
     if (!this.recordingStream) return;
-    
+
     // Calculate timestamp since recording start
     const timestamp = Date.now() - (this.recordingStartTime?.getTime() || 0);
-    
+
     // Write timestamp (4 bytes)
     const timestampBuffer = Buffer.allocUnsafe(4);
     timestampBuffer.writeUInt32BE(timestamp, 0);
     this.recordingStream.write(timestampBuffer);
-    
+
     // Write message type and data
     const messageBuffer = Buffer.allocUnsafe(4);
     messageBuffer.writeUInt8(RFB_SERVER_MESSAGES.FRAMEBUFFER_UPDATE, 0);
     messageBuffer.writeUInt8(0, 1); // padding
     messageBuffer.writeUInt16BE(update.rectangles.length, 2);
     this.recordingStream.write(messageBuffer);
-    
+
     // Write rectangles
     for (const rect of update.rectangles) {
       const rectBuffer = Buffer.allocUnsafe(12);
@@ -1870,14 +2071,14 @@ export class VNCProtocol extends BaseProtocol {
       rectBuffer.writeUInt16BE(rect.y, 2);
       rectBuffer.writeUInt16BE(rect.width, 4);
       rectBuffer.writeUInt16BE(rect.height, 6);
-      
+
       const encodingNumber = this.mapEncodingStringToNumber(rect.encoding);
       rectBuffer.writeInt32BE(encodingNumber, 8);
-      
+
       this.recordingStream.write(rectBuffer);
       this.recordingStream.write(rect.data);
     }
-    
+
     if (this.session?.recording) {
       this.session.recording.fileSize = this.recordingStream.bytesWritten || 0;
     }
@@ -1885,25 +2086,44 @@ export class VNCProtocol extends BaseProtocol {
 
   private mapEncodingStringToNumber(encoding: VNCEncoding): number {
     switch (encoding) {
-      case 'raw': return RFB_ENCODINGS.RAW;
-      case 'copyrect': return RFB_ENCODINGS.COPY_RECT;
-      case 'rre': return RFB_ENCODINGS.RRE;
-      case 'hextile': return RFB_ENCODINGS.HEXTILE;
-      case 'trle': return RFB_ENCODINGS.TRLE;
-      case 'zrle': return RFB_ENCODINGS.ZRLE;
-      case 'tight': return RFB_ENCODINGS.TIGHT;
-      case 'ultra': return RFB_ENCODINGS.ULTRA;
-      case 'zlibhex': return RFB_ENCODINGS.ZLIBHEX;
-      case 'jpeg': return RFB_ENCODINGS.JPEG;
-      case 'jrle': return RFB_ENCODINGS.JRLE;
-      case 'cursor': return RFB_ENCODINGS.CURSOR;
-      case 'desktopsize': return RFB_ENCODINGS.DESKTOP_SIZE;
-      case 'lastrect': return RFB_ENCODINGS.LAST_RECT;
-      case 'continuous': return RFB_ENCODINGS.PSEUDO_CONTINUOUS_UPDATES;
-      case 'fence': return RFB_ENCODINGS.PSEUDO_FENCE;
-      case 'x11cursor': return RFB_ENCODINGS.PSEUDO_X_CURSOR;
-      case 'richcursor': return RFB_ENCODINGS.CURSOR;
-      default: return RFB_ENCODINGS.RAW;
+      case 'raw':
+        return RFB_ENCODINGS.RAW;
+      case 'copyrect':
+        return RFB_ENCODINGS.COPY_RECT;
+      case 'rre':
+        return RFB_ENCODINGS.RRE;
+      case 'hextile':
+        return RFB_ENCODINGS.HEXTILE;
+      case 'trle':
+        return RFB_ENCODINGS.TRLE;
+      case 'zrle':
+        return RFB_ENCODINGS.ZRLE;
+      case 'tight':
+        return RFB_ENCODINGS.TIGHT;
+      case 'ultra':
+        return RFB_ENCODINGS.ULTRA;
+      case 'zlibhex':
+        return RFB_ENCODINGS.ZLIBHEX;
+      case 'jpeg':
+        return RFB_ENCODINGS.JPEG;
+      case 'jrle':
+        return RFB_ENCODINGS.JRLE;
+      case 'cursor':
+        return RFB_ENCODINGS.CURSOR;
+      case 'desktopsize':
+        return RFB_ENCODINGS.DESKTOP_SIZE;
+      case 'lastrect':
+        return RFB_ENCODINGS.LAST_RECT;
+      case 'continuous':
+        return RFB_ENCODINGS.PSEUDO_CONTINUOUS_UPDATES;
+      case 'fence':
+        return RFB_ENCODINGS.PSEUDO_FENCE;
+      case 'x11cursor':
+        return RFB_ENCODINGS.PSEUDO_X_CURSOR;
+      case 'richcursor':
+        return RFB_ENCODINGS.CURSOR;
+      default:
+        return RFB_ENCODINGS.RAW;
     }
   }
 
@@ -1912,10 +2132,12 @@ export class VNCProtocol extends BaseProtocol {
    */
   private updateNetworkMetrics(): void {
     const now = Date.now();
-    const timeDiff = now - (this.performanceMetrics.timestamp.getTime());
-    
-    if (timeDiff > 1000) { // Update every second
-      this.performanceMetrics.bandwidth = (this.bytesReceived * 8) / (timeDiff / 1000); // bits per second
+    const timeDiff = now - this.performanceMetrics.timestamp.getTime();
+
+    if (timeDiff > 1000) {
+      // Update every second
+      this.performanceMetrics.bandwidth =
+        (this.bytesReceived * 8) / (timeDiff / 1000); // bits per second
       this.performanceMetrics.networkIO = this.bytesReceived + this.bytesSent;
       this.performanceMetrics.timestamp = new Date();
     }
@@ -1924,12 +2146,12 @@ export class VNCProtocol extends BaseProtocol {
   private updateFrameMetrics(): void {
     const now = Date.now();
     const frameDuration = now - this.lastFrameTime;
-    
+
     if (this.lastFrameTime > 0) {
       this.performanceMetrics.avgFrameTime = frameDuration;
       this.performanceMetrics.frameRate = 1000 / frameDuration;
     }
-    
+
     this.lastFrameTime = now;
     this.performanceMetrics.pixelChanges++; // Simplified metric
   }
@@ -1942,12 +2164,16 @@ export class VNCProtocol extends BaseProtocol {
     return {
       protocolVersions: ['3.3', '3.7', '3.8'],
       maxResolution: { width: 16384, height: 16384 },
-      supportedEncodings: Array.from(this.supportedEncodings.keys()).map(k => this.mapEncodingNumberToString(k)),
-      supportedSecurityTypes: this.securityTypes.map(s => this.mapSecurityType(s)),
+      supportedEncodings: Array.from(this.supportedEncodings.keys()).map((k) =>
+        this.mapEncodingNumberToString(k)
+      ),
+      supportedSecurityTypes: this.securityTypes.map((s) =>
+        this.mapSecurityType(s)
+      ),
       supportedPixelFormats: {
         bitsPerPixel: [8, 16, 32],
         depths: [8, 16, 24],
-        colorModes: ['truecolor', 'colormap']
+        colorModes: ['truecolor', 'colormap'],
       },
       cursorShapeUpdates: this.options.enableCursorShapeUpdates || false,
       desktopResize: this.options.autoResize || false,
@@ -1967,7 +2193,7 @@ export class VNCProtocol extends BaseProtocol {
       tlsSupport: this.encryptionEnabled,
       vencryptSupport: this.selectedSecurity === RFB_SECURITY_TYPES.VENCRYPT,
       saslSupport: false,
-      x509Support: false
+      x509Support: false,
     };
   }
 
@@ -1980,7 +2206,7 @@ export class VNCProtocol extends BaseProtocol {
         reject(new Error('Socket not connected'));
         return;
       }
-      
+
       this.socket.write(data, (error) => {
         if (error) {
           reject(error);
@@ -1997,33 +2223,33 @@ export class VNCProtocol extends BaseProtocol {
    */
   public async disconnect(): Promise<void> {
     this.logger.info('Disconnecting from VNC server');
-    
+
     if (this.recordingStream) {
       this.recordingStream.end();
       this.recordingStream = undefined;
-      
+
       if (this.session?.recording) {
         this.session.recording.active = false;
       }
     }
-    
+
     if (this.socket) {
       this.socket.destroy();
       this.socket = undefined;
     }
-    
+
     if (this.repeaterConnection) {
       this.repeaterConnection.destroy();
       this.repeaterConnection = undefined;
     }
-    
+
     this.isConnected = false;
     this.isAuthenticated = false;
-    
+
     if (this.session) {
       this.session.status = 'disconnected';
     }
-    
+
     this.emit('disconnected');
   }
 
@@ -2059,7 +2285,10 @@ export class VNCProtocol extends BaseProtocol {
     }
 
     const sessionId = this.generateSessionId();
-    const vncOptions = { ...this.defaultOptions, ...(options.vncOptions || {}) };
+    const vncOptions = {
+      ...this.defaultOptions,
+      ...(options.vncOptions || {}),
+    };
 
     // Handle different VNC connection modes
     let command: string;
@@ -2085,7 +2314,7 @@ export class VNCProtocol extends BaseProtocol {
     const session = await this.createSessionWithTypeDetection(sessionId, {
       ...options,
       command,
-      args
+      args,
     });
 
     // Create VNC-specific session tracking
@@ -2111,10 +2340,14 @@ export class VNCProtocol extends BaseProtocol {
           blueMax: vncOptions.pixelFormat?.blueMax || 255,
           redShift: vncOptions.pixelFormat?.redShift || 16,
           greenShift: vncOptions.pixelFormat?.greenShift || 8,
-          blueShift: vncOptions.pixelFormat?.blueShift || 0
-        }
+          blueShift: vncOptions.pixelFormat?.blueShift || 0,
+        },
       },
-      supportedEncodings: vncOptions.supportedEncodings || ['zrle', 'hextile', 'raw'],
+      supportedEncodings: vncOptions.supportedEncodings || [
+        'zrle',
+        'hextile',
+        'raw',
+      ],
       serverCapabilities: {
         cursorShapeUpdates: vncOptions.enableCursorShapeUpdates || false,
         richCursor: vncOptions.enableRichCursor || false,
@@ -2123,7 +2356,7 @@ export class VNCProtocol extends BaseProtocol {
         fence: false,
         fileTransfer: vncOptions.enableFileTransfer || false,
         clipboardTransfer: vncOptions.enableClipboard || false,
-        audio: false
+        audio: false,
       },
       status: 'connecting',
       connectionTime: new Date(),
@@ -2138,21 +2371,27 @@ export class VNCProtocol extends BaseProtocol {
         avgFrameRate: 0,
         bandwidth: 0,
         compression: 1.0,
-        latency: 0
+        latency: 0,
       },
       errorCount: 0,
       warnings: [],
       monitors: vncOptions.monitors || [],
-      metadata: { mode: vncOptions.mode }
+      metadata: { mode: vncOptions.mode },
     };
 
     this.vncSessions.set(sessionId, vncSession);
 
-    this.logger.info(`VNC session created: ${sessionId} (${vncOptions.mode || 'direct'})`);
+    this.logger.info(
+      `VNC session created: ${sessionId} (${vncOptions.mode || 'direct'})`
+    );
     return session;
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -2173,7 +2412,12 @@ export class VNCProtocol extends BaseProtocol {
       }
     }
 
-    this.emit('commandExecuted', { sessionId, command, args, timestamp: new Date() });
+    this.emit('commandExecuted', {
+      sessionId,
+      command,
+      args,
+      timestamp: new Date(),
+    });
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
@@ -2197,7 +2441,7 @@ export class VNCProtocol extends BaseProtocol {
     if (vncSession?.status === 'connected') {
       for (const char of input) {
         const keycode = char.charCodeAt(0);
-        await this.sendKeyEvent(keycode, true);  // key down
+        await this.sendKeyEvent(keycode, true); // key down
         await this.sendKeyEvent(keycode, false); // key up
       }
     }
@@ -2253,7 +2497,6 @@ export class VNCProtocol extends BaseProtocol {
 
       this.logger.info(`VNC session closed: ${sessionId}`);
       this.emit('sessionClosed', sessionId);
-
     } catch (error) {
       this.logger.error(`Error closing VNC session ${sessionId}:`, error);
       throw error;
@@ -2265,7 +2508,7 @@ export class VNCProtocol extends BaseProtocol {
 
     // Close all active sessions
     const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
 
     // Disconnect any active VNC connections
     if (this.socket) {
@@ -2297,7 +2540,13 @@ export class VNCProtocol extends BaseProtocol {
 
   private async checkVNCAvailability(): Promise<void> {
     // Check for VNC tools availability
-    const tools = ['vncviewer', 'tigervnc', 'tightvncviewer', 'realvnc', 'ultravnc'];
+    const tools = [
+      'vncviewer',
+      'tigervnc',
+      'tightvncviewer',
+      'realvnc',
+      'ultravnc',
+    ];
     let availableTools = 0;
 
     for (const tool of tools) {
@@ -2305,9 +2554,13 @@ export class VNCProtocol extends BaseProtocol {
         await new Promise<void>((resolve, reject) => {
           const process = spawn(tool, ['--version'], { stdio: 'pipe' });
           process.on('close', (code) => {
-            if (code === 0 || code === 1) { // Some tools return 1 for --version
+            if (code === 0 || code === 1) {
+              // Some tools return 1 for --version
               availableTools++;
-              this.healthStatus.dependencies[tool] = { available: true, version: 'detected' };
+              this.healthStatus.dependencies[tool] = {
+                available: true,
+                version: 'detected',
+              };
             }
             resolve();
           });
@@ -2323,20 +2576,25 @@ export class VNCProtocol extends BaseProtocol {
     }
 
     if (availableTools === 0) {
-      this.logger.warn('No VNC tools detected, some functionality may be limited');
+      this.logger.warn(
+        'No VNC tools detected, some functionality may be limited'
+      );
     } else {
       this.logger.debug(`Detected ${availableTools} VNC tools`);
     }
   }
 
-  private buildVNCViewerCommand(options: Partial<VNCConnectionOptions>): { command: string; args: string[] } {
+  private buildVNCViewerCommand(options: Partial<VNCConnectionOptions>): {
+    command: string;
+    args: string[];
+  } {
     // Determine best VNC viewer
     const viewers = [
       { cmd: 'vncviewer', name: 'TigerVNC Viewer' },
       { cmd: 'tigervnc', name: 'TigerVNC' },
       { cmd: 'tightvncviewer', name: 'TightVNC Viewer' },
       { cmd: 'realvnc', name: 'RealVNC Viewer' },
-      { cmd: 'ultravnc', name: 'UltraVNC' }
+      { cmd: 'ultravnc', name: 'UltraVNC' },
     ];
 
     const command = options.vncViewer || 'vncviewer';
@@ -2388,7 +2646,10 @@ export class VNCProtocol extends BaseProtocol {
     return { command, args };
   }
 
-  private buildVNCServerCommand(options: Partial<VNCConnectionOptions>): { command: string; args: string[] } {
+  private buildVNCServerCommand(options: Partial<VNCConnectionOptions>): {
+    command: string;
+    args: string[];
+  } {
     // Determine VNC server to use
     const servers = ['x11vnc', 'tigervnc', 'tightvncserver', 'vncserver'];
     const command = options.vncServer || 'x11vnc';
@@ -2433,7 +2694,6 @@ export class VNCProtocol extends BaseProtocol {
       if (options.daemonMode) {
         args.push('-forever', '-loop');
       }
-
     } else if (command.includes('tigervnc') || command === 'vncserver') {
       // TigerVNC/standard vncserver options
       if (options.geometry) {
@@ -2458,12 +2718,15 @@ export class VNCProtocol extends BaseProtocol {
     return { command, args };
   }
 
-  private buildVNCDirectCommand(options: Partial<VNCConnectionOptions>): { command: string; args: string[] } {
+  private buildVNCDirectCommand(options: Partial<VNCConnectionOptions>): {
+    command: string;
+    args: string[];
+  } {
     // For direct VNC protocol connections, we can use netcat or custom connection tools
     const command = 'nc'; // netcat for basic TCP connection
     const args = [
       options.host || 'localhost',
-      (options.port || 5900).toString()
+      (options.port || 5900).toString(),
     ];
 
     if (options.timeout) {
@@ -2476,8 +2739,15 @@ export class VNCProtocol extends BaseProtocol {
   /**
    * Enhanced createSessionWithTypeDetection wrapper for VNC-specific session creation
    */
-  protected async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
-    const vncOptions = { ...this.defaultOptions, ...(options.vncOptions || {}) };
+  protected async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
+    const vncOptions = {
+      ...this.defaultOptions,
+      ...(options.vncOptions || {}),
+    };
 
     let command: string;
     let args: string[];
@@ -2499,7 +2769,7 @@ export class VNCProtocol extends BaseProtocol {
     const spawnOptions: SpawnOptionsWithoutStdio = {
       cwd: options.cwd || process.cwd(),
       env: { ...process.env, ...options.environment },
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     };
 
     this.logger.debug(`Starting VNC process: ${command} ${args.join(' ')}`);
@@ -2509,7 +2779,9 @@ export class VNCProtocol extends BaseProtocol {
 
     // Handle process events
     childProcess.on('spawn', () => {
-      this.logger.debug(`VNC process spawned for session ${sessionId} (PID: ${childProcess.pid})`);
+      this.logger.debug(
+        `VNC process spawned for session ${sessionId} (PID: ${childProcess.pid})`
+      );
     });
 
     childProcess.on('error', (error) => {
@@ -2518,7 +2790,9 @@ export class VNCProtocol extends BaseProtocol {
     });
 
     childProcess.on('exit', (code, signal) => {
-      this.logger.debug(`VNC process exited for session ${sessionId}: code=${code}, signal=${signal}`);
+      this.logger.debug(
+        `VNC process exited for session ${sessionId}: code=${code}, signal=${signal}`
+      );
       this.vncProcesses.delete(sessionId);
 
       const vncSession = this.vncSessions.get(sessionId);
@@ -2535,7 +2809,7 @@ export class VNCProtocol extends BaseProtocol {
           type: 'stdout',
           data: data.toString(),
           timestamp: new Date(),
-          stream: 'stdout'
+          stream: 'stdout',
         };
 
         const outputBuffer = this.outputBuffers.get(sessionId) || [];
@@ -2553,7 +2827,7 @@ export class VNCProtocol extends BaseProtocol {
           type: 'stderr',
           data: data.toString(),
           timestamp: new Date(),
-          stream: 'stderr'
+          stream: 'stderr',
         };
 
         const outputBuffer = this.outputBuffers.get(sessionId) || [];
@@ -2577,7 +2851,7 @@ export class VNCProtocol extends BaseProtocol {
       type: 'vnc',
       vncOptions: vncOptions as VNCConnectionOptions,
       executionState: 'executing',
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     return session;
@@ -2596,10 +2870,13 @@ export class VNCProtocol extends BaseProtocol {
     return this.capabilities.defaultTimeout || 30000;
   }
 
-  public async getOutput(sessionId: string, since?: Date): Promise<ConsoleOutput[]> {
+  public async getOutput(
+    sessionId: string,
+    since?: Date
+  ): Promise<ConsoleOutput[]> {
     const outputs = this.outputBuffers.get(sessionId) || [];
     const filteredOutputs = since
-      ? outputs.filter(output => output.timestamp > since)
+      ? outputs.filter((output) => output.timestamp > since)
       : outputs;
 
     return filteredOutputs;
@@ -2619,18 +2896,23 @@ export class VNCProtocol extends BaseProtocol {
       }
     }
 
-    if (hasErrors && !this.healthStatus.errors.includes('Some VNC sessions have errors')) {
+    if (
+      hasErrors &&
+      !this.healthStatus.errors.includes('Some VNC sessions have errors')
+    ) {
       this.healthStatus.errors.push('Some VNC sessions have errors');
     }
 
     return { ...this.healthStatus };
   }
-
 }
 
 // Export VNC-specific error types
 export class VNCProtocolError extends Error {
-  constructor(message: string, public code?: string) {
+  constructor(
+    message: string,
+    public code?: string
+  ) {
     super(message);
     this.name = 'VNCProtocolError';
   }

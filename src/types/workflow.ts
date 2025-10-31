@@ -3,9 +3,30 @@
  * Defines the structure for advanced automation capabilities
  */
 
-export type WorkflowStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused' | 'awaiting_approval';
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled' | 'retrying';
-export type TriggerType = 'manual' | 'schedule' | 'event' | 'webhook' | 'file_watch' | 'condition' | 'dependency';
+export type WorkflowStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'paused'
+  | 'awaiting_approval';
+export type TaskStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'cancelled'
+  | 'retrying';
+export type TriggerType =
+  | 'manual'
+  | 'schedule'
+  | 'event'
+  | 'webhook'
+  | 'file_watch'
+  | 'condition'
+  | 'dependency';
 export type ExecutionMode = 'sequential' | 'parallel' | 'mixed';
 export type ApprovalType = 'manual' | 'automatic' | 'conditional';
 
@@ -78,17 +99,17 @@ export interface WorkflowTask {
   metadata: TaskMetadata;
 }
 
-export type TaskType = 
-  | 'command' 
-  | 'script' 
-  | 'api_call' 
-  | 'file_operation' 
-  | 'database' 
-  | 'email' 
-  | 'notification' 
-  | 'condition' 
-  | 'wait' 
-  | 'parallel_group' 
+export type TaskType =
+  | 'command'
+  | 'script'
+  | 'api_call'
+  | 'file_operation'
+  | 'database'
+  | 'email'
+  | 'notification'
+  | 'condition'
+  | 'wait'
+  | 'parallel_group'
   | 'subworkflow'
   | 'data_transform'
   | 'validation'
@@ -102,7 +123,16 @@ export interface TaskCondition {
   expression?: string;
   script?: string;
   variables?: string[];
-  operator?: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains' | 'matches' | 'exists';
+  operator?:
+    | 'eq'
+    | 'ne'
+    | 'gt'
+    | 'lt'
+    | 'gte'
+    | 'lte'
+    | 'contains'
+    | 'matches'
+    | 'exists';
   value?: any;
 }
 
@@ -128,7 +158,12 @@ export interface TaskOutput {
 }
 
 export interface TaskAction {
-  type: 'set_variable' | 'call_webhook' | 'send_notification' | 'trigger_workflow' | 'rollback';
+  type:
+    | 'set_variable'
+    | 'call_webhook'
+    | 'send_notification'
+    | 'trigger_workflow'
+    | 'rollback';
   config: any;
 }
 
@@ -254,7 +289,15 @@ export interface DataDestination {
 
 export interface DataTransformation {
   id: string;
-  type: 'map' | 'filter' | 'reduce' | 'merge' | 'split' | 'validate' | 'format' | 'encrypt';
+  type:
+    | 'map'
+    | 'filter'
+    | 'reduce'
+    | 'merge'
+    | 'split'
+    | 'validate'
+    | 'format'
+    | 'encrypt';
   config: any;
   input: string[];
   output: string;
@@ -415,7 +458,13 @@ export interface NotificationChannel {
 }
 
 export interface NotificationCondition {
-  event: 'workflow_start' | 'workflow_complete' | 'workflow_fail' | 'task_fail' | 'approval_needed' | 'timeout';
+  event:
+    | 'workflow_start'
+    | 'workflow_complete'
+    | 'workflow_fail'
+    | 'task_fail'
+    | 'approval_needed'
+    | 'timeout';
   severity?: 'info' | 'warning' | 'error' | 'critical';
   customCondition?: string;
 }
@@ -548,7 +597,15 @@ export interface ExecutionError {
 
 // File operations and artifacts
 export interface FileOperation {
-  type: 'read' | 'write' | 'copy' | 'move' | 'delete' | 'compress' | 'extract' | 'sync';
+  type:
+    | 'read'
+    | 'write'
+    | 'copy'
+    | 'move'
+    | 'delete'
+    | 'compress'
+    | 'extract'
+    | 'sync';
   source?: string;
   destination?: string;
   options?: FileOptions;
@@ -699,7 +756,13 @@ export interface ScheduledWorkflow {
 export interface ExternalIntegration {
   id: string;
   name: string;
-  type: 'api' | 'database' | 'queue' | 'storage' | 'monitoring' | 'notification';
+  type:
+    | 'api'
+    | 'database'
+    | 'queue'
+    | 'storage'
+    | 'monitoring'
+    | 'notification';
   config: IntegrationConfig;
   authentication: AuthConfig;
   healthCheck?: HealthCheckConfig;

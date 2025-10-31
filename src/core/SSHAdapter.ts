@@ -45,7 +45,10 @@ export class SSHAdapter extends EventEmitter {
     // CRITICAL: Add robust default error handler to prevent process crashes
     // This handler is ALWAYS present and cannot be removed by external code
     this.on('error', (error) => {
-      this.logger.error(`SSH adapter error (session ${this.sessionId}):`, error);
+      this.logger.error(
+        `SSH adapter error (session ${this.sessionId}):`,
+        error
+      );
 
       // Always ensure we don't crash the process, even if this is the only listener
       // This is a safety net that should never be removed
@@ -53,19 +56,31 @@ export class SSHAdapter extends EventEmitter {
 
     // Pre-register safe default handlers for recovery events to prevent crashes
     this.on('error-recovered', (data) => {
-      this.logger.info(`SSH error recovery succeeded for session ${this.sessionId}:`, data);
+      this.logger.info(
+        `SSH error recovery succeeded for session ${this.sessionId}:`,
+        data
+      );
     });
 
     this.on('error-recovery-failed', (data) => {
-      this.logger.warn(`SSH error recovery failed for session ${this.sessionId}:`, data);
+      this.logger.warn(
+        `SSH error recovery failed for session ${this.sessionId}:`,
+        data
+      );
     });
 
     this.on('connection-failed', (data) => {
-      this.logger.error(`SSH connection failed for session ${this.sessionId}:`, data);
+      this.logger.error(
+        `SSH connection failed for session ${this.sessionId}:`,
+        data
+      );
     });
 
     this.on('connection-restored', (data) => {
-      this.logger.info(`SSH connection restored for session ${this.sessionId}:`, data);
+      this.logger.info(
+        `SSH connection restored for session ${this.sessionId}:`,
+        data
+      );
     });
 
     this.setupErrorRecoveryHandlers();
@@ -172,12 +187,16 @@ export class SSHAdapter extends EventEmitter {
   private async handleConnectionLoss(): Promise<void> {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.logger.error('Max reconnection attempts reached, giving up');
-      this.emit('connection-failed', { reason: 'Max reconnection attempts exceeded' });
+      this.emit('connection-failed', {
+        reason: 'Max reconnection attempts exceeded',
+      });
       return;
     }
 
     this.reconnectAttempts++;
-    this.logger.info(`Attempting auto-reconnection (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    this.logger.info(
+      `Attempting auto-reconnection (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+    );
 
     try {
       await this.reconnect();
@@ -215,7 +234,7 @@ export class SSHAdapter extends EventEmitter {
     this.cleanup();
 
     // Wait a moment before recreating
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     try {
       if (this.connectionOptions) {
@@ -250,11 +269,17 @@ export class SSHAdapter extends EventEmitter {
         sessionId: this.sessionId,
         operationName: 'ssh_connect',
         strategyName: 'ssh',
-        context: { host: options.host, port: options.port, username: options.username },
+        context: {
+          host: options.host,
+          port: options.port,
+          username: options.username,
+        },
         onRetry: (context) => {
-          this.logger.info(`Retrying SSH connection to ${options.host} (attempt ${context.attemptNumber})`);
+          this.logger.info(
+            `Retrying SSH connection to ${options.host} (attempt ${context.attemptNumber})`
+          );
           this.cleanup();
-        }
+        },
       }
     );
   }
@@ -267,7 +292,7 @@ export class SSHAdapter extends EventEmitter {
         host: options.host,
         port: options.port || 22,
         username: options.username,
-        readyTimeout: options.timeout || 10000
+        readyTimeout: options.timeout || 10000,
       };
 
       // Add authentication
@@ -287,7 +312,9 @@ export class SSHAdapter extends EventEmitter {
         connectConfig.hostVerifier = () => true;
       }
 
-      this.logger.debug(`[SSH2] Connecting to ${options.host}:${connectConfig.port} as ${options.username}`);
+      this.logger.debug(
+        `[SSH2] Connecting to ${options.host}:${connectConfig.port} as ${options.username}`
+      );
 
       // Set up timeout
       const connectionTimeout = setTimeout(() => {
@@ -372,10 +399,10 @@ export class SSHAdapter extends EventEmitter {
             ...process.env,
             // Disable host key checking if requested
             ...(options.strictHostKeyChecking === false && {
-              'OPENSSH_ASKPASS': 'echo',
-              'DISPLAY': ':0'
-            })
-          }
+              OPENSSH_ASKPASS: 'echo',
+              DISPLAY: ':0',
+            }),
+          },
         };
 
         // Enhanced debug logging
@@ -383,7 +410,9 @@ export class SSHAdapter extends EventEmitter {
         this.logger.debug(`[SSH-ATTEMPT] Trying SSH executable: ${sshCmd}`);
         this.logger.debug(`[SSH-ATTEMPT] Full command: ${fullCommand}`);
         this.logger.debug(`[SSH-ATTEMPT] Args: ${JSON.stringify(args)}`);
-        this.logger.debug(`[SSH-ATTEMPT] Stdio: ${JSON.stringify(spawnOptions.stdio)}`);
+        this.logger.debug(
+          `[SSH-ATTEMPT] Stdio: ${JSON.stringify(spawnOptions.stdio)}`
+        );
         this.logger.debug(`[SSH-ATTEMPT] Has password: ${!!options.password}`);
 
         // SAFE SPAWN: Enhanced spawn protection with multiple safeguards
@@ -394,7 +423,9 @@ export class SSHAdapter extends EventEmitter {
           // CRITICAL: Set up error handler IMMEDIATELY after spawn, before any async operations
           // This prevents ENOENT and other spawn errors from becoming uncaught exceptions
           this.process.on('error', (spawnError) => {
-            this.logger.error(`SSH spawn error for ${sshCmd}: ${spawnError.message}`);
+            this.logger.error(
+              `SSH spawn error for ${sshCmd}: ${spawnError.message}`
+            );
             // Emit through our safe error handler system
             this.emit('error', `SSH spawn failed: ${spawnError.message}`);
 
@@ -411,7 +442,9 @@ export class SSHAdapter extends EventEmitter {
           // Safeguard: Set timeout for spawn validation
           const spawnValidationTimeout = setTimeout(() => {
             if (!this.process?.pid) {
-              this.logger.error(`SSH spawn validation timeout - no PID after 100ms`);
+              this.logger.error(
+                `SSH spawn validation timeout - no PID after 100ms`
+              );
               this.cleanup();
             }
           }, 100);
@@ -420,10 +453,11 @@ export class SSHAdapter extends EventEmitter {
           if (this.process.pid) {
             clearTimeout(spawnValidationTimeout);
           }
-
         } catch (immediateSpawnError) {
           // Handle synchronous spawn errors (like EACCES, ENOENT)
-          this.logger.error(`Immediate spawn error for ${sshCmd}: ${immediateSpawnError}`);
+          this.logger.error(
+            `Immediate spawn error for ${sshCmd}: ${immediateSpawnError}`
+          );
           this.process = null;
           lastError = immediateSpawnError as Error;
           continue;
@@ -431,21 +465,28 @@ export class SSHAdapter extends EventEmitter {
 
         // Validate that spawn was successful
         if (this.process.pid) {
-          this.logger.debug(`SSH process spawned successfully with PID: ${this.process.pid}`);
+          this.logger.debug(
+            `SSH process spawned successfully with PID: ${this.process.pid}`
+          );
 
           // Set up remaining handlers after successful spawn
           this.setupHandlers();
 
           try {
             // Use much shorter timeout on Windows to fail faster
-            const timeout = platform() === 'win32' ? 3000 : (options.timeout || 10000);
+            const timeout =
+              platform() === 'win32' ? 3000 : options.timeout || 10000;
             await this.waitForConnection(timeout);
             this.isConnected = true;
-            this.logger.info(`SSH connection established to ${options.host} using ${sshCmd}`);
+            this.logger.info(
+              `SSH connection established to ${options.host} using ${sshCmd}`
+            );
             return;
           } catch (connectionError) {
             lastError = connectionError as Error;
-            this.logger.debug(`Connection attempt failed: ${connectionError.message}`);
+            this.logger.debug(
+              `Connection attempt failed: ${connectionError.message}`
+            );
 
             // Try to recover from connection error
             await this.handleConnectionError(lastError, options);
@@ -458,7 +499,9 @@ export class SSHAdapter extends EventEmitter {
           }
         } else {
           // Process didn't get a PID - spawn failed
-          const spawnError = new Error(`Failed to spawn SSH process: ${sshCmd}`);
+          const spawnError = new Error(
+            `Failed to spawn SSH process: ${sshCmd}`
+          );
           this.logger.debug(`SSH spawn failed - no PID assigned for ${sshCmd}`);
           lastError = spawnError;
           continue;
@@ -472,7 +515,9 @@ export class SSHAdapter extends EventEmitter {
           try {
             this.process.kill();
           } catch (killError) {
-            this.logger.debug(`Failed to kill partially spawned process: ${killError}`);
+            this.logger.debug(
+              `Failed to kill partially spawned process: ${killError}`
+            );
           }
         }
         this.process = null;
@@ -483,33 +528,43 @@ export class SSHAdapter extends EventEmitter {
     }
 
     // If we get here, all SSH commands failed
-    const finalError = lastError || new Error('No SSH client found. Please install OpenSSH or Git Bash.');
-    
+    const finalError =
+      lastError ||
+      new Error('No SSH client found. Please install OpenSSH or Git Bash.');
+
     // Try final error recovery
     await this.handleConnectionError(finalError, options);
-    
+
     throw finalError;
   }
 
-  private async handleConnectionError(error: Error, options: SSHOptions): Promise<void> {
+  private async handleConnectionError(
+    error: Error,
+    options: SSHOptions
+  ): Promise<void> {
     try {
       const errorContext: ErrorContext = {
         sessionId: this.sessionId,
         operation: 'ssh_connect',
         error,
         timestamp: Date.now(),
-        metadata: { host: options.host, port: options.port, username: options.username }
+        metadata: {
+          host: options.host,
+          port: options.port,
+          username: options.username,
+        },
       };
 
-      const recoveryResult = await this.errorRecovery.attemptRecovery(errorContext);
-      
+      const recoveryResult =
+        await this.errorRecovery.attemptRecovery(errorContext);
+
       if (recoveryResult.recovered) {
         this.logger.info('SSH connection error recovered');
         this.emit('error-recovered', { error: error.message });
       } else {
-        this.emit('error-recovery-failed', { 
-          error: error.message, 
-          guidance: recoveryResult.userGuidance 
+        this.emit('error-recovery-failed', {
+          error: error.message,
+          guidance: recoveryResult.userGuidance,
         });
       }
     } catch (recoveryError) {
@@ -562,14 +617,14 @@ export class SSHAdapter extends EventEmitter {
     if (osType === 'win32') {
       // Windows SSH commands in order of preference
       const commands = [
-        'ssh.exe',           // Windows OpenSSH (built-in since Windows 10) - try simple name first
+        'ssh.exe', // Windows OpenSSH (built-in since Windows 10) - try simple name first
         'C:\\Windows\\System32\\OpenSSH\\ssh.exe', // Explicit Windows OpenSSH path
         'C:\\Program Files\\Git\\usr\\bin\\ssh.exe', // Git Bash SSH (correct path)
-        'ssh',               // Fallback to PATH search
+        'ssh', // Fallback to PATH search
       ];
 
       // Filter out any obviously invalid paths to reduce error logs
-      return commands.filter(cmd => {
+      return commands.filter((cmd) => {
         // Basic validation - don't try paths that are clearly wrong
         if (cmd.includes('\\') && !cmd.match(/^[A-Z]:\\/)) {
           return false; // Invalid Windows path format
@@ -579,10 +634,10 @@ export class SSHAdapter extends EventEmitter {
     } else {
       // Unix/Linux/Mac SSH commands
       return [
-        'ssh',               // Standard SSH - should be in PATH
-        '/usr/bin/ssh',      // Common system location
+        'ssh', // Standard SSH - should be in PATH
+        '/usr/bin/ssh', // Common system location
         '/usr/local/bin/ssh', // Common local install location
-        '/opt/bin/ssh',      // Alternative location
+        '/opt/bin/ssh', // Alternative location
       ];
     }
   }
@@ -628,13 +683,15 @@ export class SSHAdapter extends EventEmitter {
     }
 
     // Connection timeout - always set to prevent hanging
-    const timeoutSeconds = options.timeout ? Math.floor(options.timeout / 1000) : 10;
+    const timeoutSeconds = options.timeout
+      ? Math.floor(options.timeout / 1000)
+      : 10;
     args.push('-o', `ConnectTimeout=${timeoutSeconds}`);
 
     // Add keep-alive settings to prevent disconnections
-    args.push('-o', 'ServerAliveInterval=30');  // Send keepalive every 30 seconds
-    args.push('-o', 'ServerAliveCountMax=10');   // Allow up to 10 missed responses before disconnect
-    args.push('-o', 'TCPKeepAlive=yes');         // Enable TCP-level keepalive
+    args.push('-o', 'ServerAliveInterval=30'); // Send keepalive every 30 seconds
+    args.push('-o', 'ServerAliveCountMax=10'); // Allow up to 10 missed responses before disconnect
+    args.push('-o', 'TCPKeepAlive=yes'); // Enable TCP-level keepalive
 
     // Force pseudo-terminal allocation
     args.push('-tt');
@@ -666,18 +723,21 @@ export class SSHAdapter extends EventEmitter {
 
             // Check for password prompt
             if (text.toLowerCase().includes('password:')) {
-              this.logger.debug(`[SSH-PASSWORD] Password prompt detected: "${text.substring(0, 50)}"`);
+              this.logger.debug(
+                `[SSH-PASSWORD] Password prompt detected: "${text.substring(0, 50)}"`
+              );
               this.emit('password-prompt');
             }
 
             // Check for successful connection (common shell prompts and login indicators)
-            if (text.match(/[$#>]\s*$/) ||
-                text.includes('Last login:') ||
-                text.includes('Welcome to') ||
-                text.match(/\w+@\w+/) ||
-                text.includes('~') ||
-                text.match(/\]\s*$/) || // bash prompt ending with ]
-                text.match(/:\s*$/)     // some prompts end with :
+            if (
+              text.match(/[$#>]\s*$/) ||
+              text.includes('Last login:') ||
+              text.includes('Welcome to') ||
+              text.match(/\w+@\w+/) ||
+              text.includes('~') ||
+              text.match(/\]\s*$/) || // bash prompt ending with ]
+              text.match(/:\s*$/) // some prompts end with :
             ) {
               this.isConnected = true;
               this.emit('connected');
@@ -763,7 +823,9 @@ export class SSHAdapter extends EventEmitter {
         this.removeListener('password-prompt', onPasswordPrompt);
         this.removeListener('error', onError);
         this.removeListener('auth-failed', onAuthFailed);
-        const authError = new Error('Authentication failed - invalid username or password');
+        const authError = new Error(
+          'Authentication failed - invalid username or password'
+        );
         (authError as any).nonRetryable = true;
         reject(authError);
       };
@@ -821,7 +883,9 @@ export class SSHAdapter extends EventEmitter {
               if (error) {
                 reject(error);
               } else {
-                this.logger.debug(`[SSH2] Sent command: ${command.substring(0, 50)}...`);
+                this.logger.debug(
+                  `[SSH2] Sent command: ${command.substring(0, 50)}...`
+                );
                 resolve();
               }
             });
@@ -838,7 +902,9 @@ export class SSHAdapter extends EventEmitter {
             if (error) {
               reject(error);
             } else {
-              this.logger.debug(`[Native] Sent command: ${command.substring(0, 50)}...`);
+              this.logger.debug(
+                `[Native] Sent command: ${command.substring(0, 50)}...`
+              );
               resolve();
             }
           });
@@ -850,8 +916,10 @@ export class SSHAdapter extends EventEmitter {
         strategyName: 'ssh',
         context: { commandLength: command.length },
         onRetry: (context) => {
-          this.logger.debug(`Retrying SSH command send (attempt ${context.attemptNumber})`);
-        }
+          this.logger.debug(
+            `Retrying SSH command send (attempt ${context.attemptNumber})`
+          );
+        },
       }
     );
   }
@@ -861,7 +929,9 @@ export class SSHAdapter extends EventEmitter {
       async () => {
         // ssh2 handles password auth during connection, not here
         if (this.sshChannel) {
-          this.logger.debug('[SSH2] Password already handled during connection');
+          this.logger.debug(
+            '[SSH2] Password already handled during connection'
+          );
           return;
         }
 
@@ -888,8 +958,10 @@ export class SSHAdapter extends EventEmitter {
         strategyName: 'authentication',
         context: { hasPassword: password.length > 0 },
         onRetry: (context) => {
-          this.logger.debug(`Retrying SSH password send (attempt ${context.attemptNumber})`);
-        }
+          this.logger.debug(
+            `Retrying SSH password send (attempt ${context.attemptNumber})`
+          );
+        },
       }
     );
   }
@@ -915,11 +987,13 @@ export class SSHAdapter extends EventEmitter {
       throw new Error('No connection options available for reconnect');
     }
 
-    this.logger.info(`Reconnecting SSH session to ${this.connectionOptions.host}`);
-    
+    this.logger.info(
+      `Reconnecting SSH session to ${this.connectionOptions.host}`
+    );
+
     // Clean up existing connection
     this.cleanup();
-    
+
     // Attempt to reconnect
     await this.connect(this.connectionOptions);
   }
@@ -995,13 +1069,19 @@ export class SSHAdapter extends EventEmitter {
 }
 
 // Helper function to create SSH session with retry and recovery
-export function createSSHSession(options: SSHOptions, sessionId?: string): SSHAdapter {
+export function createSSHSession(
+  options: SSHOptions,
+  sessionId?: string
+): SSHAdapter {
   const adapter = new SSHAdapter(sessionId);
   return adapter;
 }
 
 // Enhanced helper function that automatically connects
-export async function createAndConnectSSHSession(options: SSHOptions, sessionId?: string): Promise<SSHAdapter> {
+export async function createAndConnectSSHSession(
+  options: SSHOptions,
+  sessionId?: string
+): Promise<SSHAdapter> {
   const adapter = new SSHAdapter(sessionId);
   await adapter.connect(options);
   return adapter;

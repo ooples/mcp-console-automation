@@ -15,7 +15,7 @@ describe('TestRecorder', () => {
     // Clean up test directory
     if (fs.existsSync(testOutputDir)) {
       const files = fs.readdirSync(testOutputDir);
-      files.forEach(file => {
+      files.forEach((file) => {
         fs.unlinkSync(path.join(testOutputDir, file));
       });
     }
@@ -38,7 +38,7 @@ describe('TestRecorder', () => {
         name: 'test-recording',
         author: 'Test Author',
         description: 'Test description',
-        tags: ['test', 'unit']
+        tags: ['test', 'unit'],
       });
 
       expect(recorder.isCurrentlyRecording()).toBe(true);
@@ -99,7 +99,11 @@ describe('TestRecorder', () => {
       recorder.startRecording({ name: 'test-create-session' });
 
       const sessionData = { command: 'bash', cwd: '/tmp' };
-      recorder.recordCreateSession('session123', sessionData, 'Session created');
+      recorder.recordCreateSession(
+        'session123',
+        sessionData,
+        'Session created'
+      );
 
       const recording = recorder.getRecording();
       expect(recording?.steps.length).toBe(1);
@@ -198,7 +202,9 @@ describe('TestRecorder', () => {
       expect(recorder.getRecording()).toBeNull();
 
       // Verify file was not created
-      const files = fs.existsSync(testOutputDir) ? fs.readdirSync(testOutputDir) : [];
+      const files = fs.existsSync(testOutputDir)
+        ? fs.readdirSync(testOutputDir)
+        : [];
       expect(files.length).toBe(0);
     });
 
@@ -252,7 +258,10 @@ describe('TestRecorder', () => {
         recorder.startRecording({ name: 'test-ext' });
         recorder.stopRecording();
 
-        const loaded = TestRecorder.loadRecording('test-ext.json', testOutputDir);
+        const loaded = TestRecorder.loadRecording(
+          'test-ext.json',
+          testOutputDir
+        );
         expect(loaded.name).toBe('test-ext');
       });
     });
@@ -282,9 +291,9 @@ describe('TestRecorder', () => {
       recorder.startRecording({ name: 'test-timing' });
 
       recorder.recordSendInput('step1');
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       recorder.recordSendInput('step2');
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       recorder.recordSendInput('step3');
 
       const steps = recorder.getRecording()?.steps;
@@ -316,12 +325,12 @@ describe('TestRecorder', () => {
         author: 'John Doe',
         description: 'Test recording',
         tags: ['integration', 'ssh'],
-        environment: { test: 'value' }
+        environment: { test: 'value' },
       };
 
       recorder.startRecording({
         name: 'test-metadata',
-        ...metadata
+        ...metadata,
       });
       recorder.stopRecording();
 

@@ -22,26 +22,26 @@ describe('TestReplayEngine', () => {
     // Setup default mocks
     mockConsoleManager.createSession = jest.fn().mockResolvedValue({
       sessionId: 'test-session-123',
-      success: true
+      success: true,
     });
 
     mockConsoleManager.sendInput = jest.fn().mockResolvedValue({
       success: true,
-      output: 'Command executed'
+      output: 'Command executed',
     });
 
     mockConsoleManager.sendKey = jest.fn().mockResolvedValue({
       success: true,
-      output: 'Key sent'
+      output: 'Key sent',
     });
 
     mockConsoleManager.waitForOutput = jest.fn().mockResolvedValue({
       success: true,
-      output: 'Pattern matched'
+      output: 'Pattern matched',
     });
 
     mockConsoleManager.stopSession = jest.fn().mockResolvedValue({
-      success: true
+      success: true,
     });
   });
 
@@ -57,16 +57,16 @@ describe('TestReplayEngine', () => {
             type: 'create_session',
             timestamp: 0,
             data: { command: 'bash' },
-            sessionId: 'session1'
+            sessionId: 'session1',
           },
           {
             type: 'send_input',
             timestamp: 100,
             data: { input: 'echo hello' },
-            sessionId: 'session1'
-          }
+            sessionId: 'session1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const result = await engine.replay(recording);
@@ -75,7 +75,9 @@ describe('TestReplayEngine', () => {
       expect(result.steps.length).toBe(2);
       expect(result.steps[0].status).toBe('pass');
       expect(result.steps[1].status).toBe('pass');
-      expect(mockConsoleManager.createSession).toHaveBeenCalledWith({ command: 'bash' });
+      expect(mockConsoleManager.createSession).toHaveBeenCalledWith({
+        command: 'bash',
+      });
       expect(mockConsoleManager.sendInput).toHaveBeenCalled();
     });
 
@@ -90,16 +92,16 @@ describe('TestReplayEngine', () => {
             type: 'create_session',
             timestamp: 0,
             data: { command: 'bash' },
-            sessionId: 'session1'
+            sessionId: 'session1',
           },
           {
             type: 'wait_for_output',
             timestamp: 100,
             data: { pattern: 'prompt>', timeout: 5000 },
-            sessionId: 'session1'
-          }
+            sessionId: 'session1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const result = await engine.replay(recording);
@@ -108,7 +110,7 @@ describe('TestReplayEngine', () => {
       expect(mockConsoleManager.waitForOutput).toHaveBeenCalledWith({
         sessionId: 'test-session-123',
         pattern: 'prompt>',
-        timeout: 5000
+        timeout: 5000,
       });
     });
 
@@ -122,15 +124,15 @@ describe('TestReplayEngine', () => {
           {
             type: 'assert',
             timestamp: 0,
-            data: { type: 'output_contains', expected: 'hello' }
+            data: { type: 'output_contains', expected: 'hello' },
           },
           {
             type: 'snapshot',
             timestamp: 50,
-            data: { name: 'state1' }
-          }
+            data: { name: 'state1' },
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const result = await engine.replay(recording);
@@ -141,7 +143,9 @@ describe('TestReplayEngine', () => {
     });
 
     it('should handle errors in steps', async () => {
-      mockConsoleManager.sendInput = jest.fn().mockRejectedValue(new Error('Send failed'));
+      mockConsoleManager.sendInput = jest
+        .fn()
+        .mockRejectedValue(new Error('Send failed'));
 
       const recording: TestRecording = {
         name: 'test-error',
@@ -153,16 +157,16 @@ describe('TestReplayEngine', () => {
             type: 'create_session',
             timestamp: 0,
             data: { command: 'bash' },
-            sessionId: 'session1'
+            sessionId: 'session1',
           },
           {
             type: 'send_input',
             timestamp: 10,
             data: { input: 'test' },
-            sessionId: 'session1'
-          }
+            sessionId: 'session1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const result = await engine.replay(recording);
@@ -173,7 +177,8 @@ describe('TestReplayEngine', () => {
     });
 
     it('should stop on error if stopOnError is true', async () => {
-      mockConsoleManager.createSession = jest.fn()
+      mockConsoleManager.createSession = jest
+        .fn()
         .mockResolvedValueOnce({ sessionId: 'session1' })
         .mockRejectedValue(new Error('Failed'));
 
@@ -185,9 +190,9 @@ describe('TestReplayEngine', () => {
         steps: [
           { type: 'create_session', timestamp: 0, data: {}, sessionId: 's1' },
           { type: 'create_session', timestamp: 10, data: {}, sessionId: 's2' },
-          { type: 'send_input', timestamp: 20, data: { input: 'test' } }
+          { type: 'send_input', timestamp: 20, data: { input: 'test' } },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const result = await engine.replay(recording, { stopOnError: true });
@@ -197,7 +202,8 @@ describe('TestReplayEngine', () => {
     });
 
     it('should continue on error if stopOnError is false', async () => {
-      mockConsoleManager.sendInput = jest.fn()
+      mockConsoleManager.sendInput = jest
+        .fn()
         .mockRejectedValueOnce(new Error('Error 1'))
         .mockResolvedValueOnce({ success: true });
 
@@ -209,9 +215,9 @@ describe('TestReplayEngine', () => {
         steps: [
           { type: 'create_session', timestamp: 0, data: {}, sessionId: 's1' },
           { type: 'send_input', timestamp: 10, data: { input: 'fail' } },
-          { type: 'send_input', timestamp: 20, data: { input: 'success' } }
+          { type: 'send_input', timestamp: 20, data: { input: 'success' } },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const result = await engine.replay(recording, { stopOnError: false });
@@ -227,14 +233,15 @@ describe('TestReplayEngine', () => {
         createdAt: new Date().toISOString(),
         duration: 100,
         steps: [
-          { type: 'create_session', timestamp: 0, data: {}, sessionId: 's1' }
+          { type: 'create_session', timestamp: 0, data: {}, sessionId: 's1' },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       // Mock a slow operation
-      mockConsoleManager.createSession = jest.fn((options: any) =>
-        new Promise(resolve => setTimeout(() => resolve('s1'), 200))
+      mockConsoleManager.createSession = jest.fn(
+        (options: any) =>
+          new Promise((resolve) => setTimeout(() => resolve('s1'), 200))
       ) as any;
 
       const result = await engine.replay(recording, { timeout: 100 });
@@ -246,7 +253,7 @@ describe('TestReplayEngine', () => {
     it('should validate output if validateOutput is true', async () => {
       mockConsoleManager.sendInput = jest.fn().mockResolvedValue({
         success: true,
-        output: 'different output'
+        output: 'different output',
       });
 
       const recording: TestRecording = {
@@ -261,10 +268,10 @@ describe('TestReplayEngine', () => {
             timestamp: 10,
             data: { input: 'test' },
             output: 'expected output',
-            sessionId: 's1'
-          }
+            sessionId: 's1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const result = await engine.replay(recording, { validateOutput: true });
@@ -281,9 +288,9 @@ describe('TestReplayEngine', () => {
         duration: 100,
         steps: [
           { type: 'create_session', timestamp: 0, data: {}, sessionId: 's1' },
-          { type: 'create_session', timestamp: 10, data: {}, sessionId: 's2' }
+          { type: 'create_session', timestamp: 10, data: {}, sessionId: 's2' },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       await engine.replay(recording);
@@ -300,7 +307,11 @@ describe('TestReplayEngine', () => {
       recorder.recordCreateSession('s1', { command: 'bash' });
       recorder.stopRecording();
 
-      const result = await engine.replayByName('test-by-name', {}, testOutputDir);
+      const result = await engine.replayByName(
+        'test-by-name',
+        {},
+        testOutputDir
+      );
 
       expect(result.recording).toBe('test-by-name');
       expect(result.steps.length).toBeGreaterThan(0);
@@ -322,9 +333,14 @@ describe('TestReplayEngine', () => {
         duration: 100,
         steps: [
           { type: 'create_session', timestamp: 0, data: {}, sessionId: 's1' },
-          { type: 'send_input', timestamp: 100, data: { input: 'test' }, sessionId: 's1' }
+          {
+            type: 'send_input',
+            timestamp: 100,
+            data: { input: 'test' },
+            sessionId: 's1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const start = Date.now();
@@ -343,9 +359,14 @@ describe('TestReplayEngine', () => {
         duration: 100,
         steps: [
           { type: 'create_session', timestamp: 0, data: {}, sessionId: 's1' },
-          { type: 'send_input', timestamp: 100, data: { input: 'test' }, sessionId: 's1' }
+          {
+            type: 'send_input',
+            timestamp: 100,
+            data: { input: 'test' },
+            sessionId: 's1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const start = Date.now();
@@ -364,9 +385,14 @@ describe('TestReplayEngine', () => {
         duration: 1000,
         steps: [
           { type: 'create_session', timestamp: 0, data: {}, sessionId: 's1' },
-          { type: 'send_input', timestamp: 1000, data: { input: 'test' }, sessionId: 's1' }
+          {
+            type: 'send_input',
+            timestamp: 1000,
+            data: { input: 'test' },
+            sessionId: 's1',
+          },
         ],
-        metadata: {}
+        metadata: {},
       };
 
       const start = Date.now();
@@ -389,8 +415,8 @@ describe('TestReplayEngine', () => {
             { step: {} as any, status: 'pass' as const, duration: 100 },
             { step: {} as any, status: 'pass' as const, duration: 200 },
             { step: {} as any, status: 'fail' as const, duration: 150 },
-            { step: {} as any, status: 'skip' as const, duration: 50 }
-          ]
+            { step: {} as any, status: 'skip' as const, duration: 50 },
+          ],
         };
 
         const stats = TestReplayEngine.getReplayStats(result);
@@ -411,8 +437,8 @@ describe('TestReplayEngine', () => {
           duration: 1234,
           steps: [
             { step: {} as any, status: 'pass' as const, duration: 100 },
-            { step: {} as any, status: 'pass' as const, duration: 200 }
-          ]
+            { step: {} as any, status: 'pass' as const, duration: 200 },
+          ],
         };
 
         const formatted = TestReplayEngine.formatResult(result);
@@ -429,7 +455,7 @@ describe('TestReplayEngine', () => {
           status: 'error' as const,
           duration: 100,
           steps: [],
-          error: new Error('Test error message')
+          error: new Error('Test error message'),
         };
 
         const formatted = TestReplayEngine.formatResult(result);

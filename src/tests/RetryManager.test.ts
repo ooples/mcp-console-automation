@@ -3,7 +3,11 @@
  */
 
 import { RetryManager, CircuitBreaker } from '../testing/RetryManager.js';
-import { TestDefinition, TestResult, RetryConfig } from '../types/test-framework.js';
+import {
+  TestDefinition,
+  TestResult,
+  RetryConfig,
+} from '../types/test-framework.js';
 
 describe('RetryManager', () => {
   let retryManager: RetryManager;
@@ -41,7 +45,11 @@ describe('RetryManager', () => {
         backoffMs: 10,
       };
 
-      const result = await retryManager.executeWithRetry(test, executor, config);
+      const result = await retryManager.executeWithRetry(
+        test,
+        executor,
+        config
+      );
 
       expect(result.attempts).toBe(3);
       expect(result.finalResult.status).toBe('pass');
@@ -70,7 +78,10 @@ describe('RetryManager', () => {
         };
       };
 
-      const result = await retryManager.executeWithRetry(test, executor, { maxRetries: 5, backoffMs: 10 });
+      const result = await retryManager.executeWithRetry(test, executor, {
+        maxRetries: 5,
+        backoffMs: 10,
+      });
 
       expect(result.attempts).toBe(1);
       expect(result.finalResult.status).toBe('pass');
@@ -152,7 +163,11 @@ describe('RetryManager', () => {
         retryOnErrors: ['NETWORK', 'TIMEOUT'],
       };
 
-      const result = await retryManager.executeWithRetry(test, executor, config);
+      const result = await retryManager.executeWithRetry(
+        test,
+        executor,
+        config
+      );
 
       // Should not retry because error doesn't match pattern
       expect(result.attempts).toBe(1);
@@ -186,7 +201,11 @@ describe('RetryManager', () => {
         retryOnTimeout: true,
       };
 
-      const result = await retryManager.executeWithRetry(test, executor, config);
+      const result = await retryManager.executeWithRetry(
+        test,
+        executor,
+        config
+      );
 
       expect(result.attempts).toBe(3);
     });
@@ -222,7 +241,11 @@ describe('RetryManager', () => {
         assertions: [],
       });
 
-      const results = await retryManager.retryFailedTests(failedTests, executor, { maxRetries: 2, backoffMs: 10 });
+      const results = await retryManager.retryFailedTests(
+        failedTests,
+        executor,
+        { maxRetries: 2, backoffMs: 10 }
+      );
       const stats = retryManager.getRetryStatistics(results);
 
       expect(stats.totalTests).toBe(2);

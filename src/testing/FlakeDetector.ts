@@ -2,7 +2,11 @@
  * FlakeDetector - Detects flaky tests by running them multiple times
  */
 
-import { TestDefinition, TestResult, FlakeReport } from '../types/test-framework.js';
+import {
+  TestDefinition,
+  TestResult,
+  FlakeReport,
+} from '../types/test-framework.js';
 
 export interface FlakeDetectionConfig {
   runs: number;
@@ -187,9 +191,12 @@ export class FlakeDetector {
 
     // Group by flake rate severity
     const severe = reports.filter((r) => r.flakeRate > 0.3).length; // >30% flake
-    const moderate = reports.filter((r) => r.flakeRate > 0.1 && r.flakeRate <= 0.3)
-      .length; // 10-30%
-    const mild = reports.filter((r) => r.flakeRate > 0 && r.flakeRate <= 0.1).length; // <10%
+    const moderate = reports.filter(
+      (r) => r.flakeRate > 0.1 && r.flakeRate <= 0.3
+    ).length; // 10-30%
+    const mild = reports.filter(
+      (r) => r.flakeRate > 0 && r.flakeRate <= 0.1
+    ).length; // <10%
 
     return {
       totalTests,
@@ -250,7 +257,9 @@ export class FlakeDetector {
         'Test is highly unstable - consider major refactoring or removal'
       );
     } else if (report.flakeRate > 0.3) {
-      recommendations.push('Test shows significant instability - investigate root cause');
+      recommendations.push(
+        'Test shows significant instability - investigate root cause'
+      );
     }
 
     // Check failure patterns
@@ -260,7 +269,9 @@ export class FlakeDetector {
           recommendations.push('Add explicit waits or increase timeout values');
         }
         if (pattern.includes('Race Condition')) {
-          recommendations.push('Add synchronization or use proper locking mechanisms');
+          recommendations.push(
+            'Add synchronization or use proper locking mechanisms'
+          );
         }
         if (pattern.includes('Network Error')) {
           recommendations.push('Add network retry logic or use mocking');

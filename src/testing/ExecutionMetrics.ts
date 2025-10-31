@@ -77,9 +77,11 @@ export class ExecutionMetricsCollector {
     return {
       totalTests: metrics.length,
       totalDuration: metrics.reduce((sum, m) => sum + m.duration, 0),
-      averageDuration: metrics.reduce((sum, m) => sum + m.duration, 0) / metrics.length,
+      averageDuration:
+        metrics.reduce((sum, m) => sum + m.duration, 0) / metrics.length,
       totalMemory: metrics.reduce((sum, m) => sum + m.memoryUsed, 0),
-      averageMemory: metrics.reduce((sum, m) => sum + m.memoryUsed, 0) / metrics.length,
+      averageMemory:
+        metrics.reduce((sum, m) => sum + m.memoryUsed, 0) / metrics.length,
       peakMemory: Math.max(...metrics.map((m) => m.peakMemory)),
       totalSessions: metrics.reduce((sum, m) => sum + m.sessionCount, 0),
     };
@@ -98,10 +100,12 @@ export class ExecutionMetricsCollector {
    */
   toJSON(): any {
     return {
-      metrics: Array.from(this.metrics.entries()).map(([testName, metrics]) => ({
-        testName,
-        ...metrics,
-      })),
+      metrics: Array.from(this.metrics.entries()).map(
+        ([testName, metrics]) => ({
+          testName,
+          ...metrics,
+        })
+      ),
       summary: this.getSummary(),
     };
   }
@@ -223,9 +227,11 @@ export class MetricsAggregator {
     return {
       totalTests: metrics.length,
       totalDuration: metrics.reduce((sum, m) => sum + m.duration, 0),
-      averageDuration: metrics.reduce((sum, m) => sum + m.duration, 0) / metrics.length,
+      averageDuration:
+        metrics.reduce((sum, m) => sum + m.duration, 0) / metrics.length,
       totalMemory: metrics.reduce((sum, m) => sum + m.memoryUsed, 0),
-      averageMemory: metrics.reduce((sum, m) => sum + m.memoryUsed, 0) / metrics.length,
+      averageMemory:
+        metrics.reduce((sum, m) => sum + m.memoryUsed, 0) / metrics.length,
       peakMemory: Math.max(...metrics.map((m) => m.peakMemory)),
       totalSessions: metrics.reduce((sum, m) => sum + m.sessionCount, 0),
     };

@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,14 +12,32 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // QEMU Protocol connection options
 interface QEMUConnectionOptions extends SessionOptions {
   // Basic VM Configuration
   vmName?: string;
-  architecture?: 'x86_64' | 'i386' | 'arm' | 'aarch64' | 'mips' | 'mipsel' | 'mips64' | 'mips64el' | 'ppc' | 'ppc64' | 'ppc64le' | 'riscv32' | 'riscv64' | 's390x' | 'sparc' | 'sparc64' | 'xtensa' | 'xtensaeb';
+  architecture?:
+    | 'x86_64'
+    | 'i386'
+    | 'arm'
+    | 'aarch64'
+    | 'mips'
+    | 'mipsel'
+    | 'mips64'
+    | 'mips64el'
+    | 'ppc'
+    | 'ppc64'
+    | 'ppc64le'
+    | 'riscv32'
+    | 'riscv64'
+    | 's390x'
+    | 'sparc'
+    | 'sparc64'
+    | 'xtensa'
+    | 'xtensaeb';
   machineType?: string;
   accelerator?: 'kvm' | 'xen' | 'hvf' | 'whpx' | 'tcg' | 'none';
 
@@ -57,8 +75,27 @@ interface QEMUConnectionOptions extends SessionOptions {
   // Storage Configuration
   drives?: Array<{
     file: string;
-    format?: 'raw' | 'qcow2' | 'vmdk' | 'vdi' | 'vpc' | 'vhdx' | 'qed' | 'parallels' | 'dmg' | 'luks' | 'nbd';
-    interface?: 'ide' | 'scsi' | 'sd' | 'mtd' | 'floppy' | 'pflash' | 'virtio' | 'none';
+    format?:
+      | 'raw'
+      | 'qcow2'
+      | 'vmdk'
+      | 'vdi'
+      | 'vpc'
+      | 'vhdx'
+      | 'qed'
+      | 'parallels'
+      | 'dmg'
+      | 'luks'
+      | 'nbd';
+    interface?:
+      | 'ide'
+      | 'scsi'
+      | 'sd'
+      | 'mtd'
+      | 'floppy'
+      | 'pflash'
+      | 'virtio'
+      | 'none';
     media?: 'disk' | 'cdrom';
     index?: number;
     cache?: 'none' | 'writeback' | 'unsafe' | 'directsync' | 'writethrough';
@@ -84,8 +121,30 @@ interface QEMUConnectionOptions extends SessionOptions {
 
   // Network Configuration
   networkDevices?: Array<{
-    type?: 'user' | 'tap' | 'bridge' | 'socket' | 'stream' | 'dgram' | 'vde' | 'dump' | 'netmap' | 'vhost-user' | 'vhost-vdpa';
-    model?: 'e1000' | 'e1000e' | 'i82551' | 'i82557b' | 'i82559er' | 'ne2k_pci' | 'ne2k_isa' | 'pcnet' | 'rtl8139' | 'virtio-net-pci' | 'vmxnet3';
+    type?:
+      | 'user'
+      | 'tap'
+      | 'bridge'
+      | 'socket'
+      | 'stream'
+      | 'dgram'
+      | 'vde'
+      | 'dump'
+      | 'netmap'
+      | 'vhost-user'
+      | 'vhost-vdpa';
+    model?:
+      | 'e1000'
+      | 'e1000e'
+      | 'i82551'
+      | 'i82557b'
+      | 'i82559er'
+      | 'ne2k_pci'
+      | 'ne2k_isa'
+      | 'pcnet'
+      | 'rtl8139'
+      | 'virtio-net-pci'
+      | 'vmxnet3';
     mac?: string;
     vlan?: number;
     id?: string;
@@ -104,7 +163,15 @@ interface QEMUConnectionOptions extends SessionOptions {
   }>;
 
   // Display Configuration
-  display?: 'none' | 'sdl' | 'curses' | 'vnc' | 'gtk' | 'spice' | 'egl-headless' | 'dbus';
+  display?:
+    | 'none'
+    | 'sdl'
+    | 'curses'
+    | 'vnc'
+    | 'gtk'
+    | 'spice'
+    | 'egl-headless'
+    | 'dbus';
   vncDisplay?: string;
   vncPassword?: string;
   vncWebsocket?: number;
@@ -131,14 +198,41 @@ interface QEMUConnectionOptions extends SessionOptions {
 
   // Audio Configuration
   audioDriver?: 'none' | 'alsa' | 'oss' | 'pa' | 'sdl' | 'wav' | 'spice';
-  audioModel?: 'sb16' | 'es1370' | 'ac97' | 'adlib' | 'gus' | 'cs4231a' | 'hda' | 'intel-hda';
+  audioModel?:
+    | 'sb16'
+    | 'es1370'
+    | 'ac97'
+    | 'adlib'
+    | 'gus'
+    | 'cs4231a'
+    | 'hda'
+    | 'intel-hda';
 
   // Graphics Configuration
   vga?: 'std' | 'cirrus' | 'vmware' | 'qxl' | 'virtio' | 'none';
 
   // Serial/Console Configuration
   serial?: Array<{
-    type?: 'vc' | 'pty' | 'none' | 'null' | 'chardev' | 'file' | 'pipe' | 'stdio' | 'udp' | 'tcp' | 'telnet' | 'unix' | 'mon' | 'msmouse' | 'wctablet' | 'braille' | 'testdev' | 'spicevmc' | 'spiceport';
+    type?:
+      | 'vc'
+      | 'pty'
+      | 'none'
+      | 'null'
+      | 'chardev'
+      | 'file'
+      | 'pipe'
+      | 'stdio'
+      | 'udp'
+      | 'tcp'
+      | 'telnet'
+      | 'unix'
+      | 'mon'
+      | 'msmouse'
+      | 'wctablet'
+      | 'braille'
+      | 'testdev'
+      | 'spicevmc'
+      | 'spiceport';
     path?: string;
     server?: boolean;
     nowait?: boolean;
@@ -271,9 +365,9 @@ export class QEMUProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -305,8 +399,8 @@ export class QEMUProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -317,7 +411,9 @@ export class QEMUProtocol extends BaseProtocol {
       // Check if QEMU is available
       await this.checkQEMUAvailability();
       this.isInitialized = true;
-      this.logger.info('QEMU protocol initialized with production VM management features');
+      this.logger.info(
+        'QEMU protocol initialized with production VM management features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize QEMU protocol', error);
       throw error;
@@ -333,8 +429,13 @@ export class QEMUProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -355,7 +456,9 @@ export class QEMUProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to QEMU session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to QEMU session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -386,7 +489,11 @@ export class QEMUProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -400,7 +507,11 @@ export class QEMUProtocol extends BaseProtocol {
     const qemuProcess = spawn(qemuCommand[0], qemuCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(qemuOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(qemuOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -409,7 +520,7 @@ export class QEMUProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -419,7 +530,7 @@ export class QEMUProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -430,7 +541,9 @@ export class QEMUProtocol extends BaseProtocol {
     });
 
     qemuProcess.on('close', (code) => {
-      this.logger.info(`QEMU process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `QEMU process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -443,7 +556,11 @@ export class QEMUProtocol extends BaseProtocol {
       command: qemuCommand[0],
       args: qemuCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(qemuOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(qemuOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -451,12 +568,14 @@ export class QEMUProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: qemuProcess.pid
+      pid: qemuProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`QEMU session ${sessionId} created for VM ${qemuOptions.vmName || 'unnamed'}`);
+    this.logger.info(
+      `QEMU session ${sessionId} created for VM ${qemuOptions.vmName || 'unnamed'}`
+    );
     this.emit('session-created', { sessionId, type: 'qemu', session });
 
     return session;
@@ -465,7 +584,7 @@ export class QEMUProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -474,8 +593,8 @@ export class QEMUProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -497,25 +616,30 @@ export class QEMUProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in QEMU session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in QEMU session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const qemuProcess = this.qemuProcesses.get(sessionId);
-    return qemuProcess && !qemuProcess.killed || false;
+    return (qemuProcess && !qemuProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -526,26 +650,26 @@ export class QEMUProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.qemuProcesses.size
+        connectionsActive: this.qemuProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -557,8 +681,8 @@ export class QEMUProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          qemu: { available: true }
-        }
+          qemu: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -566,15 +690,17 @@ export class QEMUProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `QEMU not available: ${error}`],
         dependencies: {
-          qemu: { available: false }
-        }
+          qemu: { available: false },
+        },
       };
     }
   }
 
   private async checkQEMUAvailability(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const testProcess = spawn('qemu-system-x86_64', ['--version'], { stdio: 'pipe' });
+      const testProcess = spawn('qemu-system-x86_64', ['--version'], {
+        stdio: 'pipe',
+      });
 
       testProcess.on('close', (code) => {
         if (code === 0) {
@@ -615,7 +741,12 @@ export class QEMUProtocol extends BaseProtocol {
 
     // Memory
     if (options.memory) {
-      command.push('-m', typeof options.memory === 'number' ? options.memory.toString() : options.memory);
+      command.push(
+        '-m',
+        typeof options.memory === 'number'
+          ? options.memory.toString()
+          : options.memory
+      );
     }
 
     // CPU
@@ -662,7 +793,8 @@ export class QEMUProtocol extends BaseProtocol {
         if (drive.aio) driveConfig += `,aio=${drive.aio}`;
         if (drive.readonly) driveConfig += ',readonly=on';
         if (drive.snapshot) driveConfig += ',snapshot=on';
-        if (drive.bootindex !== undefined) driveConfig += `,bootindex=${drive.bootindex}`;
+        if (drive.bootindex !== undefined)
+          driveConfig += `,bootindex=${drive.bootindex}`;
         if (drive.serial) driveConfig += `,serial=${drive.serial}`;
 
         command.push('-drive', driveConfig);
@@ -671,7 +803,7 @@ export class QEMUProtocol extends BaseProtocol {
 
     // Network devices
     if (options.networkDevices) {
-      options.networkDevices.forEach(net => {
+      options.networkDevices.forEach((net) => {
         let netConfig = '';
         if (net.type) netConfig += net.type;
         if (net.id) netConfig += `,id=${net.id}`;
@@ -687,7 +819,8 @@ export class QEMUProtocol extends BaseProtocol {
           let deviceConfig = net.model;
           if (net.mac) deviceConfig += `,mac=${net.mac}`;
           if (net.id) deviceConfig += `,netdev=${net.id}`;
-          if (net.bootindex !== undefined) deviceConfig += `,bootindex=${net.bootindex}`;
+          if (net.bootindex !== undefined)
+            deviceConfig += `,bootindex=${net.bootindex}`;
           command.push('-device', deviceConfig);
         }
       });
@@ -710,15 +843,17 @@ export class QEMUProtocol extends BaseProtocol {
     if (options.vncDisplay) {
       let vncConfig = options.vncDisplay;
       if (options.vncPassword) vncConfig += `,password=${options.vncPassword}`;
-      if (options.vncWebsocket) vncConfig += `,websocket=${options.vncWebsocket}`;
+      if (options.vncWebsocket)
+        vncConfig += `,websocket=${options.vncWebsocket}`;
       command.push('-vnc', vncConfig);
     }
 
     // Serial ports
     if (options.serial) {
-      options.serial.forEach(serial => {
+      options.serial.forEach((serial) => {
         let serialConfig: string = serial.type || 'stdio';
-        if (serial.path) serialConfig = `${serial.type || 'unix'}:${serial.path}`;
+        if (serial.path)
+          serialConfig = `${serial.type || 'unix'}:${serial.path}`;
         command.push('-serial', serialConfig);
       });
     }
@@ -781,7 +916,7 @@ export class QEMUProtocol extends BaseProtocol {
     }
 
     if (options.debugOptions) {
-      options.debugOptions.forEach(opt => command.push('-d', opt));
+      options.debugOptions.forEach((opt) => command.push('-d', opt));
     }
 
     // Custom arguments
@@ -792,7 +927,9 @@ export class QEMUProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: QEMUConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: QEMUConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // QEMU environment variables
@@ -816,7 +953,10 @@ export class QEMUProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing QEMU process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing QEMU process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

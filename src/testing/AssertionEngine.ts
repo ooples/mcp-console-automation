@@ -123,7 +123,9 @@ export class AssertionEngine {
     } else if (typeof expected === 'string') {
       pattern = new RegExp(expected);
     } else {
-      throw new Error(`Expected pattern to be string or RegExp, got ${typeof expected}`);
+      throw new Error(
+        `Expected pattern to be string or RegExp, got ${typeof expected}`
+      );
     }
 
     return this.matchers.toMatch(actual, pattern);
@@ -134,10 +136,14 @@ export class AssertionEngine {
    */
   private evaluateExitCode(actual: any, expected: any): boolean {
     if (typeof actual !== 'number') {
-      throw new Error(`Expected actual exit code to be number, got ${typeof actual}`);
+      throw new Error(
+        `Expected actual exit code to be number, got ${typeof actual}`
+      );
     }
     if (typeof expected !== 'number') {
-      throw new Error(`Expected expected exit code to be number, got ${typeof expected}`);
+      throw new Error(
+        `Expected expected exit code to be number, got ${typeof expected}`
+      );
     }
     return this.matchers.toEqual(actual, expected);
   }
@@ -185,7 +191,11 @@ export class AssertionEngine {
   /**
    * Evaluate custom assertion using operator
    */
-  private evaluateCustom(actual: any, expected: any, operator?: string): boolean {
+  private evaluateCustom(
+    actual: any,
+    expected: any,
+    operator?: string
+  ): boolean {
     if (!operator) {
       throw new Error('Custom assertion requires operator');
     }
@@ -285,7 +295,11 @@ export class AssertionEngine {
   /**
    * Format failure message with consistent structure
    */
-  private formatFailureMessage(title: string, expected: string, actual: string): string {
+  private formatFailureMessage(
+    title: string,
+    expected: string,
+    actual: string
+  ): string {
     return `${title}
 
 ${expected}
@@ -329,9 +343,11 @@ ${actual}`;
   /**
    * Check if all assertions pass without throwing
    */
-  async checkAll(assertions: Assertion[]): Promise<{ passed: boolean; results: AssertionResult[] }> {
+  async checkAll(
+    assertions: Assertion[]
+  ): Promise<{ passed: boolean; results: AssertionResult[] }> {
     const results = await this.evaluateAll(assertions);
-    const passed = results.every(r => r.passed);
+    const passed = results.every((r) => r.passed);
     return { passed, results };
   }
 }

@@ -48,13 +48,22 @@ export class RetryManager extends EventEmitter {
       circuitBreakerWindow: 60000,
       shouldRetry: (error: Error) => {
         const networkErrors = [
-          'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENETDOWN', 'ENETUNREACH',
-          'EHOSTDOWN', 'EHOSTUNREACH', 'ENOTFOUND', 'EAI_AGAIN'
+          'ECONNREFUSED',
+          'ECONNRESET',
+          'ETIMEDOUT',
+          'ENETDOWN',
+          'ENETUNREACH',
+          'EHOSTDOWN',
+          'EHOSTUNREACH',
+          'ENOTFOUND',
+          'EAI_AGAIN',
         ];
-        return networkErrors.some(code => error.message.includes(code)) ||
-               error.message.toLowerCase().includes('network') ||
-               error.message.toLowerCase().includes('connection');
-      }
+        return (
+          networkErrors.some((code) => error.message.includes(code)) ||
+          error.message.toLowerCase().includes('network') ||
+          error.message.toLowerCase().includes('connection')
+        );
+      },
     },
     authentication: {
       maxAttempts: 2,
@@ -70,14 +79,20 @@ export class RetryManager extends EventEmitter {
           return false;
         }
         const authErrors = [
-          'authentication failed', 'auth failed', 'invalid credentials',
-          'access denied', 'permission denied', 'unauthorized'
+          'authentication failed',
+          'auth failed',
+          'invalid credentials',
+          'access denied',
+          'permission denied',
+          'unauthorized',
         ];
         const errorMsg = error.message.toLowerCase();
-        return authErrors.some(msg => errorMsg.includes(msg)) &&
-               !errorMsg.includes('invalid password') &&
-               !errorMsg.includes('invalid username'); // Don't retry bad credentials
-      }
+        return (
+          authErrors.some((msg) => errorMsg.includes(msg)) &&
+          !errorMsg.includes('invalid password') &&
+          !errorMsg.includes('invalid username')
+        ); // Don't retry bad credentials
+      },
     },
     resource: {
       maxAttempts: 4,
@@ -89,12 +104,18 @@ export class RetryManager extends EventEmitter {
       circuitBreakerWindow: 180000,
       shouldRetry: (error: Error) => {
         const resourceErrors = [
-          'out of memory', 'resource temporarily unavailable',
-          'too many open files', 'no space left', 'quota exceeded',
-          'rate limit', 'throttled'
+          'out of memory',
+          'resource temporarily unavailable',
+          'too many open files',
+          'no space left',
+          'quota exceeded',
+          'rate limit',
+          'throttled',
         ];
-        return resourceErrors.some(msg => error.message.toLowerCase().includes(msg));
-      }
+        return resourceErrors.some((msg) =>
+          error.message.toLowerCase().includes(msg)
+        );
+      },
     },
     ssh: {
       maxAttempts: 3,
@@ -110,15 +131,21 @@ export class RetryManager extends EventEmitter {
           return false;
         }
         const sshErrors = [
-          'connection refused', 'connection reset', 'connection timeout',
-          'host unreachable', 'network unreachable', 'ssh connection lost'
+          'connection refused',
+          'connection reset',
+          'connection timeout',
+          'host unreachable',
+          'network unreachable',
+          'ssh connection lost',
         ];
         const errorMsg = error.message.toLowerCase();
-        return sshErrors.some(msg => errorMsg.includes(msg)) &&
-               !errorMsg.includes('permission denied') &&
-               !errorMsg.includes('authentication failed') &&
-               !errorMsg.includes('ssh password authentication is not supported');
-      }
+        return (
+          sshErrors.some((msg) => errorMsg.includes(msg)) &&
+          !errorMsg.includes('permission denied') &&
+          !errorMsg.includes('authentication failed') &&
+          !errorMsg.includes('ssh password authentication is not supported')
+        );
+      },
     },
     generic: {
       maxAttempts: 3,
@@ -135,11 +162,17 @@ export class RetryManager extends EventEmitter {
         }
         // Generic transient errors
         const transientErrors = [
-          'timeout', 'temporary', 'busy', 'unavailable', 'try again'
+          'timeout',
+          'temporary',
+          'busy',
+          'unavailable',
+          'try again',
         ];
-        return transientErrors.some(msg => error.message.toLowerCase().includes(msg));
-      }
-    }
+        return transientErrors.some((msg) =>
+          error.message.toLowerCase().includes(msg)
+        );
+      },
+    },
   };
 
   constructor() {
@@ -150,9 +183,11 @@ export class RetryManager extends EventEmitter {
     this.activeRetries = new Map();
 
     // Initialize default strategies
-    Object.entries(RetryManager.DEFAULT_STRATEGIES).forEach(([name, strategy]) => {
-      this.retryStrategies.set(name, strategy);
-    });
+    Object.entries(RetryManager.DEFAULT_STRATEGIES).forEach(
+      ([name, strategy]) => {
+        this.retryStrategies.set(name, strategy);
+      }
+    );
   }
 
   /**
@@ -168,20 +203,26 @@ export class RetryManager extends EventEmitter {
       onRetry?: (context: RetryContext) => void;
     }
   ): Promise<T> {
-    const strategyName = options.strategyName || this.classifyOperation(options.operationName);
-    const strategy = this.retryStrategies.get(strategyName) || this.retryStrategies.get('generic')!;
-    
+    const strategyName =
+      options.strategyName || this.classifyOperation(options.operationName);
+    const strategy =
+      this.retryStrategies.get(strategyName) ||
+      this.retryStrategies.get('generic')!;
+
     const circuitBreakerKey = `${options.sessionId}-${strategyName}`;
-    
+
     // Check circuit breaker
     if (this.isCircuitOpen(circuitBreakerKey)) {
       const breaker = this.circuitBreakers.get(circuitBreakerKey)!;
-      const timeUntilNextAttempt = Math.max(0, breaker.nextAttemptTime - Date.now());
-      
+      const timeUntilNextAttempt = Math.max(
+        0,
+        breaker.nextAttemptTime - Date.now()
+      );
+
       throw new Error(
         `Circuit breaker is OPEN for ${strategyName}. ` +
-        `Please wait ${Math.ceil(timeUntilNextAttempt / 1000)}s before retrying. ` +
-        `This typically indicates repeated failures that require manual intervention.`
+          `Please wait ${Math.ceil(timeUntilNextAttempt / 1000)}s before retrying. ` +
+          `This typically indicates repeated failures that require manual intervention.`
       );
     }
 
@@ -192,13 +233,19 @@ export class RetryManager extends EventEmitter {
       attemptNumber: 0,
       maxAttempts: strategy.maxAttempts,
       startTime: Date.now(),
-      metadata: options.context
+      metadata: options.context,
     };
 
     this.activeRetries.set(retryKey, context);
 
     try {
-      return await this.attemptOperation(operation, strategy, context, circuitBreakerKey, options.onRetry);
+      return await this.attemptOperation(
+        operation,
+        strategy,
+        context,
+        circuitBreakerKey,
+        options.onRetry
+      );
     } finally {
       this.activeRetries.delete(retryKey);
     }
@@ -213,85 +260,88 @@ export class RetryManager extends EventEmitter {
   ): Promise<T> {
     while (context.attemptNumber < strategy.maxAttempts) {
       context.attemptNumber++;
-      
+
       try {
         this.logger.debug(
           `Attempting ${context.operation} for session ${context.sessionId} ` +
-          `(attempt ${context.attemptNumber}/${context.maxAttempts})`
+            `(attempt ${context.attemptNumber}/${context.maxAttempts})`
         );
 
         const result = await operation();
-        
+
         // Success - reset circuit breaker
         this.recordSuccess(circuitBreakerKey);
-        
+
         if (context.attemptNumber > 1) {
           this.logger.info(
             `${context.operation} succeeded after ${context.attemptNumber} attempts ` +
-            `for session ${context.sessionId}`
+              `for session ${context.sessionId}`
           );
-          
+
           this.emit('retry-success', {
             ...context,
-            totalDuration: Date.now() - context.startTime
+            totalDuration: Date.now() - context.startTime,
           });
         }
 
         return result;
-
       } catch (error) {
         context.error = error as Error;
-        
+
         // Record failure for circuit breaker
         this.recordFailure(circuitBreakerKey);
-        
+
         // Check if we should retry this error
         if (!strategy.shouldRetry(context.error, context)) {
           this.logger.warn(
             `${context.operation} failed with non-retryable error for session ${context.sessionId}: ${context.error.message}`
           );
-          
+
           this.emit('retry-failed', {
             ...context,
             reason: 'non-retryable-error',
-            totalDuration: Date.now() - context.startTime
+            totalDuration: Date.now() - context.startTime,
           });
-          
-          throw this.enhanceError(context.error, context, 'This error type cannot be automatically retried');
+
+          throw this.enhanceError(
+            context.error,
+            context,
+            'This error type cannot be automatically retried'
+          );
         }
 
         // Check if we've exhausted retries
         if (context.attemptNumber >= strategy.maxAttempts) {
           this.logger.error(
             `${context.operation} failed after ${context.attemptNumber} attempts ` +
-            `for session ${context.sessionId}: ${context.error.message}`
+              `for session ${context.sessionId}: ${context.error.message}`
           );
-          
+
           this.emit('retry-exhausted', {
             ...context,
-            totalDuration: Date.now() - context.startTime
+            totalDuration: Date.now() - context.startTime,
           });
-          
+
           throw this.enhanceError(
-            context.error, 
+            context.error,
             context,
             `Operation failed after ${context.maxAttempts} retry attempts. ` +
-            `Consider checking your configuration or waiting before retrying manually.`
+              `Consider checking your configuration or waiting before retrying manually.`
           );
         }
 
         // Calculate delay for next attempt
         const delay = this.calculateDelay(context.attemptNumber, strategy);
-        
+
         this.logger.info(
           `${context.operation} attempt ${context.attemptNumber} failed for session ${context.sessionId}. ` +
-          `Retrying in ${delay}ms. Error: ${context.error.message}`
+            `Retrying in ${delay}ms. Error: ${context.error.message}`
         );
 
         this.emit('retry-attempt', {
           ...context,
           delay,
-          nextAttempt: context.attemptNumber + 1
+          nextAttempt: context.attemptNumber + 1,
         });
 
         if (onRetry) {
@@ -315,29 +365,33 @@ export class RetryManager extends EventEmitter {
 
     const opLower = operationName.toLowerCase();
 
-    if (sshOps.some(op => opLower.includes(op))) return 'ssh';
-    if (networkOps.some(op => opLower.includes(op))) return 'network';
-    if (authOps.some(op => opLower.includes(op))) return 'authentication';
-    if (resourceOps.some(op => opLower.includes(op))) return 'resource';
+    if (sshOps.some((op) => opLower.includes(op))) return 'ssh';
+    if (networkOps.some((op) => opLower.includes(op))) return 'network';
+    if (authOps.some((op) => opLower.includes(op))) return 'authentication';
+    if (resourceOps.some((op) => opLower.includes(op))) return 'resource';
 
     return 'generic';
   }
 
-  private calculateDelay(attemptNumber: number, strategy: RetryStrategy): number {
+  private calculateDelay(
+    attemptNumber: number,
+    strategy: RetryStrategy
+  ): number {
     // Exponential backoff: baseDelay * (backoffMultiplier ^ (attemptNumber - 1))
     const exponentialDelay = Math.min(
-      strategy.baseDelay * Math.pow(strategy.backoffMultiplier, attemptNumber - 1),
+      strategy.baseDelay *
+        Math.pow(strategy.backoffMultiplier, attemptNumber - 1),
       strategy.maxDelay
     );
 
     // Add jitter to avoid thundering herd
     const jitter = Math.random() * strategy.jitterMax;
-    
+
     return Math.floor(exponentialDelay + jitter);
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private isCircuitOpen(key: string): boolean {
@@ -386,14 +440,14 @@ export class RetryManager extends EventEmitter {
   private recordFailure(key: string): void {
     const strategy = this.getStrategyForKey(key);
     let breaker = this.circuitBreakers.get(key);
-    
+
     if (!breaker) {
       breaker = {
         state: 'closed',
         failures: 0,
         lastFailureTime: Date.now(),
         nextAttemptTime: 0,
-        successCount: 0
+        successCount: 0,
       };
       this.circuitBreakers.set(key, breaker);
     }
@@ -401,23 +455,32 @@ export class RetryManager extends EventEmitter {
     breaker.failures++;
     breaker.lastFailureTime = Date.now();
 
-    if (breaker.state === 'closed' && breaker.failures >= strategy.circuitBreakerThreshold) {
+    if (
+      breaker.state === 'closed' &&
+      breaker.failures >= strategy.circuitBreakerThreshold
+    ) {
       // Transition to open
       breaker.state = 'open';
       breaker.nextAttemptTime = Date.now() + strategy.circuitBreakerWindow;
-      
+
       this.logger.warn(
         `Circuit breaker ${key} is now OPEN due to ${breaker.failures} consecutive failures. ` +
-        `Will remain open for ${strategy.circuitBreakerWindow / 1000}s`
+          `Will remain open for ${strategy.circuitBreakerWindow / 1000}s`
       );
-      
-      this.emit('circuit-breaker-open', { key, failures: breaker.failures, windowMs: strategy.circuitBreakerWindow });
+
+      this.emit('circuit-breaker-open', {
+        key,
+        failures: breaker.failures,
+        windowMs: strategy.circuitBreakerWindow,
+      });
     } else if (breaker.state === 'half-open') {
       // Transition back to open
       breaker.state = 'open';
       breaker.nextAttemptTime = Date.now() + strategy.circuitBreakerWindow;
-      
-      this.logger.warn(`Circuit breaker ${key} returning to OPEN state after failure in half-open`);
+
+      this.logger.warn(
+        `Circuit breaker ${key} returning to OPEN state after failure in half-open`
+      );
     }
   }
 
@@ -426,30 +489,37 @@ export class RetryManager extends EventEmitter {
     const parts = key.split('-');
     if (parts.length >= 2) {
       const strategyName = parts[parts.length - 1];
-      return this.retryStrategies.get(strategyName) || this.retryStrategies.get('generic')!;
+      return (
+        this.retryStrategies.get(strategyName) ||
+        this.retryStrategies.get('generic')!
+      );
     }
     return this.retryStrategies.get('generic')!;
   }
 
-  private enhanceError(originalError: Error, context: RetryContext, userGuidance: string): Error {
+  private enhanceError(
+    originalError: Error,
+    context: RetryContext,
+    userGuidance: string
+  ): Error {
     const enhancedError = new Error(
       `${originalError.message}\n\n` +
-      `Operation: ${context.operation}\n` +
-      `Session: ${context.sessionId}\n` +
-      `Attempts: ${context.attemptNumber}/${context.maxAttempts}\n` +
-      `Duration: ${Date.now() - context.startTime}ms\n\n` +
-      `Guidance: ${userGuidance}\n\n` +
-      `To resolve this issue:\n` +
-      `1. Check your network connection and firewall settings\n` +
-      `2. Verify credentials and permissions\n` +
-      `3. Check if the target system is accessible and responsive\n` +
-      `4. Consider waiting a few minutes before retrying manually\n` +
-      `5. Review the system logs for additional error details`
+        `Operation: ${context.operation}\n` +
+        `Session: ${context.sessionId}\n` +
+        `Attempts: ${context.attemptNumber}/${context.maxAttempts}\n` +
+        `Duration: ${Date.now() - context.startTime}ms\n\n` +
+        `Guidance: ${userGuidance}\n\n` +
+        `To resolve this issue:\n` +
+        `1. Check your network connection and firewall settings\n` +
+        `2. Verify credentials and permissions\n` +
+        `3. Check if the target system is accessible and responsive\n` +
+        `4. Consider waiting a few minutes before retrying manually\n` +
+        `5. Review the system logs for additional error details`
     );
-    
+
     enhancedError.name = originalError.name;
     enhancedError.stack = originalError.stack;
-    
+
     return enhancedError;
   }
 
@@ -515,8 +585,8 @@ export class RetryManager extends EventEmitter {
     strategies: string[];
   } {
     const circuitBreakers = { closed: 0, open: 0, halfOpen: 0 };
-    
-    this.circuitBreakers.forEach(breaker => {
+
+    this.circuitBreakers.forEach((breaker) => {
       if (breaker.state === 'closed') circuitBreakers.closed++;
       else if (breaker.state === 'open') circuitBreakers.open++;
       else circuitBreakers.halfOpen++;
@@ -525,7 +595,7 @@ export class RetryManager extends EventEmitter {
     return {
       activeRetries: this.activeRetries.size,
       circuitBreakers,
-      strategies: Array.from(this.retryStrategies.keys())
+      strategies: Array.from(this.retryStrategies.keys()),
     };
   }
 

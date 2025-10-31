@@ -126,7 +126,8 @@ export class ParallelExecutor {
         );
 
         if (failFast && !firstFailure) {
-          firstFailure = error instanceof Error ? error : new Error(String(error));
+          firstFailure =
+            error instanceof Error ? error : new Error(String(error));
         }
 
         return errorResult;
@@ -142,7 +143,10 @@ export class ParallelExecutor {
   /**
    * Create a skipped test result
    */
-  private createSkippedResult(test: TestDefinition, reason: string): TestResult {
+  private createSkippedResult(
+    test: TestDefinition,
+    reason: string
+  ): TestResult {
     return {
       test,
       status: 'skip',
@@ -174,7 +178,10 @@ export class ParallelExecutor {
   /**
    * Calculate speedup compared to sequential execution
    */
-  private calculateSpeedup(results: TestResult[], parallelDuration: number): number {
+  private calculateSpeedup(
+    results: TestResult[],
+    parallelDuration: number
+  ): number {
     // Estimate sequential duration as sum of all test durations
     const sequentialDuration = results.reduce((sum, r) => sum + r.duration, 0);
 
@@ -221,7 +228,9 @@ export class ParallelExecutor {
   /**
    * Execute a single test sequentially
    */
-  private async executeTestSequential(test: TestDefinition): Promise<TestResult> {
+  private async executeTestSequential(
+    test: TestDefinition
+  ): Promise<TestResult> {
     const startTime = Date.now();
 
     // Skip tests

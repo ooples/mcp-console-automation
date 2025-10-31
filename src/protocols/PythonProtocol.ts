@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Python Protocol connection options
@@ -58,9 +58,9 @@ export class PythonProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -92,8 +92,8 @@ export class PythonProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -120,8 +120,13 @@ export class PythonProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -142,7 +147,9 @@ export class PythonProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Python session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Python session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -173,7 +180,11 @@ export class PythonProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -187,7 +198,11 @@ export class PythonProtocol extends BaseProtocol {
     const pythonProcess = spawn(pythonCommand[0], pythonCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(pythonOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(pythonOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -196,7 +211,7 @@ export class PythonProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -206,18 +221,23 @@ export class PythonProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     pythonProcess.on('error', (error) => {
-      this.logger.error(`Python process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Python process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     pythonProcess.on('close', (code) => {
-      this.logger.info(`Python process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Python process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -230,7 +250,11 @@ export class PythonProtocol extends BaseProtocol {
       command: pythonCommand[0],
       args: pythonCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(pythonOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(pythonOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -238,12 +262,14 @@ export class PythonProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: pythonProcess.pid
+      pid: pythonProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Python session ${sessionId} created for ${pythonOptions.scriptFile || pythonOptions.module || 'interactive Python'}`);
+    this.logger.info(
+      `Python session ${sessionId} created for ${pythonOptions.scriptFile || pythonOptions.module || 'interactive Python'}`
+    );
     this.emit('session-created', { sessionId, type: 'python', session });
 
     return session;
@@ -252,7 +278,7 @@ export class PythonProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -261,8 +287,8 @@ export class PythonProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -284,25 +310,30 @@ export class PythonProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Python session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Python session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const pythonProcess = this.pythonProcesses.get(sessionId);
-    return pythonProcess && !pythonProcess.killed || false;
+    return (pythonProcess && !pythonProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -313,26 +344,26 @@ export class PythonProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.pythonProcesses.size
+        connectionsActive: this.pythonProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -344,8 +375,8 @@ export class PythonProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          python: { available: true }
-        }
+          python: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -353,8 +384,8 @@ export class PythonProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Python not available: ${error}`],
         dependencies: {
-          python: { available: false }
-        }
+          python: { available: false },
+        },
       };
     }
   }
@@ -367,12 +398,16 @@ export class PythonProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Python interpreter not found. Please install Python.'));
+          reject(
+            new Error('Python interpreter not found. Please install Python.')
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('Python interpreter not found. Please install Python.'));
+        reject(
+          new Error('Python interpreter not found. Please install Python.')
+        );
       });
     });
   }
@@ -432,7 +467,9 @@ export class PythonProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: PythonConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: PythonConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Virtual environment activation
@@ -472,7 +509,10 @@ export class PythonProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Python process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Python process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

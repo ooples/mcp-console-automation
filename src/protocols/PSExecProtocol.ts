@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // PSExec Protocol connection options
@@ -31,7 +31,13 @@ interface PSExecConnectionOptions extends SessionOptions {
   runElevated?: boolean;
   workingDirectory?: string;
   remoteDirectory?: string;
-  priority?: 'low' | 'belownormal' | 'normal' | 'abovenormal' | 'high' | 'realtime';
+  priority?:
+    | 'low'
+    | 'belownormal'
+    | 'normal'
+    | 'abovenormal'
+    | 'high'
+    | 'realtime';
   affinity?: number;
   timeout?: number;
   waitForExit?: boolean;
@@ -119,9 +125,9 @@ export class PSExecProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -153,8 +159,8 @@ export class PSExecProtocol extends BaseProtocol {
         windows: true, // Primary PSExec platform
         linux: true, // Via Wine or alternatives
         macos: true, // Via Wine or alternatives
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -181,8 +187,13 @@ export class PSExecProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\r\n');
   }
 
@@ -203,7 +214,9 @@ export class PSExecProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to PSExec session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to PSExec session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -234,7 +247,11 @@ export class PSExecProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -253,7 +270,11 @@ export class PSExecProtocol extends BaseProtocol {
     const psexecProcess = spawn(psexecCommand[0], psexecCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(psexecOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(psexecOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -262,7 +283,7 @@ export class PSExecProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -272,18 +293,23 @@ export class PSExecProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     psexecProcess.on('error', (error) => {
-      this.logger.error(`PSExec process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `PSExec process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     psexecProcess.on('close', (code) => {
-      this.logger.info(`PSExec process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `PSExec process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -296,7 +322,11 @@ export class PSExecProtocol extends BaseProtocol {
       command: psexecCommand[0],
       args: psexecCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(psexecOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(psexecOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -304,12 +334,14 @@ export class PSExecProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: psexecProcess.pid
+      pid: psexecProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`PSExec session ${sessionId} created for host ${psexecOptions.hostname}`);
+    this.logger.info(
+      `PSExec session ${sessionId} created for host ${psexecOptions.hostname}`
+    );
     this.emit('session-created', { sessionId, type: 'psexec', session });
 
     return session;
@@ -318,7 +350,7 @@ export class PSExecProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -327,8 +359,8 @@ export class PSExecProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -350,25 +382,30 @@ export class PSExecProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in PSExec session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in PSExec session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const psexecProcess = this.psexecProcesses.get(sessionId);
-    return psexecProcess && !psexecProcess.killed || false;
+    return (psexecProcess && !psexecProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -379,26 +416,26 @@ export class PSExecProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.psexecProcesses.size
+        connectionsActive: this.psexecProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -410,8 +447,8 @@ export class PSExecProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          psexec: { available: true }
-        }
+          psexec: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -419,26 +456,37 @@ export class PSExecProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `PSExec not available: ${error}`],
         dependencies: {
-          psexec: { available: false }
-        }
+          psexec: { available: false },
+        },
       };
     }
   }
 
   private async checkPSExecAvailability(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const testProcess = spawn('psexec', ['/accepteula', '-h'], { stdio: 'pipe' });
+      const testProcess = spawn('psexec', ['/accepteula', '-h'], {
+        stdio: 'pipe',
+      });
 
       testProcess.on('close', (code) => {
-        if (code === 0 || code === 1) { // PSExec returns 1 for help
+        if (code === 0 || code === 1) {
+          // PSExec returns 1 for help
           resolve();
         } else {
-          reject(new Error('PSExec tool not found. Please install PsTools from Microsoft Sysinternals.'));
+          reject(
+            new Error(
+              'PSExec tool not found. Please install PsTools from Microsoft Sysinternals.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('PSExec tool not found. Please install PsTools from Microsoft Sysinternals.'));
+        reject(
+          new Error(
+            'PSExec tool not found. Please install PsTools from Microsoft Sysinternals.'
+          )
+        );
       });
     });
   }
@@ -510,12 +558,12 @@ export class PSExecProtocol extends BaseProtocol {
     // Process priority
     if (options.priority) {
       const priorityMap = {
-        'low': '-low',
-        'belownormal': '-belownormal',
-        'normal': '-normal',
-        'abovenormal': '-abovenormal',
-        'high': '-high',
-        'realtime': '-realtime'
+        low: '-low',
+        belownormal: '-belownormal',
+        normal: '-normal',
+        abovenormal: '-abovenormal',
+        high: '-high',
+        realtime: '-realtime',
       };
       command.push(priorityMap[options.priority]);
     }
@@ -656,7 +704,10 @@ export class PSExecProtocol extends BaseProtocol {
 
     // Proxy settings
     if (options.enableProxy && options.proxyServer) {
-      command.push('-proxy', `${options.proxyServer}:${options.proxyPort || 8080}`);
+      command.push(
+        '-proxy',
+        `${options.proxyServer}:${options.proxyPort || 8080}`
+      );
       if (options.proxyUsername) {
         command.push('-proxyuser', options.proxyUsername);
         if (options.proxyPassword) {
@@ -682,7 +733,9 @@ export class PSExecProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: PSExecConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: PSExecConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // PSExec environment variables
@@ -796,7 +849,10 @@ export class PSExecProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing PSExec process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing PSExec process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

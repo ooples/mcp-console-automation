@@ -7,7 +7,11 @@ import { ParallelExecutor } from '../testing/ParallelExecutor.js';
 import { RetryManager } from '../testing/RetryManager.js';
 import { FlakeDetector } from '../testing/FlakeDetector.js';
 import { ExecutionMetricsCollector } from '../testing/ExecutionMetrics.js';
-import { TestDefinition, TestResult, ParallelExecutionConfig } from '../types/test-framework.js';
+import {
+  TestDefinition,
+  TestResult,
+  ParallelExecutionConfig,
+} from '../types/test-framework.js';
 
 describe('Phase 4 Integration', () => {
   describe('Parallel Execution + Retry Integration', () => {
@@ -32,11 +36,15 @@ describe('Phase 4 Integration', () => {
       const parallelResult = await executor.executeTests(tests, config);
 
       // Find any failures
-      const failures = parallelResult.results.filter((r) => r.status === 'fail');
+      const failures = parallelResult.results.filter(
+        (r) => r.status === 'fail'
+      );
 
       if (failures.length > 0) {
         // Retry failed tests
-        const testExecutor = async (test: TestDefinition): Promise<TestResult> => ({
+        const testExecutor = async (
+          test: TestDefinition
+        ): Promise<TestResult> => ({
           test,
           status: 'pass',
           duration: 50,
@@ -71,7 +79,9 @@ describe('Phase 4 Integration', () => {
       ];
 
       // Simulated test executor
-      const testExecutor = async (test: TestDefinition): Promise<TestResult> => {
+      const testExecutor = async (
+        test: TestDefinition
+      ): Promise<TestResult> => {
         runCount++;
         const isFlaky = test.name === 'flaky-test';
         const passed = !isFlaky || runCount % 2 === 0;
@@ -138,7 +148,9 @@ describe('Phase 4 Integration', () => {
 
       // Step 4: Check for flaky tests
       let callCount = 0;
-      const flakyExecutor = async (test: TestDefinition): Promise<TestResult> => {
+      const flakyExecutor = async (
+        test: TestDefinition
+      ): Promise<TestResult> => {
         callCount++;
         return {
           test,
@@ -162,8 +174,12 @@ describe('Phase 4 Integration', () => {
       expect(flakeReports.length).toBeGreaterThanOrEqual(0);
 
       console.log('\n=== Full Pipeline Results ===');
-      console.log(`Parallel execution: ${parallelResult.totalTests} tests in ${parallelResult.duration}ms`);
-      console.log(`Metrics collected: ${metrics.totalTests} tests, avg duration: ${metrics.averageDuration.toFixed(2)}ms`);
+      console.log(
+        `Parallel execution: ${parallelResult.totalTests} tests in ${parallelResult.duration}ms`
+      );
+      console.log(
+        `Metrics collected: ${metrics.totalTests} tests, avg duration: ${metrics.averageDuration.toFixed(2)}ms`
+      );
       console.log(`Flake detection: ${flakeReports.length} flaky tests found`);
       console.log('=== Pipeline Complete ===\n');
     });

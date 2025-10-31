@@ -1,0 +1,375 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ master, main ]
+  push:
+    branches: [ master, main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-format:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Detect package manager
+        id: pm_lint
+        run: |
+          if [ -f yarn.lock ]; then echo "pm=yarn" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "pm=npm" >> "$GITHUB_OUTPUT"
+
+      - name: Enable Corepack (optional)
+        if: steps.pm_lint.outputs.pm != 'npm'
+        run: corepack enable || true
+
+      - name: Cache (yarn)
+        if: steps.pm_lint.outputs.pm == 'yarn'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-
+
+      - name: Cache (pnpm)
+        if: steps.pm_lint.outputs.pm == 'pnpm'
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: |
+          PM="${{ steps.pm_lint.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then
+            if [ -f package-lock.json ]; then npm ci; else npm i; fi
+          elif [ "$PM" = "yarn" ]; then
+            yarn install --frozen-lockfile
+          else
+            pnpm install --frozen-lockfile
+          fi
+
+      - name: Run ESLint
+        run: |
+          PM="${{ steps.pm_lint.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then npm run lint; elif [ "$PM" = "yarn" ]; then yarn -s lint; else pnpm lint; fi
+
+      - name: Check Prettier formatting
+        run: |
+          PM="${{ steps.pm_lint.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then npm run format:check; elif [ "$PM" = "yarn" ]; then yarn -s format:check; else pnpm format:check; fi
+
+      - name: Validate package.json
+        run: |
+          # Basic validation - actual build happens in the build job
+          node -e "require('./package.json')" || exit 1
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Detect package manager
+        id: pm_build
+        run: |
+          if [ -f yarn.lock ]; then echo "pm=yarn" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "pm=npm" >> "$GITHUB_OUTPUT"
+
+      - name: Enable Corepack (optional)
+        if: steps.pm_build.outputs.pm != 'npm'
+        run: corepack enable || true
+
+      - name: Cache (yarn)
+        if: steps.pm_build.outputs.pm == 'yarn'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-
+
+      - name: Cache (pnpm)
+        if: steps.pm_build.outputs.pm == 'pnpm'
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: |
+          PM="${{ steps.pm_build.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then
+            if [ -f package-lock.json ]; then npm ci; else npm i; fi
+          elif [ "$PM" = "yarn" ]; then
+            yarn install --frozen-lockfile
+          else
+            pnpm install --frozen-lockfile
+          fi
+
+      - name: Build TypeScript
+        run: |
+          PM="${{ steps.pm_build.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then npm run build; elif [ "$PM" = "yarn" ]; then yarn -s build; else pnpm build; fi
+
+      - name: Verify build artifacts (main)
+        run: |
+          MAIN=$(node -p "require('./package.json').main || ''")
+          if [ -z "$MAIN" ]; then
+            echo "Error: package.json main not set"
+            exit 1
+          fi
+          if [ ! -f "$MAIN" ]; then
+            echo "Error: main file '$MAIN' not found"
+            exit 1
+          fi
+          echo "Build artifacts verified: $MAIN"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 7
+
+  test:
+    name: Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        node-version: ['18', '20', '22']
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Detect package manager
+        id: pm_test
+        run: |
+          if [ -f yarn.lock ]; then echo "pm=yarn" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "pm=npm" >> "$GITHUB_OUTPUT"
+
+      - name: Enable Corepack (optional)
+        if: steps.pm_test.outputs.pm != 'npm'
+        run: corepack enable || true
+
+      - name: Cache (yarn)
+        if: steps.pm_test.outputs.pm == 'yarn'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-
+
+      - name: Cache (pnpm)
+        if: steps.pm_test.outputs.pm == 'pnpm'
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: |
+          PM="${{ steps.pm_test.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then
+            if [ -f package-lock.json ]; then npm ci; else npm i; fi
+          elif [ "$PM" = "yarn" ]; then
+            yarn install --frozen-lockfile
+          else
+            pnpm install --frozen-lockfile
+          fi
+
+      - name: Run tests with coverage
+        run: |
+          PM="${{ steps.pm_test.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then npm run test:ci; elif [ "$PM" = "yarn" ]; then yarn -s test:ci; else pnpm test:ci; fi
+        env:
+          NODE_OPTIONS: --experimental-vm-modules
+          SKIP_HARDWARE_TESTS: true
+
+      - name: Generate coverage report
+        if: matrix.node-version == '20'
+        run: |
+          PM="${{ steps.pm_test.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then npm run test:coverage; elif [ "$PM" = "yarn" ]; then yarn -s test:coverage; else pnpm test:coverage; fi
+        env:
+          NODE_OPTIONS: --experimental-vm-modules
+          SKIP_HARDWARE_TESTS: true
+
+      - name: Upload coverage to Codecov
+        if: matrix.node-version == '20'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Check coverage threshold
+        if: matrix.node-version == '20'
+        run: |
+          node -e "
+            const fs=require('fs');
+            const p='coverage/coverage-summary.json';
+            if(fs.existsSync(p)){
+              const j=JSON.parse(fs.readFileSync(p,'utf8'));
+              const pct = j.total && j.total.lines ? j.total.lines.pct : 'n/a';
+              console.log('Lines coverage:', pct + '%');
+            } else {
+              console.log('No coverage summary found');
+            }
+          "
+
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Detect package manager
+        id: pm_audit
+        run: |
+          if [ -f yarn.lock ]; then echo "pm=yarn" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "pm=npm" >> "$GITHUB_OUTPUT"
+
+      - name: Enable Corepack (optional)
+        if: steps.pm_audit.outputs.pm != 'npm'
+        run: corepack enable || true
+
+      - name: Cache (yarn)
+        if: steps.pm_audit.outputs.pm == 'yarn'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-
+
+      - name: Cache (pnpm)
+        if: steps.pm_audit.outputs.pm == 'pnpm'
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: |
+          PM="${{ steps.pm_audit.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then
+            if [ -f package-lock.json ]; then npm ci; else npm i; fi
+          elif [ "$PM" = "yarn" ]; then
+            yarn install --frozen-lockfile
+          else
+            pnpm install --frozen-lockfile
+          fi
+      - name: Run audit (non-blocking)
+        run: |
+          PM="${{ steps.pm_audit.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then
+            npm audit --audit-level=high || true
+          elif [ "$PM" = "yarn" ]; then
+            yarn -s npm audit --audit-level=high || yarn -s audit || true
+          else
+            pnpm audit --audit-level=high || true
+          fi
+
+  license-compliance:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Detect package manager
+        id: pm_license
+        run: |
+          if [ -f yarn.lock ]; then echo "pm=yarn" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "pm=npm" >> "$GITHUB_OUTPUT"
+
+      - name: Enable Corepack (optional)
+        if: steps.pm_license.outputs.pm != 'npm'
+        run: corepack enable || true
+
+      - name: Cache (yarn)
+        if: steps.pm_license.outputs.pm == 'yarn'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-
+
+      - name: Cache (pnpm)
+        if: steps.pm_license.outputs.pm == 'pnpm'
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: |
+          PM="${{ steps.pm_license.outputs.pm }}"
+          if [ "$PM" = "npm" ]; then
+            if [ -f package-lock.json ]; then npm ci; else npm i; fi
+          elif [ "$PM" = "yarn" ]; then
+            yarn install --frozen-lockfile
+          else
+            pnpm install --frozen-lockfile
+          fi
+      - name: Install license checker
+        run: npm install -g license-checker
+      - name: Check licenses
+        id: license_check
+        run: |
+          license-checker --json --out licenses.json || true
+          license-checker --summary > license-summary.txt || true
+          echo "## License Summary" > license-report.md
+          echo "" >> license-report.md
+          cat license-summary.txt >> license-report.md

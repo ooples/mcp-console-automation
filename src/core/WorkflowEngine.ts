@@ -24,7 +24,7 @@ import {
   WorkflowTask,
   ParallelExecution,
   LoopConfiguration,
-  RetryPolicy
+  RetryPolicy,
 } from '../types/workflow.js';
 import { ConsoleManager } from './ConsoleManager.js';
 import { Logger } from '../utils/logger.js';
@@ -36,7 +36,10 @@ export class WorkflowEngine extends EventEmitter {
   private taskQueues: Map<string, PQueue>;
   private consoleManager: ConsoleManager;
   private logger: Logger;
-  private approvalCallbacks: Map<string, (approved: boolean, comments?: string) => void>;
+  private approvalCallbacks: Map<
+    string,
+    (approved: boolean, comments?: string) => void
+  >;
 
   constructor(consoleManager: ConsoleManager) {
     super();
@@ -54,7 +57,9 @@ export class WorkflowEngine extends EventEmitter {
    */
   registerWorkflow(definition: WorkflowDefinition): void {
     this.workflows.set(definition.id, definition);
-    this.logger.info(`Workflow registered: ${definition.name} (${definition.id})`);
+    this.logger.info(
+      `Workflow registered: ${definition.name} (${definition.id})`
+    );
     this.emit('workflow-registered', definition);
   }
 
@@ -62,7 +67,7 @@ export class WorkflowEngine extends EventEmitter {
    * Execute a workflow with given context
    */
   async executeWorkflow(
-    workflowId: string, 
+    workflowId: string,
     context: ExecutionContext,
     variables?: Record<string, any>
   ): Promise<string> {
@@ -80,12 +85,18 @@ export class WorkflowEngine extends EventEmitter {
       triggeredBy: {
         type: 'manual',
         source: 'api',
-        timestamp: new Date()
+        timestamp: new Date(),
       },
       context,
       tasks: [],
       approvals: [],
-      variables: { ...workflow.variables.reduce((acc, v) => ({ ...acc, [v.name]: v.defaultValue }), {}), ...variables },
+      variables: {
+        ...workflow.variables.reduce(
+          (acc, v) => ({ ...acc, [v.name]: v.defaultValue }),
+          {}
+        ),
+        ...variables,
+      },
       artifacts: [],
       metrics: {
         totalTasks: workflow.tasks.length,
@@ -93,11 +104,21 @@ export class WorkflowEngine extends EventEmitter {
         failedTasks: 0,
         skippedTasks: 0,
         avgTaskDuration: 0,
-        resourceUsage: { peakMemory: 0, avgCpu: 0, diskUsed: 0, networkTraffic: 0 },
-        performance: { queueTime: 0, executionTime: 0, waitTime: 0, overhead: 0 }
+        resourceUsage: {
+          peakMemory: 0,
+          avgCpu: 0,
+          diskUsed: 0,
+          networkTraffic: 0,
+        },
+        performance: {
+          queueTime: 0,
+          executionTime: 0,
+          waitTime: 0,
+          overhead: 0,
+        },
       },
       logs: [],
-      errors: []
+      errors: [],
     };
 
     this.executions.set(executionId, execution);
@@ -115,9 +136,17 @@ export class WorkflowEngine extends EventEmitter {
   /**
    * Start workflow execution
    */
-  private async startExecution(execution: WorkflowExecution, workflow: WorkflowDefinition): Promise<void> {
+  private async startExecution(
+    execution: WorkflowExecution,
+    workflow: WorkflowDefinition
+  ): Promise<void> {
     this.updateExecutionStatus(execution, 'running');
-    this.addExecutionLog(execution, 'info', 'workflow', `Starting workflow: ${workflow.name}`);
+    this.addExecutionLog(
+      execution,
+      'info',
+      'workflow',
+      `Starting workflow: ${workflow.name}`
+    );
 
     try {
       // Initialize workflow variables
@@ -129,7 +158,6 @@ export class WorkflowEngine extends EventEmitter {
       } else {
         await this.executeSequentialWorkflow(execution, workflow);
       }
-
     } catch (error: any) {
       await this.handleExecutionError(execution, error);
       throw error;
@@ -139,17 +167,25 @@ export class WorkflowEngine extends EventEmitter {
   /**
    * Execute workflow using state machine approach
    */
-  private async executeStateMachineWorkflow(execution: WorkflowExecution, workflow: WorkflowDefinition): Promise<void> {
+  private async executeStateMachineWorkflow(
+    execution: WorkflowExecution,
+    workflow: WorkflowDefinition
+  ): Promise<void> {
     const stateMachine = this.createStateMachine(workflow);
     this.stateMachines.set(execution.id, stateMachine);
 
-    let currentState = stateMachine.states.find(s => s.type === 'initial');
+    let currentState = stateMachine.states.find((s) => s.type === 'initial');
     if (!currentState) {
       throw new Error('No initial state found in state machine');
     }
 
     while (currentState && currentState.type !== 'final') {
-      this.addExecutionLog(execution, 'info', 'state-machine', `Entering state: ${currentState.name}`);
+      this.addExecutionLog(
+        execution,
+        'info',
+        'state-machine',
+        `Entering state: ${currentState.name}`
+      );
 
       // Execute tasks in current state
       if (currentState.tasks) {
@@ -157,10 +193,16 @@ export class WorkflowEngine extends EventEmitter {
       }
 
       // Find next transition
-      const transition = await this.findValidTransition(execution, stateMachine, currentState.id);
+      const transition = await this.findValidTransition(
+        execution,
+        stateMachine,
+        currentState.id
+      );
       if (!transition) {
         if (currentState.type === 'error') {
-          throw new Error(`Workflow stuck in error state: ${currentState.name}`);
+          throw new Error(
+            `Workflow stuck in error state: ${currentState.name}`
+          );
         }
         break;
       }
@@ -170,7 +212,7 @@ export class WorkflowEngine extends EventEmitter {
         await this.executeTransitionActions(execution, transition.actions);
       }
 
-      currentState = stateMachine.states.find(s => s.id === transition.to);
+      currentState = stateMachine.states.find((s) => s.id === transition.to);
     }
 
     this.updateExecutionStatus(execution, 'completed');
@@ -179,19 +221,22 @@ export class WorkflowEngine extends EventEmitter {
   /**
    * Execute workflow sequentially with dependency resolution
    */
-  private async executeSequentialWorkflow(execution: WorkflowExecution, workflow: WorkflowDefinition): Promise<void> {
+  private async executeSequentialWorkflow(
+    execution: WorkflowExecution,
+    workflow: WorkflowDefinition
+  ): Promise<void> {
     const taskGraph = this.buildTaskDependencyGraph(workflow.tasks);
     const readyTasks = this.getReadyTasks(taskGraph, new Set());
     const completedTasks = new Set<string>();
 
     while (readyTasks.length > 0 || this.hasPendingTasks(execution)) {
       // Execute ready tasks
-      const taskPromises = readyTasks.map(task => 
+      const taskPromises = readyTasks.map((task) =>
         this.executeTask(execution, workflow, task)
       );
 
       const results = await Promise.allSettled(taskPromises);
-      
+
       // Process results
       for (let i = 0; i < results.length; i++) {
         const task = readyTasks[i];
@@ -203,7 +248,7 @@ export class WorkflowEngine extends EventEmitter {
         } else {
           execution.metrics.failedTasks++;
           await this.handleTaskError(execution, task, result.reason);
-          
+
           if (workflow.errorHandling.global.onError === 'fail') {
             throw result.reason;
           }
@@ -213,10 +258,15 @@ export class WorkflowEngine extends EventEmitter {
       // Find new ready tasks
       readyTasks.length = 0;
       readyTasks.push(...this.getReadyTasks(taskGraph, completedTasks));
-      
+
       // Check for deadlock
-      if (readyTasks.length === 0 && !this.allTasksCompleted(taskGraph, completedTasks)) {
-        throw new Error('Workflow deadlock detected - circular dependencies or missing tasks');
+      if (
+        readyTasks.length === 0 &&
+        !this.allTasksCompleted(taskGraph, completedTasks)
+      ) {
+        throw new Error(
+          'Workflow deadlock detected - circular dependencies or missing tasks'
+        );
       }
     }
 
@@ -227,8 +277,8 @@ export class WorkflowEngine extends EventEmitter {
    * Execute a single task with all its features
    */
   private async executeTask(
-    execution: WorkflowExecution, 
-    workflow: WorkflowDefinition, 
+    execution: WorkflowExecution,
+    workflow: WorkflowDefinition,
     task: WorkflowTask
   ): Promise<void> {
     const taskExecution: TaskExecution = {
@@ -243,9 +293,9 @@ export class WorkflowEngine extends EventEmitter {
         cpuUsage: 0,
         diskIO: 0,
         networkIO: 0,
-        outputSize: 0
+        outputSize: 0,
       },
-      logs: []
+      logs: [],
     };
 
     execution.tasks.push(taskExecution);
@@ -253,10 +303,18 @@ export class WorkflowEngine extends EventEmitter {
 
     try {
       // Check task condition
-      if (task.condition && !(await this.evaluateCondition(execution, task.condition))) {
+      if (
+        task.condition &&
+        !(await this.evaluateCondition(execution, task.condition))
+      ) {
         taskExecution.status = 'skipped';
         execution.metrics.skippedTasks++;
-        this.addExecutionLog(execution, 'info', 'task', `Task skipped: ${task.name} (condition not met)`);
+        this.addExecutionLog(
+          execution,
+          'info',
+          'task',
+          `Task skipped: ${task.name} (condition not met)`
+        );
         return;
       }
 
@@ -270,7 +328,12 @@ export class WorkflowEngine extends EventEmitter {
       taskExecution.startTime = new Date();
 
       if (task.executionMode === 'parallel' && task.parallel) {
-        await this.executeParallelTask(execution, workflow, task, taskExecution);
+        await this.executeParallelTask(
+          execution,
+          workflow,
+          task,
+          taskExecution
+        );
       } else if (task.loop) {
         await this.executeLoopTask(execution, workflow, task, taskExecution);
       } else {
@@ -278,14 +341,14 @@ export class WorkflowEngine extends EventEmitter {
       }
 
       taskExecution.endTime = new Date();
-      taskExecution.duration = taskExecution.endTime.getTime() - taskExecution.startTime!.getTime();
+      taskExecution.duration =
+        taskExecution.endTime.getTime() - taskExecution.startTime!.getTime();
       taskExecution.status = 'completed';
 
       // Execute success actions
       if (task.onSuccess) {
         await this.executeTaskActions(execution, task.onSuccess);
       }
-
     } catch (error: any) {
       taskExecution.status = 'failed';
       taskExecution.error = {
@@ -295,13 +358,20 @@ export class WorkflowEngine extends EventEmitter {
         message: error.message,
         stack: error.stack,
         context: { taskId: task.id, input: task.input },
-        recoverable: this.isRecoverableError(error)
+        recoverable: this.isRecoverableError(error),
       };
 
       // Handle retry logic
-      const retryPolicy = task.retryPolicy || workflow.errorHandling.global.retryPolicy;
+      const retryPolicy =
+        task.retryPolicy || workflow.errorHandling.global.retryPolicy;
       if (retryPolicy && taskExecution.attempts < retryPolicy.maxAttempts) {
-        await this.retryTask(execution, workflow, task, taskExecution, retryPolicy);
+        await this.retryTask(
+          execution,
+          workflow,
+          task,
+          taskExecution,
+          retryPolicy
+        );
         return;
       }
 
@@ -327,8 +397,8 @@ export class WorkflowEngine extends EventEmitter {
   ): Promise<void> {
     if (!task.parallel) return;
 
-    const queue = new PQueue({ 
-      concurrency: task.parallel.maxConcurrency 
+    const queue = new PQueue({
+      concurrency: task.parallel.maxConcurrency,
     });
 
     const subtasks = this.generateParallelSubtasks(task);
@@ -338,7 +408,12 @@ export class WorkflowEngine extends EventEmitter {
       const promises = subtasks.map((subtask, index) =>
         queue.add(async () => {
           try {
-            const result = await this.executeSingleTask(execution, workflow, subtask, taskExecution);
+            const result = await this.executeSingleTask(
+              execution,
+              workflow,
+              subtask,
+              taskExecution
+            );
             results[index] = result;
             return result;
           } catch (error) {
@@ -355,8 +430,10 @@ export class WorkflowEngine extends EventEmitter {
       await Promise.all(promises);
 
       // Aggregate results based on strategy
-      taskExecution.output = this.aggregateParallelResults(results, task.parallel.aggregationStrategy);
-
+      taskExecution.output = this.aggregateParallelResults(
+        results,
+        task.parallel.aggregationStrategy
+      );
     } finally {
       queue.clear();
     }
@@ -378,12 +455,18 @@ export class WorkflowEngine extends EventEmitter {
 
     while (iteration < task.loop.maxIterations) {
       // Check loop condition
-      if (task.loop.condition && !(await this.evaluateCondition(execution, task.loop.condition))) {
+      if (
+        task.loop.condition &&
+        !(await this.evaluateCondition(execution, task.loop.condition))
+      ) {
         break;
       }
 
       // Check break condition
-      if (task.loop.breakCondition && await this.evaluateCondition(execution, task.loop.breakCondition)) {
+      if (
+        task.loop.breakCondition &&
+        (await this.evaluateCondition(execution, task.loop.breakCondition))
+      ) {
         break;
       }
 
@@ -398,7 +481,12 @@ export class WorkflowEngine extends EventEmitter {
 
       // Execute task iteration
       try {
-        const result = await this.executeSingleTask(execution, workflow, task, taskExecution);
+        const result = await this.executeSingleTask(
+          execution,
+          workflow,
+          task,
+          taskExecution
+        );
         results.push(result);
       } catch (error: any) {
         if (workflow.errorHandling.global.onError === 'fail') {
@@ -410,7 +498,11 @@ export class WorkflowEngine extends EventEmitter {
       iteration++;
 
       // For 'for' loop, check iterations
-      if (task.loop.type === 'for' && task.loop.iterations && iteration >= task.loop.iterations) {
+      if (
+        task.loop.type === 'for' &&
+        task.loop.iterations &&
+        iteration >= task.loop.iterations
+      ) {
         break;
       }
     }
@@ -434,28 +526,52 @@ export class WorkflowEngine extends EventEmitter {
 
       switch (task.type) {
         case 'command':
-          result = await this.executeCommandTask(execution, task, taskExecution);
+          result = await this.executeCommandTask(
+            execution,
+            task,
+            taskExecution
+          );
           break;
         case 'script':
           result = await this.executeScriptTask(execution, task, taskExecution);
           break;
         case 'api_call':
-          result = await this.executeApiCallTask(execution, task, taskExecution);
+          result = await this.executeApiCallTask(
+            execution,
+            task,
+            taskExecution
+          );
           break;
         case 'file_operation':
-          result = await this.executeFileOperationTask(execution, task, taskExecution);
+          result = await this.executeFileOperationTask(
+            execution,
+            task,
+            taskExecution
+          );
           break;
         case 'condition':
-          result = await this.executeConditionTask(execution, task, taskExecution);
+          result = await this.executeConditionTask(
+            execution,
+            task,
+            taskExecution
+          );
           break;
         case 'wait':
           result = await this.executeWaitTask(execution, task, taskExecution);
           break;
         case 'notification':
-          result = await this.executeNotificationTask(execution, task, taskExecution);
+          result = await this.executeNotificationTask(
+            execution,
+            task,
+            taskExecution
+          );
           break;
         case 'subworkflow':
-          result = await this.executeSubworkflowTask(execution, task, taskExecution);
+          result = await this.executeSubworkflowTask(
+            execution,
+            task,
+            taskExecution
+          );
           break;
         default:
           throw new Error(`Unsupported task type: ${task.type}`);
@@ -465,17 +581,25 @@ export class WorkflowEngine extends EventEmitter {
       if (task.output && result) {
         if (task.output.variables) {
           Object.entries(task.output.variables).forEach(([key, expression]) => {
-            execution.variables[key] = this.evaluateExpression(expression, result, execution.variables);
+            execution.variables[key] = this.evaluateExpression(
+              expression,
+              result,
+              execution.variables
+            );
           });
         }
       }
 
       taskExecution.metrics.duration = Date.now() - startTime;
       return result;
-
     } catch (error: any) {
       taskExecution.metrics.duration = Date.now() - startTime;
-      this.addExecutionLog(execution, 'error', 'task', `Task failed: ${task.name} - ${error.message}`);
+      this.addExecutionLog(
+        execution,
+        'error',
+        'task',
+        `Task failed: ${task.name} - ${error.message}`
+      );
       throw error;
     }
   }
@@ -492,22 +616,32 @@ export class WorkflowEngine extends EventEmitter {
       throw new Error('Command task requires command in input');
     }
 
-    const command = this.interpolateVariables(task.input.command, execution.variables);
-    const args = task.input.args?.map(arg => this.interpolateVariables(arg, execution.variables));
+    const command = this.interpolateVariables(
+      task.input.command,
+      execution.variables
+    );
+    const args = task.input.args?.map((arg) =>
+      this.interpolateVariables(arg, execution.variables)
+    );
 
-    this.addExecutionLog(execution, 'info', 'task', `Executing command: ${command} ${args?.join(' ') || ''}`);
+    this.addExecutionLog(
+      execution,
+      'info',
+      'task',
+      `Executing command: ${command} ${args?.join(' ') || ''}`
+    );
 
     try {
       const result = await this.consoleManager.executeCommand(command, args, {
         cwd: task.input.variables?.cwd as string,
         env: task.input.variables?.env as Record<string, string>,
         timeout: task.timeout,
-        detectErrors: true
+        detectErrors: true,
       });
 
       taskExecution.output = result;
       taskExecution.exitCode = result.exitCode;
-      
+
       return result;
     } catch (error: any) {
       throw new Error(`Command execution failed: ${error.message}`);
@@ -531,13 +665,18 @@ export class WorkflowEngine extends EventEmitter {
     const headers = task.input.headers || {};
     const body = task.input.body;
 
-    this.addExecutionLog(execution, 'info', 'task', `Making API call: ${method} ${url}`);
+    this.addExecutionLog(
+      execution,
+      'info',
+      'task',
+      `Making API call: ${method} ${url}`
+    );
 
     try {
       const response = await fetch(url, {
         method,
         headers,
-        body: body ? JSON.stringify(body) : undefined
+        body: body ? JSON.stringify(body) : undefined,
       });
 
       if (!response.ok) {
@@ -546,7 +685,7 @@ export class WorkflowEngine extends EventEmitter {
 
       const result = await response.json();
       taskExecution.output = result;
-      
+
       return result;
     } catch (error: any) {
       throw new Error(`API call failed: ${error.message}`);
@@ -567,9 +706,14 @@ export class WorkflowEngine extends EventEmitter {
 
     const result = await this.evaluateCondition(execution, task.condition);
     taskExecution.output = { result };
-    
-    this.addExecutionLog(execution, 'info', 'task', `Condition evaluated to: ${result}`);
-    
+
+    this.addExecutionLog(
+      execution,
+      'info',
+      'task',
+      `Condition evaluated to: ${result}`
+    );
+
     return { result };
   }
 
@@ -581,12 +725,17 @@ export class WorkflowEngine extends EventEmitter {
     task: WorkflowTask,
     taskExecution: TaskExecution
   ): Promise<any> {
-    const duration = task.input.variables?.duration as number || 1000;
-    
-    this.addExecutionLog(execution, 'info', 'task', `Waiting for ${duration}ms`);
-    
-    await new Promise(resolve => setTimeout(resolve, duration));
-    
+    const duration = (task.input.variables?.duration as number) || 1000;
+
+    this.addExecutionLog(
+      execution,
+      'info',
+      'task',
+      `Waiting for ${duration}ms`
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, duration));
+
     return { waited: duration };
   }
 
@@ -599,18 +748,23 @@ export class WorkflowEngine extends EventEmitter {
     taskExecution: TaskExecution
   ): Promise<any> {
     const message = this.interpolateVariables(
-      task.input.variables?.message as string || 'Workflow notification',
+      (task.input.variables?.message as string) || 'Workflow notification',
       execution.variables
     );
 
-    this.addExecutionLog(execution, 'info', 'task', `Sending notification: ${message}`);
-    
+    this.addExecutionLog(
+      execution,
+      'info',
+      'task',
+      `Sending notification: ${message}`
+    );
+
     // Emit notification event
     this.emit('notification', {
       executionId: execution.id,
       taskId: task.id,
       message,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     return { sent: true, message };
@@ -629,7 +783,12 @@ export class WorkflowEngine extends EventEmitter {
       throw new Error('Subworkflow task requires workflowId');
     }
 
-    this.addExecutionLog(execution, 'info', 'task', `Executing subworkflow: ${subworkflowId}`);
+    this.addExecutionLog(
+      execution,
+      'info',
+      'task',
+      `Executing subworkflow: ${subworkflowId}`
+    );
 
     const subExecutionId = await this.executeWorkflow(
       subworkflowId,
@@ -639,11 +798,11 @@ export class WorkflowEngine extends EventEmitter {
 
     // Wait for completion
     const subExecution = await this.waitForExecution(subExecutionId);
-    
-    return { 
-      executionId: subExecutionId, 
+
+    return {
+      executionId: subExecutionId,
       status: subExecution.status,
-      output: subExecution.variables
+      output: subExecution.variables,
     };
   }
 
@@ -652,19 +811,32 @@ export class WorkflowEngine extends EventEmitter {
   /**
    * Evaluate task condition
    */
-  private async evaluateCondition(execution: WorkflowExecution, condition: TaskCondition): Promise<boolean> {
+  private async evaluateCondition(
+    execution: WorkflowExecution,
+    condition: TaskCondition
+  ): Promise<boolean> {
     switch (condition.type) {
       case 'expression':
-        return this.evaluateExpression(condition.expression!, null, execution.variables) as boolean;
-      
+        return this.evaluateExpression(
+          condition.expression!,
+          null,
+          execution.variables
+        ) as boolean;
+
       case 'variable':
         const variable = execution.variables[condition.variables![0]];
-        return this.compareValues(variable, condition.operator!, condition.value);
-      
+        return this.compareValues(
+          variable,
+          condition.operator!,
+          condition.value
+        );
+
       case 'previous_task':
-        const taskResult = execution.tasks.find(t => t.taskId === condition.variables![0]);
+        const taskResult = execution.tasks.find(
+          (t) => t.taskId === condition.variables![0]
+        );
         return taskResult?.status === 'completed';
-      
+
       default:
         return true;
     }
@@ -672,23 +844,36 @@ export class WorkflowEngine extends EventEmitter {
 
   private compareValues(actual: any, operator: string, expected: any): boolean {
     switch (operator) {
-      case 'eq': return actual === expected;
-      case 'ne': return actual !== expected;
-      case 'gt': return actual > expected;
-      case 'lt': return actual < expected;
-      case 'gte': return actual >= expected;
-      case 'lte': return actual <= expected;
-      case 'contains': return String(actual).includes(String(expected));
-      case 'matches': return new RegExp(expected).test(String(actual));
-      case 'exists': return actual !== undefined && actual !== null;
-      default: return false;
+      case 'eq':
+        return actual === expected;
+      case 'ne':
+        return actual !== expected;
+      case 'gt':
+        return actual > expected;
+      case 'lt':
+        return actual < expected;
+      case 'gte':
+        return actual >= expected;
+      case 'lte':
+        return actual <= expected;
+      case 'contains':
+        return String(actual).includes(String(expected));
+      case 'matches':
+        return new RegExp(expected).test(String(actual));
+      case 'exists':
+        return actual !== undefined && actual !== null;
+      default:
+        return false;
     }
   }
 
   /**
    * Interpolate variables in string templates
    */
-  private interpolateVariables(template: string, variables: Record<string, any>): string {
+  private interpolateVariables(
+    template: string,
+    variables: Record<string, any>
+  ): string {
     return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
       return variables[key] ?? match;
     });
@@ -697,11 +882,18 @@ export class WorkflowEngine extends EventEmitter {
   /**
    * Evaluate expression with context
    */
-  private evaluateExpression(expression: string, data: any, variables: Record<string, any>): any {
+  private evaluateExpression(
+    expression: string,
+    data: any,
+    variables: Record<string, any>
+  ): any {
     // Simple expression evaluation - in production, use a proper expression engine
     try {
       const context = { ...variables, data };
-      const func = new Function(...Object.keys(context), `return ${expression}`);
+      const func = new Function(
+        ...Object.keys(context),
+        `return ${expression}`
+      );
       return func(...Object.values(context));
     } catch {
       return false;
@@ -711,11 +903,19 @@ export class WorkflowEngine extends EventEmitter {
   /**
    * Update execution status and emit events
    */
-  private updateExecutionStatus(execution: WorkflowExecution, status: WorkflowStatus): void {
+  private updateExecutionStatus(
+    execution: WorkflowExecution,
+    status: WorkflowStatus
+  ): void {
     execution.status = status;
-    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+    if (
+      status === 'completed' ||
+      status === 'failed' ||
+      status === 'cancelled'
+    ) {
       execution.endTime = new Date();
-      execution.duration = execution.endTime.getTime() - execution.startTime.getTime();
+      execution.duration =
+        execution.endTime.getTime() - execution.startTime.getTime();
     }
     this.emit('execution-status-changed', execution.id, status);
   }
@@ -724,10 +924,10 @@ export class WorkflowEngine extends EventEmitter {
    * Add execution log entry
    */
   private addExecutionLog(
-    execution: WorkflowExecution, 
-    level: 'debug' | 'info' | 'warn' | 'error', 
-    source: string, 
-    message: string, 
+    execution: WorkflowExecution,
+    level: 'debug' | 'info' | 'warn' | 'error',
+    source: string,
+    message: string,
     data?: any
   ): void {
     const log: ExecutionLog = {
@@ -735,7 +935,7 @@ export class WorkflowEngine extends EventEmitter {
       level,
       source,
       message,
-      data
+      data,
     };
     execution.logs.push(log);
     this.logger[level](`[${execution.id}] ${message}`, data);
@@ -749,7 +949,12 @@ export class WorkflowEngine extends EventEmitter {
     actions: any[]
   ): Promise<void> {
     for (const action of actions) {
-      this.addExecutionLog(execution, 'info', 'task-action', `Executing action: ${action.type || 'custom'}`);
+      this.addExecutionLog(
+        execution,
+        'info',
+        'task-action',
+        `Executing action: ${action.type || 'custom'}`
+      );
       // Implementation would depend on action types defined in workflow
     }
   }
@@ -773,10 +978,15 @@ export class WorkflowEngine extends EventEmitter {
     }
 
     this.updateExecutionStatus(execution, 'cancelled');
-    this.addExecutionLog(execution, 'info', 'workflow', 'Workflow cancelled by user');
+    this.addExecutionLog(
+      execution,
+      'info',
+      'workflow',
+      'Workflow cancelled by user'
+    );
 
     // Cancel running tasks
-    const runningTasks = execution.tasks.filter(t => t.status === 'running');
+    const runningTasks = execution.tasks.filter((t) => t.status === 'running');
     for (const task of runningTasks) {
       if (task.sessionId) {
         await this.consoleManager.stopSession(task.sessionId);
@@ -797,8 +1007,8 @@ export class WorkflowEngine extends EventEmitter {
    * Clean up completed executions
    */
   cleanup(olderThanHours: number = 24): void {
-    const cutoff = Date.now() - (olderThanHours * 60 * 60 * 1000);
-    
+    const cutoff = Date.now() - olderThanHours * 60 * 60 * 1000;
+
     Array.from(this.executions.entries()).forEach(([id, execution]) => {
       if (execution.endTime && execution.endTime.getTime() < cutoff) {
         this.executions.delete(id);
@@ -813,7 +1023,10 @@ export class WorkflowEngine extends EventEmitter {
     this.taskQueues.set(executionId, new PQueue({ concurrency: 5 }));
   }
 
-  private async initializeVariables(execution: WorkflowExecution, workflow: WorkflowDefinition): Promise<void> {
+  private async initializeVariables(
+    execution: WorkflowExecution,
+    workflow: WorkflowDefinition
+  ): Promise<void> {
     // Initialize workflow variables from definition
     for (const variable of workflow.variables) {
       if (!(variable.name in execution.variables)) {
@@ -822,28 +1035,40 @@ export class WorkflowEngine extends EventEmitter {
     }
   }
 
-  private buildTaskDependencyGraph(tasks: WorkflowTask[]): Map<string, WorkflowTask> {
-    return new Map(tasks.map(task => [task.id, task]));
+  private buildTaskDependencyGraph(
+    tasks: WorkflowTask[]
+  ): Map<string, WorkflowTask> {
+    return new Map(tasks.map((task) => [task.id, task]));
   }
 
-  private getReadyTasks(taskGraph: Map<string, WorkflowTask>, completed: Set<string>): WorkflowTask[] {
+  private getReadyTasks(
+    taskGraph: Map<string, WorkflowTask>,
+    completed: Set<string>
+  ): WorkflowTask[] {
     const ready: WorkflowTask[] = [];
-    
-    Array.from(taskGraph.values()).forEach(task => {
-      const allDependenciesCompleted = task.dependsOn.every(dep => completed.has(dep));
+
+    Array.from(taskGraph.values()).forEach((task) => {
+      const allDependenciesCompleted = task.dependsOn.every((dep) =>
+        completed.has(dep)
+      );
       if (allDependenciesCompleted && !completed.has(task.id)) {
         ready.push(task);
       }
     });
-    
+
     return ready;
   }
 
   private hasPendingTasks(execution: WorkflowExecution): boolean {
-    return execution.tasks.some(t => t.status === 'running' || t.status === 'pending');
+    return execution.tasks.some(
+      (t) => t.status === 'running' || t.status === 'pending'
+    );
   }
 
-  private allTasksCompleted(taskGraph: Map<string, WorkflowTask>, completed: Set<string>): boolean {
+  private allTasksCompleted(
+    taskGraph: Map<string, WorkflowTask>,
+    completed: Set<string>
+  ): boolean {
     return taskGraph.size === completed.size;
   }
 
@@ -856,47 +1081,72 @@ export class WorkflowEngine extends EventEmitter {
       initialState: 'start',
       states: [
         { id: 'start', name: 'Start', type: 'initial', tasks: [] },
-        { id: 'end', name: 'End', type: 'final', tasks: [] }
+        { id: 'end', name: 'End', type: 'final', tasks: [] },
       ],
       transitions: [
-        { id: 'start-to-end', from: 'start', to: 'end', actions: [] }
+        { id: 'start-to-end', from: 'start', to: 'end', actions: [] },
       ],
-      context: {}
+      context: {},
     };
   }
 
-  private async executeStateTasks(execution: WorkflowExecution, workflow: WorkflowDefinition, state: State): Promise<void> {
+  private async executeStateTasks(
+    execution: WorkflowExecution,
+    workflow: WorkflowDefinition,
+    state: State
+  ): Promise<void> {
     if (!state.tasks) return;
 
     for (const taskId of state.tasks) {
-      const task = workflow.tasks.find(t => t.id === taskId);
+      const task = workflow.tasks.find((t) => t.id === taskId);
       if (task) {
         await this.executeTask(execution, workflow, task);
       }
     }
   }
 
-  private async findValidTransition(execution: WorkflowExecution, stateMachine: StateMachine, currentStateId: string): Promise<Transition | undefined> {
-    const transitions = stateMachine.transitions.filter(t => t.from === currentStateId);
-    
+  private async findValidTransition(
+    execution: WorkflowExecution,
+    stateMachine: StateMachine,
+    currentStateId: string
+  ): Promise<Transition | undefined> {
+    const transitions = stateMachine.transitions.filter(
+      (t) => t.from === currentStateId
+    );
+
     for (const transition of transitions) {
-      if (!transition.condition || await this.evaluateCondition(execution, transition.condition)) {
+      if (
+        !transition.condition ||
+        (await this.evaluateCondition(execution, transition.condition))
+      ) {
         return transition;
       }
     }
-    
+
     return undefined;
   }
 
-  private async executeTransitionActions(execution: WorkflowExecution, actions: any[]): Promise<void> {
+  private async executeTransitionActions(
+    execution: WorkflowExecution,
+    actions: any[]
+  ): Promise<void> {
     // Execute state transition actions
     for (const action of actions) {
       // Implementation depends on action types
-      this.addExecutionLog(execution, 'info', 'state-machine', `Executing transition action: ${action.type}`);
+      this.addExecutionLog(
+        execution,
+        'info',
+        'state-machine',
+        `Executing transition action: ${action.type}`
+      );
     }
   }
 
-  private async handleTaskError(execution: WorkflowExecution, task: WorkflowTask, error: any): Promise<void> {
+  private async handleTaskError(
+    execution: WorkflowExecution,
+    task: WorkflowTask,
+    error: any
+  ): Promise<void> {
     const executionError: ExecutionError = {
       timestamp: new Date(),
       source: task.id,
@@ -904,16 +1154,29 @@ export class WorkflowEngine extends EventEmitter {
       message: error.message,
       stack: error.stack,
       context: { taskId: task.id },
-      recoverable: this.isRecoverableError(error)
+      recoverable: this.isRecoverableError(error),
     };
 
     execution.errors.push(executionError);
-    this.addExecutionLog(execution, 'error', 'task', `Task error: ${task.name} - ${error.message}`);
+    this.addExecutionLog(
+      execution,
+      'error',
+      'task',
+      `Task error: ${task.name} - ${error.message}`
+    );
   }
 
-  private async handleExecutionError(execution: WorkflowExecution, error: any): Promise<void> {
+  private async handleExecutionError(
+    execution: WorkflowExecution,
+    error: any
+  ): Promise<void> {
     this.updateExecutionStatus(execution, 'failed');
-    this.addExecutionLog(execution, 'error', 'workflow', `Workflow failed: ${error.message}`);
+    this.addExecutionLog(
+      execution,
+      'error',
+      'workflow',
+      `Workflow failed: ${error.message}`
+    );
   }
 
   private isRecoverableError(error: any): boolean {
@@ -929,22 +1192,38 @@ export class WorkflowEngine extends EventEmitter {
 
   private aggregateParallelResults(results: any[], strategy: string): any {
     switch (strategy) {
-      case 'array': return results;
-      case 'first': return results[0];
-      case 'last': return results[results.length - 1];
-      case 'merge': return Object.assign({}, ...results);
-      default: return results;
+      case 'array':
+        return results;
+      case 'first':
+        return results[0];
+      case 'last':
+        return results[results.length - 1];
+      case 'merge':
+        return Object.assign({}, ...results);
+      default:
+        return results;
     }
   }
 
-  private async retryTask(execution: WorkflowExecution, workflow: WorkflowDefinition, task: WorkflowTask, taskExecution: TaskExecution, retryPolicy: RetryPolicy): Promise<void> {
+  private async retryTask(
+    execution: WorkflowExecution,
+    workflow: WorkflowDefinition,
+    task: WorkflowTask,
+    taskExecution: TaskExecution,
+    retryPolicy: RetryPolicy
+  ): Promise<void> {
     taskExecution.attempts++;
     const delay = this.calculateRetryDelay(retryPolicy, taskExecution.attempts);
-    
-    this.addExecutionLog(execution, 'info', 'task', `Retrying task ${task.name} (attempt ${taskExecution.attempts}/${retryPolicy.maxAttempts}) after ${delay}ms`);
-    
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
+
+    this.addExecutionLog(
+      execution,
+      'info',
+      'task',
+      `Retrying task ${task.name} (attempt ${taskExecution.attempts}/${retryPolicy.maxAttempts}) after ${delay}ms`
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+
     // Reset task status and retry
     taskExecution.status = 'running';
     await this.executeSingleTask(execution, workflow, task, taskExecution);
@@ -953,15 +1232,24 @@ export class WorkflowEngine extends EventEmitter {
   private calculateRetryDelay(policy: RetryPolicy, attempt: number): number {
     switch (policy.backoff) {
       case 'exponential':
-        return Math.min(policy.initialDelay * Math.pow(policy.multiplier || 2, attempt - 1), policy.maxDelay || 30000);
+        return Math.min(
+          policy.initialDelay * Math.pow(policy.multiplier || 2, attempt - 1),
+          policy.maxDelay || 30000
+        );
       case 'linear':
-        return Math.min(policy.initialDelay * attempt, policy.maxDelay || 30000);
+        return Math.min(
+          policy.initialDelay * attempt,
+          policy.maxDelay || 30000
+        );
       default:
         return policy.initialDelay;
     }
   }
 
-  private async handleTaskApproval(execution: WorkflowExecution, task: WorkflowTask): Promise<void> {
+  private async handleTaskApproval(
+    execution: WorkflowExecution,
+    task: WorkflowTask
+  ): Promise<void> {
     if (!task.approval) return;
 
     const approvalExecution: ApprovalExecution = {
@@ -969,41 +1257,63 @@ export class WorkflowEngine extends EventEmitter {
       configId: task.approval.configId,
       status: 'pending',
       requestTime: new Date(),
-      context: task.approval.context || {}
+      context: task.approval.context || {},
     };
 
     execution.approvals.push(approvalExecution);
-    
-    this.addExecutionLog(execution, 'info', 'approval', `Approval required for task: ${task.name}`);
+
+    this.addExecutionLog(
+      execution,
+      'info',
+      'approval',
+      `Approval required for task: ${task.name}`
+    );
     this.emit('approval-required', execution.id, approvalExecution);
 
     // Wait for approval
     return new Promise((resolve, reject) => {
-      this.approvalCallbacks.set(approvalExecution.id, (approved: boolean, comments?: string) => {
-        approvalExecution.status = approved ? 'approved' : 'rejected';
-        approvalExecution.responseTime = new Date();
-        approvalExecution.comments = comments;
+      this.approvalCallbacks.set(
+        approvalExecution.id,
+        (approved: boolean, comments?: string) => {
+          approvalExecution.status = approved ? 'approved' : 'rejected';
+          approvalExecution.responseTime = new Date();
+          approvalExecution.comments = comments;
 
-        if (approved) {
-          resolve();
-        } else {
-          reject(new Error(`Task approval rejected: ${comments || 'No comments provided'}`));
+          if (approved) {
+            resolve();
+          } else {
+            reject(
+              new Error(
+                `Task approval rejected: ${comments || 'No comments provided'}`
+              )
+            );
+          }
         }
-      });
+      );
     });
   }
 
-  private async executeFileOperationTask(execution: WorkflowExecution, task: WorkflowTask, taskExecution: TaskExecution): Promise<any> {
+  private async executeFileOperationTask(
+    execution: WorkflowExecution,
+    task: WorkflowTask,
+    taskExecution: TaskExecution
+  ): Promise<any> {
     // Implement file operations
     throw new Error('File operation task not implemented yet');
   }
 
-  private async executeScriptTask(execution: WorkflowExecution, task: WorkflowTask, taskExecution: TaskExecution): Promise<any> {
+  private async executeScriptTask(
+    execution: WorkflowExecution,
+    task: WorkflowTask,
+    taskExecution: TaskExecution
+  ): Promise<any> {
     // Implement script execution
     throw new Error('Script task not implemented yet');
   }
 
-  private async waitForExecution(executionId: string): Promise<WorkflowExecution> {
+  private async waitForExecution(
+    executionId: string
+  ): Promise<WorkflowExecution> {
     return new Promise((resolve, reject) => {
       const checkStatus = () => {
         const execution = this.executions.get(executionId);
@@ -1012,13 +1322,17 @@ export class WorkflowEngine extends EventEmitter {
           return;
         }
 
-        if (execution.status === 'completed' || execution.status === 'failed' || execution.status === 'cancelled') {
+        if (
+          execution.status === 'completed' ||
+          execution.status === 'failed' ||
+          execution.status === 'cancelled'
+        ) {
           resolve(execution);
         } else {
           setTimeout(checkStatus, 1000);
         }
       };
-      
+
       checkStatus();
     });
   }

@@ -8,10 +8,13 @@ import {
   ConsoleOutput,
   ConsoleEvent,
   ConsoleType,
-  SessionOptions
+  SessionOptions,
 } from '../types/index.js';
 import { SessionState } from '../core/IProtocol.js';
-import { ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
+import {
+  ProtocolCapabilities,
+  ProtocolHealthStatus,
+} from '../core/ProtocolFactory.js';
 
 // IPMI Connection Options Interface
 export interface IPMIConnectionOptions {
@@ -19,29 +22,29 @@ export interface IPMIConnectionOptions {
   port?: number; // Default: 623
   username: string;
   password: string;
-  
+
   // IPMI Version Support
   ipmiVersion?: '1.5' | '2.0'; // Default: 2.0
-  
+
   // Authentication and Privilege Levels
   privilegeLevel?: 'user' | 'operator' | 'admin'; // Default: admin
   authenticationType?: 'none' | 'md2' | 'md5' | 'password' | 'oem';
-  
+
   // Cipher Suite Selection for IPMI 2.0
   cipherSuite?: number; // 0-17, Default: 3 (AES-128-CBC, SHA1-HMAC)
-  
+
   // Session Settings
   sessionTimeout?: number; // Default: 30000ms
   maxRetries?: number; // Default: 3
   retryDelay?: number; // Default: 1000ms
   keepAliveInterval?: number; // Default: 10000ms
-  
+
   // Interface Type
   interface?: 'lan' | 'lanplus' | 'serial' | 'open'; // Default: lanplus
-  
+
   // Vendor Specific Settings
   vendor?: 'dell' | 'hp' | 'ibm' | 'supermicro' | 'generic'; // Default: generic
-  
+
   // Serial over LAN Settings
   sol?: {
     enabled: boolean;
@@ -51,7 +54,7 @@ export interface IPMIConnectionOptions {
     encryption?: boolean;
     authentication?: boolean;
   };
-  
+
   // DCMI Settings
   dcmi?: {
     enabled: boolean;
@@ -59,7 +62,7 @@ export interface IPMIConnectionOptions {
     thermalManagement?: boolean;
     assetTag?: boolean;
   };
-  
+
   // Advanced Settings
   bridging?: {
     enabled: boolean;
@@ -68,12 +71,12 @@ export interface IPMIConnectionOptions {
     transitChannel?: number;
     transitAddress?: number;
   };
-  
+
   // Security Settings
   kg?: string; // BMC Key for enhanced security
   confidentialityAlgorithm?: 'none' | 'aes-cbc-128';
   integrityAlgorithm?: 'none' | 'hmac-sha1-96' | 'hmac-md5-128' | 'md5-128';
-  
+
   // Protocol Timeouts
   timeouts?: {
     connection: number;
@@ -112,8 +115,8 @@ interface IPMISessionState {
   remoteConsoleSessionId: number;
   kg: Buffer;
   sik: Buffer; // Session Integrity Key
-  k1: Buffer;  // Additional Key Generation Key 1
-  k2: Buffer;  // Additional Key Generation Key 2
+  k1: Buffer; // Additional Key Generation Key 1
+  k2: Buffer; // Additional Key Generation Key 2
   rakpAuthCode: Buffer;
   privilegeLevel: number;
   cipherSuite: number;
@@ -147,7 +150,13 @@ export interface SensorReading {
 }
 
 // Power Control Operations
-export type PowerControlOperation = 'power-down' | 'power-up' | 'power-cycle' | 'hard-reset' | 'pulse-diagnostic' | 'soft-shutdown';
+export type PowerControlOperation =
+  | 'power-down'
+  | 'power-up'
+  | 'power-cycle'
+  | 'hard-reset'
+  | 'pulse-diagnostic'
+  | 'soft-shutdown';
 
 // Virtual Media Operations
 export interface VirtualMediaInfo {
@@ -228,14 +237,14 @@ export class IPMIProtocol extends BaseProtocol {
   private ipmiSessions: Map<string, IPMISessionState> = new Map();
   private sequenceCounter: number = 1;
   private ipmiProcesses: Map<string, ChildProcess> = new Map();
-  
+
   // IPMI Constants
   private static readonly IPMI_PORT = 623;
   private static readonly RMCP_VERSION_1 = 0x06;
-  private static readonly RMCP_SEQUENCE = 0xFF;
+  private static readonly RMCP_SEQUENCE = 0xff;
   private static readonly RMCP_CLASS_IPMI = 0x07;
   private static readonly RMCP_CLASS_ASF = 0x06;
-  
+
   // Authentication Types
   private static readonly AUTH_TYPE_NONE = 0x00;
   private static readonly AUTH_TYPE_MD2 = 0x01;
@@ -243,80 +252,120 @@ export class IPMIProtocol extends BaseProtocol {
   private static readonly AUTH_TYPE_PASSWORD = 0x04;
   private static readonly AUTH_TYPE_OEM = 0x05;
   private static readonly AUTH_TYPE_RMCP_PLUS = 0x06;
-  
+
   // NetFn Constants
   private static readonly NETFN_CHASSIS = 0x00;
   private static readonly NETFN_BRIDGE = 0x02;
   private static readonly NETFN_SENSOR_EVENT = 0x04;
   private static readonly NETFN_APPLICATION = 0x06;
   private static readonly NETFN_FIRMWARE = 0x08;
-  private static readonly NETFN_STORAGE = 0x0A;
-  private static readonly NETFN_TRANSPORT = 0x0C;
-  private static readonly NETFN_PICMG = 0x2C;
-  private static readonly NETFN_DCMI = 0x2E;
+  private static readonly NETFN_STORAGE = 0x0a;
+  private static readonly NETFN_TRANSPORT = 0x0c;
+  private static readonly NETFN_PICMG = 0x2c;
+  private static readonly NETFN_DCMI = 0x2e;
   private static readonly NETFN_OEM = 0x30;
-  
+
   // Command Constants
   private static readonly CMD_GET_DEVICE_ID = 0x01;
   private static readonly CMD_GET_DEVICE_GUID = 0x08;
   private static readonly CMD_GET_SYSTEM_INFO = 0x59;
   private static readonly CMD_GET_CHANNEL_AUTH_CAP = 0x38;
   private static readonly CMD_GET_SESSION_CHALLENGE = 0x39;
-  private static readonly CMD_ACTIVATE_SESSION = 0x3A;
-  private static readonly CMD_SET_SESSION_PRIVILEGE = 0x3B;
-  private static readonly CMD_CLOSE_SESSION = 0x3C;
+  private static readonly CMD_ACTIVATE_SESSION = 0x3a;
+  private static readonly CMD_SET_SESSION_PRIVILEGE = 0x3b;
+  private static readonly CMD_CLOSE_SESSION = 0x3c;
   private static readonly CMD_GET_CHASSIS_STATUS = 0x01;
   private static readonly CMD_CHASSIS_CONTROL = 0x02;
   private static readonly CMD_GET_SDR_REPOSITORY_INFO = 0x20;
   private static readonly CMD_GET_SDR = 0x23;
-  private static readonly CMD_GET_SENSOR_READING = 0x2D;
+  private static readonly CMD_GET_SENSOR_READING = 0x2d;
   private static readonly CMD_SET_SOL_CONFIGURATION = 0x21;
   private static readonly CMD_GET_SOL_CONFIGURATION = 0x22;
   private static readonly CMD_ACTIVATE_PAYLOAD = 0x48;
   private static readonly CMD_DEACTIVATE_PAYLOAD = 0x49;
-  
+
   // RMCP+ Session Setup Commands
   private static readonly CMD_OPEN_SESSION = 0x40;
   private static readonly CMD_RAKP_MESSAGE_1 = 0x41;
   private static readonly CMD_RAKP_MESSAGE_2 = 0x42;
   private static readonly CMD_RAKP_MESSAGE_3 = 0x43;
   private static readonly CMD_RAKP_MESSAGE_4 = 0x44;
-  
+
   // Cipher Suite Algorithms
   private static readonly CIPHER_SUITES = {
     0: { auth: 'none', integrity: 'none', confidentiality: 'none' },
     1: { auth: 'hmac-sha1', integrity: 'none', confidentiality: 'none' },
-    2: { auth: 'hmac-sha1', integrity: 'hmac-sha1-96', confidentiality: 'none' },
-    3: { auth: 'hmac-sha1', integrity: 'hmac-sha1-96', confidentiality: 'aes-cbc-128' },
-    4: { auth: 'hmac-sha1', integrity: 'hmac-sha1-96', confidentiality: 'xrc4-128' },
-    5: { auth: 'hmac-sha1', integrity: 'hmac-sha1-96', confidentiality: 'xrc4-40' },
+    2: {
+      auth: 'hmac-sha1',
+      integrity: 'hmac-sha1-96',
+      confidentiality: 'none',
+    },
+    3: {
+      auth: 'hmac-sha1',
+      integrity: 'hmac-sha1-96',
+      confidentiality: 'aes-cbc-128',
+    },
+    4: {
+      auth: 'hmac-sha1',
+      integrity: 'hmac-sha1-96',
+      confidentiality: 'xrc4-128',
+    },
+    5: {
+      auth: 'hmac-sha1',
+      integrity: 'hmac-sha1-96',
+      confidentiality: 'xrc4-40',
+    },
     6: { auth: 'hmac-md5', integrity: 'none', confidentiality: 'none' },
     7: { auth: 'hmac-md5', integrity: 'hmac-md5-128', confidentiality: 'none' },
-    8: { auth: 'hmac-md5', integrity: 'hmac-md5-128', confidentiality: 'aes-cbc-128' },
-    9: { auth: 'hmac-md5', integrity: 'hmac-md5-128', confidentiality: 'xrc4-128' },
-    10: { auth: 'hmac-md5', integrity: 'hmac-md5-128', confidentiality: 'xrc4-40' },
+    8: {
+      auth: 'hmac-md5',
+      integrity: 'hmac-md5-128',
+      confidentiality: 'aes-cbc-128',
+    },
+    9: {
+      auth: 'hmac-md5',
+      integrity: 'hmac-md5-128',
+      confidentiality: 'xrc4-128',
+    },
+    10: {
+      auth: 'hmac-md5',
+      integrity: 'hmac-md5-128',
+      confidentiality: 'xrc4-40',
+    },
     11: { auth: 'hmac-md5', integrity: 'md5-128', confidentiality: 'none' },
-    12: { auth: 'hmac-md5', integrity: 'md5-128', confidentiality: 'aes-cbc-128' },
+    12: {
+      auth: 'hmac-md5',
+      integrity: 'md5-128',
+      confidentiality: 'aes-cbc-128',
+    },
     13: { auth: 'hmac-md5', integrity: 'md5-128', confidentiality: 'xrc4-128' },
     14: { auth: 'hmac-md5', integrity: 'md5-128', confidentiality: 'xrc4-40' },
     15: { auth: 'hmac-sha256', integrity: 'none', confidentiality: 'none' },
-    16: { auth: 'hmac-sha256', integrity: 'hmac-sha256-128', confidentiality: 'none' },
-    17: { auth: 'hmac-sha256', integrity: 'hmac-sha256-128', confidentiality: 'aes-cbc-128' }
+    16: {
+      auth: 'hmac-sha256',
+      integrity: 'hmac-sha256-128',
+      confidentiality: 'none',
+    },
+    17: {
+      auth: 'hmac-sha256',
+      integrity: 'hmac-sha256-128',
+      confidentiality: 'aes-cbc-128',
+    },
   };
-  
+
   // Vendor-specific OEM codes
   private static readonly VENDOR_OEM_CODES = {
-    DELL: 0x0002A2,
-    HP: 0x00000B,
-    IBM: 0x0002F3,
-    SUPERMICRO: 0x00A015,
+    DELL: 0x0002a2,
+    HP: 0x00000b,
+    IBM: 0x0002f3,
+    SUPERMICRO: 0x00a015,
     INTEL: 0x000157,
-    FUJITSU: 0x002880
+    FUJITSU: 0x002880,
   };
 
   constructor() {
     super('IPMIProtocol');
-    
+
     this.capabilities = {
       supportsStreaming: true,
       supportsFileTransfer: false,
@@ -370,7 +419,10 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Create IPMI session with comprehensive authentication
    */
-  async createIPMISession(sessionId: string, options: IPMIConnectionOptions): Promise<ConsoleSession> {
+  async createIPMISession(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<ConsoleSession> {
     try {
       this.logger.info(`Creating IPMI session ${sessionId}`, {
         host: options.host,
@@ -378,7 +430,7 @@ export class IPMIProtocol extends BaseProtocol {
         username: options.username,
         ipmiVersion: options.ipmiVersion || '2.0',
         cipherSuite: options.cipherSuite || 3,
-        interface: options.interface || 'lanplus'
+        interface: options.interface || 'lanplus',
       });
 
       const connectionState: IPMIConnectionState = {
@@ -403,8 +455,8 @@ export class IPMIProtocol extends BaseProtocol {
           voltages: [],
           powerSupplies: [],
           memory: [],
-          processors: []
-        }
+          processors: [],
+        },
       };
 
       this.connections.set(sessionId, connectionState);
@@ -430,7 +482,7 @@ export class IPMIProtocol extends BaseProtocol {
 
       // Connect to BMC
       await this.connectToBMC(sessionId, options);
-      
+
       // Establish IPMI session
       if (options.ipmiVersion === '1.5') {
         await this.establishIPMI15Session(sessionId, options);
@@ -469,21 +521,25 @@ export class IPMIProtocol extends BaseProtocol {
           cipherSuite: options.cipherSuite || 3,
           authType: 0,
           privilegeLevel: options.privilegeLevel || 'admin',
-          solState: options.sol?.enabled ? {
-            active: false,
-            payloadInstance: 0,
-            sequenceNumber: 0,
-            acknowledgmentNumber: 0,
-            characterCount: 0,
-            status: 0
-          } : undefined,
-          monitoringState: options.dcmi?.enabled ? {
-            enabled: true,
-            sensorCount: 0,
-            lastSensorUpdate: new Date(),
-            hardwareHealth: 'ok',
-            activeSensors: []
-          } : undefined,
+          solState: options.sol?.enabled
+            ? {
+                active: false,
+                payloadInstance: 0,
+                sequenceNumber: 0,
+                acknowledgmentNumber: 0,
+                characterCount: 0,
+                status: 0,
+              }
+            : undefined,
+          monitoringState: options.dcmi?.enabled
+            ? {
+                enabled: true,
+                sensorCount: 0,
+                lastSensorUpdate: new Date(),
+                hardwareHealth: 'ok',
+                activeSensors: [],
+              }
+            : undefined,
           statistics: {
             connectTime: new Date(),
             lastActivity: new Date(),
@@ -494,23 +550,22 @@ export class IPMIProtocol extends BaseProtocol {
             powerOperations: 0,
             errors: 0,
             timeouts: 0,
-            reconnections: 0
+            reconnections: 0,
           },
           vendorState: {
             vendor: options.vendor || 'generic',
             vendorExtensions: {},
-            customCommands: []
-          }
-        }
+            customCommands: [],
+          },
+        },
       };
 
       connectionState.isConnected = true;
-      
+
       this.logger.info(`IPMI session ${sessionId} established successfully`);
       this.emit('sessionCreated', session);
-      
-      return session;
 
+      return session;
     } catch (error) {
       this.logger.error(`Failed to create IPMI session ${sessionId}:`, error);
       this.connections.delete(sessionId);
@@ -521,7 +576,10 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Connect to BMC via UDP
    */
-  private async connectToBMC(sessionId: string, options: IPMIConnectionOptions): Promise<void> {
+  private async connectToBMC(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const connectionState = this.connections.get(sessionId);
       if (!connectionState?.socket) {
@@ -534,10 +592,16 @@ export class IPMIProtocol extends BaseProtocol {
 
       connectionState.socket.bind(() => {
         clearTimeout(timeout);
-        connectionState.socket!.connect(options.port || IPMIProtocol.IPMI_PORT, options.host, () => {
-          this.logger.info(`Connected to BMC ${options.host}:${options.port || IPMIProtocol.IPMI_PORT}`);
-          resolve();
-        });
+        connectionState.socket!.connect(
+          options.port || IPMIProtocol.IPMI_PORT,
+          options.host,
+          () => {
+            this.logger.info(
+              `Connected to BMC ${options.host}:${options.port || IPMIProtocol.IPMI_PORT}`
+            );
+            resolve();
+          }
+        );
       });
     });
   }
@@ -545,16 +609,23 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Establish IPMI 1.5 Session
    */
-  private async establishIPMI15Session(sessionId: string, options: IPMIConnectionOptions): Promise<void> {
+  private async establishIPMI15Session(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<void> {
     // Get Authentication Capabilities
     await this.getAuthenticationCapabilities(sessionId, options);
-    
+
     // Get Session Challenge
     const challenge = await this.getSessionChallenge(sessionId, options);
-    
+
     // Activate Session
-    const sessionInfo = await this.activateSession(sessionId, options, challenge);
-    
+    const sessionInfo = await this.activateSession(
+      sessionId,
+      options,
+      challenge
+    );
+
     // Set Session Privilege Level
     await this.setSessionPrivilegeLevel(sessionId, options, sessionInfo);
   }
@@ -562,19 +633,29 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Establish IPMI 2.0 Session with RMCP+
    */
-  private async establishIPMI20Session(sessionId: string, options: IPMIConnectionOptions): Promise<void> {
+  private async establishIPMI20Session(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<void> {
     // Open Session Request (RAKP Message 1)
-    const openSessionResponse = await this.sendOpenSessionRequest(sessionId, options);
-    
+    const openSessionResponse = await this.sendOpenSessionRequest(
+      sessionId,
+      options
+    );
+
     // RAKP Message 1 & 2
-    const rakp1Response = await this.sendRAKPMessage1(sessionId, options, openSessionResponse);
-    
+    const rakp1Response = await this.sendRAKPMessage1(
+      sessionId,
+      options,
+      openSessionResponse
+    );
+
     // RAKP Message 3 & 4
     await this.sendRAKPMessage3(sessionId, options, rakp1Response);
-    
+
     // Set Session Privilege Level
     await this.setSessionPrivilegeLevelRMCP(sessionId, options);
-    
+
     // Generate session keys
     this.generateSessionKeys(sessionId, options);
   }
@@ -582,14 +663,17 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Setup Serial over LAN console
    */
-  private async setupSerialOverLAN(sessionId: string, options: IPMIConnectionOptions): Promise<void> {
+  private async setupSerialOverLAN(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<void> {
     if (!options.sol?.enabled) return;
 
     this.logger.info(`Setting up Serial over LAN for session ${sessionId}`);
 
     // Configure SOL
     await this.configureSOL(sessionId, options);
-    
+
     // Activate SOL Payload
     await this.activateSOLPayload(sessionId, options);
 
@@ -600,7 +684,7 @@ export class IPMIProtocol extends BaseProtocol {
         payloadType: options.sol.payloadType || 1,
         port: options.sol.port || 623,
         encryption: options.sol.encryption || false,
-        authentication: options.sol.authentication || false
+        authentication: options.sol.authentication || false,
       };
     }
 
@@ -610,7 +694,10 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Send IPMI command
    */
-  private async sendIPMICommand(sessionId: string, message: IPMIMessage): Promise<IPMIResponse> {
+  private async sendIPMICommand(
+    sessionId: string,
+    message: IPMIMessage
+  ): Promise<IPMIResponse> {
     return new Promise((resolve, reject) => {
       const connectionState = this.connections.get(sessionId);
       if (!connectionState?.socket || !connectionState.isConnected) {
@@ -619,11 +706,11 @@ export class IPMIProtocol extends BaseProtocol {
 
       const session = this.sessions.get(sessionId);
       const requestId = this.sequenceCounter++;
-      
+
       // Build IPMI packet
       const ipmiSession = this.ipmiSessions.get(sessionId);
       const packet = this.buildIPMIPacket(message, ipmiSession);
-      
+
       // Setup response handler
       const timeout = setTimeout(() => {
         reject(new Error('IPMI command timeout'));
@@ -653,8 +740,13 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Power control operations
    */
-  async powerControl(sessionId: string, operation: PowerControlOperation): Promise<boolean> {
-    this.logger.info(`Executing power control operation: ${operation} on session ${sessionId}`);
+  async powerControl(
+    sessionId: string,
+    operation: PowerControlOperation
+  ): Promise<boolean> {
+    this.logger.info(
+      `Executing power control operation: ${operation} on session ${sessionId}`
+    );
 
     const operationMap: Record<PowerControlOperation, number> = {
       'power-down': 0x00,
@@ -662,35 +754,48 @@ export class IPMIProtocol extends BaseProtocol {
       'power-cycle': 0x02,
       'hard-reset': 0x03,
       'pulse-diagnostic': 0x04,
-      'soft-shutdown': 0x05
+      'soft-shutdown': 0x05,
     };
 
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_CHASSIS,
       cmd: IPMIProtocol.CMD_CHASSIS_CONTROL,
-      data: Buffer.from([operationMap[operation]])
+      data: Buffer.from([operationMap[operation]]),
     };
 
     try {
       const response = await this.sendIPMICommand(sessionId, command);
-      
+
       if (response.completionCode === 0x00) {
-        this.logger.info(`Power control operation ${operation} completed successfully`);
-        this.emit('powerControlComplete', { sessionId, operation, success: true });
-        
+        this.logger.info(
+          `Power control operation ${operation} completed successfully`
+        );
+        this.emit('powerControlComplete', {
+          sessionId,
+          operation,
+          success: true,
+        });
+
         // Update power state cache
         const connectionState = this.connections.get(sessionId);
         if (connectionState) {
           connectionState.powerState = operation.includes('up') ? 'on' : 'off';
         }
-        
+
         return true;
       } else {
-        throw new Error(`Power control failed with completion code: 0x${response.completionCode.toString(16)}`);
+        throw new Error(
+          `Power control failed with completion code: 0x${response.completionCode.toString(16)}`
+        );
       }
     } catch (error) {
       this.logger.error(`Power control operation ${operation} failed:`, error);
-      this.emit('powerControlComplete', { sessionId, operation, success: false, error });
+      this.emit('powerControlComplete', {
+        sessionId,
+        operation,
+        success: false,
+        error,
+      });
       throw error;
     }
   }
@@ -702,38 +807,47 @@ export class IPMIProtocol extends BaseProtocol {
     this.logger.debug(`Reading sensors for session ${sessionId}`);
 
     const sensors: SensorReading[] = [];
-    
+
     try {
       // Get SDR Repository Info
       const sdrInfo = await this.getSDRRepositoryInfo(sessionId);
-      
+
       // Iterate through all SDRs
       let recordId = 0x0000;
-      while (recordId !== 0xFFFF) {
+      while (recordId !== 0xffff) {
         const sdrRecord = await this.getSDRRecord(sessionId, recordId);
-        
+
         if (sdrRecord.sensorNumber !== undefined) {
-          const reading = await this.getSensorReading(sessionId, sdrRecord.sensorNumber);
+          const reading = await this.getSensorReading(
+            sessionId,
+            sdrRecord.sensorNumber
+          );
           if (reading) {
             sensors.push(reading);
           }
         }
-        
+
         recordId = sdrRecord.nextRecordId;
       }
 
       // Cache sensor readings
       const connectionState = this.connections.get(sessionId);
       if (connectionState) {
-        connectionState.sensorCache = new Map(sensors.map(s => [s.sensorNumber, s]));
+        connectionState.sensorCache = new Map(
+          sensors.map((s) => [s.sensorNumber, s])
+        );
         connectionState.hardwareHealth.sensors = sensors;
       }
 
-      this.logger.debug(`Read ${sensors.length} sensors for session ${sessionId}`);
+      this.logger.debug(
+        `Read ${sensors.length} sensors for session ${sessionId}`
+      );
       return sensors;
-
     } catch (error) {
-      this.logger.error(`Failed to read sensors for session ${sessionId}:`, error);
+      this.logger.error(
+        `Failed to read sensors for session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -741,8 +855,15 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Virtual media operations
    */
-  async mountVirtualMedia(sessionId: string, mediaType: 'floppy' | 'cdrom' | 'hdd' | 'usb', imagePath: string, writeProtected: boolean = true): Promise<boolean> {
-    this.logger.info(`Mounting virtual media: ${mediaType} from ${imagePath} on session ${sessionId}`);
+  async mountVirtualMedia(
+    sessionId: string,
+    mediaType: 'floppy' | 'cdrom' | 'hdd' | 'usb',
+    imagePath: string,
+    writeProtected: boolean = true
+  ): Promise<boolean> {
+    this.logger.info(
+      `Mounting virtual media: ${mediaType} from ${imagePath} on session ${sessionId}`
+    );
 
     const connectionState = this.connections.get(sessionId);
     if (!connectionState) {
@@ -753,13 +874,33 @@ export class IPMIProtocol extends BaseProtocol {
       // Vendor-specific implementation
       switch (connectionState.connectionOptions.vendor) {
         case 'dell':
-          return await this.mountDellVirtualMedia(sessionId, mediaType, imagePath, writeProtected);
+          return await this.mountDellVirtualMedia(
+            sessionId,
+            mediaType,
+            imagePath,
+            writeProtected
+          );
         case 'hp':
-          return await this.mountHPVirtualMedia(sessionId, mediaType, imagePath, writeProtected);
+          return await this.mountHPVirtualMedia(
+            sessionId,
+            mediaType,
+            imagePath,
+            writeProtected
+          );
         case 'ibm':
-          return await this.mountIBMVirtualMedia(sessionId, mediaType, imagePath, writeProtected);
+          return await this.mountIBMVirtualMedia(
+            sessionId,
+            mediaType,
+            imagePath,
+            writeProtected
+          );
         default:
-          return await this.mountGenericVirtualMedia(sessionId, mediaType, imagePath, writeProtected);
+          return await this.mountGenericVirtualMedia(
+            sessionId,
+            mediaType,
+            imagePath,
+            writeProtected
+          );
       }
     } catch (error) {
       this.logger.error(`Failed to mount virtual media:`, error);
@@ -770,8 +911,14 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Firmware update capabilities
    */
-  async updateFirmware(sessionId: string, firmwarePath: string, component: 'bmc' | 'bios' | 'cpld' = 'bmc'): Promise<boolean> {
-    this.logger.info(`Starting firmware update for ${component} from ${firmwarePath} on session ${sessionId}`);
+  async updateFirmware(
+    sessionId: string,
+    firmwarePath: string,
+    component: 'bmc' | 'bios' | 'cpld' = 'bmc'
+  ): Promise<boolean> {
+    this.logger.info(
+      `Starting firmware update for ${component} from ${firmwarePath} on session ${sessionId}`
+    );
 
     const connectionState = this.connections.get(sessionId);
     if (!connectionState) {
@@ -780,18 +927,38 @@ export class IPMIProtocol extends BaseProtocol {
 
     try {
       // Start firmware update process
-      this.emit('firmwareUpdateStarted', { sessionId, component, firmwarePath });
+      this.emit('firmwareUpdateStarted', {
+        sessionId,
+        component,
+        firmwarePath,
+      });
 
       // Implementation varies by vendor
       switch (connectionState.connectionOptions.vendor) {
         case 'dell':
-          return await this.updateDellFirmware(sessionId, firmwarePath, component);
+          return await this.updateDellFirmware(
+            sessionId,
+            firmwarePath,
+            component
+          );
         case 'hp':
-          return await this.updateHPFirmware(sessionId, firmwarePath, component);
+          return await this.updateHPFirmware(
+            sessionId,
+            firmwarePath,
+            component
+          );
         case 'ibm':
-          return await this.updateIBMFirmware(sessionId, firmwarePath, component);
+          return await this.updateIBMFirmware(
+            sessionId,
+            firmwarePath,
+            component
+          );
         default:
-          return await this.updateGenericFirmware(sessionId, firmwarePath, component);
+          return await this.updateGenericFirmware(
+            sessionId,
+            firmwarePath,
+            component
+          );
       }
     } catch (error) {
       this.logger.error(`Firmware update failed:`, error);
@@ -803,24 +970,29 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * DCMI Extensions Support
    */
-  async getDCMIPowerReading(sessionId: string): Promise<{ currentWatts: number; minimumWatts: number; maximumWatts: number; averageWatts: number }> {
+  async getDCMIPowerReading(sessionId: string): Promise<{
+    currentWatts: number;
+    minimumWatts: number;
+    maximumWatts: number;
+    averageWatts: number;
+  }> {
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_DCMI,
       cmd: 0x02, // Get Power Reading
-      data: Buffer.from([0xDC, 0x01, 0x00, 0x00]) // DCMI Group Extension ID
+      data: Buffer.from([0xdc, 0x01, 0x00, 0x00]), // DCMI Group Extension ID
     };
 
     const response = await this.sendIPMICommand(sessionId, command);
-    
+
     if (response.completionCode === 0x00 && response.data.length >= 16) {
       return {
         currentWatts: response.data.readUInt16LE(6),
         minimumWatts: response.data.readUInt16LE(8),
         maximumWatts: response.data.readUInt16LE(10),
-        averageWatts: response.data.readUInt16LE(12)
+        averageWatts: response.data.readUInt16LE(12),
       };
     }
-    
+
     throw new Error('Failed to get DCMI power reading');
   }
 
@@ -835,10 +1007,10 @@ export class IPMIProtocol extends BaseProtocol {
       try {
         // Update sensor readings
         const sensors = await this.readSensors(sessionId);
-        
+
         // Update power state
         const chassisStatus = await this.getChassisStatus(sessionId);
-        
+
         // Update DCMI power readings if enabled
         let powerReading = null;
         if (connectionState.connectionOptions.dcmi?.enabled) {
@@ -846,7 +1018,12 @@ export class IPMIProtocol extends BaseProtocol {
         }
 
         // Check for alerts
-        this.checkHardwareAlerts(sessionId, sensors, chassisStatus, powerReading);
+        this.checkHardwareAlerts(
+          sessionId,
+          sensors,
+          chassisStatus,
+          powerReading
+        );
 
         // Emit monitoring data
         this.emit('hardwareMonitoring', {
@@ -855,11 +1032,13 @@ export class IPMIProtocol extends BaseProtocol {
           sensors,
           chassisStatus,
           powerReading,
-          systemHealth: this.calculateSystemHealth(sensors)
+          systemHealth: this.calculateSystemHealth(sensors),
         });
-
       } catch (error) {
-        this.logger.error(`Hardware monitoring failed for session ${sessionId}:`, error);
+        this.logger.error(
+          `Hardware monitoring failed for session ${sessionId}:`,
+          error
+        );
       }
     }, 30000); // Monitor every 30 seconds
 
@@ -876,10 +1055,10 @@ export class IPMIProtocol extends BaseProtocol {
     }
 
     const inputBuffer = Buffer.from(input, 'utf8');
-    
+
     // Build SOL packet
     const packet = this.buildSOLPacket(sessionId, inputBuffer);
-    
+
     connectionState.socket?.send(packet, 0, packet.length, (error) => {
       if (error) {
         this.logger.error(`Failed to send SOL input:`, error);
@@ -887,7 +1066,9 @@ export class IPMIProtocol extends BaseProtocol {
       }
     });
 
-    this.logger.debug(`Sent ${input.length} characters to SOL console ${sessionId}`);
+    this.logger.debug(
+      `Sent ${input.length} characters to SOL console ${sessionId}`
+    );
   }
 
   /**
@@ -928,7 +1109,6 @@ export class IPMIProtocol extends BaseProtocol {
 
       this.emit('sessionClosed', { sessionId });
       this.logger.info(`IPMI session ${sessionId} closed successfully`);
-
     } catch (error) {
       this.logger.error(`Error closing IPMI session ${sessionId}:`, error);
       // Clean up anyway
@@ -939,21 +1119,24 @@ export class IPMIProtocol extends BaseProtocol {
   }
 
   // Private helper methods for protocol implementation
-  private buildIPMIPacket(message: IPMIMessage, session?: IPMISessionState): Buffer {
+  private buildIPMIPacket(
+    message: IPMIMessage,
+    session?: IPMISessionState
+  ): Buffer {
     // Implementation would build proper IPMI packet with RMCP header, authentication, etc.
     // This is a complex binary protocol implementation
     const buffer = Buffer.alloc(1024);
     let offset = 0;
-    
+
     // RMCP Header
     buffer[offset++] = IPMIProtocol.RMCP_VERSION_1;
     buffer[offset++] = 0x00; // Reserved
     buffer[offset++] = IPMIProtocol.RMCP_SEQUENCE;
     buffer[offset++] = IPMIProtocol.RMCP_CLASS_IPMI;
-    
+
     // Session authentication and message construction would continue here
     // This is simplified for demonstration
-    
+
     return buffer.slice(0, offset);
   }
 
@@ -961,26 +1144,30 @@ export class IPMIProtocol extends BaseProtocol {
     // Build SOL payload packet
     const buffer = Buffer.alloc(data.length + 20); // Header + data
     let offset = 0;
-    
+
     // SOL packet construction
     buffer[offset++] = 0x00; // Packet sequence number
     buffer[offset++] = 0x00; // Acknowledgment sequence number
     buffer[offset++] = 0x00; // Accepted character count
     buffer[offset++] = 0x00; // Status
-    
+
     // Copy data
     data.copy(buffer, offset);
-    
+
     return buffer.slice(0, offset + data.length);
   }
 
-  private handleIncomingMessage(sessionId: string, message: Buffer, rinfo: any): void {
+  private handleIncomingMessage(
+    sessionId: string,
+    message: Buffer,
+    rinfo: any
+  ): void {
     // Parse and handle incoming IPMI messages
     // This would include SOL data, sensor readings, responses, etc.
-    
+
     try {
       const messageType = this.parseMessageType(message);
-      
+
       switch (messageType) {
         case 'sol_data':
           this.handleSOLData(sessionId, message);
@@ -1002,10 +1189,10 @@ export class IPMIProtocol extends BaseProtocol {
   private handleSOLData(sessionId: string, message: Buffer): void {
     // Extract SOL console data from packet
     const solData = this.extractSOLData(message);
-    
+
     if (solData.length > 0) {
       const output = solData.toString('utf8');
-      
+
       const connectionState = this.connections.get(sessionId);
       if (connectionState) {
         connectionState.outputBuffer += output;
@@ -1016,11 +1203,13 @@ export class IPMIProtocol extends BaseProtocol {
         data: output,
         timestamp: new Date(),
         type: 'stdout',
-        sessionId
+        sessionId,
       };
 
       this.emit('output', consoleOutput);
-      this.logger.debug(`Received ${output.length} characters from SOL console ${sessionId}`);
+      this.logger.debug(
+        `Received ${output.length} characters from SOL console ${sessionId}`
+      );
     }
   }
 
@@ -1047,7 +1236,7 @@ export class IPMIProtocol extends BaseProtocol {
   // - calculateSystemHealth
   // - generateSessionKeys
   // - Vendor-specific methods (Dell, HP, IBM implementations)
-  
+
   private parseMessageType(message: Buffer): string {
     // Simplified message type detection
     if (message.length > 4 && message[3] === IPMIProtocol.RMCP_CLASS_IPMI) {
@@ -1066,9 +1255,9 @@ export class IPMIProtocol extends BaseProtocol {
     const response: IPMIResponse = {
       completionCode: message[6] || 0,
       data: message.slice(7),
-      netFn: (message[5] >> 2) & 0x3F,
+      netFn: (message[5] >> 2) & 0x3f,
       cmd: message[4],
-      sequence: message[2]
+      sequence: message[2],
     };
 
     this.emit('ipmiResponse', response);
@@ -1080,49 +1269,80 @@ export class IPMIProtocol extends BaseProtocol {
   }
 
   // Placeholder implementations for complex methods
-  private async getAuthenticationCapabilities(sessionId: string, options: IPMIConnectionOptions): Promise<any> {
+  private async getAuthenticationCapabilities(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<any> {
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_APPLICATION,
       cmd: IPMIProtocol.CMD_GET_CHANNEL_AUTH_CAP,
-      data: Buffer.from([0x0E, 0x04]) // Channel number, privilege level
+      data: Buffer.from([0x0e, 0x04]), // Channel number, privilege level
     };
-    
+
     return await this.sendIPMICommand(sessionId, command);
   }
 
-  private async getSessionChallenge(sessionId: string, options: IPMIConnectionOptions): Promise<Buffer> {
+  private async getSessionChallenge(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<Buffer> {
     // Implementation would handle session challenge
     return randomBytes(16);
   }
 
-  private async activateSession(sessionId: string, options: IPMIConnectionOptions, challenge: Buffer): Promise<any> {
+  private async activateSession(
+    sessionId: string,
+    options: IPMIConnectionOptions,
+    challenge: Buffer
+  ): Promise<any> {
     // Implementation would activate IPMI 1.5 session
-    return { sessionId: Math.random() * 0xFFFFFFFF };
+    return { sessionId: Math.random() * 0xffffffff };
   }
 
-  private async setSessionPrivilegeLevel(sessionId: string, options: IPMIConnectionOptions, sessionInfo: any): Promise<void> {
+  private async setSessionPrivilegeLevel(
+    sessionId: string,
+    options: IPMIConnectionOptions,
+    sessionInfo: any
+  ): Promise<void> {
     // Implementation would set privilege level
   }
 
-  private async sendOpenSessionRequest(sessionId: string, options: IPMIConnectionOptions): Promise<any> {
+  private async sendOpenSessionRequest(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<any> {
     // RMCP+ Open Session Request implementation
     return {};
   }
 
-  private async sendRAKPMessage1(sessionId: string, options: IPMIConnectionOptions, openResponse: any): Promise<any> {
+  private async sendRAKPMessage1(
+    sessionId: string,
+    options: IPMIConnectionOptions,
+    openResponse: any
+  ): Promise<any> {
     // RAKP Message 1 implementation
     return {};
   }
 
-  private async sendRAKPMessage3(sessionId: string, options: IPMIConnectionOptions, rakp1Response: any): Promise<void> {
+  private async sendRAKPMessage3(
+    sessionId: string,
+    options: IPMIConnectionOptions,
+    rakp1Response: any
+  ): Promise<void> {
     // RAKP Message 3 implementation
   }
 
-  private async setSessionPrivilegeLevelRMCP(sessionId: string, options: IPMIConnectionOptions): Promise<void> {
+  private async setSessionPrivilegeLevelRMCP(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<void> {
     // Set privilege level for RMCP+ session
   }
 
-  private generateSessionKeys(sessionId: string, options: IPMIConnectionOptions): void {
+  private generateSessionKeys(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): void {
     // Generate session integrity and confidentiality keys
     const session = this.sessions.get(sessionId);
     const ipmiSession = this.ipmiSessions.get(sessionId);
@@ -1134,18 +1354,24 @@ export class IPMIProtocol extends BaseProtocol {
     }
   }
 
-  private async configureSOL(sessionId: string, options: IPMIConnectionOptions): Promise<void> {
+  private async configureSOL(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<void> {
     // Configure Serial over LAN parameters
   }
 
-  private async activateSOLPayload(sessionId: string, options: IPMIConnectionOptions): Promise<void> {
+  private async activateSOLPayload(
+    sessionId: string,
+    options: IPMIConnectionOptions
+  ): Promise<void> {
     // Activate SOL payload
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_APPLICATION,
       cmd: IPMIProtocol.CMD_ACTIVATE_PAYLOAD,
-      data: Buffer.from([0x01, 0x01, 0x00, 0x00, 0x00, 0x00]) // SOL payload
+      data: Buffer.from([0x01, 0x01, 0x00, 0x00, 0x00, 0x00]), // SOL payload
     };
-    
+
     await this.sendIPMICommand(sessionId, command);
   }
 
@@ -1154,9 +1380,9 @@ export class IPMIProtocol extends BaseProtocol {
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_APPLICATION,
       cmd: IPMIProtocol.CMD_DEACTIVATE_PAYLOAD,
-      data: Buffer.from([0x01, 0x01, 0x00, 0x00, 0x00, 0x00])
+      data: Buffer.from([0x01, 0x01, 0x00, 0x00, 0x00, 0x00]),
     };
-    
+
     await this.sendIPMICommand(sessionId, command);
   }
 
@@ -1164,37 +1390,45 @@ export class IPMIProtocol extends BaseProtocol {
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_STORAGE,
       cmd: IPMIProtocol.CMD_GET_SDR_REPOSITORY_INFO,
-      data: Buffer.alloc(0)
+      data: Buffer.alloc(0),
     };
-    
+
     return await this.sendIPMICommand(sessionId, command);
   }
 
-  private async getSDRRecord(sessionId: string, recordId: number): Promise<any> {
+  private async getSDRRecord(
+    sessionId: string,
+    recordId: number
+  ): Promise<any> {
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_STORAGE,
       cmd: IPMIProtocol.CMD_GET_SDR,
       data: Buffer.from([
-        0x00, 0x00, // Reservation ID
-        recordId & 0xFF, (recordId >> 8) & 0xFF, // Record ID
+        0x00,
+        0x00, // Reservation ID
+        recordId & 0xff,
+        (recordId >> 8) & 0xff, // Record ID
         0x00, // Offset
-        0xFF  // Bytes to read
-      ])
+        0xff, // Bytes to read
+      ]),
     };
-    
+
     return await this.sendIPMICommand(sessionId, command);
   }
 
-  private async getSensorReading(sessionId: string, sensorNumber: number): Promise<SensorReading | null> {
+  private async getSensorReading(
+    sessionId: string,
+    sensorNumber: number
+  ): Promise<SensorReading | null> {
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_SENSOR_EVENT,
       cmd: IPMIProtocol.CMD_GET_SENSOR_READING,
-      data: Buffer.from([sensorNumber])
+      data: Buffer.from([sensorNumber]),
     };
-    
+
     try {
       const response = await this.sendIPMICommand(sessionId, command);
-      
+
       if (response.completionCode === 0x00 && response.data.length >= 3) {
         return {
           sensorNumber,
@@ -1206,13 +1440,13 @@ export class IPMIProtocol extends BaseProtocol {
           unit: 'raw',
           status: response.data[1] & 0x20 ? 'not-readable' : 'ok',
           thresholds: {},
-          timestamp: new Date()
+          timestamp: new Date(),
         };
       }
     } catch (error) {
       this.logger.debug(`Failed to read sensor ${sensorNumber}:`, error);
     }
-    
+
     return null;
   }
 
@@ -1220,31 +1454,38 @@ export class IPMIProtocol extends BaseProtocol {
     const command: IPMIMessage = {
       netFn: IPMIProtocol.NETFN_CHASSIS,
       cmd: IPMIProtocol.CMD_GET_CHASSIS_STATUS,
-      data: Buffer.alloc(0)
+      data: Buffer.alloc(0),
     };
-    
+
     return await this.sendIPMICommand(sessionId, command);
   }
 
-  private checkHardwareAlerts(sessionId: string, sensors: SensorReading[], chassisStatus: any, powerReading: any): void {
+  private checkHardwareAlerts(
+    sessionId: string,
+    sensors: SensorReading[],
+    chassisStatus: any,
+    powerReading: any
+  ): void {
     // Check for critical sensor readings and emit alerts
-    sensors.forEach(sensor => {
+    sensors.forEach((sensor) => {
       if (sensor.status === 'critical') {
         this.emit('hardwareAlert', {
           sessionId,
           type: 'sensor_critical',
           sensor,
           timestamp: new Date(),
-          severity: 'critical'
+          severity: 'critical',
         });
       }
     });
   }
 
-  private calculateSystemHealth(sensors: SensorReading[]): 'ok' | 'warning' | 'critical' {
-    const criticalSensors = sensors.filter(s => s.status === 'critical');
-    const warningSensors = sensors.filter(s => s.status === 'warning');
-    
+  private calculateSystemHealth(
+    sensors: SensorReading[]
+  ): 'ok' | 'warning' | 'critical' {
+    const criticalSensors = sensors.filter((s) => s.status === 'critical');
+    const warningSensors = sensors.filter((s) => s.status === 'warning');
+
     if (criticalSensors.length > 0) return 'critical';
     if (warningSensors.length > 0) return 'warning';
     return 'ok';
@@ -1259,11 +1500,11 @@ export class IPMIProtocol extends BaseProtocol {
       netFn: IPMIProtocol.NETFN_APPLICATION,
       cmd: IPMIProtocol.CMD_CLOSE_SESSION,
       data: Buffer.from([
-        ipmiSession.sessionId & 0xFF,
-        (ipmiSession.sessionId >> 8) & 0xFF,
-        (ipmiSession.sessionId >> 16) & 0xFF,
-        (ipmiSession.sessionId >> 24) & 0xFF
-      ])
+        ipmiSession.sessionId & 0xff,
+        (ipmiSession.sessionId >> 8) & 0xff,
+        (ipmiSession.sessionId >> 16) & 0xff,
+        (ipmiSession.sessionId >> 24) & 0xff,
+      ]),
     };
 
     await this.sendIPMICommand(sessionId, command);
@@ -1282,7 +1523,10 @@ export class IPMIProtocol extends BaseProtocol {
         const process = spawn('ipmitool', ['-V'], { stdio: 'pipe' });
         process.on('close', (code) => {
           if (code === 0) {
-            this.healthStatus.dependencies.ipmitool = { available: true, version: 'detected' };
+            this.healthStatus.dependencies.ipmitool = {
+              available: true,
+              version: 'detected',
+            };
             resolve();
           } else {
             reject(new Error('ipmitool not available'));
@@ -1295,7 +1539,9 @@ export class IPMIProtocol extends BaseProtocol {
         }, 3000);
       });
     } catch (error) {
-      this.logger.warn('ipmitool not available, some functionality may be limited');
+      this.logger.warn(
+        'ipmitool not available, some functionality may be limited'
+      );
     }
   }
 
@@ -1350,13 +1596,20 @@ export class IPMIProtocol extends BaseProtocol {
   /**
    * Enhanced createSessionWithTypeDetection wrapper for IPMI-specific session creation
    */
-  protected async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
-    const ipmiOptions = options.ipmiOptions || {
-      host: options.sshOptions?.host || options.wmiHost || 'localhost',
-      username: options.sshOptions?.username || options.wmiUsername || 'admin',
-      password: options.sshOptions?.password || options.wmiPassword || '',
-      interface: 'lanplus'
-    } as IPMIConnectionOptions;
+  protected async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
+    const ipmiOptions =
+      options.ipmiOptions ||
+      ({
+        host: options.sshOptions?.host || options.wmiHost || 'localhost',
+        username:
+          options.sshOptions?.username || options.wmiUsername || 'admin',
+        password: options.sshOptions?.password || options.wmiPassword || '',
+        interface: 'lanplus',
+      } as IPMIConnectionOptions);
 
     const command = 'ipmitool';
     const args = this.buildIPMIToolCommand(ipmiOptions);
@@ -1372,7 +1625,7 @@ export class IPMIProtocol extends BaseProtocol {
     const spawnOptions: import('child_process').SpawnOptions = {
       cwd: options.cwd || process.cwd(),
       env: { ...process.env, ...options.environment } as NodeJS.ProcessEnv,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     };
 
     this.logger.debug(`Starting IPMI process: ${command} ${args.join(' ')}`);
@@ -1382,7 +1635,9 @@ export class IPMIProtocol extends BaseProtocol {
 
     // Handle process events
     childProcess.on('spawn', () => {
-      this.logger.debug(`IPMI process spawned for session ${sessionId} (PID: ${childProcess.pid})`);
+      this.logger.debug(
+        `IPMI process spawned for session ${sessionId} (PID: ${childProcess.pid})`
+      );
     });
 
     childProcess.on('error', (error) => {
@@ -1391,45 +1646,53 @@ export class IPMIProtocol extends BaseProtocol {
     });
 
     childProcess.on('exit', (code, signal) => {
-      this.logger.debug(`IPMI process exited for session ${sessionId}: code=${code}, signal=${signal}`);
+      this.logger.debug(
+        `IPMI process exited for session ${sessionId}: code=${code}, signal=${signal}`
+      );
       this.ipmiProcesses.delete(sessionId);
     });
 
     // Handle stdout/stderr
     if (childProcess.stdout) {
-      (childProcess.stdout as import('stream').Readable).on('data', (data: Buffer) => {
-        const output: ConsoleOutput = {
-          sessionId,
-          data: data.toString(),
-          timestamp: new Date(),
-          stream: 'stdout',
-          type: 'stdout' as const
-        };
+      (childProcess.stdout as import('stream').Readable).on(
+        'data',
+        (data: Buffer) => {
+          const output: ConsoleOutput = {
+            sessionId,
+            data: data.toString(),
+            timestamp: new Date(),
+            stream: 'stdout',
+            type: 'stdout' as const,
+          };
 
-        const outputBuffer = this.outputBuffers.get(sessionId) || [];
-        outputBuffer.push(output);
-        this.outputBuffers.set(sessionId, outputBuffer);
+          const outputBuffer = this.outputBuffers.get(sessionId) || [];
+          outputBuffer.push(output);
+          this.outputBuffers.set(sessionId, outputBuffer);
 
-        this.emit('output', output);
-      });
+          this.emit('output', output);
+        }
+      );
     }
 
     if (childProcess.stderr) {
-      (childProcess.stderr as import('stream').Readable).on('data', (data: Buffer) => {
-        const output: ConsoleOutput = {
-          sessionId,
-          data: data.toString(),
-          timestamp: new Date(),
-          stream: 'stderr',
-          type: 'stderr' as const
-        };
+      (childProcess.stderr as import('stream').Readable).on(
+        'data',
+        (data: Buffer) => {
+          const output: ConsoleOutput = {
+            sessionId,
+            data: data.toString(),
+            timestamp: new Date(),
+            stream: 'stderr',
+            type: 'stderr' as const,
+          };
 
-        const outputBuffer = this.outputBuffers.get(sessionId) || [];
-        outputBuffer.push(output);
-        this.outputBuffers.set(sessionId, outputBuffer);
+          const outputBuffer = this.outputBuffers.get(sessionId) || [];
+          outputBuffer.push(output);
+          this.outputBuffers.set(sessionId, outputBuffer);
 
-        this.emit('output', output);
-      });
+          this.emit('output', output);
+        }
+      );
     }
 
     // Create and return the ConsoleSession
@@ -1439,7 +1702,9 @@ export class IPMIProtocol extends BaseProtocol {
       args: args,
       cwd: options.cwd || process.cwd(),
       env: Object.fromEntries(
-        Object.entries({ ...process.env, ...options.environment }).filter(([_, value]) => typeof value === 'string')
+        Object.entries({ ...process.env, ...options.environment }).filter(
+          ([_, value]) => typeof value === 'string'
+        )
       ) as Record<string, string>,
       createdAt: new Date(),
       pid: childProcess.pid ?? undefined,
@@ -1449,13 +1714,17 @@ export class IPMIProtocol extends BaseProtocol {
       lastActivity: new Date(),
       executionState: 'idle',
       activeCommands: new Map(),
-      ipmiOptions: ipmiOptions
+      ipmiOptions: ipmiOptions,
     };
 
     this.sessions.set(sessionId, consoleSession);
 
     this.logger.info(`IPMI session ${sessionId} created successfully`);
-    this.emit('session-created', { sessionId, type: this.type, session: consoleSession });
+    this.emit('session-created', {
+      sessionId,
+      type: this.type,
+      session: consoleSession,
+    });
 
     return consoleSession;
   }
@@ -1473,10 +1742,13 @@ export class IPMIProtocol extends BaseProtocol {
     return this.capabilities.defaultTimeout || 30000;
   }
 
-  public async getOutput(sessionId: string, since?: Date): Promise<ConsoleOutput[]> {
+  public async getOutput(
+    sessionId: string,
+    since?: Date
+  ): Promise<ConsoleOutput[]> {
     const outputs = this.outputBuffers.get(sessionId) || [];
     const filteredOutputs = since
-      ? outputs.filter(output => output.timestamp > since)
+      ? outputs.filter((output) => output.timestamp > since)
       : outputs;
 
     return filteredOutputs;
@@ -1491,49 +1763,85 @@ export class IPMIProtocol extends BaseProtocol {
   }
 
   // Vendor-specific implementations (simplified placeholders)
-  private async mountDellVirtualMedia(sessionId: string, mediaType: string, imagePath: string, writeProtected: boolean): Promise<boolean> {
+  private async mountDellVirtualMedia(
+    sessionId: string,
+    mediaType: string,
+    imagePath: string,
+    writeProtected: boolean
+  ): Promise<boolean> {
     this.logger.info(`Mounting Dell iDRAC virtual media: ${mediaType}`);
     // Dell iDRAC-specific implementation
     return true;
   }
 
-  private async mountHPVirtualMedia(sessionId: string, mediaType: string, imagePath: string, writeProtected: boolean): Promise<boolean> {
+  private async mountHPVirtualMedia(
+    sessionId: string,
+    mediaType: string,
+    imagePath: string,
+    writeProtected: boolean
+  ): Promise<boolean> {
     this.logger.info(`Mounting HP iLO virtual media: ${mediaType}`);
     // HP iLO-specific implementation
     return true;
   }
 
-  private async mountIBMVirtualMedia(sessionId: string, mediaType: string, imagePath: string, writeProtected: boolean): Promise<boolean> {
+  private async mountIBMVirtualMedia(
+    sessionId: string,
+    mediaType: string,
+    imagePath: string,
+    writeProtected: boolean
+  ): Promise<boolean> {
     this.logger.info(`Mounting IBM IMM virtual media: ${mediaType}`);
     // IBM IMM-specific implementation
     return true;
   }
 
-  private async mountGenericVirtualMedia(sessionId: string, mediaType: string, imagePath: string, writeProtected: boolean): Promise<boolean> {
+  private async mountGenericVirtualMedia(
+    sessionId: string,
+    mediaType: string,
+    imagePath: string,
+    writeProtected: boolean
+  ): Promise<boolean> {
     this.logger.info(`Mounting generic IPMI virtual media: ${mediaType}`);
     // Generic IPMI virtual media implementation
     return true;
   }
 
-  private async updateDellFirmware(sessionId: string, firmwarePath: string, component: string): Promise<boolean> {
+  private async updateDellFirmware(
+    sessionId: string,
+    firmwarePath: string,
+    component: string
+  ): Promise<boolean> {
     this.logger.info(`Updating Dell firmware: ${component}`);
     // Dell firmware update implementation
     return true;
   }
 
-  private async updateHPFirmware(sessionId: string, firmwarePath: string, component: string): Promise<boolean> {
+  private async updateHPFirmware(
+    sessionId: string,
+    firmwarePath: string,
+    component: string
+  ): Promise<boolean> {
     this.logger.info(`Updating HP firmware: ${component}`);
     // HP firmware update implementation
     return true;
   }
 
-  private async updateIBMFirmware(sessionId: string, firmwarePath: string, component: string): Promise<boolean> {
+  private async updateIBMFirmware(
+    sessionId: string,
+    firmwarePath: string,
+    component: string
+  ): Promise<boolean> {
     this.logger.info(`Updating IBM firmware: ${component}`);
     // IBM firmware update implementation
     return true;
   }
 
-  private async updateGenericFirmware(sessionId: string, firmwarePath: string, component: string): Promise<boolean> {
+  private async updateGenericFirmware(
+    sessionId: string,
+    firmwarePath: string,
+    component: string
+  ): Promise<boolean> {
     this.logger.info(`Updating generic IPMI firmware: ${component}`);
     // Generic IPMI firmware update implementation
     return true;
@@ -1569,20 +1877,24 @@ export class IPMIProtocol extends BaseProtocol {
       const command = 'ipmitool';
       const args = this.buildIPMIToolCommand({
         host: options.sshOptions?.host || options.wmiHost || 'localhost',
-        username: options.sshOptions?.username || options.wmiUsername || 'admin',
+        username:
+          options.sshOptions?.username || options.wmiUsername || 'admin',
         password: options.sshOptions?.password || options.wmiPassword || '',
-        interface: 'lanplus'
+        interface: 'lanplus',
       } as IPMIConnectionOptions);
 
       return await this.createSessionWithTypeDetection(sessionId, {
         ...options,
         command,
-        args
+        args,
       });
     }
 
     // Call the existing createIPMISession method for complex IPMI operations
-    const session = await this.createIPMISession(sessionId, options.ipmiOptions);
+    const session = await this.createIPMISession(
+      sessionId,
+      options.ipmiOptions
+    );
 
     // Store session in BaseProtocol's session map
     this.sessions.set(sessionId, session);
@@ -1590,7 +1902,11 @@ export class IPMIProtocol extends BaseProtocol {
     return session;
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -1607,7 +1923,12 @@ export class IPMIProtocol extends BaseProtocol {
     }
 
     // IPMI commands are also handled through specific methods
-    this.emit('commandExecuted', { sessionId, command, args, timestamp: new Date() });
+    this.emit('commandExecuted', {
+      sessionId,
+      command,
+      args,
+      timestamp: new Date(),
+    });
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
@@ -1662,7 +1983,6 @@ export class IPMIProtocol extends BaseProtocol {
 
       this.logger.info(`IPMI session closed: ${sessionId}`);
       this.emit('sessionClosed', sessionId);
-
     } catch (error) {
       this.logger.error(`Error closing IPMI session ${sessionId}:`, error);
       throw error;
@@ -1674,11 +1994,11 @@ export class IPMIProtocol extends BaseProtocol {
 
     // Close all active sessions
     const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
 
     // Close all IPMI connections
     const connectionIds = Array.from(this.connections.keys());
-    await Promise.all(connectionIds.map(id => this.closeIPMISession(id)));
+    await Promise.all(connectionIds.map((id) => this.closeIPMISession(id)));
 
     this.removeAllListeners();
     this.isInitialized = false;

@@ -2,402 +2,276 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (e.g., v1.0.0)'
-        required: true
-        type: string
+    branches:
+      - master
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
 
 jobs:
-  lint:
-    name: Lint
+  release:
+    name: Semantic Release
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: ${{ runner.os }}-node-
-    - run: npm ci
-    - run: npm run lint
-
-  typecheck:
-    name: TypeCheck
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: ${{ runner.os }}-node-
-    - run: npm ci
-    - run: npm run typecheck
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: ${{ runner.os }}-node-
-    - run: npm ci
-    - run: npx jest --config jest.config.ci.cjs --passWithNoTests
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: ${{ runner.os }}-node-
-    - run: npm ci
-    - run: npm run build
-    - run: npm pack && tar -tzf *.tgz | head -20
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist
-        path: dist/
-        retention-days: 1
-
-  build-and-release:
-    name: Build and Release
-    runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, build]
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
 
     outputs:
-      version: ${{ steps.extract_version.outputs.version }}
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "Error: dist directory not created"
+            exit 1
+          fi
+          echo "Build artifacts verified successfully"
+
+      - name: Run tests
+        run: npm run test:coverage
+        env:
+          NODE_OPTIONS: --experimental-vm-modules
+
+      - name: Semantic Release
+        id: semantic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx semantic-release
+
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
     permissions:
-      contents: write
-      packages: write
+      contents: read
+      id-token: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
-        registry-url: 'https://registry.npmjs.org'
-    
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: ${{ runner.os }}-node-
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release.outputs.new_release_version }}
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
 
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: dist
-        path: dist/
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Extract version from tag
-      id: extract_version
-      run: |
-        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          VERSION="${{ github.event.inputs.version }}"
-        else
-          VERSION=${GITHUB_REF#refs/tags/}
-        fi
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
-        echo "Version: ${VERSION}"
-    
-    - name: Update package version
-      run: |
-        VERSION="${{ steps.extract_version.outputs.version }}"
-        VERSION_NO_V=${VERSION#v}
-        CURRENT_VERSION=$(node -p "require('./package.json').version")
-        if [ "$CURRENT_VERSION" != "$VERSION_NO_V" ]; then
-          npm version ${VERSION_NO_V} --no-git-tag-version
-        else
-          echo "Version already set to ${VERSION_NO_V}, skipping update"
-        fi
-    
-    - name: Generate changelog
-      id: changelog
-      run: |
-        if [ -f CHANGELOG.md ]; then
-          # Extract changelog for this version
-          awk '/^##/ {if(p) exit; if($2 ~ /^v?[0-9]/) p=1} p' CHANGELOG.md > release_notes.md
-        else
-          echo "# Release Notes" > release_notes.md
-          echo "" >> release_notes.md
-          echo "## What's Changed" >> release_notes.md
-          echo "- See commit history for detailed changes" >> release_notes.md
-        fi
-        
-        echo "changelog<<EOF" >> $GITHUB_OUTPUT
-        cat release_notes.md >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-    
-    - name: Create release package
-      run: |
-        # Create distribution package
-        npm pack
-    
-    - name: Create GitHub Release
-      id: create_release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.extract_version.outputs.version }}
-        name: Release ${{ steps.extract_version.outputs.version }}
-        body: ${{ steps.changelog.outputs.changelog }}
-        draft: false
-        prerelease: ${{ contains(steps.extract_version.outputs.version, '-') }}
-        files: |
-          mcp-console-automation-*.tgz
-        generate_release_notes: true
-    
-    - name: Publish to NPM
-      if: ${{ !contains(steps.extract_version.outputs.version, '-') }}
-      run: npm publish
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    
-    - name: Publish pre-release to NPM
-      if: ${{ contains(steps.extract_version.outputs.version, '-') }}
-      run: npm publish --tag beta
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build for production
+        run: npm run build
 
-  docker-release:
-    name: Docker Release
-    runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, build]
-    continue-on-error: true
+      - name: Prepare package for publishing
+        run: |
+          npm version ${{ needs.release.outputs.new_release_version }} --no-git-tag-version --allow-same-version
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Publish to npm (OIDC)
+        run: npm publish --provenance --access public
 
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: dist
-        path: dist/
-    
-    - name: Setup Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-    
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: |
-          cheatcountry/mcp-console-automation
-          ghcr.io/${{ github.repository }}
-        tags: |
-          type=ref,event=tag
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-        labels: |
-          org.opencontainers.image.title=MCP Console Automation
-          org.opencontainers.image.description=MCP server for AI-driven console application automation
-    
-    - name: Create Dockerfile
-      run: |
-        cat > Dockerfile << 'EOF'
-        FROM node:20-alpine AS builder
-        
-        WORKDIR /app
-        
-        # Install build dependencies
-        RUN apk add --no-cache python3 make g++
-        
-        # Copy package files
-        COPY package*.json ./
-        
-        # Install all dependencies (including dev)
-        RUN npm ci
-        
-        # Copy source code
-        COPY . .
-        
-        # Build application
-        RUN npm run build
-        
-        # Production stage
-        FROM node:20-alpine AS runtime
-        
-        # Install runtime dependencies
-        RUN apk add --no-cache \
-            openssh-client \
-            bash \
-            curl \
-            git \
-            dumb-init \
-            ca-certificates
-        
-        # Create non-root user
-        RUN addgroup -g 1001 -S appgroup && \
-            adduser -S appuser -u 1001 -G appgroup
-        
-        WORKDIR /app
-        
-        # Copy package files
-        COPY package*.json ./
-        
-        # Install production dependencies only
-        RUN npm ci --only=production && \
-            npm cache clean --force
-        
-        # Copy built application from builder stage
-        COPY --from=builder /app/dist ./dist
-        COPY --from=builder /app/src ./src
-        
-        # Set ownership
-        RUN chown -R appuser:appgroup /app
-        
-        USER appuser
-        
-        # Health check
-        HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-            CMD node -e "console.log('Health check OK')" || exit 1
-        
-        EXPOSE 3000
-        
-        # Use dumb-init to handle signals properly
-        ENTRYPOINT ["dumb-init", "--"]
-        CMD ["npm", "start"]
-        EOF
-    
-    - name: Build and push Docker images
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Verify publication
+        run: |
+          sleep 10
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          VERSION=${{ needs.release.outputs.new_release_version }}
 
-  update-documentation:
-    name: Update Documentation
-    runs-on: ubuntu-latest
-    needs: build-and-release
+          echo "Verifying publication of ${PACKAGE_NAME}@${VERSION}"
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISHED_VERSION=$(npm view ${PACKAGE_NAME}@${VERSION} version 2>/dev/null || echo "not_found")
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
+          if [ "$PUBLISHED_VERSION" = "$VERSION" ]; then
+            echo "Package successfully published!"
+          else
+            echo "Warning: Could not verify package publication"
+          fi
 
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: ${{ runner.os }}-node-
-
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Generate API documentation
-      run: |
-        # Generate TypeScript documentation if available
-        if command -v typedoc &> /dev/null; then
-          npx typedoc src --out docs/api
-        fi
-        
-        # Update README with latest version info
-        VERSION="${{ needs.build-and-release.outputs.version || github.ref_name }}"
-        sed -i "s/version-[0-9]\+\.[0-9]\+\.[0-9]\+/version-${VERSION#v}/g" README.md || true
-    
-    - name: Commit documentation updates
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        git add -A
-        git diff --staged --quiet || git commit -m "docs: update documentation for release ${{ needs.build-and-release.outputs.version || github.ref_name }}"
-        git push || true
-
-  notify-release:
+  notify:
     name: Notify Release
     runs-on: ubuntu-latest
-    if: always()
-    needs: [build-and-release]
-    
-    steps:
-    - name: Notify successful release
-      if: needs.build-and-release.result == 'success'
-      run: |
-        echo "🎉 Release successful!"
-        echo "Version: ${{ needs.build-and-release.outputs.version || github.ref_name }}"
-        echo "- NPM package: ✅"
-        echo "- GitHub release: ✅"
-        echo "- Docker images: ${{ needs.docker-release.result == 'success' && '✅' || '⚠️' }}"
-    
-    - name: Notify failed release
-      if: needs.build-and-release.result == 'failure'
-      run: |
-        echo "❌ Release failed!"
-        echo "Check the build logs for details."
-        exit 1
+    needs: [release, publish]
+    if: needs.release.outputs.new_release_published == 'true'
 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release.outputs.new_release_version }}
+
+      - name: Get release notes
+        id: release_notes
+        run: |
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/v${{ needs.release.outputs.new_release_version }}"
+          echo "release_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+
+      - name: Create notification message
+        id: notification
+        run: |
+          VERSION="${{ needs.release.outputs.new_release_version }}"
+          RELEASE_URL="${{ steps.release_notes.outputs.release_url }}"
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+
+          MESSAGE="New release: ${PACKAGE_NAME} v${VERSION}\n"
+          MESSAGE="${MESSAGE}Release notes: ${RELEASE_URL}\n"
+          MESSAGE="${MESSAGE}npm: https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}"
+
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post to Discord (if configured)
+        if: vars.DISCORD_WEBHOOK_URL != ''
+        run: |
+          MESSAGE='${{ steps.notification.outputs.message }}'
+
+          curl -X POST "${{ vars.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"$MESSAGE\"}" \
+            || echo "Discord notification failed (optional)"
+
+      - name: Post to Slack (if configured)
+        if: vars.SLACK_WEBHOOK_URL != ''
+        run: |
+          MESSAGE='${{ steps.notification.outputs.message }}'
+
+          curl -X POST "${{ vars.SLACK_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"$MESSAGE\"}" \
+            || echo "Slack notification failed (optional)"
+
+      - name: Comment on related issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ needs.release.outputs.new_release_version }}';
+            const releaseUrl = '${{ steps.release_notes.outputs.release_url }}';
+
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: `v${version}`
+            });
+
+            const issueNumbers = [...new Set(
+              (release.body || '').match(/#(\d+)/g)?.map(m => parseInt(m.slice(1))) || []
+            )];
+
+            for (const issueNumber of issueNumbers) {
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: `This issue has been resolved in version ${version}.\n\nRelease notes: ${releaseUrl}`
+                });
+              } catch (error) {
+                console.log(`Failed to comment on issue #${issueNumber}:`, error.message);
+              }
+            }
+
+      - name: Update release summary
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Version: ${{ needs.release.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "Release URL: ${{ steps.release_notes.outputs.release_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm URL: https://www.npmjs.com/package/${PACKAGE_NAME}/v/${{ needs.release.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+
+  publish-mcp-registry:
+    name: Publish to MCP Registry
+    runs-on: ubuntu-latest
+    needs: [release, publish]
+    if: needs.release.outputs.new_release_published == 'true'
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release.outputs.new_release_version }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update server.json version
+        run: |
+          VERSION="${{ needs.release.outputs.new_release_version }}"
+          export VERSION
+          node -e "
+            const fs = require('fs');
+            const p = 'server.json';
+            if (!fs.existsSync(p)) { process.exit(0); }
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            j.version = process.env.VERSION;
+            if (Array.isArray(j.packages) && j.packages[0]) {
+              j.packages[0].version = process.env.VERSION;
+            }
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+          "
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install MCP Publisher CLI
+        run: |
+          git clone https://github.com/modelcontextprotocol/registry /tmp/mcp-registry
+          cd /tmp/mcp-registry
+          make publisher
+          sudo mv bin/mcp-publisher /usr/local/bin/
+          mcp-publisher --version
+
+      - name: Authenticate with GitHub OIDC
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: |
+          echo "Publishing ${GITHUB_REPOSITORY} to MCP Registry at version ${{ needs.release.outputs.new_release_version }}"
+          mcp-publisher publish
+
+      - name: MCP Registry summary
+        run: |
+          echo "## MCP Registry Publication" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Published io.github.ooples/console-automation-mcp v${{ needs.release.outputs.new_release_version }} to https://registry.modelcontextprotocol.io" >> $GITHUB_STEP_SUMMARY
+    

@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Vagrant Protocol connection options
@@ -21,7 +21,13 @@ interface VagrantConnectionOptions extends SessionOptions {
   vagrantfile?: string;
   workingDir?: string;
   machineName?: string;
-  provider?: 'virtualbox' | 'vmware_desktop' | 'hyper-v' | 'docker' | 'libvirt' | 'parallels';
+  provider?:
+    | 'virtualbox'
+    | 'vmware_desktop'
+    | 'hyper-v'
+    | 'docker'
+    | 'libvirt'
+    | 'parallels';
   box?: string;
   boxVersion?: string;
   boxUrl?: string;
@@ -100,9 +106,9 @@ export class VagrantProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -134,8 +140,8 @@ export class VagrantProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -162,8 +168,13 @@ export class VagrantProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -184,7 +195,9 @@ export class VagrantProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Vagrant session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Vagrant session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -215,7 +228,11 @@ export class VagrantProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -229,7 +246,11 @@ export class VagrantProtocol extends BaseProtocol {
     const vagrantProcess = spawn(vagrantCommand[0], vagrantCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || vagrantOptions.workingDir || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(vagrantOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(vagrantOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -238,7 +259,7 @@ export class VagrantProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -248,18 +269,23 @@ export class VagrantProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     vagrantProcess.on('error', (error) => {
-      this.logger.error(`Vagrant process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Vagrant process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     vagrantProcess.on('close', (code) => {
-      this.logger.info(`Vagrant process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Vagrant process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -272,7 +298,11 @@ export class VagrantProtocol extends BaseProtocol {
       command: vagrantCommand[0],
       args: vagrantCommand.slice(1),
       cwd: options.cwd || vagrantOptions.workingDir || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(vagrantOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(vagrantOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -280,12 +310,14 @@ export class VagrantProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: vagrantProcess.pid
+      pid: vagrantProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Vagrant session ${sessionId} created for ${vagrantOptions.vagrantfile || vagrantOptions.workingDir || 'Vagrant environment'}`);
+    this.logger.info(
+      `Vagrant session ${sessionId} created for ${vagrantOptions.vagrantfile || vagrantOptions.workingDir || 'Vagrant environment'}`
+    );
     this.emit('session-created', { sessionId, type: 'vagrant', session });
 
     return session;
@@ -294,7 +326,7 @@ export class VagrantProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -303,8 +335,8 @@ export class VagrantProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -326,25 +358,30 @@ export class VagrantProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Vagrant session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Vagrant session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const vagrantProcess = this.vagrantProcesses.get(sessionId);
-    return vagrantProcess && !vagrantProcess.killed || false;
+    return (vagrantProcess && !vagrantProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -355,26 +392,26 @@ export class VagrantProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.vagrantProcesses.size
+        connectionsActive: this.vagrantProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -386,8 +423,8 @@ export class VagrantProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          vagrant: { available: true }
-        }
+          vagrant: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -395,8 +432,8 @@ export class VagrantProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Vagrant not available: ${error}`],
         dependencies: {
-          vagrant: { available: false }
-        }
+          vagrant: { available: false },
+        },
       };
     }
   }
@@ -481,7 +518,9 @@ export class VagrantProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: VagrantConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: VagrantConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Vagrant home directory
@@ -521,7 +560,10 @@ export class VagrantProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Vagrant process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Vagrant process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

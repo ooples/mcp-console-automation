@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,12 +12,29 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Puppet Protocol connection options
 interface PuppetConnectionOptions {
-  operation?: 'apply' | 'agent' | 'master' | 'cert' | 'module' | 'node' | 'resource' | 'config' | 'device' | 'lookup' | 'facts' | 'filebucket' | 'help' | 'describe' | 'doc' | 'epp' | 'parser';
+  operation?:
+    | 'apply'
+    | 'agent'
+    | 'master'
+    | 'cert'
+    | 'module'
+    | 'node'
+    | 'resource'
+    | 'config'
+    | 'device'
+    | 'lookup'
+    | 'facts'
+    | 'filebucket'
+    | 'help'
+    | 'describe'
+    | 'doc'
+    | 'epp'
+    | 'parser';
   manifestFile?: string;
   manifestContent?: string;
   modulePath?: string[];
@@ -45,7 +62,15 @@ interface PuppetConnectionOptions {
   hiera_config?: string;
   user?: string;
   group?: string;
-  logLevel?: 'debug' | 'info' | 'notice' | 'warning' | 'err' | 'alert' | 'emerg' | 'crit';
+  logLevel?:
+    | 'debug'
+    | 'info'
+    | 'notice'
+    | 'warning'
+    | 'err'
+    | 'alert'
+    | 'emerg'
+    | 'crit';
   verbose?: boolean;
   debug?: boolean;
   noop?: boolean;
@@ -94,7 +119,15 @@ interface PuppetConnectionOptions {
   dbpassword?: string;
   dbconnections?: number;
   railslog?: boolean;
-  rails_loglevel?: 'debug' | 'info' | 'notice' | 'warning' | 'err' | 'alert' | 'emerg' | 'crit';
+  rails_loglevel?:
+    | 'debug'
+    | 'info'
+    | 'notice'
+    | 'warning'
+    | 'err'
+    | 'alert'
+    | 'emerg'
+    | 'crit';
   autosign?: boolean | string;
   autosign_whitelist?: string;
   csr_attributes?: string;
@@ -213,9 +246,9 @@ export class PuppetProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -247,8 +280,8 @@ export class PuppetProtocol extends BaseProtocol {
         windows: true, // Puppet supports Windows
         linux: true, // Primary Puppet platform
         macos: true, // Puppet supports macOS
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -275,8 +308,13 @@ export class PuppetProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -297,7 +335,9 @@ export class PuppetProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Puppet session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Puppet session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -328,12 +368,17 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
-    const puppetOptions = options.puppetOptions || {} as PuppetConnectionOptions;
+    const puppetOptions =
+      options.puppetOptions || ({} as PuppetConnectionOptions);
 
     // Build Puppet command
     const puppetCommand = this.buildPuppetCommand(puppetOptions);
@@ -342,7 +387,11 @@ export class PuppetProtocol extends BaseProtocol {
     const puppetProcess = spawn(puppetCommand[0], puppetCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(puppetOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(puppetOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -351,7 +400,7 @@ export class PuppetProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -361,18 +410,23 @@ export class PuppetProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     puppetProcess.on('error', (error) => {
-      this.logger.error(`Puppet process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Puppet process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     puppetProcess.on('close', (code) => {
-      this.logger.info(`Puppet process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Puppet process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -385,7 +439,11 @@ export class PuppetProtocol extends BaseProtocol {
       command: puppetCommand[0],
       args: puppetCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(puppetOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(puppetOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -393,12 +451,14 @@ export class PuppetProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: puppetProcess.pid
+      pid: puppetProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Puppet session ${sessionId} created for operation ${puppetOptions.operation || 'apply'}`);
+    this.logger.info(
+      `Puppet session ${sessionId} created for operation ${puppetOptions.operation || 'apply'}`
+    );
     this.emit('session-created', { sessionId, type: 'puppet', session });
 
     return session;
@@ -407,7 +467,7 @@ export class PuppetProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -416,8 +476,8 @@ export class PuppetProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -439,25 +499,30 @@ export class PuppetProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Puppet session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Puppet session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const puppetProcess = this.puppetProcesses.get(sessionId);
-    return puppetProcess && !puppetProcess.killed || false;
+    return (puppetProcess && !puppetProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -468,26 +533,26 @@ export class PuppetProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.puppetProcesses.size
+        connectionsActive: this.puppetProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -499,8 +564,8 @@ export class PuppetProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          puppet: { available: true }
-        }
+          puppet: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -508,8 +573,8 @@ export class PuppetProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Puppet not available: ${error}`],
         dependencies: {
-          puppet: { available: false }
-        }
+          puppet: { available: false },
+        },
       };
     }
   }
@@ -522,12 +587,18 @@ export class PuppetProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Puppet not found. Please install Puppet or Puppet Agent.'));
+          reject(
+            new Error(
+              'Puppet not found. Please install Puppet or Puppet Agent.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('Puppet not found. Please install Puppet or Puppet Agent.'));
+        reject(
+          new Error('Puppet not found. Please install Puppet or Puppet Agent.')
+        );
       });
     });
   }
@@ -615,7 +686,10 @@ export class PuppetProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildApplyArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildApplyArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Manifest file or content
     if (options.manifestFile) {
       command.push(options.manifestFile);
@@ -661,7 +735,10 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  private buildAgentArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildAgentArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Agent-specific options
     if (options.onetime) {
       command.push('--onetime');
@@ -724,7 +801,10 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  private buildMasterArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildMasterArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Master-specific options
     if (options.compile) {
       command.push('--compile');
@@ -763,7 +843,10 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  private buildCertArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildCertArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Certificate management arguments
     if (options.certname) {
       command.push('--certname', options.certname);
@@ -806,7 +889,10 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  private buildModuleArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildModuleArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Module management arguments
     if (options.module_working_dir) {
       command.push('--module_working_dir', options.module_working_dir);
@@ -829,15 +915,24 @@ export class PuppetProtocol extends BaseProtocol {
     }
 
     if (options.module_tool_pre_install_check !== undefined) {
-      command.push('--module_tool_pre_install_check', options.module_tool_pre_install_check.toString());
+      command.push(
+        '--module_tool_pre_install_check',
+        options.module_tool_pre_install_check.toString()
+      );
     }
 
     if (options.module_tool_post_install_check !== undefined) {
-      command.push('--module_tool_post_install_check', options.module_tool_post_install_check.toString());
+      command.push(
+        '--module_tool_post_install_check',
+        options.module_tool_post_install_check.toString()
+      );
     }
   }
 
-  private buildNodeArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildNodeArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Node management arguments
     if (options.node_name) {
       command.push('--node-name', options.node_name);
@@ -860,7 +955,10 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  private buildResourceArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildResourceArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Resource management arguments
     if (options.tags && options.tags.length > 0) {
       command.push('--tags', options.tags.join(','));
@@ -875,11 +973,17 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  private buildConfigArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildConfigArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Config management arguments - most handled in common arguments
   }
 
-  private buildDeviceArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildDeviceArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Device management arguments
     if (options.detailed_exitcodes) {
       command.push('--detailed-exitcodes');
@@ -894,7 +998,10 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  private buildLookupArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildLookupArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Hiera lookup arguments
     if (options.facts) {
       command.push('--facts', options.facts);
@@ -909,46 +1016,67 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  private buildFactsArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildFactsArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Facts management arguments
     if (options.fact_format) {
       command.push('--format', options.fact_format);
     }
   }
 
-  private buildFilebucketArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildFilebucketArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Filebucket arguments
     if (options.bucketdir) {
       command.push('--bucketdir', options.bucketdir);
     }
   }
 
-  private buildDescribeArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildDescribeArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Describe arguments - typically just the resource type
   }
 
-  private buildDocArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildDocArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Documentation arguments
     if (options.modulePath && options.modulePath.length > 0) {
       command.push('--modulepath', options.modulePath.join(':'));
     }
   }
 
-  private buildEppArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildEppArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // EPP template arguments
     if (options.facts) {
       command.push('--facts', options.facts);
     }
   }
 
-  private buildParserArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildParserArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Parser arguments
     if (options.parser) {
       command.push('--parser', options.parser);
     }
   }
 
-  private buildCommonArguments(command: string[], options: PuppetConnectionOptions): void {
+  private buildCommonArguments(
+    command: string[],
+    options: PuppetConnectionOptions
+  ): void {
     // Configuration and directories
     if (options.configFile) {
       command.push('--config', options.configFile);
@@ -1125,7 +1253,9 @@ export class PuppetProtocol extends BaseProtocol {
     }
   }
 
-  private buildEnvironment(options: PuppetConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: PuppetConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Puppet environment variables
@@ -1235,7 +1365,10 @@ export class PuppetProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Puppet process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Puppet process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

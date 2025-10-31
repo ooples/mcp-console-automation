@@ -86,13 +86,13 @@ export class SSHConnectionKeepAlive extends EventEmitter {
     preventedDisconnections: 0,
     averageResponseTime: 0,
     connectionsMonitored: 0,
-    predictiveReconnections: 0
+    predictiveReconnections: 0,
   };
 
   constructor(config?: Partial<KeepAliveConfig>) {
     super();
     this.logger = new Logger('SSHConnectionKeepAlive');
-    
+
     this.config = {
       enabled: config?.enabled ?? true,
       keepAliveInterval: config?.keepAliveInterval || 30000, // 30 seconds
@@ -114,14 +114,17 @@ export class SSHConnectionKeepAlive extends EventEmitter {
       slowNetworkThreshold: config?.slowNetworkThreshold || 3000, // > 3s = slow
       unstableNetworkThreshold: config?.unstableNetworkThreshold || 0.4, // 40% variance = unstable
       adaptiveIntervalMultipliers: config?.adaptiveIntervalMultipliers || {
-        fast: 1.5,     // 50% longer intervals for fast networks
-        normal: 1.0,   // Default interval
-        slow: 0.7,     // 30% shorter intervals for slow networks
-        unstable: 0.5  // 50% shorter intervals for unstable networks
-      }
+        fast: 1.5, // 50% longer intervals for fast networks
+        normal: 1.0, // Default interval
+        slow: 0.7, // 30% shorter intervals for slow networks
+        unstable: 0.5, // 50% shorter intervals for unstable networks
+      },
     };
 
-    this.logger.info('SSHConnectionKeepAlive initialized with config:', this.config);
+    this.logger.info(
+      'SSHConnectionKeepAlive initialized with config:',
+      this.config
+    );
   }
 
   /**
@@ -163,7 +166,9 @@ export class SSHConnectionKeepAlive extends EventEmitter {
 
     // Wait for active reconnections to complete
     if (this.activeReconnections.size > 0) {
-      this.logger.info(`Waiting for ${this.activeReconnections.size} active reconnections to complete...`);
+      this.logger.info(
+        `Waiting for ${this.activeReconnections.size} active reconnections to complete...`
+      );
       const timeout = setTimeout(() => {
         this.logger.warn('Timeout waiting for active reconnections');
       }, 30000);
@@ -181,14 +186,17 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   /**
    * Monitor an SSH connection for keep-alive
    */
-  monitorConnection(connection: PooledConnection, sshOptions: SSHConnectionOptions): void {
+  monitorConnection(
+    connection: PooledConnection,
+    sshOptions: SSHConnectionOptions
+  ): void {
     if (!this.config.enabled || !this.isRunning) {
       return;
     }
 
     const connectionId = connection.id;
     const existing = this.connectionHealthMap.get(connectionId);
-    
+
     if (existing) {
       this.logger.warn(`Connection ${connectionId} is already being monitored`);
       return;
@@ -209,7 +217,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
       networkCondition: 'normal',
       responseTimeVariance: 0,
       networkStabilityScore: 100,
-      lastNetworkAnalysis: new Date()
+      lastNetworkAnalysis: new Date(),
     };
 
     this.connectionHealthMap.set(connectionId, health);
@@ -221,7 +229,9 @@ export class SSHConnectionKeepAlive extends EventEmitter {
     // Start keep-alive monitoring
     this.scheduleKeepAlive(connectionId, connection);
 
-    this.logger.info(`Started monitoring connection ${connectionId} for keep-alive`);
+    this.logger.info(
+      `Started monitoring connection ${connectionId} for keep-alive`
+    );
     this.emit('monitoring-started', { connectionId, health });
   }
 
@@ -255,7 +265,10 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   /**
    * Configure SSH client with keep-alive settings
    */
-  private configureSshKeepAlive(sshClient: SSHClient, options: SSHConnectionOptions): void {
+  private configureSshKeepAlive(
+    sshClient: SSHClient,
+    options: SSHConnectionOptions
+  ): void {
     try {
       // Set up client-side keep-alive
       sshClient.on('keyboard-interactive', () => {
@@ -275,15 +288,16 @@ export class SSHConnectionKeepAlive extends EventEmitter {
       const keepAliveConfig = {
         keepaliveInterval: this.config.keepAliveInterval,
         keepaliveCountMax: this.config.keepAliveCountMax,
-        serverAliveInterval: options.serverAliveInterval || this.config.serverAliveInterval,
-        serverAliveCountMax: options.serverAliveCountMax || this.config.serverAliveCountMax
+        serverAliveInterval:
+          options.serverAliveInterval || this.config.serverAliveInterval,
+        serverAliveCountMax:
+          options.serverAliveCountMax || this.config.serverAliveCountMax,
       };
 
       // Set up advanced server alive monitoring
       this.setupServerAliveMonitoring(sshClient, keepAliveConfig);
 
       this.logger.debug('Configured SSH keep-alive settings:', keepAliveConfig);
-      
     } catch (error) {
       this.logger.error('Error configuring SSH keep-alive:', error);
     }
@@ -295,13 +309,17 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   private setupServerAliveMonitoring(sshClient: SSHClient, config: any): void {
     const connectionId = this.findConnectionIdByClient(sshClient);
     if (!connectionId) {
-      this.logger.warn('Cannot set up server alive monitoring - connection ID not found');
+      this.logger.warn(
+        'Cannot set up server alive monitoring - connection ID not found'
+      );
       return;
     }
 
     const health = this.connectionHealthMap.get(connectionId);
     if (!health) {
-      this.logger.warn('Cannot set up server alive monitoring - health tracking not found');
+      this.logger.warn(
+        'Cannot set up server alive monitoring - health tracking not found'
+      );
       return;
     }
 
@@ -309,31 +327,35 @@ export class SSHConnectionKeepAlive extends EventEmitter {
     const performServerAliveCheck = async () => {
       try {
         const startTime = Date.now();
-        
+
         // Perform lightweight server alive check
         await this.executeServerAliveCheck(sshClient);
-        
+
         const responseTime = Date.now() - startTime;
-        this.logger.debug(`Server alive check successful for ${connectionId} (${responseTime}ms)`);
-        
+        this.logger.debug(
+          `Server alive check successful for ${connectionId} (${responseTime}ms)`
+        );
+
         // Emit server alive success
         this.emit('server-alive-success', {
           connectionId,
           responseTime,
-          timestamp: new Date()
+          timestamp: new Date(),
         });
 
         // Schedule next check with adaptive interval
         const nextInterval = this.calculateServerAliveInterval(health);
         setTimeout(performServerAliveCheck, nextInterval);
-
       } catch (error) {
-        this.logger.warn(`Server alive check failed for ${connectionId}:`, error);
-        
+        this.logger.warn(
+          `Server alive check failed for ${connectionId}:`,
+          error
+        );
+
         this.emit('server-alive-failed', {
           connectionId,
           error: error instanceof Error ? error.message : String(error),
-          timestamp: new Date()
+          timestamp: new Date(),
         });
 
         // Retry with shorter interval on failure
@@ -357,9 +379,10 @@ export class SSHConnectionKeepAlive extends EventEmitter {
 
       try {
         // Use a very lightweight command for server alive check
-        sshClient.exec(':', (err, stream) => { // ':' is a no-op command in most shells
+        sshClient.exec(':', (err, stream) => {
+          // ':' is a no-op command in most shells
           clearTimeout(timeout);
-          
+
           if (err) {
             reject(err);
             return;
@@ -377,7 +400,6 @@ export class SSHConnectionKeepAlive extends EventEmitter {
             reject(error);
           });
         });
-        
       } catch (error) {
         clearTimeout(timeout);
         reject(error);
@@ -390,7 +412,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
    */
   private calculateServerAliveInterval(health: ConnectionHealth): number {
     let baseInterval = this.config.serverAliveInterval;
-    
+
     // Adjust based on network conditions
     switch (health.networkCondition) {
       case 'fast':
@@ -421,7 +443,10 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   /**
    * Schedule next keep-alive check
    */
-  private scheduleKeepAlive(connectionId: string, connection: PooledConnection): void {
+  private scheduleKeepAlive(
+    connectionId: string,
+    connection: PooledConnection
+  ): void {
     if (!this.isRunning) return;
 
     const health = this.connectionHealthMap.get(connectionId);
@@ -434,7 +459,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
     }
 
     // Calculate adaptive interval
-    const interval = this.config.enableAdaptiveKeepAlive 
+    const interval = this.config.enableAdaptiveKeepAlive
       ? this.calculateAdaptiveInterval(health)
       : this.config.keepAliveInterval;
 
@@ -445,7 +470,10 @@ export class SSHConnectionKeepAlive extends EventEmitter {
       try {
         await this.performKeepAlive(connectionId, connection);
       } catch (error) {
-        this.logger.error(`Error performing keep-alive for connection ${connectionId}:`, error);
+        this.logger.error(
+          `Error performing keep-alive for connection ${connectionId}:`,
+          error
+        );
       }
     }, interval);
 
@@ -457,7 +485,8 @@ export class SSHConnectionKeepAlive extends EventEmitter {
    */
   private calculateAdaptiveInterval(health: ConnectionHealth): number {
     // Start with network condition-based multiplier
-    let multiplier = this.config.adaptiveIntervalMultipliers[health.networkCondition];
+    let multiplier =
+      this.config.adaptiveIntervalMultipliers[health.networkCondition];
 
     // Adjust based on connection health
     if (!health.isHealthy) {
@@ -480,14 +509,19 @@ export class SSHConnectionKeepAlive extends EventEmitter {
       multiplier *= 0.8; // More frequent checks for high variance
     }
 
-    const adaptiveInterval = Math.floor(this.config.keepAliveInterval * multiplier);
+    const adaptiveInterval = Math.floor(
+      this.config.keepAliveInterval * multiplier
+    );
     return Math.max(5000, Math.min(adaptiveInterval, 300000)); // Between 5 seconds and 5 minutes
   }
 
   /**
    * Perform keep-alive check
    */
-  private async performKeepAlive(connectionId: string, connection: PooledConnection): Promise<void> {
+  private async performKeepAlive(
+    connectionId: string,
+    connection: PooledConnection
+  ): Promise<void> {
     const health = this.connectionHealthMap.get(connectionId);
     if (!health) return;
 
@@ -502,7 +536,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
       // Update health tracking
       this.updateConnectionHealth(health, true, responseTime);
       this.stats.successfulKeepAlives++;
-      
+
       // Update average response time
       this.updateAverageResponseTime(responseTime);
 
@@ -511,20 +545,25 @@ export class SSHConnectionKeepAlive extends EventEmitter {
         timestamp: new Date(),
         success: true,
         responseTime,
-        keepAliveType: 'client'
+        keepAliveType: 'client',
       };
 
       this.emit('keep-alive-success', keepAliveResult);
-      this.logger.debug(`Keep-alive successful for connection ${connectionId} (${responseTime}ms)`);
+      this.logger.debug(
+        `Keep-alive successful for connection ${connectionId} (${responseTime}ms)`
+      );
 
       // Check for predictive reconnection needs
       if (this.config.enablePredictiveReconnect) {
-        await this.checkPredictiveReconnection(connectionId, connection, health);
+        await this.checkPredictiveReconnection(
+          connectionId,
+          connection,
+          health
+        );
       }
-
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      
+
       // Update health tracking
       this.updateConnectionHealth(health, false, responseTime);
       this.stats.failedKeepAlives++;
@@ -535,14 +574,19 @@ export class SSHConnectionKeepAlive extends EventEmitter {
         success: false,
         responseTime,
         error: error instanceof Error ? error.message : String(error),
-        keepAliveType: 'client'
+        keepAliveType: 'client',
       };
 
       this.emit('keep-alive-failed', keepAliveResult);
-      this.logger.warn(`Keep-alive failed for connection ${connectionId}: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Keep-alive failed for connection ${connectionId}: ${error instanceof Error ? error.message : String(error)}`
+      );
 
       // Attempt reconnection if enabled and threshold exceeded
-      if (this.config.reconnectOnFailure && health.consecutiveFailures >= this.config.keepAliveCountMax) {
+      if (
+        this.config.reconnectOnFailure &&
+        health.consecutiveFailures >= this.config.keepAliveCountMax
+      ) {
         await this.attemptReconnection(connectionId, connection);
       }
     }
@@ -564,7 +608,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
         // Simple keep-alive test - execute a lightweight command
         sshClient.exec('echo "keepalive"', (err, stream) => {
           clearTimeout(timeout);
-          
+
           if (err) {
             reject(err);
             return;
@@ -587,7 +631,6 @@ export class SSHConnectionKeepAlive extends EventEmitter {
             reject(new Error(`Keep-alive stderr: ${data.toString()}`));
           });
         });
-        
       } catch (error) {
         clearTimeout(timeout);
         reject(error);
@@ -598,30 +641,37 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   /**
    * Update connection health based on keep-alive results
    */
-  private updateConnectionHealth(health: ConnectionHealth, success: boolean, responseTime: number): void {
+  private updateConnectionHealth(
+    health: ConnectionHealth,
+    success: boolean,
+    responseTime: number
+  ): void {
     health.lastKeepAlive = new Date();
     health.keepAliveCount++;
 
     if (success) {
       health.consecutiveFailures = 0;
       health.responseTimeHistory.push(responseTime);
-      
+
       // Keep only configured number of response times for network analysis
-      if (health.responseTimeHistory.length > this.config.networkConditionSamplingSize) {
+      if (
+        health.responseTimeHistory.length >
+        this.config.networkConditionSamplingSize
+      ) {
         health.responseTimeHistory.shift();
       }
-      
+
       // Update average response time
-      health.averageResponseTime = 
-        health.responseTimeHistory.reduce((sum, rt) => sum + rt, 0) / health.responseTimeHistory.length;
-      
+      health.averageResponseTime =
+        health.responseTimeHistory.reduce((sum, rt) => sum + rt, 0) /
+        health.responseTimeHistory.length;
+
       // Improve health score
       health.healthScore = Math.min(100, health.healthScore + 2);
-      
     } else {
       health.failedKeepAlives++;
       health.consecutiveFailures++;
-      
+
       // Degrade health score based on consecutive failures
       const penalty = Math.min(30, health.consecutiveFailures * 10);
       health.healthScore = Math.max(0, health.healthScore - penalty);
@@ -633,8 +683,9 @@ export class SSHConnectionKeepAlive extends EventEmitter {
     }
 
     // Update healthy status
-    health.isHealthy = health.healthScore >= this.config.connectionHealthThreshold &&
-                      health.consecutiveFailures < this.config.keepAliveCountMax;
+    health.isHealthy =
+      health.healthScore >= this.config.connectionHealthThreshold &&
+      health.consecutiveFailures < this.config.keepAliveCountMax;
 
     // Calculate predicted failure time if unhealthy
     if (!health.isHealthy && this.config.enablePredictiveReconnect) {
@@ -653,12 +704,15 @@ export class SSHConnectionKeepAlive extends EventEmitter {
 
     // Calculate variance
     const mean = health.averageResponseTime;
-    const variance = history.reduce((acc, rt) => acc + Math.pow(rt - mean, 2), 0) / history.length;
+    const variance =
+      history.reduce((acc, rt) => acc + Math.pow(rt - mean, 2), 0) /
+      history.length;
     const standardDeviation = Math.sqrt(variance);
     health.responseTimeVariance = standardDeviation / mean; // Coefficient of variation
 
     // Determine network condition
-    const isUnstable = health.responseTimeVariance > this.config.unstableNetworkThreshold;
+    const isUnstable =
+      health.responseTimeVariance > this.config.unstableNetworkThreshold;
     const isSlow = mean > this.config.slowNetworkThreshold;
     const isFast = mean < this.config.fastNetworkThreshold;
 
@@ -674,19 +728,28 @@ export class SSHConnectionKeepAlive extends EventEmitter {
 
     // Calculate network stability score (0-100)
     // Lower variance and consistent response times = higher stability
-    health.networkStabilityScore = Math.max(0, Math.min(100, 
-      100 - (health.responseTimeVariance * 100) - (health.consecutiveFailures * 10)
-    ));
+    health.networkStabilityScore = Math.max(
+      0,
+      Math.min(
+        100,
+        100 -
+          health.responseTimeVariance * 100 -
+          health.consecutiveFailures * 10
+      )
+    );
 
     health.lastNetworkAnalysis = new Date();
 
     // Log network condition changes
-    this.logger.debug(`Network condition analysis for ${health.connectionId}:`, {
-      condition: health.networkCondition,
-      avgResponseTime: Math.round(mean),
-      variance: Math.round(health.responseTimeVariance * 100) / 100,
-      stabilityScore: Math.round(health.networkStabilityScore)
-    });
+    this.logger.debug(
+      `Network condition analysis for ${health.connectionId}:`,
+      {
+        condition: health.networkCondition,
+        avgResponseTime: Math.round(mean),
+        variance: Math.round(health.responseTimeVariance * 100) / 100,
+        stabilityScore: Math.round(health.networkStabilityScore),
+      }
+    );
   }
 
   /**
@@ -695,11 +758,13 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   private calculatePredictedFailureTime(health: ConnectionHealth): Date {
     // Simple prediction based on failure rate and response time trends
     const failureRate = health.failedKeepAlives / health.keepAliveCount;
-    const responseTimeTrend = this.calculateResponseTimeTrend(health.responseTimeHistory);
-    
+    const responseTimeTrend = this.calculateResponseTimeTrend(
+      health.responseTimeHistory
+    );
+
     // Estimate time until critical failure based on trends
     let hoursUntilFailure = 24; // Default: 24 hours
-    
+
     if (failureRate > 0.5) {
       hoursUntilFailure = 1; // High failure rate - predict failure soon
     } else if (failureRate > 0.3) {
@@ -707,7 +772,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
     } else if (responseTimeTrend > 1.5) {
       hoursUntilFailure = 8; // Degrading response times
     }
-    
+
     return new Date(Date.now() + hoursUntilFailure * 60 * 60 * 1000);
   }
 
@@ -730,21 +795,27 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   /**
    * Check if predictive reconnection is needed
    */
-  private async checkPredictiveReconnection(connectionId: string, connection: PooledConnection, health: ConnectionHealth): Promise<void> {
+  private async checkPredictiveReconnection(
+    connectionId: string,
+    connection: PooledConnection,
+    health: ConnectionHealth
+  ): Promise<void> {
     if (!health.predictedFailureTime) return;
 
     const timeUntilFailure = health.predictedFailureTime.getTime() - Date.now();
-    
+
     // If failure predicted within next 30 minutes, proactively reconnect
     if (timeUntilFailure < 30 * 60 * 1000 && timeUntilFailure > 0) {
-      this.logger.info(`Predictive reconnection triggered for connection ${connectionId} (failure predicted in ${Math.round(timeUntilFailure / 60000)} minutes)`);
-      
+      this.logger.info(
+        `Predictive reconnection triggered for connection ${connectionId} (failure predicted in ${Math.round(timeUntilFailure / 60000)} minutes)`
+      );
+
       this.stats.predictiveReconnections++;
       this.emit('predictive-reconnection', {
         connectionId,
         predictedFailureTime: health.predictedFailureTime,
         timeUntilFailure,
-        health
+        health,
       });
 
       await this.attemptReconnection(connectionId, connection, 'predictive');
@@ -754,9 +825,15 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   /**
    * Attempt to reconnect a failed connection
    */
-  private async attemptReconnection(connectionId: string, connection: PooledConnection, reason: 'failure' | 'predictive' = 'failure'): Promise<void> {
+  private async attemptReconnection(
+    connectionId: string,
+    connection: PooledConnection,
+    reason: 'failure' | 'predictive' = 'failure'
+  ): Promise<void> {
     if (this.activeReconnections.has(connectionId)) {
-      this.logger.debug(`Reconnection already in progress for connection ${connectionId}`);
+      this.logger.debug(
+        `Reconnection already in progress for connection ${connectionId}`
+      );
       return;
     }
 
@@ -764,12 +841,14 @@ export class SSHConnectionKeepAlive extends EventEmitter {
     this.stats.totalReconnections++;
 
     try {
-      this.logger.info(`Starting reconnection for connection ${connectionId} (reason: ${reason})`);
-      
+      this.logger.info(
+        `Starting reconnection for connection ${connectionId} (reason: ${reason})`
+      );
+
       this.emit('reconnection-started', {
         connectionId,
         reason,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       // Request reconnection through connection pool
@@ -777,7 +856,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
         connectionId,
         connection,
         reason,
-        keepAliveStats: this.connectionHealthMap.get(connectionId)
+        keepAliveStats: this.connectionHealthMap.get(connectionId),
       });
 
       // For now, assume successful reconnection
@@ -799,23 +878,24 @@ export class SSHConnectionKeepAlive extends EventEmitter {
         connectionId,
         reason,
         timestamp: new Date(),
-        health
+        health,
       });
 
       this.logger.info(`Successfully reconnected connection ${connectionId}`);
-
     } catch (error) {
       this.stats.failedReconnections++;
-      
-      this.logger.error(`Reconnection failed for connection ${connectionId}:`, error);
-      
+
+      this.logger.error(
+        `Reconnection failed for connection ${connectionId}:`,
+        error
+      );
+
       this.emit('reconnection-failed', {
         connectionId,
         reason,
         error: error instanceof Error ? error.message : String(error),
-        timestamp: new Date()
+        timestamp: new Date(),
       });
-
     } finally {
       this.activeReconnections.delete(connectionId);
     }
@@ -840,10 +920,10 @@ export class SSHConnectionKeepAlive extends EventEmitter {
     const connectionId = this.findConnectionIdByClient(sshClient);
     if (connectionId) {
       this.logger.error(`SSH connection ${connectionId} error:`, error);
-      this.emit('connection-error', { 
-        connectionId, 
-        error: error.message, 
-        timestamp: new Date() 
+      this.emit('connection-error', {
+        connectionId,
+        error: error.message,
+        timestamp: new Date(),
       });
     }
   }
@@ -864,8 +944,10 @@ export class SSHConnectionKeepAlive extends EventEmitter {
     if (this.stats.successfulKeepAlives === 1) {
       this.stats.averageResponseTime = newResponseTime;
     } else {
-      this.stats.averageResponseTime = 
-        ((this.stats.averageResponseTime * (this.stats.successfulKeepAlives - 1)) + newResponseTime) / 
+      this.stats.averageResponseTime =
+        (this.stats.averageResponseTime *
+          (this.stats.successfulKeepAlives - 1) +
+          newResponseTime) /
         this.stats.successfulKeepAlives;
     }
   }
@@ -875,26 +957,35 @@ export class SSHConnectionKeepAlive extends EventEmitter {
    */
   getKeepAliveStatistics() {
     const connections = Array.from(this.connectionHealthMap.values());
-    
+
     return {
       ...this.stats,
-      healthyConnections: connections.filter(c => c.isHealthy).length,
-      unhealthyConnections: connections.filter(c => !c.isHealthy).length,
-      averageHealthScore: connections.length > 0 ? 
-        connections.reduce((sum, c) => sum + c.healthScore, 0) / connections.length : 0,
-      connectionsWithPredictedFailures: connections.filter(c => c.predictedFailureTime).length,
+      healthyConnections: connections.filter((c) => c.isHealthy).length,
+      unhealthyConnections: connections.filter((c) => !c.isHealthy).length,
+      averageHealthScore:
+        connections.length > 0
+          ? connections.reduce((sum, c) => sum + c.healthScore, 0) /
+            connections.length
+          : 0,
+      connectionsWithPredictedFailures: connections.filter(
+        (c) => c.predictedFailureTime
+      ).length,
       activeReconnections: this.activeReconnections.size,
       isRunning: this.isRunning,
-      config: this.config
+      config: this.config,
     };
   }
 
   /**
    * Get connection health details
    */
-  getConnectionHealth(connectionId?: string): ConnectionHealth | Record<string, ConnectionHealth> {
+  getConnectionHealth(
+    connectionId?: string
+  ): ConnectionHealth | Record<string, ConnectionHealth> {
     if (connectionId) {
-      return this.connectionHealthMap.get(connectionId) || {} as ConnectionHealth;
+      return (
+        this.connectionHealthMap.get(connectionId) || ({} as ConnectionHealth)
+      );
     }
 
     const result: Record<string, ConnectionHealth> = {};
@@ -910,16 +1001,18 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   async forceKeepAlive(connectionId: string): Promise<KeepAliveResult | null> {
     const health = this.connectionHealthMap.get(connectionId);
     if (!health) {
-      this.logger.warn(`No health tracking found for connection ${connectionId}`);
+      this.logger.warn(
+        `No health tracking found for connection ${connectionId}`
+      );
       return null;
     }
 
     // Find connection by ID (this would need proper implementation)
     this.logger.info(`Forcing keep-alive check for connection ${connectionId}`);
-    
+
     // For now, emit request for forced keep-alive
     this.emit('force-keep-alive-request', { connectionId });
-    
+
     return null; // Would return actual result in real implementation
   }
 
@@ -935,7 +1028,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
   }> {
     const connections = Array.from(this.connectionHealthMap.values());
     const recommendations: string[] = [];
-    
+
     let healthyCount = 0;
     let degradedCount = 0;
     let criticalCount = 0;
@@ -946,29 +1039,42 @@ export class SSHConnectionKeepAlive extends EventEmitter {
         healthyCount++;
       } else if (health.healthScore >= 50 || health.consecutiveFailures <= 2) {
         degradedCount++;
-        
+
         // Generate recommendations for degraded connections
         if (health.networkCondition === 'unstable') {
-          recommendations.push(`Connection ${health.connectionId}: Consider network optimization - high variance detected`);
+          recommendations.push(
+            `Connection ${health.connectionId}: Consider network optimization - high variance detected`
+          );
         }
         if (health.averageResponseTime > this.config.slowNetworkThreshold) {
-          recommendations.push(`Connection ${health.connectionId}: High latency detected, consider closer server region`);
+          recommendations.push(
+            `Connection ${health.connectionId}: High latency detected, consider closer server region`
+          );
         }
       } else {
         criticalCount++;
-        recommendations.push(`Connection ${health.connectionId}: Critical - immediate attention required`);
+        recommendations.push(
+          `Connection ${health.connectionId}: Critical - immediate attention required`
+        );
       }
 
       // Check for predictive failures
-      if (health.predictedFailureTime && 
-          health.predictedFailureTime.getTime() - Date.now() < 3600000) { // Within 1 hour
-        recommendations.push(`Connection ${health.connectionId}: Predicted failure within 1 hour - preemptive reconnection recommended`);
+      if (
+        health.predictedFailureTime &&
+        health.predictedFailureTime.getTime() - Date.now() < 3600000
+      ) {
+        // Within 1 hour
+        recommendations.push(
+          `Connection ${health.connectionId}: Predicted failure within 1 hour - preemptive reconnection recommended`
+        );
       }
     }
 
     // Global recommendations
     if (degradedCount + criticalCount > connections.length * 0.3) {
-      recommendations.push('Global: High percentage of degraded connections - consider infrastructure review');
+      recommendations.push(
+        'Global: High percentage of degraded connections - consider infrastructure review'
+      );
     }
 
     const result = {
@@ -976,7 +1082,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
       healthyConnections: healthyCount,
       degradedConnections: degradedCount,
       criticalConnections: criticalCount,
-      recommendations
+      recommendations,
     };
 
     this.logger.info('Proactive health check completed:', result);
@@ -994,15 +1100,20 @@ export class SSHConnectionKeepAlive extends EventEmitter {
       return;
     }
 
-    this.logger.info(`Starting proactive health monitoring (every ${intervalMinutes} minutes)`);
-    
-    this.proactiveMonitoringTimer = setInterval(async () => {
-      try {
-        await this.performProactiveHealthCheck();
-      } catch (error) {
-        this.logger.error('Error during proactive health check:', error);
-      }
-    }, intervalMinutes * 60 * 1000);
+    this.logger.info(
+      `Starting proactive health monitoring (every ${intervalMinutes} minutes)`
+    );
+
+    this.proactiveMonitoringTimer = setInterval(
+      async () => {
+        try {
+          await this.performProactiveHealthCheck();
+        } catch (error) {
+          this.logger.error('Error during proactive health check:', error);
+        }
+      },
+      intervalMinutes * 60 * 1000
+    );
 
     this.emit('proactive-monitoring-started', { intervalMinutes });
   }
@@ -1023,7 +1134,7 @@ export class SSHConnectionKeepAlive extends EventEmitter {
    * Utility method for delays
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**

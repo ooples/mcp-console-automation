@@ -14,7 +14,7 @@ import {
   ValidationRule,
   DataSource,
   DataDestination,
-  WorkflowExecution
+  WorkflowExecution,
 } from '../types/workflow.js';
 import { Logger } from '../utils/logger.js';
 import * as fs from 'fs/promises';
@@ -74,7 +74,7 @@ export class DataPipelineManager extends EventEmitter {
     this.dataConnectors = new Map();
     this.transformationFunctions = new Map();
     this.logger = new Logger('DataPipelineManager');
-    
+
     this.registerBuiltInTransformations();
     this.registerBuiltInConnectors();
   }
@@ -92,7 +92,7 @@ export class DataPipelineManager extends EventEmitter {
    * Execute a data pipeline
    */
   async executePipeline(
-    pipelineId: string, 
+    pipelineId: string,
     inputs: Record<string, any>,
     context?: any
   ): Promise<string> {
@@ -117,10 +117,10 @@ export class DataPipelineManager extends EventEmitter {
         recordsFailed: 0,
         processingTimeMs: 0,
         throughputRecordsPerSecond: 0,
-        memoryUsageMB: 0
+        memoryUsageMB: 0,
       },
       errors: [],
-      logs: []
+      logs: [],
     };
 
     this.executions.set(executionId, execution);
@@ -130,30 +130,41 @@ export class DataPipelineManager extends EventEmitter {
       this.emit('pipeline-started', executionId);
 
       // Load data from inputs
-      const data = await this.loadInputData(pipeline, inputs, execution, context);
-      
+      const data = await this.loadInputData(
+        pipeline,
+        inputs,
+        execution,
+        context
+      );
+
       // Apply validations
       const validatedData = await this.validateData(pipeline, data, execution);
-      
+
       // Apply transformations
-      const transformedData = await this.transformData(pipeline, validatedData, execution);
-      
+      const transformedData = await this.transformData(
+        pipeline,
+        validatedData,
+        execution
+      );
+
       // Save outputs
       await this.saveOutputData(pipeline, transformedData, execution, context);
 
       execution.status = 'completed';
       execution.endTime = new Date();
-      execution.metrics.processingTimeMs = execution.endTime.getTime() - execution.startTime.getTime();
-      
+      execution.metrics.processingTimeMs =
+        execution.endTime.getTime() - execution.startTime.getTime();
+
       if (execution.metrics.processingTimeMs > 0) {
-        execution.metrics.throughputRecordsPerSecond = 
-          (execution.metrics.recordsProcessed / execution.metrics.processingTimeMs) * 1000;
+        execution.metrics.throughputRecordsPerSecond =
+          (execution.metrics.recordsProcessed /
+            execution.metrics.processingTimeMs) *
+          1000;
       }
 
       this.emit('pipeline-completed', executionId);
-      
-      return executionId;
 
+      return executionId;
     } catch (error: any) {
       execution.status = 'failed';
       execution.endTime = new Date();
@@ -161,7 +172,7 @@ export class DataPipelineManager extends EventEmitter {
         timestamp: new Date(),
         stage: 'pipeline',
         error: error.message,
-        data: { pipelineId, inputs }
+        data: { pipelineId, inputs },
       });
 
       this.emit('pipeline-failed', executionId, error);
@@ -180,30 +191,44 @@ export class DataPipelineManager extends EventEmitter {
   ): Promise<Record<string, any>> {
     const data: Record<string, any> = {};
 
-    this.addLog(execution, 'info', 'input', `Loading data from ${pipeline.inputs.length} input sources`);
+    this.addLog(
+      execution,
+      'info',
+      'input',
+      `Loading data from ${pipeline.inputs.length} input sources`
+    );
 
     for (const input of pipeline.inputs) {
       try {
         const inputData = await this.loadFromSource(input, inputs, context);
         data[input.name] = inputData;
-        
+
         const recordCount = Array.isArray(inputData) ? inputData.length : 1;
         execution.metrics.recordsProcessed += recordCount;
-        
-        this.addLog(execution, 'info', 'input', `Loaded ${recordCount} records from ${input.name}`);
-        
+
+        this.addLog(
+          execution,
+          'info',
+          'input',
+          `Loaded ${recordCount} records from ${input.name}`
+        );
       } catch (error: any) {
         execution.errors.push({
           timestamp: new Date(),
           stage: 'input',
-          error: `Failed to load input ${input.name}: ${error.message}`
+          error: `Failed to load input ${input.name}: ${error.message}`,
         });
 
         if (input.required) {
           throw error;
         } else {
           data[input.name] = input.defaultValue;
-          this.addLog(execution, 'warn', 'input', `Using default value for ${input.name}: ${error.message}`);
+          this.addLog(
+            execution,
+            'warn',
+            'input',
+            `Using default value for ${input.name}: ${error.message}`
+          );
         }
       }
     }
@@ -215,13 +240,16 @@ export class DataPipelineManager extends EventEmitter {
    * Load data from a specific source
    */
   private async loadFromSource(
-    input: DataInput, 
-    inputs: Record<string, any>, 
+    input: DataInput,
+    inputs: Record<string, any>,
     context?: any
   ): Promise<any> {
     switch (input.source.type) {
       case 'variable':
-        return inputs[input.source.config.name] || context?.[input.source.config.name];
+        return (
+          inputs[input.source.config.name] ||
+          context?.[input.source.config.name]
+        );
 
       case 'file':
         return await this.loadFromFile(input.source.config);
@@ -260,7 +288,7 @@ export class DataPipelineManager extends EventEmitter {
         return this.parseCsv(content, config.options || {});
 
       case '.txt':
-        return content.split('\n').filter(line => line.trim());
+        return content.split('\n').filter((line) => line.trim());
 
       case '.xml':
         return this.parseXml(content);
@@ -277,7 +305,7 @@ export class DataPipelineManager extends EventEmitter {
     const response = await fetch(config.url, {
       method: config.method || 'GET',
       headers: config.headers || {},
-      body: config.body ? JSON.stringify(config.body) : undefined
+      body: config.body ? JSON.stringify(config.body) : undefined,
     });
 
     if (!response.ok) {
@@ -285,7 +313,7 @@ export class DataPipelineManager extends EventEmitter {
     }
 
     const contentType = response.headers.get('content-type') || '';
-    
+
     if (contentType.includes('application/json')) {
       return await response.json();
     } else if (contentType.includes('text/')) {
@@ -319,7 +347,12 @@ export class DataPipelineManager extends EventEmitter {
       return data;
     }
 
-    this.addLog(execution, 'info', 'validation', `Validating data with ${pipeline.validations.length} validation rules`);
+    this.addLog(
+      execution,
+      'info',
+      'validation',
+      `Validating data with ${pipeline.validations.length} validation rules`
+    );
 
     const validatedData = { ...data };
     let validationErrors = 0;
@@ -327,11 +360,15 @@ export class DataPipelineManager extends EventEmitter {
     for (const validation of pipeline.validations) {
       try {
         const fieldData = this.getNestedValue(validatedData, validation.field);
-        
+
         if (Array.isArray(fieldData)) {
           // Validate each item in array
           for (let i = 0; i < fieldData.length; i++) {
-            const isValid = await this.validateValue(fieldData[i], validation.rules, execution);
+            const isValid = await this.validateValue(
+              fieldData[i],
+              validation.rules,
+              execution
+            );
             if (!isValid) {
               validationErrors++;
               execution.errors.push({
@@ -339,13 +376,17 @@ export class DataPipelineManager extends EventEmitter {
                 stage: 'validation',
                 recordId: `${validation.field}[${i}]`,
                 error: `Validation failed for field ${validation.field}[${i}]`,
-                data: fieldData[i]
+                data: fieldData[i],
               });
             }
           }
         } else {
           // Validate single value
-          const isValid = await this.validateValue(fieldData, validation.rules, execution);
+          const isValid = await this.validateValue(
+            fieldData,
+            validation.rules,
+            execution
+          );
           if (!isValid) {
             validationErrors++;
             execution.errors.push({
@@ -353,27 +394,31 @@ export class DataPipelineManager extends EventEmitter {
               stage: 'validation',
               recordId: validation.field,
               error: `Validation failed for field ${validation.field}`,
-              data: fieldData
+              data: fieldData,
             });
           }
         }
 
         execution.metrics.recordsValidated++;
-
       } catch (error: any) {
         validationErrors++;
         execution.errors.push({
           timestamp: new Date(),
           stage: 'validation',
-          error: `Validation error for ${validation.field}: ${error.message}`
+          error: `Validation error for ${validation.field}: ${error.message}`,
         });
       }
     }
 
     execution.metrics.recordsFailed += validationErrors;
-    
+
     if (validationErrors > 0) {
-      this.addLog(execution, 'warn', 'validation', `${validationErrors} validation errors found`);
+      this.addLog(
+        execution,
+        'warn',
+        'validation',
+        `${validationErrors} validation errors found`
+      );
     } else {
       this.addLog(execution, 'info', 'validation', 'All validations passed');
     }
@@ -384,12 +429,20 @@ export class DataPipelineManager extends EventEmitter {
   /**
    * Validate a single value against rules
    */
-  private async validateValue(value: any, rules: ValidationRule[], execution: DataPipelineExecution): Promise<boolean> {
+  private async validateValue(
+    value: any,
+    rules: ValidationRule[],
+    execution: DataPipelineExecution
+  ): Promise<boolean> {
     for (const rule of rules) {
       const isValid = this.applyValidationRule(value, rule);
       if (!isValid) {
-        this.addLog(execution, 'debug', 'validation', 
-          `Validation rule failed: ${rule.type} - ${rule.message || 'No message'}`);
+        this.addLog(
+          execution,
+          'debug',
+          'validation',
+          `Validation rule failed: ${rule.type} - ${rule.message || 'No message'}`
+        );
         return false;
       }
     }
@@ -442,24 +495,36 @@ export class DataPipelineManager extends EventEmitter {
       return data;
     }
 
-    this.addLog(execution, 'info', 'transformation', `Applying ${pipeline.transformations.length} transformations`);
+    this.addLog(
+      execution,
+      'info',
+      'transformation',
+      `Applying ${pipeline.transformations.length} transformations`
+    );
 
     let transformedData = { ...data };
 
     for (const transformation of pipeline.transformations) {
       try {
-        transformedData = await this.applyTransformation(transformation, transformedData, execution);
+        transformedData = await this.applyTransformation(
+          transformation,
+          transformedData,
+          execution
+        );
         execution.metrics.recordsTransformed++;
-        
-        this.addLog(execution, 'debug', 'transformation', 
-          `Applied transformation: ${transformation.type} -> ${transformation.output}`);
-        
+
+        this.addLog(
+          execution,
+          'debug',
+          'transformation',
+          `Applied transformation: ${transformation.type} -> ${transformation.output}`
+        );
       } catch (error: any) {
         execution.errors.push({
           timestamp: new Date(),
           stage: 'transformation',
           error: `Transformation failed (${transformation.id}): ${error.message}`,
-          data: transformation
+          data: transformation,
         });
         throw error;
       }
@@ -476,7 +541,7 @@ export class DataPipelineManager extends EventEmitter {
     data: Record<string, any>,
     execution: DataPipelineExecution
   ): Promise<Record<string, any>> {
-    const inputData = transformation.input.map(inputName => 
+    const inputData = transformation.input.map((inputName) =>
       this.getNestedValue(data, inputName)
     );
 
@@ -484,48 +549,82 @@ export class DataPipelineManager extends EventEmitter {
 
     switch (transformation.type) {
       case 'map':
-        result = await this.applyMapTransformation(inputData[0], transformation.config);
+        result = await this.applyMapTransformation(
+          inputData[0],
+          transformation.config
+        );
         break;
 
       case 'filter':
-        result = await this.applyFilterTransformation(inputData[0], transformation.config);
-        execution.metrics.recordsFiltered += Array.isArray(inputData[0]) 
+        result = await this.applyFilterTransformation(
+          inputData[0],
+          transformation.config
+        );
+        execution.metrics.recordsFiltered += Array.isArray(inputData[0])
           ? inputData[0].length - (Array.isArray(result) ? result.length : 0)
           : 0;
         break;
 
       case 'reduce':
-        result = await this.applyReduceTransformation(inputData[0], transformation.config);
+        result = await this.applyReduceTransformation(
+          inputData[0],
+          transformation.config
+        );
         break;
 
       case 'merge':
-        result = await this.applyMergeTransformation(inputData, transformation.config);
+        result = await this.applyMergeTransformation(
+          inputData,
+          transformation.config
+        );
         break;
 
       case 'split':
-        result = await this.applySplitTransformation(inputData[0], transformation.config);
+        result = await this.applySplitTransformation(
+          inputData[0],
+          transformation.config
+        );
         break;
 
       case 'validate':
-        result = await this.applyValidateTransformation(inputData[0], transformation.config);
+        result = await this.applyValidateTransformation(
+          inputData[0],
+          transformation.config
+        );
         break;
 
       case 'format':
-        result = await this.applyFormatTransformation(inputData[0], transformation.config);
+        result = await this.applyFormatTransformation(
+          inputData[0],
+          transformation.config
+        );
         break;
 
       case 'encrypt':
-        result = await this.applyEncryptTransformation(inputData[0], transformation.config);
+        result = await this.applyEncryptTransformation(
+          inputData[0],
+          transformation.config
+        );
         break;
 
-      default:
+      default: {
         // Check for custom transformation function
-        const customFunction = this.transformationFunctions.get(transformation.type);
+        const customFunction = this.transformationFunctions.get(
+          transformation.type
+        );
         if (customFunction) {
-          result = await customFunction.apply(inputData, transformation.config, execution);
+          result = await customFunction.apply(
+            inputData,
+            transformation.config,
+            execution
+          );
         } else {
-          throw new Error(`Unsupported transformation type: ${transformation.type}`);
+          throw new Error(
+            `Unsupported transformation type: ${transformation.type}`
+          );
         }
+        break;
+      }
     }
 
     // Set the result in the output field
@@ -546,22 +645,31 @@ export class DataPipelineManager extends EventEmitter {
       return;
     }
 
-    this.addLog(execution, 'info', 'output', `Saving data to ${pipeline.outputs.length} output destinations`);
+    this.addLog(
+      execution,
+      'info',
+      'output',
+      `Saving data to ${pipeline.outputs.length} output destinations`
+    );
 
     for (const output of pipeline.outputs) {
       try {
         const outputData = this.getNestedValue(data, output.name);
         await this.saveToDestination(output, outputData, context);
-        
+
         execution.outputs[output.name] = outputData;
-        
-        this.addLog(execution, 'info', 'output', `Saved output: ${output.name}`);
-        
+
+        this.addLog(
+          execution,
+          'info',
+          'output',
+          `Saved output: ${output.name}`
+        );
       } catch (error: any) {
         execution.errors.push({
           timestamp: new Date(),
           stage: 'output',
-          error: `Failed to save output ${output.name}: ${error.message}`
+          error: `Failed to save output ${output.name}: ${error.message}`,
         });
         throw error;
       }
@@ -571,7 +679,11 @@ export class DataPipelineManager extends EventEmitter {
   /**
    * Save data to a destination
    */
-  private async saveToDestination(output: DataOutput, data: any, context?: any): Promise<void> {
+  private async saveToDestination(
+    output: DataOutput,
+    data: any,
+    context?: any
+  ): Promise<void> {
     switch (output.destination.type) {
       case 'variable':
         // Data is already in execution outputs
@@ -594,45 +706,67 @@ export class DataPipelineManager extends EventEmitter {
         break;
 
       default:
-        throw new Error(`Unsupported output destination type: ${output.destination.type}`);
+        throw new Error(
+          `Unsupported output destination type: ${output.destination.type}`
+        );
     }
   }
 
   // Built-in transformation implementations
-  private async applyMapTransformation(data: any[], config: any): Promise<any[]> {
+  private async applyMapTransformation(
+    data: any[],
+    config: any
+  ): Promise<any[]> {
     if (!Array.isArray(data)) {
       throw new Error('Map transformation requires array input');
     }
 
     const mappingFunction = config.function || config.expression;
     const func = new Function('item', 'index', `return ${mappingFunction}`);
-    
+
     return data.map((item, index) => func(item, index));
   }
 
-  private async applyFilterTransformation(data: any[], config: any): Promise<any[]> {
+  private async applyFilterTransformation(
+    data: any[],
+    config: any
+  ): Promise<any[]> {
     if (!Array.isArray(data)) {
       throw new Error('Filter transformation requires array input');
     }
 
     const filterFunction = config.function || config.expression;
     const func = new Function('item', 'index', `return ${filterFunction}`);
-    
+
     return data.filter((item, index) => func(item, index));
   }
 
-  private async applyReduceTransformation(data: any[], config: any): Promise<any> {
+  private async applyReduceTransformation(
+    data: any[],
+    config: any
+  ): Promise<any> {
     if (!Array.isArray(data)) {
       throw new Error('Reduce transformation requires array input');
     }
 
     const reduceFunction = config.function || config.expression;
-    const func = new Function('accumulator', 'item', 'index', `return ${reduceFunction}`);
-    
-    return data.reduce((acc, item, index) => func(acc, item, index), config.initialValue);
+    const func = new Function(
+      'accumulator',
+      'item',
+      'index',
+      `return ${reduceFunction}`
+    );
+
+    return data.reduce(
+      (acc, item, index) => func(acc, item, index),
+      config.initialValue
+    );
   }
 
-  private async applyMergeTransformation(dataArrays: any[], config: any): Promise<any> {
+  private async applyMergeTransformation(
+    dataArrays: any[],
+    config: any
+  ): Promise<any> {
     if (config.strategy === 'concat' && dataArrays.every(Array.isArray)) {
       return dataArrays.flat();
     } else if (config.strategy === 'object') {
@@ -642,7 +776,10 @@ export class DataPipelineManager extends EventEmitter {
     }
   }
 
-  private async applySplitTransformation(data: any, config: any): Promise<any[]> {
+  private async applySplitTransformation(
+    data: any,
+    config: any
+  ): Promise<any[]> {
     if (typeof data === 'string') {
       return data.split(config.delimiter || '\n');
     } else if (Array.isArray(data)) {
@@ -656,12 +793,18 @@ export class DataPipelineManager extends EventEmitter {
     throw new Error('Split transformation requires string or array input');
   }
 
-  private async applyValidateTransformation(data: any, config: any): Promise<any> {
+  private async applyValidateTransformation(
+    data: any,
+    config: any
+  ): Promise<any> {
     // Re-validate data with additional rules
     return data; // Implement validation logic
   }
 
-  private async applyFormatTransformation(data: any, config: any): Promise<any> {
+  private async applyFormatTransformation(
+    data: any,
+    config: any
+  ): Promise<any> {
     if (config.type === 'json') {
       return JSON.stringify(data, null, config.indent || 2);
     } else if (config.type === 'csv') {
@@ -672,13 +815,20 @@ export class DataPipelineManager extends EventEmitter {
     return data;
   }
 
-  private async applyEncryptTransformation(data: any, config: any): Promise<any> {
+  private async applyEncryptTransformation(
+    data: any,
+    config: any
+  ): Promise<any> {
     // Implement encryption logic
     return data; // Placeholder
   }
 
   // File I/O helpers
-  private async saveToFile(data: any, config: any, format?: string): Promise<void> {
+  private async saveToFile(
+    data: any,
+    config: any,
+    format?: string
+  ): Promise<void> {
     let content: string;
 
     if (format === 'json' || config.format === 'json') {
@@ -698,7 +848,7 @@ export class DataPipelineManager extends EventEmitter {
     const response = await fetch(config.url, {
       method: config.method || 'POST',
       headers: { 'Content-Type': 'application/json', ...config.headers },
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
     });
 
     if (!response.ok) {
@@ -719,7 +869,7 @@ export class DataPipelineManager extends EventEmitter {
     this.emit('notification', {
       type: config.type || 'info',
       message: config.message || 'Data pipeline notification',
-      data
+      data,
     });
   }
 
@@ -740,10 +890,10 @@ export class DataPipelineManager extends EventEmitter {
   }
 
   private addLog(
-    execution: DataPipelineExecution, 
-    level: 'debug' | 'info' | 'warn' | 'error', 
-    stage: string, 
-    message: string, 
+    execution: DataPipelineExecution,
+    level: 'debug' | 'info' | 'warn' | 'error',
+    stage: string,
+    message: string,
     recordCount?: number
   ): void {
     const log: DataLog = {
@@ -751,18 +901,33 @@ export class DataPipelineManager extends EventEmitter {
       level,
       stage,
       message,
-      recordCount
+      recordCount,
     };
-    
+
     execution.logs.push(log);
-    this.logger[level](`[${execution.id}] ${stage}: ${message}`);
+
+    // Log with appropriate level
+    switch (level) {
+      case 'debug':
+        this.logger.debug(`[${execution.id}] ${stage}: ${message}`);
+        break;
+      case 'info':
+        this.logger.info(`[${execution.id}] ${stage}: ${message}`);
+        break;
+      case 'warn':
+        this.logger.warn(`[${execution.id}] ${stage}: ${message}`);
+        break;
+      case 'error':
+        this.logger.error(`[${execution.id}] ${stage}: ${message}`);
+        break;
+    }
   }
 
   private parseCsv(content: string, options: any): any[] {
-    const lines = content.split('\n').filter(line => line.trim());
+    const lines = content.split('\n').filter((line) => line.trim());
     const delimiter = options.delimiter || ',';
     const hasHeader = options.hasHeader !== false;
-    
+
     if (lines.length === 0) return [];
 
     const headers = hasHeader ? lines[0].split(delimiter) : null;
@@ -777,7 +942,7 @@ export class DataPipelineManager extends EventEmitter {
         });
         return obj;
       } else {
-        return values.map(v => v.trim());
+        return values.map((v) => v.trim());
       }
     });
   }
@@ -796,11 +961,11 @@ export class DataPipelineManager extends EventEmitter {
       csv += headers.join(delimiter) + '\n';
     }
 
-    data.forEach(item => {
-      const values = headers.map(header => {
+    data.forEach((item) => {
+      const values = headers.map((header) => {
         const value = item[header];
-        return typeof value === 'string' && value.includes(delimiter) 
-          ? `"${value}"` 
+        return typeof value === 'string' && value.includes(delimiter)
+          ? `"${value}"`
           : String(value || '');
       });
       csv += values.join(delimiter) + '\n';
@@ -873,9 +1038,9 @@ export class DataPipelineManager extends EventEmitter {
       execution.errors.push({
         timestamp: new Date(),
         stage: 'pipeline',
-        error: 'Pipeline execution cancelled by user'
+        error: 'Pipeline execution cancelled by user',
       });
-      
+
       this.emit('pipeline-cancelled', executionId);
     }
   }
@@ -895,5 +1060,9 @@ export interface DataConnector {
 
 // Interface for transformation functions
 export interface TransformationFunction {
-  apply(inputs: any[], config: any, execution: DataPipelineExecution): Promise<any>;
+  apply(
+    inputs: any[],
+    config: any,
+    execution: DataPipelineExecution
+  ): Promise<any>;
 }

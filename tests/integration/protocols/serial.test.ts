@@ -3,19 +3,73 @@
  * Production-ready comprehensive test suite for Serial protocol
  */
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach, jest } from '@jest/globals';
 import { SerialProtocol } from '../../../src/protocols/SerialProtocol.js';
 import { MockSerialProtocol } from '../../utils/protocol-mocks.js';
 import { TestServerManager } from '../../utils/test-servers.js';
-import { 
-  SerialSession, 
-  SerialProtocolConfig, 
+import {
+  SerialSession,
+  SerialProtocolConfig,
   ConsoleOutput,
   SerialPortInfo,
-  SerialConnectionStatus 
+  SerialConnectionStatus
 } from '../../../src/types/index.js';
 
-describe('Serial Protocol Integration Tests', () => {
+// Mock serialport module
+jest.mock('serialport', () => ({
+  SerialPort: class MockSerialPort {
+    path: string;
+    baudRate: number;
+    isOpen: boolean = false;
+    private handlers: Map<string, Function[]> = new Map();
+
+    constructor(options: any) {
+      this.path = options.path;
+      this.baudRate = options.baudRate || 9600;
+      setTimeout(() => this.handlers.get('open')?.forEach(h => h()), 10);
+    }
+
+    open(callback?: Function) {
+      this.isOpen = true;
+      setTimeout(() => callback?.(), 10);
+    }
+
+    close(callback?: Function) {
+      this.isOpen = false;
+      setTimeout(() => callback?.(), 10);
+    }
+
+    write(data: any, callback?: Function) {
+      setTimeout(() => {
+        callback?.(null);
+        // Echo data back
+        this.handlers.get('data')?.forEach(h => h(data));
+      }, 10);
+    }
+
+    on(event: string, callback: Function) {
+      if (!this.handlers.has(event)) this.handlers.set(event, []);
+      this.handlers.get(event)!.push(callback);
+      return this;
+    }
+
+    removeAllListeners() {
+      this.handlers.clear();
+      return this;
+    }
+  },
+  list: async () => [
+    { path: 'COM1', manufacturer: 'Mock', serialNumber: '12345' },
+    { path: 'COM2', manufacturer: 'Mock', serialNumber: '67890' },
+    { path: '/dev/ttyUSB0', manufacturer: 'Mock', serialNumber: 'USB001' },
+    { path: '/dev/ttyACM0', manufacturer: 'Mock', serialNumber: 'ACM001' }
+  ]
+}), { virtual: true });
+
+// Skip these tests if SKIP_HARDWARE_TESTS is set (CI environment)
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfHardware('Serial Protocol Integration Tests', () => {
   let serialProtocol: SerialProtocol;
   let mockSerialProtocol: MockSerialProtocol;
   let testServerManager: TestServerManager;

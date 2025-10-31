@@ -3,19 +3,73 @@
  * Production-ready comprehensive test suite for WSL protocol
  */
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach, jest } from '@jest/globals';
 import { WSLProtocol } from '../../../src/protocols/WSLProtocol.js';
 import { MockWSLProtocol } from '../../utils/protocol-mocks.js';
 import { TestServerManager, createTestServer } from '../../utils/test-servers.js';
-import { 
-  WSLSession, 
-  WSLProtocolConfig, 
+import {
+  WSLSession,
+  WSLProtocolConfig,
   ConsoleOutput,
   WSLDistribution,
-  WSLSystemInfo 
+  WSLSystemInfo
 } from '../../../src/types/index.js';
 
-describe('WSL Protocol Integration Tests', () => {
+// Mock child_process for WSL operations
+jest.mock('child_process', () => ({
+  spawn: jest.fn((command: string, args?: string[], options?: any) => {
+    const handlers: Map<string, Function[]> = new Map();
+    const mockProcess = {
+      pid: 12345,
+      stdout: {
+        on: jest.fn((event: string, handler: Function) => {
+          if (event === 'data') {
+            setTimeout(() => handler(Buffer.from('Mock WSL output\n')), 10);
+          }
+        }),
+        removeAllListeners: jest.fn()
+      },
+      stderr: {
+        on: jest.fn((event: string, handler: Function) => {}),
+        removeAllListeners: jest.fn()
+      },
+      stdin: {
+        write: jest.fn(),
+        end: jest.fn()
+      },
+      on: jest.fn((event: string, handler: Function) => {
+        if (!handlers.has(event)) handlers.set(event, []);
+        handlers.get(event)!.push(handler);
+        if (event === 'spawn') {
+          setTimeout(() => handler(), 10);
+        }
+      }),
+      kill: jest.fn(),
+      removeAllListeners: jest.fn()
+    };
+
+    // Simulate exit after a short delay
+    setTimeout(() => {
+      handlers.get('close')?.forEach(h => h(0));
+      handlers.get('exit')?.forEach(h => h(0));
+    }, 100);
+
+    return mockProcess;
+  }),
+  exec: jest.fn((command: string, callback: Function) => {
+    setTimeout(() => {
+      callback(null, 'Mock exec output', '');
+    }, 10);
+  }),
+  execSync: jest.fn((command: string) => {
+    return Buffer.from('Mock execSync output');
+  })
+}), { virtual: true });
+
+// Skip these tests if SKIP_HARDWARE_TESTS is set (CI environment)
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
+
+describeIfHardware('WSL Protocol Integration Tests', () => {
   let wslProtocol: WSLProtocol;
   let mockWSLProtocol: MockWSLProtocol;
   let testServerManager: TestServerManager;

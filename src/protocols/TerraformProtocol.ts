@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // Terraform Protocol connection options
@@ -76,9 +76,9 @@ export class TerraformProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -110,8 +110,8 @@ export class TerraformProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -122,7 +122,9 @@ export class TerraformProtocol extends BaseProtocol {
       // Check if Terraform is available
       await this.checkTerraformAvailability();
       this.isInitialized = true;
-      this.logger.info('Terraform protocol initialized with production features');
+      this.logger.info(
+        'Terraform protocol initialized with production features'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize Terraform protocol', error);
       throw error;
@@ -138,8 +140,13 @@ export class TerraformProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -160,7 +167,9 @@ export class TerraformProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to Terraform session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to Terraform session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -191,7 +200,11 @@ export class TerraformProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -202,11 +215,19 @@ export class TerraformProtocol extends BaseProtocol {
     const terraformCommand = this.buildTerraformCommand(terraformOptions);
 
     // Spawn Terraform process
-    const terraformProcess = spawn(terraformCommand[0], terraformCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: options.cwd || terraformOptions.workingDir || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(terraformOptions), ...options.env }
-    });
+    const terraformProcess = spawn(
+      terraformCommand[0],
+      terraformCommand.slice(1),
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: options.cwd || terraformOptions.workingDir || process.cwd(),
+        env: {
+          ...process.env,
+          ...this.buildEnvironment(terraformOptions),
+          ...options.env,
+        },
+      }
+    );
 
     // Set up output handling
     terraformProcess.stdout?.on('data', (data) => {
@@ -214,7 +235,7 @@ export class TerraformProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -224,18 +245,23 @@ export class TerraformProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     terraformProcess.on('error', (error) => {
-      this.logger.error(`Terraform process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `Terraform process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     terraformProcess.on('close', (code) => {
-      this.logger.info(`Terraform process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `Terraform process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -248,7 +274,11 @@ export class TerraformProtocol extends BaseProtocol {
       command: terraformCommand[0],
       args: terraformCommand.slice(1),
       cwd: options.cwd || terraformOptions.workingDir || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(terraformOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(terraformOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -256,12 +286,14 @@ export class TerraformProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: terraformProcess.pid
+      pid: terraformProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`Terraform session ${sessionId} created for ${terraformOptions.configFile || terraformOptions.workingDir || 'Terraform project'}`);
+    this.logger.info(
+      `Terraform session ${sessionId} created for ${terraformOptions.configFile || terraformOptions.workingDir || 'Terraform project'}`
+    );
     this.emit('session-created', { sessionId, type: 'terraform', session });
 
     return session;
@@ -270,7 +302,7 @@ export class TerraformProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -279,8 +311,8 @@ export class TerraformProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -302,25 +334,30 @@ export class TerraformProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in Terraform session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in Terraform session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const terraformProcess = this.terraformProcesses.get(sessionId);
-    return terraformProcess && !terraformProcess.killed || false;
+    return (terraformProcess && !terraformProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -331,26 +368,26 @@ export class TerraformProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.terraformProcesses.size
+        connectionsActive: this.terraformProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -362,8 +399,8 @@ export class TerraformProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          terraform: { available: true }
-        }
+          terraform: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -371,8 +408,8 @@ export class TerraformProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `Terraform not available: ${error}`],
         dependencies: {
-          terraform: { available: false }
-        }
+          terraform: { available: false },
+        },
       };
     }
   }
@@ -385,7 +422,9 @@ export class TerraformProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('Terraform CLI not found. Please install Terraform.'));
+          reject(
+            new Error('Terraform CLI not found. Please install Terraform.')
+          );
         }
       });
 
@@ -408,7 +447,11 @@ export class TerraformProtocol extends BaseProtocol {
     // Determine Terraform subcommand based on options
     if (options.destroyMode) {
       command.push('destroy');
-    } else if (options.importMode && options.importAddress && options.importId) {
+    } else if (
+      options.importMode &&
+      options.importAddress &&
+      options.importId
+    ) {
       command.push('import');
       command.push(options.importAddress);
       command.push(options.importId);
@@ -462,7 +505,10 @@ export class TerraformProtocol extends BaseProtocol {
     }
 
     // Auto approve for apply/destroy
-    if (options.autoApprove && (command.includes('apply') || command.includes('destroy'))) {
+    if (
+      options.autoApprove &&
+      (command.includes('apply') || command.includes('destroy'))
+    ) {
       command.push('-auto-approve');
     }
 
@@ -493,7 +539,9 @@ export class TerraformProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: TerraformConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: TerraformConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Terraform logging
@@ -523,7 +571,8 @@ export class TerraformProtocol extends BaseProtocol {
     }
 
     // Plugin cache
-    env.TF_PLUGIN_CACHE_DIR = process.env.TF_PLUGIN_CACHE_DIR || '~/.terraform.d/plugin-cache';
+    env.TF_PLUGIN_CACHE_DIR =
+      process.env.TF_PLUGIN_CACHE_DIR || '~/.terraform.d/plugin-cache';
 
     // Disable telemetry for CI environments
     env.CHECKPOINT_DISABLE = '1';
@@ -550,7 +599,10 @@ export class TerraformProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing Terraform process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing Terraform process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

@@ -4,7 +4,7 @@ import {
   ConsoleOutput,
   SessionOptions,
   ConsoleType,
-  HealthCheckResult
+  HealthCheckResult,
 } from '../types/index.js';
 
 /**
@@ -26,7 +26,11 @@ export interface IProtocol extends EventEmitter {
   getSessionCount(): number;
 
   // Command execution
-  executeCommand(sessionId: string, command: string, args?: string[]): Promise<void>;
+  executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void>;
   sendInput(sessionId: string, input: string): Promise<void>;
   getOutput(sessionId: string, since?: Date): Promise<ConsoleOutput[]>;
 
@@ -37,7 +41,10 @@ export interface IProtocol extends EventEmitter {
   getHealthStatus(): Promise<ProtocolHealthStatus>;
 
   // Error handling and recovery
-  handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult>;
+  handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult>;
   recoverSession(sessionId: string): Promise<boolean>;
 
   // Resource management
@@ -106,7 +113,16 @@ export interface ProtocolHealthStatus {
  */
 export interface SessionState {
   sessionId: string;
-  status: 'running' | 'stopped' | 'crashed' | 'terminated' | 'failed' | 'paused' | 'initializing' | 'recovering' | 'closed';
+  status:
+    | 'running'
+    | 'stopped'
+    | 'crashed'
+    | 'terminated'
+    | 'failed'
+    | 'paused'
+    | 'initializing'
+    | 'recovering'
+    | 'closed';
   isOneShot: boolean;
   isPersistent: boolean;
   createdAt: Date;

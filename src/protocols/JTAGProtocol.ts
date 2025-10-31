@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,19 +12,34 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // JTAG Protocol connection options
 interface JTAGConnectionOptions extends SessionOptions {
-  jtagAdapter: 'openocd' | 'jlink' | 'stlink' | 'ftdi' | 'cmsis-dap' | 'black-magic' | 'buspirate' | 'custom';
+  jtagAdapter:
+    | 'openocd'
+    | 'jlink'
+    | 'stlink'
+    | 'ftdi'
+    | 'cmsis-dap'
+    | 'black-magic'
+    | 'buspirate'
+    | 'custom';
   target?: string;
   interface?: 'jtag' | 'swd' | 'icsp' | 'pdi' | 'updi';
   speed?: number;
   voltage?: number;
   resetType?: 'system' | 'core' | 'adaptive' | 'hard' | 'soft' | 'none';
   endian?: 'little' | 'big';
-  operation?: 'debug' | 'program' | 'erase' | 'test' | 'boundary-scan' | 'telnet' | 'gdb';
+  operation?:
+    | 'debug'
+    | 'program'
+    | 'erase'
+    | 'test'
+    | 'boundary-scan'
+    | 'telnet'
+    | 'gdb';
   configFile?: string;
   scriptFile?: string;
   enableGDB?: boolean;
@@ -34,7 +49,14 @@ interface JTAGConnectionOptions extends SessionOptions {
   enableTCL?: boolean;
   tclPort?: number;
   enableLog?: boolean;
-  logLevel?: 'error' | 'warning' | 'info' | 'debug' | 'debug_1' | 'debug_2' | 'debug_3';
+  logLevel?:
+    | 'error'
+    | 'warning'
+    | 'info'
+    | 'debug'
+    | 'debug_1'
+    | 'debug_2'
+    | 'debug_3';
   logFile?: string;
   workArea?: number;
   flashBank?: {
@@ -68,7 +90,13 @@ interface JTAGConnectionOptions extends SessionOptions {
   boardConfig?: string;
   targetConfig?: string;
   interfaceConfig?: string;
-  transport?: 'jtag' | 'swd' | 'hla_jtag' | 'hla_swd' | 'dapdirect_jtag' | 'dapdirect_swd';
+  transport?:
+    | 'jtag'
+    | 'swd'
+    | 'hla_jtag'
+    | 'hla_swd'
+    | 'dapdirect_jtag'
+    | 'dapdirect_swd';
   adapterSerial?: string;
   adapterVid?: string;
   adapterPid?: string;
@@ -111,9 +139,9 @@ export class JTAGProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -145,8 +173,8 @@ export class JTAGProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -173,8 +201,13 @@ export class JTAGProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -195,7 +228,9 @@ export class JTAGProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to JTAG session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to JTAG session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -226,7 +261,11 @@ export class JTAGProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -245,7 +284,11 @@ export class JTAGProtocol extends BaseProtocol {
     const jtagProcess = spawn(jtagCommand[0], jtagCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(jtagOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(jtagOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -254,7 +297,7 @@ export class JTAGProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -264,7 +307,7 @@ export class JTAGProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -275,7 +318,9 @@ export class JTAGProtocol extends BaseProtocol {
     });
 
     jtagProcess.on('close', (code) => {
-      this.logger.info(`JTAG process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `JTAG process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -288,7 +333,11 @@ export class JTAGProtocol extends BaseProtocol {
       command: jtagCommand[0],
       args: jtagCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(jtagOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(jtagOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -296,12 +345,14 @@ export class JTAGProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: jtagProcess.pid
+      pid: jtagProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`JTAG session ${sessionId} created for adapter ${jtagOptions.jtagAdapter} target ${jtagOptions.target || 'auto'}`);
+    this.logger.info(
+      `JTAG session ${sessionId} created for adapter ${jtagOptions.jtagAdapter} target ${jtagOptions.target || 'auto'}`
+    );
     this.emit('session-created', { sessionId, type: 'jtag', session });
 
     return session;
@@ -310,7 +361,7 @@ export class JTAGProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -319,8 +370,8 @@ export class JTAGProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -342,25 +393,30 @@ export class JTAGProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in JTAG session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in JTAG session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const jtagProcess = this.jtagProcesses.get(sessionId);
-    return jtagProcess && !jtagProcess.killed || false;
+    return (jtagProcess && !jtagProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -371,26 +427,26 @@ export class JTAGProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.jtagProcesses.size
+        connectionsActive: this.jtagProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -402,8 +458,8 @@ export class JTAGProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          jtag: { available: true }
-        }
+          jtag: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -411,8 +467,8 @@ export class JTAGProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `JTAG tools not available: ${error}`],
         dependencies: {
-          jtag: { available: false }
-        }
+          jtag: { available: false },
+        },
       };
     }
   }
@@ -426,12 +482,20 @@ export class JTAGProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('JTAG tools not found. Please install OpenOCD, J-Link, or other JTAG adapter software.'));
+          reject(
+            new Error(
+              'JTAG tools not found. Please install OpenOCD, J-Link, or other JTAG adapter software.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('JTAG tools not found. Please install OpenOCD, J-Link, or other JTAG adapter software.'));
+        reject(
+          new Error(
+            'JTAG tools not found. Please install OpenOCD, J-Link, or other JTAG adapter software.'
+          )
+        );
       });
     });
   }
@@ -571,7 +635,9 @@ export class JTAGProtocol extends BaseProtocol {
         if (options.command) {
           command.push(options.command);
         } else {
-          throw new Error('Custom JTAG adapter requires command to be specified');
+          throw new Error(
+            'Custom JTAG adapter requires command to be specified'
+          );
         }
         break;
 
@@ -587,7 +653,9 @@ export class JTAGProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: JTAGConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: JTAGConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // OpenOCD environment variables
@@ -643,7 +711,8 @@ export class JTAGProtocol extends BaseProtocol {
 
     if (options.enableRTT) {
       env.JTAG_RTT_ENABLED = '1';
-      if (options.rttAddress) env.JTAG_RTT_ADDRESS = `0x${options.rttAddress.toString(16)}`;
+      if (options.rttAddress)
+        env.JTAG_RTT_ADDRESS = `0x${options.rttAddress.toString(16)}`;
     }
 
     if (options.enableSemihosting) {
@@ -666,7 +735,10 @@ export class JTAGProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing JTAG process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing JTAG process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

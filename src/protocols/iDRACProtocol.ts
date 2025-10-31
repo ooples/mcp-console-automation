@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // iDRAC Protocol connection options
@@ -24,8 +24,20 @@ interface iDRACConnectionOptions {
   sshKey?: string;
   args?: string[];
   sshPassphrase?: string;
-  operation?: 'console' | 'power' | 'lifecycle' | 'diagnostics' | 'racadm' | 'webui';
-  powerAction?: 'on' | 'off' | 'reset' | 'cycle' | 'graceful-shutdown' | 'force-off';
+  operation?:
+    | 'console'
+    | 'power'
+    | 'lifecycle'
+    | 'diagnostics'
+    | 'racadm'
+    | 'webui';
+  powerAction?:
+    | 'on'
+    | 'off'
+    | 'reset'
+    | 'cycle'
+    | 'graceful-shutdown'
+    | 'force-off';
   consoleType?: 'sol' | 'ssh' | 'telnet' | 'web';
   enableSOL?: boolean;
   solPort?: number;
@@ -49,7 +61,15 @@ interface iDRACConnectionOptions {
   timeout?: number;
   retries?: number;
   enableLogs?: boolean;
-  logLevel?: 'emergency' | 'alert' | 'critical' | 'error' | 'warning' | 'notice' | 'info' | 'debug';
+  logLevel?:
+    | 'emergency'
+    | 'alert'
+    | 'critical'
+    | 'error'
+    | 'warning'
+    | 'notice'
+    | 'info'
+    | 'debug';
   eventFilters?: string[];
   enableFAN?: boolean;
   enableThermal?: boolean;
@@ -86,9 +106,9 @@ export class iDRACProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -120,8 +140,8 @@ export class iDRACProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -148,8 +168,13 @@ export class iDRACProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -170,7 +195,9 @@ export class iDRACProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to iDRAC session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to iDRAC session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -201,12 +228,17 @@ export class iDRACProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
-    const idracOptions = (options as any).idracOptions || {} as iDRACConnectionOptions;
+    const idracOptions =
+      (options as any).idracOptions || ({} as iDRACConnectionOptions);
 
     // Validate required iDRAC parameters
     if (!idracOptions.idracHost) {
@@ -220,7 +252,11 @@ export class iDRACProtocol extends BaseProtocol {
     const idracProcess = spawn(idracCommand[0], idracCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(idracOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(idracOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -229,7 +265,7 @@ export class iDRACProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -239,7 +275,7 @@ export class iDRACProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -250,7 +286,9 @@ export class iDRACProtocol extends BaseProtocol {
     });
 
     idracProcess.on('close', (code) => {
-      this.logger.info(`iDRAC process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `iDRAC process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -263,7 +301,11 @@ export class iDRACProtocol extends BaseProtocol {
       command: idracCommand[0],
       args: idracCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(idracOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(idracOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -271,12 +313,14 @@ export class iDRACProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: idracProcess.pid
+      pid: idracProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`iDRAC session ${sessionId} created for host ${idracOptions.idracHost} operation ${idracOptions.operation || 'console'}`);
+    this.logger.info(
+      `iDRAC session ${sessionId} created for host ${idracOptions.idracHost} operation ${idracOptions.operation || 'console'}`
+    );
     this.emit('session-created', { sessionId, type: 'idrac', session });
 
     return session;
@@ -285,7 +329,7 @@ export class iDRACProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -294,8 +338,8 @@ export class iDRACProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -317,25 +361,30 @@ export class iDRACProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in iDRAC session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in iDRAC session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const idracProcess = this.idracProcesses.get(sessionId);
-    return idracProcess && !idracProcess.killed || false;
+    return (idracProcess && !idracProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -346,26 +395,26 @@ export class iDRACProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.idracProcesses.size
+        connectionsActive: this.idracProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -377,8 +426,8 @@ export class iDRACProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          idrac: { available: true }
-        }
+          idrac: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -386,8 +435,8 @@ export class iDRACProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `iDRAC tools not available: ${error}`],
         dependencies: {
-          idrac: { available: false }
-        }
+          idrac: { available: false },
+        },
       };
     }
   }
@@ -400,12 +449,20 @@ export class iDRACProtocol extends BaseProtocol {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error('SSH client not found. Please install openssh-client package.'));
+          reject(
+            new Error(
+              'SSH client not found. Please install openssh-client package.'
+            )
+          );
         }
       });
 
       testProcess.on('error', () => {
-        reject(new Error('SSH client not found. Please install openssh-client package.'));
+        reject(
+          new Error(
+            'SSH client not found. Please install openssh-client package.'
+          )
+        );
       });
     });
   }
@@ -574,7 +631,9 @@ export class iDRACProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: iDRACConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: iDRACConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // iDRAC environment variables
@@ -690,7 +749,10 @@ export class iDRACProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing iDRAC process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing iDRAC process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

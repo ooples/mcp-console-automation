@@ -96,10 +96,7 @@ describe('DataParameterizer', () => {
 
   describe('getFailedDatasets', () => {
     it('should identify failed datasets', async () => {
-      const datasets = [
-        { input: 'test1' },
-        { input: 'test2' },
-      ];
+      const datasets = [{ input: 'test1' }, { input: 'test2' }];
 
       const parameterized = await parameterizer.runParameterized(
         createMockTest(),

@@ -1,6 +1,6 @@
 /**
  * IPMI/BMC Protocol Integration Tests
- * 
+ *
  * Comprehensive testing suite for IPMI protocol implementation including:
  * - IPMI 1.5 and 2.0 protocol support
  * - BMC authentication and session management
@@ -14,6 +14,7 @@
  * - Security and encryption
  */
 
+import { jest, describe, beforeAll, beforeEach, afterEach, afterAll, it } from '@jest/globals';
 import { IPMIProtocol, IPMIConnectionOptions, SensorReading, PowerControlOperation, VirtualMediaInfo, HardwareMonitoringData } from '../../../src/protocols/IPMIProtocol.js';
 import { SessionOptions } from '../../../src/types/index.js';
 import { MockTestServerFactory } from '../../utils/protocol-mocks.js';
@@ -23,7 +24,31 @@ import { SecurityTester } from '../../security/protocol-security.js';
 import { createSocket, Socket } from 'dgram';
 
 // Mock dgram socket
-jest.mock('dgram');
+jest.mock('dgram', () => ({
+  createSocket: jest.fn().mockImplementation((type: string) => {
+    const handlers: Map<string, Function[]> = new Map();
+    return {
+      bind: jest.fn((port?: number, callback?: Function) => callback?.()),
+      connect: jest.fn((port: number, host: string, callback?: Function) => callback?.()),
+      send: jest.fn((buffer: any, offset: number, length: number, port: number, host: string, callback?: Function) => {
+        setTimeout(() => callback?.(null), 10);
+      }),
+      close: jest.fn(),
+      on: jest.fn((event: string, handler: Function) => {
+        if (!handlers.has(event)) handlers.set(event, []);
+        handlers.get(event)!.push(handler);
+      }),
+      off: jest.fn(),
+      removeAllListeners: jest.fn(),
+      emit: jest.fn((event: string, ...args: any[]) => {
+        (handlers.get(event) || []).forEach(h => h(...args));
+      })
+    };
+  })
+}), { virtual: true });
+
+// Skip these tests if SKIP_HARDWARE_TESTS is set (CI environment)
+const describeIfHardware = process.env.SKIP_HARDWARE_TESTS ? describe.skip : describe;
 
 const mockSocket = {
   bind: jest.fn((callback) => callback?.()),
@@ -37,7 +62,7 @@ const mockSocket = {
 
 const mockCreateSocket = createSocket as jest.MockedFunction<typeof createSocket>;
 
-describe('IPMIProtocol Integration Tests', () => {
+describeIfHardware('IPMIProtocol Integration Tests', () => {
   let protocol: IPMIProtocol;
   let mockFactory: MockTestServerFactory;
   let testServerManager: TestServerManager;

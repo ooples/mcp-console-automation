@@ -21,7 +21,7 @@ import {
   WebSocketTerminalProtocolConfig,
   ConsoleOutput,
   ConsoleEvent,
-  ConsoleSession
+  ConsoleSession,
 } from '../types/index.js';
 
 export class WebSocketTerminalProtocol extends EventEmitter {
@@ -31,14 +31,16 @@ export class WebSocketTerminalProtocol extends EventEmitter {
   private pingIntervals: Map<string, NodeJS.Timeout> = new Map();
   private latencyMeasurements: Map<string, number[]> = new Map();
   private persistenceStore: Map<string, any> = new Map();
-  
+
   constructor(config?: Partial<WebSocketTerminalProtocolConfig>) {
     super();
     this.config = this.createDefaultConfig(config);
     this.setupEventHandlers();
   }
 
-  private createDefaultConfig(config?: Partial<WebSocketTerminalProtocolConfig>): WebSocketTerminalProtocolConfig {
+  private createDefaultConfig(
+    config?: Partial<WebSocketTerminalProtocolConfig>
+  ): WebSocketTerminalProtocolConfig {
     return {
       defaultProtocol: 'xterm',
       defaultPort: 80,
@@ -76,7 +78,7 @@ export class WebSocketTerminalProtocol extends EventEmitter {
           url: 'ws://localhost:3000/wetty/socket.io/?EIO=3&transport=websocket',
           protocol: 'wetty',
           terminalType: 'xterm',
-          encoding: 'utf8'
+          encoding: 'utf8',
         },
         ttyd: {
           url: 'ws://localhost:7681/ws',
@@ -87,9 +89,9 @@ export class WebSocketTerminalProtocol extends EventEmitter {
             ttyd: {
               enableReconnect: true,
               enableZmodem: true,
-              rendererType: 'canvas'
-            }
-          }
+              rendererType: 'canvas',
+            },
+          },
         },
         gotty: {
           url: 'ws://localhost:8080/ws',
@@ -99,9 +101,9 @@ export class WebSocketTerminalProtocol extends EventEmitter {
           protocolOptions: {
             gotty: {
               enableReconnect: true,
-              enableWrite: true
-            }
-          }
+              enableWrite: true,
+            },
+          },
         },
         vscode: {
           url: 'ws://localhost:8080/terminals/{id}',
@@ -113,9 +115,9 @@ export class WebSocketTerminalProtocol extends EventEmitter {
             vscode: {
               workspaceId: '',
               instanceId: '',
-              sessionToken: ''
-            }
-          }
+              sessionToken: '',
+            },
+          },
         },
         cloud9: {
           url: 'ws://localhost:8081/socket.io/?EIO=4&transport=websocket',
@@ -127,9 +129,9 @@ export class WebSocketTerminalProtocol extends EventEmitter {
             cloud9: {
               workspaceId: '',
               environmentId: '',
-              region: 'us-east-1'
-            }
-          }
+              region: 'us-east-1',
+            },
+          },
         },
         gitpod: {
           url: 'wss://gitpod.io/api/gitpod/v1/terminal/listen/{workspaceId}',
@@ -141,12 +143,12 @@ export class WebSocketTerminalProtocol extends EventEmitter {
             gitpod: {
               workspaceId: '',
               instanceId: '',
-              supervisorToken: ''
-            }
-          }
-        }
+              supervisorToken: '',
+            },
+          },
+        },
       },
-      ...config
+      ...config,
     };
   }
 
@@ -160,30 +162,38 @@ export class WebSocketTerminalProtocol extends EventEmitter {
   /**
    * Create a new WebSocket terminal session
    */
-  async createSession(sessionId: string, options: WebSocketTerminalConnectionOptions): Promise<WebSocketTerminalSession> {
+  async createSession(
+    sessionId: string,
+    options: WebSocketTerminalConnectionOptions
+  ): Promise<WebSocketTerminalSession> {
     try {
       this.log('info', `Creating WebSocket terminal session: ${sessionId}`);
-      
+
       // Validate options
       await this.validateConnectionOptions(options);
-      
+
       // Create session state
       const sessionState = this.createSessionState(sessionId, options);
-      
+
       // Create WebSocket terminal session
-      const session = new WebSocketTerminalSession(sessionId, options, sessionState, this.config);
-      
+      const session = new WebSocketTerminalSession(
+        sessionId,
+        options,
+        sessionState,
+        this.config
+      );
+
       // Setup session event handlers
       this.setupSessionEventHandlers(session);
-      
+
       // Store session
       this.sessions.set(sessionId, session);
-      
+
       // Connect to WebSocket
       await session.connect();
-      
+
       this.emit('session_created', { sessionId, session });
-      
+
       return session;
     } catch (error) {
       this.log('error', `Failed to create session ${sessionId}: ${error}`);
@@ -206,20 +216,20 @@ export class WebSocketTerminalProtocol extends EventEmitter {
     if (session) {
       await session.disconnect();
       this.sessions.delete(sessionId);
-      
+
       // Clean up timers
       const reconnectTimer = this.reconnectTimers.get(sessionId);
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         this.reconnectTimers.delete(sessionId);
       }
-      
+
       const pingInterval = this.pingIntervals.get(sessionId);
       if (pingInterval) {
         clearInterval(pingInterval);
         this.pingIntervals.delete(sessionId);
       }
-      
+
       this.emit('session_closed', { sessionId });
     }
   }
@@ -232,7 +242,7 @@ export class WebSocketTerminalProtocol extends EventEmitter {
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
+
     await session.sendData(data);
   }
 
@@ -251,43 +261,57 @@ export class WebSocketTerminalProtocol extends EventEmitter {
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
+
     await session.reconnect();
   }
 
   /**
    * Resize terminal
    */
-  async resizeTerminal(sessionId: string, cols: number, rows: number): Promise<void> {
+  async resizeTerminal(
+    sessionId: string,
+    cols: number,
+    rows: number
+  ): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
+
     await session.resize(cols, rows);
   }
 
   /**
    * Upload file to terminal
    */
-  async uploadFile(sessionId: string, localPath: string, remotePath: string, protocol?: string): Promise<string> {
+  async uploadFile(
+    sessionId: string,
+    localPath: string,
+    remotePath: string,
+    protocol?: string
+  ): Promise<string> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
+
     return await session.uploadFile(localPath, remotePath, protocol);
   }
 
   /**
    * Download file from terminal
    */
-  async downloadFile(sessionId: string, remotePath: string, localPath: string, protocol?: string): Promise<string> {
+  async downloadFile(
+    sessionId: string,
+    remotePath: string,
+    localPath: string,
+    protocol?: string
+  ): Promise<string> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
-    
+
     return await session.downloadFile(remotePath, localPath, protocol);
   }
 
@@ -296,9 +320,25 @@ export class WebSocketTerminalProtocol extends EventEmitter {
    */
   getCapabilities(): WebSocketTerminalCapabilities {
     return {
-      supportedProtocols: ['xterm', 'wetty', 'ttyd', 'gotty', 'vscode-terminal', 'cloud9-terminal', 'gitpod-terminal'],
+      supportedProtocols: [
+        'xterm',
+        'wetty',
+        'ttyd',
+        'gotty',
+        'vscode-terminal',
+        'cloud9-terminal',
+        'gitpod-terminal',
+      ],
       supportedEncodings: ['utf8', 'ascii', 'binary', 'base64'],
-      supportedTerminalTypes: ['xterm', 'vt100', 'vt220', 'ansi', 'linux', 'screen', 'tmux'],
+      supportedTerminalTypes: [
+        'xterm',
+        'vt100',
+        'vt220',
+        'ansi',
+        'linux',
+        'screen',
+        'tmux',
+      ],
       binaryFrames: true,
       textFrames: true,
       compression: this.config.enableCompression,
@@ -318,58 +358,72 @@ export class WebSocketTerminalProtocol extends EventEmitter {
       maxSessions: 50,
       maxFileSize: 100 * 1024 * 1024, // 100MB
       protocolVersion: '1.0',
-      clientVersion: '1.0.0'
+      clientVersion: '1.0.0',
     };
   }
 
   /**
    * Create multiplex session
    */
-  async createMultiplexSession(parentSessionId: string, title?: string): Promise<string> {
+  async createMultiplexSession(
+    parentSessionId: string,
+    title?: string
+  ): Promise<string> {
     const parentSession = this.sessions.get(parentSessionId);
     if (!parentSession) {
       throw new Error(`Parent session ${parentSessionId} not found`);
     }
-    
+
     return await parentSession.createMultiplexSession(title);
   }
 
   /**
    * Switch multiplex session
    */
-  async switchMultiplexSession(parentSessionId: string, multiplexSessionId: string): Promise<void> {
+  async switchMultiplexSession(
+    parentSessionId: string,
+    multiplexSessionId: string
+  ): Promise<void> {
     const parentSession = this.sessions.get(parentSessionId);
     if (!parentSession) {
       throw new Error(`Parent session ${parentSessionId} not found`);
     }
-    
+
     await parentSession.switchMultiplexSession(multiplexSessionId);
   }
 
-  private async validateConnectionOptions(options: WebSocketTerminalConnectionOptions): Promise<void> {
+  private async validateConnectionOptions(
+    options: WebSocketTerminalConnectionOptions
+  ): Promise<void> {
     if (!options.url) {
       throw new Error('WebSocket URL is required');
     }
-    
+
     if (!options.url.startsWith('ws://') && !options.url.startsWith('wss://')) {
       throw new Error('Invalid WebSocket URL protocol');
     }
-    
+
     if (options.url.startsWith('ws://') && !this.config.allowInsecure) {
       throw new Error('Insecure WebSocket connections are not allowed');
     }
   }
 
-  private createSessionState(sessionId: string, options: WebSocketTerminalConnectionOptions): WebSocketTerminalSessionState {
+  private createSessionState(
+    sessionId: string,
+    options: WebSocketTerminalConnectionOptions
+  ): WebSocketTerminalSessionState {
     return {
       connectionState: 'disconnected',
       sessionId,
       webSocketUrl: options.url,
-      protocol: typeof options.protocol === 'string' ? options.protocol : options.protocol?.[0],
+      protocol:
+        typeof options.protocol === 'string'
+          ? options.protocol
+          : options.protocol?.[0],
       reconnectCount: 0,
       terminalSize: {
         cols: options.cols || this.config.defaultCols,
-        rows: options.rows || this.config.defaultRows
+        rows: options.rows || this.config.defaultRows,
       },
       currentEncoding: options.encoding || this.config.defaultEncoding,
       terminalType: options.terminalType || this.config.defaultTerminalType,
@@ -393,9 +447,9 @@ export class WebSocketTerminalProtocol extends EventEmitter {
         errors: 0,
         avgLatency: 0,
         maxLatency: 0,
-        minLatency: Infinity
+        minLatency: Infinity,
       },
-      errorHistory: []
+      errorHistory: [],
     };
   }
 
@@ -404,36 +458,45 @@ export class WebSocketTerminalProtocol extends EventEmitter {
       this.emit('session_connected', { sessionId: session.sessionId });
       this.startPingInterval(session.sessionId);
     });
-    
+
     session.on('disconnected', () => {
       this.emit('session_disconnected', { sessionId: session.sessionId });
       this.stopPingInterval(session.sessionId);
     });
-    
+
     session.on('reconnecting', () => {
       this.emit('session_reconnecting', { sessionId: session.sessionId });
     });
-    
+
     session.on('data', (data: string | Buffer) => {
       this.emit('data', { sessionId: session.sessionId, data });
     });
-    
+
     session.on('error', (error: Error) => {
       this.emit('error', { sessionId: session.sessionId, error });
     });
-    
+
     session.on('file_transfer_progress', (transfer: WebSocketFileTransfer) => {
-      this.emit('file_transfer_progress', { sessionId: session.sessionId, transfer });
+      this.emit('file_transfer_progress', {
+        sessionId: session.sessionId,
+        transfer,
+      });
     });
-    
-    session.on('multiplex_session_created', (multiplexSession: WebSocketMultiplexSession) => {
-      this.emit('multiplex_session_created', { sessionId: session.sessionId, multiplexSession });
-    });
+
+    session.on(
+      'multiplex_session_created',
+      (multiplexSession: WebSocketMultiplexSession) => {
+        this.emit('multiplex_session_created', {
+          sessionId: session.sessionId,
+          multiplexSession,
+        });
+      }
+    );
   }
 
   private startPingInterval(sessionId: string): void {
     if (!this.config.keepAliveEnabled) return;
-    
+
     const interval = setInterval(async () => {
       const session = this.sessions.get(sessionId);
       if (session) {
@@ -442,7 +505,7 @@ export class WebSocketTerminalProtocol extends EventEmitter {
         clearInterval(interval);
       }
     }, this.config.pingInterval);
-    
+
     this.pingIntervals.set(sessionId, interval);
   }
 
@@ -454,7 +517,10 @@ export class WebSocketTerminalProtocol extends EventEmitter {
     }
   }
 
-  private handleSessionCreated(event: { sessionId: string; session: WebSocketTerminalSession }): void {
+  private handleSessionCreated(event: {
+    sessionId: string;
+    session: WebSocketTerminalSession;
+  }): void {
     this.log('info', `Session created: ${event.sessionId}`);
   }
 
@@ -462,19 +528,30 @@ export class WebSocketTerminalProtocol extends EventEmitter {
     this.log('info', `Session closed: ${event.sessionId}`);
   }
 
-  private handleMessageReceived(event: { sessionId: string; message: WebSocketTerminalMessage }): void {
+  private handleMessageReceived(event: {
+    sessionId: string;
+    message: WebSocketTerminalMessage;
+  }): void {
     if (this.config.enableProtocolLogging) {
-      this.log('debug', `Message received from ${event.sessionId}: ${JSON.stringify(event.message)}`);
+      this.log(
+        'debug',
+        `Message received from ${event.sessionId}: ${JSON.stringify(event.message)}`
+      );
     }
   }
 
   private handleError(event: { sessionId: string; error: Error }): void {
-    this.log('error', `Session error ${event.sessionId}: ${event.error.message}`);
+    this.log(
+      'error',
+      `Session error ${event.sessionId}: ${event.error.message}`
+    );
   }
 
   private log(level: string, message: string): void {
     if (this.shouldLog(level)) {
-      console.log(`[WebSocketTerminalProtocol:${level.toUpperCase()}] ${message}`);
+      console.log(
+        `[WebSocketTerminalProtocol:${level.toUpperCase()}] ${message}`
+      );
     }
   }
 
@@ -504,22 +581,22 @@ export class WebSocketTerminalProtocol extends EventEmitter {
    */
   async cleanup(): Promise<void> {
     this.log('info', 'Cleaning up WebSocket terminal protocol');
-    
+
     // Close all sessions
     const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
-    
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
+
     // Clear all timers
-    this.reconnectTimers.forEach(timer => clearTimeout(timer));
-    this.pingIntervals.forEach(interval => clearInterval(interval));
-    
+    this.reconnectTimers.forEach((timer) => clearTimeout(timer));
+    this.pingIntervals.forEach((interval) => clearInterval(interval));
+
     // Clear maps
     this.sessions.clear();
     this.reconnectTimers.clear();
     this.pingIntervals.clear();
     this.latencyMeasurements.clear();
     this.persistenceStore.clear();
-    
+
     this.removeAllListeners();
   }
 }
@@ -560,22 +637,21 @@ class WebSocketTerminalSession extends EventEmitter {
     try {
       this.state.connectionState = 'connecting';
       this.emit('connecting');
-      
+
       // Create WebSocket connection
       await this.createWebSocketConnection();
-      
+
       // Authenticate if required
       if (this.options.authType && this.options.authType !== 'none') {
         await this.authenticate();
       }
-      
+
       // Send initial setup messages
       await this.sendInitialSetup();
-      
+
       this.state.connectionState = 'connected';
       this.state.connectedAt = new Date();
       this.emit('connected');
-      
     } catch (error) {
       this.state.connectionState = 'failed';
       this.handleError(error as Error);
@@ -591,12 +667,12 @@ class WebSocketTerminalSession extends EventEmitter {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = undefined;
     }
-    
+
     if (this.webSocket) {
       this.webSocket.terminate();
       this.webSocket = undefined;
     }
-    
+
     this.state.connectionState = 'disconnected';
     this.emit('disconnected');
   }
@@ -606,7 +682,7 @@ class WebSocketTerminalSession extends EventEmitter {
    */
   async reconnect(): Promise<void> {
     await this.disconnect();
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay before reconnecting
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief delay before reconnecting
     await this.connect();
   }
 
@@ -617,16 +693,16 @@ class WebSocketTerminalSession extends EventEmitter {
     if (this.state.connectionState !== 'connected') {
       throw new Error('Session not connected');
     }
-    
+
     const message: WebSocketTerminalMessage = {
       type: 'data',
       sessionId: this.sessionId,
       timestamp: new Date(),
       sequenceNumber: this.sequenceNumber++,
       data: data,
-      encoding: typeof data === 'string' ? 'utf8' : 'binary'
+      encoding: typeof data === 'string' ? 'utf8' : 'binary',
     };
-    
+
     await this.sendMessage(message);
   }
 
@@ -637,17 +713,17 @@ class WebSocketTerminalSession extends EventEmitter {
     if (this.state.connectionState !== 'connected') {
       throw new Error('Session not connected');
     }
-    
+
     this.state.terminalSize = { cols, rows };
-    
+
     const message: WebSocketTerminalMessage = {
       type: 'resize',
       sessionId: this.sessionId,
       timestamp: new Date(),
       sequenceNumber: this.sequenceNumber++,
-      data: { cols, rows }
+      data: { cols, rows },
     };
-    
+
     await this.sendMessage(message);
   }
 
@@ -658,31 +734,35 @@ class WebSocketTerminalSession extends EventEmitter {
     if (this.state.connectionState !== 'connected') {
       return;
     }
-    
+
     this.state.lastPingTime = new Date();
-    
+
     const message: WebSocketTerminalMessage = {
       type: 'ping',
       sessionId: this.sessionId,
       timestamp: new Date(),
       sequenceNumber: this.sequenceNumber++,
-      data: performance.now()
+      data: performance.now(),
     };
-    
+
     await this.sendMessage(message);
   }
 
   /**
    * Upload file to terminal
    */
-  async uploadFile(localPath: string, remotePath: string, protocol?: string): Promise<string> {
+  async uploadFile(
+    localPath: string,
+    remotePath: string,
+    protocol?: string
+  ): Promise<string> {
     if (!this.config.enableFileTransfer) {
       throw new Error('File transfer is disabled');
     }
-    
+
     const transferId = randomBytes(16).toString('hex');
     const fileStats = await fs.stat(localPath);
-    
+
     const transfer: WebSocketFileTransfer = {
       transferId,
       sessionId: this.sessionId,
@@ -694,13 +774,15 @@ class WebSocketTerminalSession extends EventEmitter {
       progress: 0,
       speed: 0,
       status: 'queued',
-      protocol: (protocol || this.options.fileTransfer?.protocol || 'http') as any,
+      protocol: (protocol ||
+        this.options.fileTransfer?.protocol ||
+        'http') as any,
       startTime: new Date(),
-      chunks: []
+      chunks: [],
     };
-    
+
     this.state.activeTransfers.set(transferId, transfer);
-    
+
     try {
       await this.performFileTransfer(transfer);
       return transferId;
@@ -714,13 +796,17 @@ class WebSocketTerminalSession extends EventEmitter {
   /**
    * Download file from terminal
    */
-  async downloadFile(remotePath: string, localPath: string, protocol?: string): Promise<string> {
+  async downloadFile(
+    remotePath: string,
+    localPath: string,
+    protocol?: string
+  ): Promise<string> {
     if (!this.config.enableFileTransfer) {
       throw new Error('File transfer is disabled');
     }
-    
+
     const transferId = randomBytes(16).toString('hex');
-    
+
     const transfer: WebSocketFileTransfer = {
       transferId,
       sessionId: this.sessionId,
@@ -732,13 +818,15 @@ class WebSocketTerminalSession extends EventEmitter {
       progress: 0,
       speed: 0,
       status: 'queued',
-      protocol: (protocol || this.options.fileTransfer?.protocol || 'http') as any,
+      protocol: (protocol ||
+        this.options.fileTransfer?.protocol ||
+        'http') as any,
       startTime: new Date(),
-      chunks: []
+      chunks: [],
     };
-    
+
     this.state.activeTransfers.set(transferId, transfer);
-    
+
     try {
       await this.performFileTransfer(transfer);
       return transferId;
@@ -756,9 +844,9 @@ class WebSocketTerminalSession extends EventEmitter {
     if (!this.config.enableMultiplexing) {
       throw new Error('Multiplexing is disabled');
     }
-    
+
     const multiplexSessionId = randomBytes(16).toString('hex');
-    
+
     const multiplexSession: WebSocketMultiplexSession = {
       sessionId: multiplexSessionId,
       parentSessionId: this.sessionId,
@@ -770,11 +858,11 @@ class WebSocketTerminalSession extends EventEmitter {
       cursorPosition: { x: 0, y: 0 },
       scrollPosition: 0,
       sharedScreen: false,
-      participants: []
+      participants: [],
     };
-    
+
     this.state.multiplexSessions?.set(multiplexSessionId, multiplexSession);
-    
+
     const message: WebSocketTerminalMessage = {
       type: 'multiplex',
       sessionId: this.sessionId,
@@ -783,14 +871,14 @@ class WebSocketTerminalSession extends EventEmitter {
       data: {
         action: 'create',
         multiplexSessionId,
-        title
-      }
+        title,
+      },
     };
-    
+
     await this.sendMessage(message);
-    
+
     this.emit('multiplex_session_created', multiplexSession);
-    
+
     return multiplexSessionId;
   }
 
@@ -798,20 +886,21 @@ class WebSocketTerminalSession extends EventEmitter {
    * Switch multiplex session
    */
   async switchMultiplexSession(multiplexSessionId: string): Promise<void> {
-    const multiplexSession = this.state.multiplexSessions?.get(multiplexSessionId);
+    const multiplexSession =
+      this.state.multiplexSessions?.get(multiplexSessionId);
     if (!multiplexSession) {
       throw new Error(`Multiplex session ${multiplexSessionId} not found`);
     }
-    
+
     // Deactivate current session
-    this.state.multiplexSessions?.forEach(session => {
+    this.state.multiplexSessions?.forEach((session) => {
       session.active = false;
     });
-    
+
     // Activate target session
     multiplexSession.active = true;
     multiplexSession.lastActivity = new Date();
-    
+
     const message: WebSocketTerminalMessage = {
       type: 'multiplex',
       sessionId: this.sessionId,
@@ -819,10 +908,10 @@ class WebSocketTerminalSession extends EventEmitter {
       sequenceNumber: this.sequenceNumber++,
       data: {
         action: 'switch',
-        multiplexSessionId
-      }
+        multiplexSessionId,
+      },
     };
-    
+
     await this.sendMessage(message);
   }
 
@@ -830,73 +919,80 @@ class WebSocketTerminalSession extends EventEmitter {
     return new Promise((resolve, reject) => {
       try {
         const wsOptions: any = {
-          headers: this.options.headers || {}
+          headers: this.options.headers || {},
         };
-        
+
         // Add authentication headers
-        if (this.options.authType === 'basic' && this.options.username && this.options.password) {
-          const auth = Buffer.from(`${this.options.username}:${this.options.password}`).toString('base64');
+        if (
+          this.options.authType === 'basic' &&
+          this.options.username &&
+          this.options.password
+        ) {
+          const auth = Buffer.from(
+            `${this.options.username}:${this.options.password}`
+          ).toString('base64');
           wsOptions.headers['Authorization'] = `Basic ${auth}`;
         } else if (this.options.authType === 'bearer' && this.options.token) {
           wsOptions.headers['Authorization'] = `Bearer ${this.options.token}`;
         }
-        
+
         // Add cookies
         if (this.options.cookies) {
           wsOptions.headers['Cookie'] = Object.entries(this.options.cookies)
             .map(([key, value]) => `${key}=${value}`)
             .join('; ');
         }
-        
+
         // SSL options
         if (this.options.ssl?.enabled) {
           wsOptions.ca = this.options.ssl.ca;
           wsOptions.cert = this.options.ssl.cert;
           wsOptions.key = this.options.ssl.key;
           wsOptions.passphrase = this.options.ssl.passphrase;
-          wsOptions.rejectUnauthorized = this.options.ssl.rejectUnauthorized !== false;
+          wsOptions.rejectUnauthorized =
+            this.options.ssl.rejectUnauthorized !== false;
         }
-        
+
         // Create WebSocket
         this.webSocket = new WebSocket(
           this.options.url,
           this.options.protocol,
           wsOptions
         );
-        
+
         this.webSocket.on('open', () => {
           this.state.readyState = WS_OPEN;
-          this.isAuthenticated = this.options.authType === 'none' || !this.options.authType;
+          this.isAuthenticated =
+            this.options.authType === 'none' || !this.options.authType;
           resolve();
         });
-        
+
         this.webSocket.on('message', (data: Data) => {
           this.handleMessage(data);
         });
-        
+
         this.webSocket.on('close', (code: number, reason: string) => {
           this.state.readyState = WS_CLOSED;
           this.handleClose(code, reason);
         });
-        
+
         this.webSocket.on('error', (error: Error) => {
           this.state.readyState = WS_CLOSED;
           reject(error);
         });
-        
+
         this.webSocket.on('pong', (data: Buffer) => {
           this.handlePong(data);
         });
-        
+
         // Set connection timeout
         const timeout = setTimeout(() => {
           this.webSocket?.terminate();
           reject(new Error('Connection timeout'));
         }, this.config.connectionTimeout);
-        
+
         this.webSocket.on('open', () => clearTimeout(timeout));
         this.webSocket.on('error', () => clearTimeout(timeout));
-        
       } catch (error) {
         reject(error);
       }
@@ -908,29 +1004,29 @@ class WebSocketTerminalSession extends EventEmitter {
       this.isAuthenticated = true;
       return;
     }
-    
+
     this.authAttempts++;
-    
+
     if (this.authAttempts > this.config.maxAuthAttempts) {
       throw new Error('Maximum authentication attempts exceeded');
     }
-    
+
     const authMessage: WebSocketTerminalMessage = {
       type: 'auth',
       sessionId: this.sessionId,
       timestamp: new Date(),
       sequenceNumber: this.sequenceNumber++,
-      data: this.createAuthData()
+      data: this.createAuthData(),
     };
-    
+
     await this.sendMessage(authMessage);
-    
+
     // Wait for authentication response
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Authentication timeout'));
       }, 5000);
-      
+
       const handler = (success: boolean) => {
         clearTimeout(timeout);
         if (success) {
@@ -940,7 +1036,7 @@ class WebSocketTerminalSession extends EventEmitter {
           reject(new Error('Authentication failed'));
         }
       };
-      
+
       this.once('auth_success', () => handler(true));
       this.once('auth_failure', () => handler(false));
     });
@@ -952,27 +1048,27 @@ class WebSocketTerminalSession extends EventEmitter {
         return {
           method: 'basic',
           username: this.options.username,
-          password: this.options.password
+          password: this.options.password,
         };
       case 'bearer':
         return {
           method: 'bearer',
-          token: this.options.token
+          token: this.options.token,
         };
       case 'cookie':
         return {
           method: 'cookie',
-          cookies: this.options.cookies
+          cookies: this.options.cookies,
         };
       case 'query':
         return {
           method: 'query',
-          apiKey: this.options.apiKey
+          apiKey: this.options.apiKey,
         };
       case 'custom':
         return {
           method: 'custom',
-          ...this.options.customAuth
+          ...this.options.customAuth,
         };
       default:
         return {};
@@ -988,13 +1084,14 @@ class WebSocketTerminalSession extends EventEmitter {
       sequenceNumber: this.sequenceNumber++,
       data: {
         action: 'setup',
-        terminalType: this.options.terminalType || this.config.defaultTerminalType,
+        terminalType:
+          this.options.terminalType || this.config.defaultTerminalType,
         encoding: this.options.encoding || this.config.defaultEncoding,
         size: this.state.terminalSize,
-        protocolOptions: this.options.protocolOptions
-      }
+        protocolOptions: this.options.protocolOptions,
+      },
     };
-    
+
     await this.sendMessage(setupMessage);
   }
 
@@ -1003,25 +1100,24 @@ class WebSocketTerminalSession extends EventEmitter {
       this.messageQueue.push(message);
       return;
     }
-    
+
     try {
       let data: string | Buffer;
-      
+
       if (message.encoding === 'binary' && Buffer.isBuffer(message.data)) {
         data = message.data;
       } else {
         data = JSON.stringify(message);
       }
-      
+
       // Handle compression
       if (this.options.compression && message.compressed) {
         // Implement compression logic here
       }
-      
+
       this.webSocket.send(data);
       this.state.statistics.messagesSent++;
       this.state.statistics.bytesSent += data.length;
-      
     } catch (error) {
       this.handleError(error as Error);
     }
@@ -1032,9 +1128,9 @@ class WebSocketTerminalSession extends EventEmitter {
       this.state.statistics.messagesReceived++;
       this.state.statistics.bytesReceived += this.getDataLength(data);
       this.state.lastActivity = new Date();
-      
+
       let message: WebSocketTerminalMessage;
-      
+
       if (Buffer.isBuffer(data)) {
         // Handle Buffer data
         if (this.isTerminalData(data)) {
@@ -1043,7 +1139,7 @@ class WebSocketTerminalSession extends EventEmitter {
             sessionId: this.sessionId,
             timestamp: new Date(),
             data: data,
-            encoding: 'binary'
+            encoding: 'binary',
           };
         } else {
           // Try to parse as JSON
@@ -1058,7 +1154,7 @@ class WebSocketTerminalSession extends EventEmitter {
             sessionId: this.sessionId,
             timestamp: new Date(),
             data: buffer,
-            encoding: 'binary'
+            encoding: 'binary',
           };
         } else {
           // Try to parse as JSON
@@ -1073,7 +1169,7 @@ class WebSocketTerminalSession extends EventEmitter {
             sessionId: this.sessionId,
             timestamp: new Date(),
             data: combinedBuffer,
-            encoding: 'binary'
+            encoding: 'binary',
           };
         } else {
           // Try to parse as JSON
@@ -1090,7 +1186,7 @@ class WebSocketTerminalSession extends EventEmitter {
             sessionId: this.sessionId,
             timestamp: new Date(),
             data: data,
-            encoding: 'utf8'
+            encoding: 'utf8',
           };
         }
       } else {
@@ -1104,13 +1200,12 @@ class WebSocketTerminalSession extends EventEmitter {
             sessionId: this.sessionId,
             timestamp: new Date(),
             data: dataStr,
-            encoding: 'utf8'
+            encoding: 'utf8',
           };
         }
       }
-      
+
       this.processMessage(message);
-      
     } catch (error) {
       this.handleError(error as Error);
     }
@@ -1121,31 +1216,31 @@ class WebSocketTerminalSession extends EventEmitter {
       case 'data':
         this.emit('data', message.data);
         break;
-        
+
       case 'pong':
         this.handlePong(message.data);
         break;
-        
+
       case 'auth':
         this.handleAuthResponse(message.data);
         break;
-        
+
       case 'control':
         this.handleControlMessage(message.data);
         break;
-        
+
       case 'file':
         this.handleFileMessage(message.data);
         break;
-        
+
       case 'multiplex':
         this.handleMultiplexMessage(message.data);
         break;
-        
+
       case 'resize':
         // Handle resize acknowledgment
         break;
-        
+
       default:
         // Custom message handler
         const customHandler = this.options.messageHandlers?.[message.type];
@@ -1154,7 +1249,7 @@ class WebSocketTerminalSession extends EventEmitter {
         }
         break;
     }
-    
+
     this.emit('message_received', message);
   }
 
@@ -1182,7 +1277,7 @@ class WebSocketTerminalSession extends EventEmitter {
 
   private handlePong(data: any): void {
     this.state.lastPongTime = new Date();
-    
+
     if (typeof data === 'number') {
       const now = performance.now();
       const latency = now - data;
@@ -1192,14 +1287,21 @@ class WebSocketTerminalSession extends EventEmitter {
 
   private updateLatencyStats(latency: number): void {
     this.state.latency = latency;
-    this.state.statistics.maxLatency = Math.max(this.state.statistics.maxLatency, latency);
-    this.state.statistics.minLatency = Math.min(this.state.statistics.minLatency, latency);
-    
+    this.state.statistics.maxLatency = Math.max(
+      this.state.statistics.maxLatency,
+      latency
+    );
+    this.state.statistics.minLatency = Math.min(
+      this.state.statistics.minLatency,
+      latency
+    );
+
     // Calculate rolling average
     if (!this.state.statistics.avgLatency) {
       this.state.statistics.avgLatency = latency;
     } else {
-      this.state.statistics.avgLatency = (this.state.statistics.avgLatency * 0.9) + (latency * 0.1);
+      this.state.statistics.avgLatency =
+        this.state.statistics.avgLatency * 0.9 + latency * 0.1;
     }
   }
 
@@ -1251,7 +1353,7 @@ class WebSocketTerminalSession extends EventEmitter {
   private handleClose(code: number, reason: string): void {
     this.state.connectionState = 'disconnected';
     this.emit('disconnected', { code, reason });
-    
+
     // Attempt reconnection if enabled
     if (this.shouldReconnect()) {
       this.scheduleReconnect();
@@ -1260,7 +1362,8 @@ class WebSocketTerminalSession extends EventEmitter {
 
   private shouldReconnect(): boolean {
     return (
-      this.state.reconnectCount < (this.options.maxRetries || this.config.maxRetries) &&
+      this.state.reconnectCount <
+        (this.options.maxRetries || this.config.maxRetries) &&
       this.state.connectionState !== 'failed'
     );
   }
@@ -1269,13 +1372,19 @@ class WebSocketTerminalSession extends EventEmitter {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
-    
+
     let delay = this.options.retryDelay || this.config.retryDelay;
-    
-    if (this.options.exponentialBackoff !== false && this.config.exponentialBackoff) {
-      delay = Math.min(delay * Math.pow(2, this.state.reconnectCount), this.config.maxRetryDelay);
+
+    if (
+      this.options.exponentialBackoff !== false &&
+      this.config.exponentialBackoff
+    ) {
+      delay = Math.min(
+        delay * Math.pow(2, this.state.reconnectCount),
+        this.config.maxRetryDelay
+      );
     }
-    
+
     this.reconnectTimeout = setTimeout(() => {
       this.attemptReconnect();
     }, delay);
@@ -1286,9 +1395,9 @@ class WebSocketTerminalSession extends EventEmitter {
       this.state.connectionState = 'reconnecting';
       this.state.reconnectCount++;
       this.emit('reconnecting');
-      
+
       await this.connect();
-      
+
       // Flush queued messages
       while (this.messageQueue.length > 0) {
         const message = this.messageQueue.shift();
@@ -1296,12 +1405,11 @@ class WebSocketTerminalSession extends EventEmitter {
           await this.sendMessage(message);
         }
       }
-      
+
       this.state.statistics.reconnections++;
-      
     } catch (error) {
       this.handleError(error as Error);
-      
+
       if (this.shouldReconnect()) {
         this.scheduleReconnect();
       } else {
@@ -1310,9 +1418,11 @@ class WebSocketTerminalSession extends EventEmitter {
     }
   }
 
-  private async performFileTransfer(transfer: WebSocketFileTransfer): Promise<void> {
+  private async performFileTransfer(
+    transfer: WebSocketFileTransfer
+  ): Promise<void> {
     transfer.status = 'transferring';
-    
+
     try {
       switch (transfer.protocol) {
         case 'http':
@@ -1327,13 +1437,14 @@ class WebSocketTerminalSession extends EventEmitter {
           await this.performSerialProtocolTransfer(transfer);
           break;
         default:
-          throw new Error(`Unsupported transfer protocol: ${transfer.protocol}`);
+          throw new Error(
+            `Unsupported transfer protocol: ${transfer.protocol}`
+          );
       }
-      
+
       transfer.status = 'completed';
       transfer.endTime = new Date();
       transfer.progress = 100;
-      
     } catch (error) {
       transfer.status = 'failed';
       transfer.error = (error as Error).message;
@@ -1343,19 +1454,21 @@ class WebSocketTerminalSession extends EventEmitter {
     }
   }
 
-  private async performHttpFileTransfer(transfer: WebSocketFileTransfer): Promise<void> {
+  private async performHttpFileTransfer(
+    transfer: WebSocketFileTransfer
+  ): Promise<void> {
     // Implementation for HTTP-based file transfer over WebSocket
     const chunkSize = this.options.fileTransfer?.chunkSize || 64 * 1024; // 64KB chunks
-    
+
     if (transfer.direction === 'upload') {
       const fileData = await fs.readFile(transfer.localPath);
       const totalChunks = Math.ceil(fileData.length / chunkSize);
-      
+
       for (let i = 0; i < totalChunks; i++) {
         const start = i * chunkSize;
         const end = Math.min(start + chunkSize, fileData.length);
         const chunk = fileData.subarray(start, end);
-        
+
         const message: WebSocketTerminalMessage = {
           type: 'file',
           sessionId: this.sessionId,
@@ -1366,19 +1479,19 @@ class WebSocketTerminalSession extends EventEmitter {
             action: 'upload_chunk',
             chunkIndex: i,
             totalChunks,
-            chunk: chunk.toString('base64')
-          }
+            chunk: chunk.toString('base64'),
+          },
         };
-        
+
         await this.sendMessage(message);
-        
+
         transfer.transferredBytes = end;
         transfer.progress = (end / transfer.fileSize) * 100;
-        
+
         this.emit('file_transfer_progress', transfer);
-        
+
         // Small delay to prevent overwhelming
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
     } else {
       // Download implementation
@@ -1390,18 +1503,20 @@ class WebSocketTerminalSession extends EventEmitter {
         data: {
           transferId: transfer.transferId,
           action: 'download_start',
-          remotePath: transfer.remotePath
-        }
+          remotePath: transfer.remotePath,
+        },
       };
-      
+
       await this.sendMessage(message);
     }
   }
 
-  private async performZmodemTransfer(transfer: WebSocketFileTransfer): Promise<void> {
+  private async performZmodemTransfer(
+    transfer: WebSocketFileTransfer
+  ): Promise<void> {
     // Implementation for ZMODEM protocol
     // This is a simplified version - full ZMODEM implementation would be more complex
-    
+
     const initMessage: WebSocketTerminalMessage = {
       type: 'file',
       sessionId: this.sessionId,
@@ -1412,39 +1527,45 @@ class WebSocketTerminalSession extends EventEmitter {
         action: 'zmodem_init',
         direction: transfer.direction,
         localPath: transfer.localPath,
-        remotePath: transfer.remotePath
-      }
+        remotePath: transfer.remotePath,
+      },
     };
-    
+
     await this.sendMessage(initMessage);
   }
 
-  private async performSerialProtocolTransfer(transfer: WebSocketFileTransfer): Promise<void> {
+  private async performSerialProtocolTransfer(
+    transfer: WebSocketFileTransfer
+  ): Promise<void> {
     // Implementation for XMODEM/YMODEM/Kermit protocols
     throw new Error(`${transfer.protocol} protocol not yet implemented`);
   }
 
-  private processFileTransferMessage(transfer: WebSocketFileTransfer, data: any): void {
+  private processFileTransferMessage(
+    transfer: WebSocketFileTransfer,
+    data: any
+  ): void {
     switch (data.action) {
       case 'chunk_received':
         // Update progress
         transfer.transferredBytes += data.chunkSize;
-        transfer.progress = (transfer.transferredBytes / transfer.fileSize) * 100;
+        transfer.progress =
+          (transfer.transferredBytes / transfer.fileSize) * 100;
         this.emit('file_transfer_progress', transfer);
         break;
-        
+
       case 'download_chunk':
         // Handle received download chunk
         this.processDownloadChunk(transfer, data);
         break;
-        
+
       case 'transfer_complete':
         transfer.status = 'completed';
         transfer.endTime = new Date();
         transfer.progress = 100;
         this.emit('file_transfer_progress', transfer);
         break;
-        
+
       case 'transfer_error':
         transfer.status = 'failed';
         transfer.error = data.error;
@@ -1453,26 +1574,29 @@ class WebSocketTerminalSession extends EventEmitter {
     }
   }
 
-  private async processDownloadChunk(transfer: WebSocketFileTransfer, data: any): Promise<void> {
+  private async processDownloadChunk(
+    transfer: WebSocketFileTransfer,
+    data: any
+  ): Promise<void> {
     // Reconstruct file from chunks
     const chunk = Buffer.from(data.chunk, 'base64');
-    
+
     if (!transfer.chunks[data.chunkIndex]) {
       transfer.chunks[data.chunkIndex] = {
         index: data.chunkIndex,
         size: chunk.length,
-        acknowledged: true
+        acknowledged: true,
       };
     }
-    
+
     // Write chunk to temporary buffer or file
     // Implementation would depend on specific requirements
-    
+
     transfer.transferredBytes += chunk.length;
     transfer.progress = (transfer.transferredBytes / transfer.fileSize) * 100;
-    
+
     this.emit('file_transfer_progress', transfer);
-    
+
     // Send acknowledgment
     const ackMessage: WebSocketTerminalMessage = {
       type: 'file',
@@ -1482,10 +1606,10 @@ class WebSocketTerminalSession extends EventEmitter {
       data: {
         transferId: transfer.transferId,
         action: 'chunk_ack',
-        chunkIndex: data.chunkIndex
-      }
+        chunkIndex: data.chunkIndex,
+      },
     };
-    
+
     await this.sendMessage(ackMessage);
   }
 
@@ -1495,14 +1619,14 @@ class WebSocketTerminalSession extends EventEmitter {
     this.state.errorHistory.push({
       timestamp: new Date(),
       error: error.message,
-      code: (error as any).code
+      code: (error as any).code,
     });
-    
+
     // Keep only last 10 errors
     if (this.state.errorHistory.length > 10) {
       this.state.errorHistory.shift();
     }
-    
+
     this.emit('error', error);
   }
 }

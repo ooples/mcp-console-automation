@@ -105,9 +105,15 @@ export class DataParameterizer {
     avgDuration: number;
   } {
     const total = parameterized.results.length;
-    const passed = parameterized.results.filter((r) => r.status === 'pass').length;
-    const failed = parameterized.results.filter((r) => r.status === 'fail').length;
-    const skipped = parameterized.results.filter((r) => r.status === 'skip').length;
+    const passed = parameterized.results.filter(
+      (r) => r.status === 'pass'
+    ).length;
+    const failed = parameterized.results.filter(
+      (r) => r.status === 'fail'
+    ).length;
+    const skipped = parameterized.results.filter(
+      (r) => r.status === 'skip'
+    ).length;
     const passRate = total > 0 ? passed / total : 0;
     const avgDuration =
       total > 0
@@ -217,7 +223,9 @@ export class DataParameterizer {
         const datasets: any[] = [];
         for (let i = 0; i < count; i++) {
           const generated = config.generator();
-          datasets.push(...(Array.isArray(generated) ? generated : [generated]));
+          datasets.push(
+            ...(Array.isArray(generated) ? generated : [generated])
+          );
         }
         return datasets.slice(0, count);
       }
@@ -275,9 +283,10 @@ export class DataParameterizer {
 
       return {
         test,
-        status: error instanceof Error && error.message.includes('timeout')
-          ? 'timeout'
-          : 'fail',
+        status:
+          error instanceof Error && error.message.includes('timeout')
+            ? 'timeout'
+            : 'fail',
         duration,
         startTime,
         endTime,

@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // TTYD Protocol connection options
@@ -222,9 +222,9 @@ export class TTYDProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -256,8 +256,8 @@ export class TTYDProtocol extends BaseProtocol {
         windows: true, // TTYD supports Windows through WSL/MinGW
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -284,8 +284,13 @@ export class TTYDProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -306,7 +311,9 @@ export class TTYDProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to TTYD session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to TTYD session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -337,7 +344,11 @@ export class TTYDProtocol extends BaseProtocol {
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -351,7 +362,11 @@ export class TTYDProtocol extends BaseProtocol {
     const ttydProcess = spawn(ttydCommand[0], ttydCommand.slice(1), {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(ttydOptions), ...options.env }
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(ttydOptions),
+        ...options.env,
+      },
     });
 
     // Set up output handling
@@ -360,7 +375,7 @@ export class TTYDProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -370,7 +385,7 @@ export class TTYDProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -381,7 +396,9 @@ export class TTYDProtocol extends BaseProtocol {
     });
 
     ttydProcess.on('close', (code) => {
-      this.logger.info(`TTYD process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `TTYD process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -394,7 +411,11 @@ export class TTYDProtocol extends BaseProtocol {
       command: ttydCommand[0],
       args: ttydCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(ttydOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(ttydOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -402,12 +423,14 @@ export class TTYDProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: ttydProcess.pid
+      pid: ttydProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    this.logger.info(`TTYD session ${sessionId} created on port ${ttydOptions.port || 7681}`);
+    this.logger.info(
+      `TTYD session ${sessionId} created on port ${ttydOptions.port || 7681}`
+    );
     this.emit('session-created', { sessionId, type: 'web-terminal', session });
 
     return session;
@@ -416,7 +439,7 @@ export class TTYDProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -425,8 +448,8 @@ export class TTYDProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -448,25 +471,30 @@ export class TTYDProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in TTYD session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in TTYD session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const ttydProcess = this.ttydProcesses.get(sessionId);
-    return ttydProcess && !ttydProcess.killed || false;
+    return (ttydProcess && !ttydProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -477,26 +505,26 @@ export class TTYDProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.ttydProcesses.size
+        connectionsActive: this.ttydProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -508,8 +536,8 @@ export class TTYDProtocol extends BaseProtocol {
       return {
         ...baseStatus,
         dependencies: {
-          ttyd: { available: true }
-        }
+          ttyd: { available: true },
+        },
       };
     } catch (error) {
       return {
@@ -517,8 +545,8 @@ export class TTYDProtocol extends BaseProtocol {
         isHealthy: false,
         errors: [...baseStatus.errors, `TTYD not available: ${error}`],
         dependencies: {
-          ttyd: { available: false }
-        }
+          ttyd: { available: false },
+        },
       };
     }
   }
@@ -704,7 +732,9 @@ export class TTYDProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: TTYDConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: TTYDConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // Terminal environment
@@ -755,7 +785,10 @@ export class TTYDProtocol extends BaseProtocol {
       try {
         process.kill();
       } catch (error) {
-        this.logger.error(`Error killing TTYD process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing TTYD process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

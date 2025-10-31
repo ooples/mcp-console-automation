@@ -78,23 +78,29 @@ export class OutputPaginationManager extends EventEmitter {
 
     // Set default options with validation
     this.options = {
-      defaultPageSize: Math.min(Math.max(options.defaultPageSize || 1000, 100), 10000),
+      defaultPageSize: Math.min(
+        Math.max(options.defaultPageSize || 1000, 100),
+        10000
+      ),
       maxPageSize: Math.min(options.maxPageSize || 10000, 50000),
       minPageSize: Math.max(options.minPageSize || 100, 10),
       enableContinuationTokens: options.enableContinuationTokens !== false,
-      maxBufferSize: Math.max(options.maxBufferSize || 100000, 10000)
+      maxBufferSize: Math.max(options.maxBufferSize || 100000, 10000),
     };
 
     this.sessionBuffers = new Map();
     this.tokenCache = new Map();
 
     // Cleanup expired tokens and unused buffers every 30 minutes
-    this.cleanupInterval = setInterval(() => {
-      this.cleanup();
-    }, 30 * 60 * 1000);
+    this.cleanupInterval = setInterval(
+      () => {
+        this.cleanup();
+      },
+      30 * 60 * 1000
+    );
 
     this.logger.info('OutputPaginationManager initialized', {
-      options: this.options
+      options: this.options,
     });
   }
 
@@ -112,7 +118,7 @@ export class OutputPaginationManager extends EventEmitter {
         lineIndex: new Map(),
         createdAt: Date.now(),
         lastAccessed: Date.now(),
-        totalLines: 0
+        totalLines: 0,
       };
       this.sessionBuffers.set(sessionId, buffer);
     }
@@ -134,7 +140,11 @@ export class OutputPaginationManager extends EventEmitter {
       this.trimBuffer(buffer, overflow);
     }
 
-    this.emit('outputs-added', { sessionId, count: outputs.length, totalLines: buffer.totalLines });
+    this.emit('outputs-added', {
+      sessionId,
+      count: outputs.length,
+      totalLines: buffer.totalLines,
+    });
   }
 
   /**
@@ -145,7 +155,11 @@ export class OutputPaginationManager extends EventEmitter {
 
     const buffer = this.sessionBuffers.get(sessionId);
     if (!buffer) {
-      return this.createEmptyResponse(sessionId, offset || 0, limit || this.options.defaultPageSize);
+      return this.createEmptyResponse(
+        sessionId,
+        offset || 0,
+        limit || this.options.defaultPageSize
+      );
     }
 
     buffer.lastAccessed = Date.now();
@@ -165,20 +179,32 @@ export class OutputPaginationManager extends EventEmitter {
           if (!this.validateToken(token, buffer)) {
             this.logger.warn('Invalid continuation token detected', {
               sessionId,
-              tokenOffset: token.offset
+              tokenOffset: token.offset,
             });
-            return this.createErrorResponse(sessionId, 'Invalid continuation token');
+            return this.createErrorResponse(
+              sessionId,
+              'Invalid continuation token'
+            );
           }
         }
       } catch (error) {
-        this.logger.error('Failed to parse continuation token', { error, sessionId });
-        return this.createErrorResponse(sessionId, 'Invalid continuation token format');
+        this.logger.error('Failed to parse continuation token', {
+          error,
+          sessionId,
+        });
+        return this.createErrorResponse(
+          sessionId,
+          'Invalid continuation token format'
+        );
       }
     }
 
     // Validate and clamp parameters
     actualOffset = Math.max(0, Math.min(actualOffset, buffer.totalLines));
-    actualLimit = Math.min(Math.max(actualLimit, this.options.minPageSize), this.options.maxPageSize);
+    actualLimit = Math.min(
+      Math.max(actualLimit, this.options.minPageSize),
+      this.options.maxPageSize
+    );
 
     // Extract the requested range
     const endOffset = Math.min(actualOffset + actualLimit, buffer.totalLines);
@@ -201,11 +227,11 @@ export class OutputPaginationManager extends EventEmitter {
         offset: endOffset,
         limit: actualLimit,
         timestamp: Date.now(),
-        checksum: this.calculateBufferChecksum(buffer)
+        checksum: this.calculateBufferChecksum(buffer),
       });
     }
 
-    const outputText = requestedOutputs.map(o => o.data).join('');
+    const outputText = requestedOutputs.map((o) => o.data).join('');
 
     this.logger.debug('Paginated output retrieved', {
       sessionId,
@@ -213,7 +239,7 @@ export class OutputPaginationManager extends EventEmitter {
       limit: actualLimit,
       returnedLines: requestedOutputs.length,
       hasMore,
-      totalLines: buffer.totalLines
+      totalLines: buffer.totalLines,
     });
 
     return {
@@ -224,7 +250,7 @@ export class OutputPaginationManager extends EventEmitter {
       totalLines: buffer.totalLines,
       currentOffset: actualOffset,
       pageSize: requestedOutputs.length,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -271,7 +297,10 @@ export class OutputPaginationManager extends EventEmitter {
       this.sessionBuffers.delete(sessionId);
       this.invalidateSessionTokens(sessionId);
 
-      this.emit('session-removed', { sessionId, totalLines: buffer.totalLines });
+      this.emit('session-removed', {
+        sessionId,
+        totalLines: buffer.totalLines,
+      });
       this.logger.info('Session buffer removed', { sessionId });
     }
   }
@@ -291,24 +320,29 @@ export class OutputPaginationManager extends EventEmitter {
         memoryUsageMB: this.calculateBufferMemoryUsage(buffer),
         createdAt: new Date(buffer.createdAt).toISOString(),
         lastAccessed: new Date(buffer.lastAccessed).toISOString(),
-        ageMinutes: (Date.now() - buffer.createdAt) / (1000 * 60)
+        ageMinutes: (Date.now() - buffer.createdAt) / (1000 * 60),
       };
     }
 
     // Global statistics
     const totalSessions = this.sessionBuffers.size;
-    const totalLines = Array.from(this.sessionBuffers.values()).reduce((sum, b) => sum + b.totalLines, 0);
+    const totalLines = Array.from(this.sessionBuffers.values()).reduce(
+      (sum, b) => sum + b.totalLines,
+      0
+    );
     const totalMemoryMB = Array.from(this.sessionBuffers.values()).reduce(
-      (sum, b) => sum + this.calculateBufferMemoryUsage(b), 0
+      (sum, b) => sum + this.calculateBufferMemoryUsage(b),
+      0
     );
 
     return {
       totalSessions,
       totalLines,
       totalMemoryMB,
-      averageLinesPerSession: totalSessions > 0 ? Math.round(totalLines / totalSessions) : 0,
+      averageLinesPerSession:
+        totalSessions > 0 ? Math.round(totalLines / totalSessions) : 0,
       activeTokens: this.tokenCache.size,
-      options: this.options
+      options: this.options,
     };
   }
 
@@ -320,11 +354,13 @@ export class OutputPaginationManager extends EventEmitter {
     this.tokenCache.set(tokenId, token);
 
     // Create encoded token
-    const encoded = Buffer.from(JSON.stringify({
-      id: tokenId,
-      ts: token.timestamp,
-      cs: token.checksum.substring(0, 8) // Short checksum for verification
-    })).toString('base64url');
+    const encoded = Buffer.from(
+      JSON.stringify({
+        id: tokenId,
+        ts: token.timestamp,
+        cs: token.checksum.substring(0, 8), // Short checksum for verification
+      })
+    ).toString('base64url');
 
     return encoded;
   }
@@ -333,7 +369,9 @@ export class OutputPaginationManager extends EventEmitter {
    * Parse continuation token
    */
   private parseContinuationToken(tokenString: string): ContinuationToken {
-    const decoded = JSON.parse(Buffer.from(tokenString, 'base64url').toString());
+    const decoded = JSON.parse(
+      Buffer.from(tokenString, 'base64url').toString()
+    );
     const token = this.tokenCache.get(decoded.id);
 
     if (!token) {
@@ -351,7 +389,10 @@ export class OutputPaginationManager extends EventEmitter {
   /**
    * Validate token against current buffer state
    */
-  private validateToken(token: ContinuationToken, buffer: SessionBuffer): boolean {
+  private validateToken(
+    token: ContinuationToken,
+    buffer: SessionBuffer
+  ): boolean {
     // Check if buffer has been modified since token creation
     const currentChecksum = this.calculateBufferChecksum(buffer);
     return currentChecksum === token.checksum;
@@ -375,7 +416,7 @@ export class OutputPaginationManager extends EventEmitter {
       totalBytes += 64; // Approximate overhead per ConsoleOutput object
     }
     totalBytes += buffer.lineIndex.size * 16; // Map overhead
-    return Math.round(totalBytes / (1024 * 1024) * 100) / 100; // MB rounded to 2 decimals
+    return Math.round((totalBytes / (1024 * 1024)) * 100) / 100; // MB rounded to 2 decimals
   }
 
   /**
@@ -398,7 +439,7 @@ export class OutputPaginationManager extends EventEmitter {
     this.logger.debug('Buffer trimmed', {
       sessionId: buffer.sessionId,
       removedLines: actualRemoveCount,
-      remainingLines: buffer.totalLines
+      remainingLines: buffer.totalLines,
     });
 
     // Invalidate tokens since buffer structure changed
@@ -416,7 +457,7 @@ export class OutputPaginationManager extends EventEmitter {
       }
     }
 
-    toDelete.forEach(tokenId => this.tokenCache.delete(tokenId));
+    toDelete.forEach((tokenId) => this.tokenCache.delete(tokenId));
   }
 
   /**
@@ -450,7 +491,7 @@ export class OutputPaginationManager extends EventEmitter {
         expiredTokens,
         removedBuffers,
         activeTokens: this.tokenCache.size,
-        activeBuffers: this.sessionBuffers.size
+        activeBuffers: this.sessionBuffers.size,
       });
     }
   }
@@ -458,7 +499,11 @@ export class OutputPaginationManager extends EventEmitter {
   /**
    * Create empty response for non-existent sessions
    */
-  private createEmptyResponse(sessionId: string, offset: number, limit: number): PaginationResponse {
+  private createEmptyResponse(
+    sessionId: string,
+    offset: number,
+    limit: number
+  ): PaginationResponse {
     return {
       output: '',
       data: [],
@@ -466,14 +511,17 @@ export class OutputPaginationManager extends EventEmitter {
       totalLines: 0,
       currentOffset: offset,
       pageSize: 0,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
   /**
    * Create error response
    */
-  private createErrorResponse(sessionId: string, error: string): PaginationResponse {
+  private createErrorResponse(
+    sessionId: string,
+    error: string
+  ): PaginationResponse {
     return {
       output: `Error: ${error}`,
       data: [],
@@ -481,7 +529,7 @@ export class OutputPaginationManager extends EventEmitter {
       totalLines: 0,
       currentOffset: 0,
       pageSize: 0,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -499,9 +547,9 @@ export class OutputPaginationManager extends EventEmitter {
 
 // Utility function to generate UUID for tokens
 function uuidv4(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c == 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }

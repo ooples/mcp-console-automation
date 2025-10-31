@@ -4,18 +4,22 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
   SessionState as BaseSessionState,
-  ErrorContext
+  ErrorContext,
 } from '../core/IProtocol.js';
 
 // Azure SDK imports - made optional to handle missing dependencies
-let DefaultAzureCredential: any, ClientSecretCredential: any, ManagedIdentityCredential: any,
-    ChainedTokenCredential: any, AzureCliCredential: any, InteractiveBrowserCredential: any,
-    ClientCertificateCredential: any;
+let DefaultAzureCredential: any,
+  ClientSecretCredential: any,
+  ManagedIdentityCredential: any,
+  ChainedTokenCredential: any,
+  AzureCliCredential: any,
+  InteractiveBrowserCredential: any,
+  ClientCertificateCredential: any;
 
 try {
   const identityModule = require('@azure/identity');
@@ -27,30 +31,40 @@ try {
   InteractiveBrowserCredential = identityModule.InteractiveBrowserCredential;
   ClientCertificateCredential = identityModule.ClientCertificateCredential;
 } catch (error) {
-  console.warn('@azure/identity not available, Azure identity functionality will be disabled');
+  console.warn(
+    '@azure/identity not available, Azure identity functionality will be disabled'
+  );
 }
 
-let ComputeManagementClient: any, NetworkManagementClient: any, SecretClient: any;
+let ComputeManagementClient: any,
+  NetworkManagementClient: any,
+  SecretClient: any;
 
 try {
   const computeModule = require('@azure/arm-compute');
   ComputeManagementClient = computeModule.ComputeManagementClient;
 } catch (error) {
-  console.warn('@azure/arm-compute not available, Compute management functionality will be disabled');
+  console.warn(
+    '@azure/arm-compute not available, Compute management functionality will be disabled'
+  );
 }
 
 try {
   const networkModule = require('@azure/arm-network');
   NetworkManagementClient = networkModule.NetworkManagementClient;
 } catch (error) {
-  console.warn('@azure/arm-network not available, Network management functionality will be disabled');
+  console.warn(
+    '@azure/arm-network not available, Network management functionality will be disabled'
+  );
 }
 
 try {
   const keyVaultModule = require('@azure/keyvault-secrets');
   SecretClient = keyVaultModule.SecretClient;
 } catch (error) {
-  console.warn('@azure/keyvault-secrets not available, Key Vault functionality will be disabled');
+  console.warn(
+    '@azure/keyvault-secrets not available, Key Vault functionality will be disabled'
+  );
 }
 import {
   AzureConnectionOptions,
@@ -58,7 +72,7 @@ import {
   AzureBastionSession,
   AzureArcSession,
   AzureTokenInfo,
-  AzureResourceInfo
+  AzureResourceInfo,
 } from '../types/index.js';
 
 // Azure API Response Interfaces
@@ -136,7 +150,10 @@ export class AzureProtocol extends BaseProtocol {
   public readonly type: ConsoleType = 'azure-shell';
   public readonly capabilities: ProtocolCapabilities;
 
-  private azureSessions: Map<string, AzureCloudShellSession | AzureBastionSession | AzureArcSession> = new Map();
+  private azureSessions: Map<
+    string,
+    AzureCloudShellSession | AzureBastionSession | AzureArcSession
+  > = new Map();
   private webSockets: Map<string, WebSocket> = new Map();
   private credentials: Map<string, AzureCredentialLike> = new Map();
   private computeClients: Map<string, ComputeManagementClientLike> = new Map();
@@ -173,8 +190,8 @@ export class AzureProtocol extends BaseProtocol {
         windows: true,
         linux: true,
         macos: true,
-        freebsd: true
-      }
+        freebsd: true,
+      },
     };
   }
 
@@ -184,11 +201,15 @@ export class AzureProtocol extends BaseProtocol {
     try {
       // Verify Azure SDK availability
       if (!DefaultAzureCredential) {
-        this.logger.warn('Azure SDK not fully available, some features may be disabled');
+        this.logger.warn(
+          'Azure SDK not fully available, some features may be disabled'
+        );
       }
 
       this.isInitialized = true;
-      this.logger.info('Azure protocol initialized with session management fixes');
+      this.logger.info(
+        'Azure protocol initialized with session management fixes'
+      );
     } catch (error: any) {
       this.logger.error('Failed to initialize Azure protocol', error);
       throw error;
@@ -205,19 +226,36 @@ export class AzureProtocol extends BaseProtocol {
 
     // Determine Azure service type
     if (azureOptions.cloudShellType) {
-      const azureSession = await this.createCloudShellSession(sessionId, azureOptions);
-      return await this.createAzureSessionWithDetection(sessionId, options, azureSession);
+      const azureSession = await this.createCloudShellSession(
+        sessionId,
+        azureOptions
+      );
+      return await this.createAzureSessionWithDetection(
+        sessionId,
+        options,
+        azureSession
+      );
     } else if (azureOptions.bastionResourceId) {
-      const azureSession = await this.createBastionSession(sessionId, azureOptions);
-      return await this.createAzureSessionWithDetection(sessionId, options, azureSession);
+      const azureSession = await this.createBastionSession(
+        sessionId,
+        azureOptions
+      );
+      return await this.createAzureSessionWithDetection(
+        sessionId,
+        options,
+        azureSession
+      );
     } else if (azureOptions.arcResourceId) {
       const azureSession = await this.createArcSession(sessionId, azureOptions);
-      return await this.createAzureSessionWithDetection(sessionId, options, azureSession);
+      return await this.createAzureSessionWithDetection(
+        sessionId,
+        options,
+        azureSession
+      );
     } else {
       throw new Error('Azure connection type not specified');
     }
   }
-
 
   getSessionState(sessionId: string): Promise<BaseSessionState> {
     const azureSession = this.azureSessions.get(sessionId);
@@ -231,7 +269,7 @@ export class AzureProtocol extends BaseProtocol {
         isPersistent: true,
         createdAt: new Date(),
         lastActivity: new Date(),
-        metadata: { error: 'Session not found' }
+        metadata: { error: 'Session not found' },
       });
     }
 
@@ -248,10 +286,14 @@ export class AzureProtocol extends BaseProtocol {
       metadata: {
         tokenExpiry: azureSession.tokenExpiry,
         tokenValid: azureSession.tokenExpiry.getTime() > Date.now(),
-        sessionType: 'webSocketUrl' in azureSession ? 'cloud-shell' :
-                    'bastionResourceId' in azureSession ? 'bastion' : 'arc',
-        webSocketConnected: connected
-      }
+        sessionType:
+          'webSocketUrl' in azureSession
+            ? 'cloud-shell'
+            : 'bastionResourceId' in azureSession
+              ? 'bastion'
+              : 'arc',
+        webSocketConnected: connected,
+      },
     };
 
     return Promise.resolve(state);
@@ -284,7 +326,10 @@ export class AzureProtocol extends BaseProtocol {
       await this.connectWebSocket(sessionId, azureSession);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to reconnect Azure session ${context.sessionId}:`, error);
+      this.logger.error(
+        `Failed to reconnect Azure session ${context.sessionId}:`,
+        error
+      );
       return false;
     }
   }
@@ -293,30 +338,44 @@ export class AzureProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions
+  ): Promise<ConsoleSession> {
     return await this.createSession(options);
   }
 
   async sendInput(sessionId: string, input: string): Promise<void> {
     const webSocket = this.webSockets.get(sessionId);
     if (!webSocket) {
-      throw new Error(`No WebSocket connection found for session: ${sessionId}`);
+      throw new Error(
+        `No WebSocket connection found for session: ${sessionId}`
+      );
     }
 
     if (webSocket.readyState === WebSocket.OPEN) {
       const message = {
         type: 'input',
-        data: input
+        data: input,
       };
       webSocket.send(JSON.stringify(message));
-      this.logger.debug(`Sent input to session ${sessionId}: ${input.substring(0, 100)}`);
+      this.logger.debug(
+        `Sent input to session ${sessionId}: ${input.substring(0, 100)}`
+      );
     } else {
-      throw new Error(`WebSocket connection is not open for session: ${sessionId}`);
+      throw new Error(
+        `WebSocket connection is not open for session: ${sessionId}`
+      );
     }
   }
 
@@ -342,7 +401,7 @@ export class AzureProtocol extends BaseProtocol {
       status: 'initializing',
       type: this.type,
       executionState: 'idle',
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     this.sessions.set(sessionId, session);
@@ -373,11 +432,17 @@ export class AzureProtocol extends BaseProtocol {
 
       // Get authentication credentials
       const credential = await this.getCredential(options);
-      const token = await this.getAccessToken(credential, 'https://management.azure.com/');
+      const token = await this.getAccessToken(
+        credential,
+        'https://management.azure.com/'
+      );
 
       // Create Cloud Shell session via Azure API
       const cloudShellUrl = await this.createCloudShellInstance(options, token);
-      const webSocketUrl = await this.getCloudShellWebSocketUrl(cloudShellUrl, token);
+      const webSocketUrl = await this.getCloudShellWebSocketUrl(
+        cloudShellUrl,
+        token
+      );
 
       const session: AzureCloudShellSession = {
         sessionId,
@@ -387,14 +452,19 @@ export class AzureProtocol extends BaseProtocol {
         tokenExpiry: token.expiresOn,
         shellType: options.cloudShellType || 'bash',
         subscription: options.subscriptionId || '',
-        resourceGroup: options.resourceGroupName || 'cloud-shell-storage-eastus',
+        resourceGroup:
+          options.resourceGroupName || 'cloud-shell-storage-eastus',
         location: options.region || 'eastus',
-        storageAccount: options.storageAccountName ? {
-          name: options.storageAccountName,
-          resourceGroup: options.resourceGroupName || 'cloud-shell-storage-eastus',
-          fileShare: options.fileShareName || 'cs-' + sessionId.substring(0, 8)
-        } : undefined,
-        metadata: {}
+        storageAccount: options.storageAccountName
+          ? {
+              name: options.storageAccountName,
+              resourceGroup:
+                options.resourceGroupName || 'cloud-shell-storage-eastus',
+              fileShare:
+                options.fileShareName || 'cs-' + sessionId.substring(0, 8),
+            }
+          : undefined,
+        metadata: {},
       };
 
       this.azureSessions.set(sessionId, session);
@@ -406,10 +476,15 @@ export class AzureProtocol extends BaseProtocol {
       // Schedule token refresh
       this.scheduleTokenRefresh(sessionId, session);
 
-      this.logger.info(`Azure Cloud Shell session created successfully: ${sessionId}`);
+      this.logger.info(
+        `Azure Cloud Shell session created successfully: ${sessionId}`
+      );
       return session;
     } catch (error) {
-      this.logger.error(`Failed to create Azure Cloud Shell session: ${sessionId}`, error);
+      this.logger.error(
+        `Failed to create Azure Cloud Shell session: ${sessionId}`,
+        error
+      );
       throw error;
     }
   }
@@ -425,14 +500,22 @@ export class AzureProtocol extends BaseProtocol {
       this.logger.info(`Creating Azure Bastion session: ${sessionId}`);
 
       const credential = await this.getCredential(options);
-      const token = await this.getAccessToken(credential, 'https://management.azure.com/');
+      const token = await this.getAccessToken(
+        credential,
+        'https://management.azure.com/'
+      );
 
       // Get Bastion and VM resource information
       const bastionInfo = await this.getBastionResourceInfo(options, token);
       const vmInfo = await this.getVmResourceInfo(options, token);
 
       // Create Bastion connection
-      const connectionUrl = await this.createBastionConnection(bastionInfo, vmInfo, options, token);
+      const connectionUrl = await this.createBastionConnection(
+        bastionInfo,
+        vmInfo,
+        options,
+        token
+      );
 
       const session: AzureBastionSession = {
         sessionId,
@@ -446,8 +529,8 @@ export class AzureProtocol extends BaseProtocol {
         metadata: {
           bastionName: bastionInfo.name,
           vmName: vmInfo.name,
-          location: bastionInfo.location
-        }
+          location: bastionInfo.location,
+        },
       };
 
       this.azureSessions.set(sessionId, session);
@@ -460,10 +543,15 @@ export class AzureProtocol extends BaseProtocol {
 
       this.scheduleTokenRefresh(sessionId, session);
 
-      this.logger.info(`Azure Bastion session created successfully: ${sessionId}`);
+      this.logger.info(
+        `Azure Bastion session created successfully: ${sessionId}`
+      );
       return session;
     } catch (error) {
-      this.logger.error(`Failed to create Azure Bastion session: ${sessionId}`, error);
+      this.logger.error(
+        `Failed to create Azure Bastion session: ${sessionId}`,
+        error
+      );
       throw error;
     }
   }
@@ -479,14 +567,24 @@ export class AzureProtocol extends BaseProtocol {
       this.logger.info(`Creating Azure Arc session: ${sessionId}`);
 
       const credential = await this.getCredential(options);
-      const token = await this.getAccessToken(credential, 'https://management.azure.com/');
+      const token = await this.getAccessToken(
+        credential,
+        'https://management.azure.com/'
+      );
 
       // Get Arc resource information
       const arcInfo = await this.getArcResourceInfo(options, token);
-      
+
       // Create hybrid connection
-      const connectionEndpoint = await this.createArcConnection(arcInfo, options, token);
-      const hybridConnectionString = await this.getHybridConnectionString(arcInfo, token);
+      const connectionEndpoint = await this.createArcConnection(
+        arcInfo,
+        options,
+        token
+      );
+      const hybridConnectionString = await this.getHybridConnectionString(
+        arcInfo,
+        token
+      );
 
       const session: AzureArcSession = {
         sessionId,
@@ -497,13 +595,15 @@ export class AzureProtocol extends BaseProtocol {
         hybridConnectionString,
         targetMachine: {
           name: arcInfo.name,
-          osType: arcInfo.properties?.osName?.includes('Windows') ? 'Windows' : 'Linux',
-          version: arcInfo.properties?.osVersion
+          osType: arcInfo.properties?.osName?.includes('Windows')
+            ? 'Windows'
+            : 'Linux',
+          version: arcInfo.properties?.osVersion,
         },
         metadata: {
           location: arcInfo.location,
-          resourceGroup: arcInfo.resourceGroup
-        }
+          resourceGroup: arcInfo.resourceGroup,
+        },
       };
 
       this.azureSessions.set(sessionId, session);
@@ -517,29 +617,39 @@ export class AzureProtocol extends BaseProtocol {
       this.logger.info(`Azure Arc session created successfully: ${sessionId}`);
       return session;
     } catch (error) {
-      this.logger.error(`Failed to create Azure Arc session: ${sessionId}`, error);
+      this.logger.error(
+        `Failed to create Azure Arc session: ${sessionId}`,
+        error
+      );
       throw error;
     }
   }
 
-
   /**
    * Resize terminal for a session
    */
-  async resizeTerminal(sessionId: string, rows: number, cols: number): Promise<void> {
+  async resizeTerminal(
+    sessionId: string,
+    rows: number,
+    cols: number
+  ): Promise<void> {
     const webSocket = this.webSockets.get(sessionId);
     if (!webSocket) {
-      throw new Error(`No WebSocket connection found for session: ${sessionId}`);
+      throw new Error(
+        `No WebSocket connection found for session: ${sessionId}`
+      );
     }
 
     if (webSocket.readyState === WebSocket.OPEN) {
       const message = {
         type: 'resize',
         rows,
-        cols
+        cols,
       };
       webSocket.send(JSON.stringify(message));
-      this.logger.debug(`Resized terminal for session ${sessionId}: ${rows}x${cols}`);
+      this.logger.debug(
+        `Resized terminal for session ${sessionId}: ${rows}x${cols}`
+      );
     }
   }
 
@@ -587,7 +697,13 @@ export class AzureProtocol extends BaseProtocol {
   /**
    * Get Azure session information
    */
-  getAzureSession(sessionId: string): AzureCloudShellSession | AzureBastionSession | AzureArcSession | undefined {
+  getAzureSession(
+    sessionId: string
+  ):
+    | AzureCloudShellSession
+    | AzureBastionSession
+    | AzureArcSession
+    | undefined {
     return this.azureSessions.get(sessionId);
   }
 
@@ -610,7 +726,9 @@ export class AzureProtocol extends BaseProtocol {
    * Private methods
    */
 
-  private async getCredential(options: AzureConnectionOptions): Promise<AzureCredentialLike> {
+  private async getCredential(
+    options: AzureConnectionOptions
+  ): Promise<AzureCredentialLike> {
     if (!DefaultAzureCredential) {
       throw new Error('@azure/identity package is required but not available');
     }
@@ -645,7 +763,11 @@ export class AzureProtocol extends BaseProtocol {
     }
 
     // Use chained credential for maximum compatibility
-    if (!ChainedTokenCredential || !AzureCliCredential || !ManagedIdentityCredential) {
+    if (
+      !ChainedTokenCredential ||
+      !AzureCliCredential ||
+      !ManagedIdentityCredential
+    ) {
       // Fallback to DefaultAzureCredential if chained components not available
       return new DefaultAzureCredential();
     }
@@ -657,18 +779,23 @@ export class AzureProtocol extends BaseProtocol {
     );
   }
 
-  private async getAccessToken(credential: AzureCredentialLike, scope: string): Promise<AzureTokenInfo> {
+  private async getAccessToken(
+    credential: AzureCredentialLike,
+    scope: string
+  ): Promise<AzureTokenInfo> {
     const tokenResponse = await credential.getToken(scope);
-    
+
     return {
       accessToken: tokenResponse.token,
       tokenType: 'Bearer',
-      expiresIn: Math.floor((tokenResponse.expiresOnTimestamp - Date.now()) / 1000),
+      expiresIn: Math.floor(
+        (tokenResponse.expiresOnTimestamp - Date.now()) / 1000
+      ),
       expiresOn: new Date(tokenResponse.expiresOnTimestamp),
       scope: [scope],
       tenantId: (credential as any).tenantId || '',
       resource: scope,
-      authority: 'https://login.microsoftonline.com/'
+      authority: 'https://login.microsoftonline.com/',
     };
   }
 
@@ -686,50 +813,55 @@ export class AzureProtocol extends BaseProtocol {
     const response = await fetch(cloudShellApiUrl, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token.accessToken}`,
+        Authorization: `Bearer ${token.accessToken}`,
         'Content-Type': 'application/json',
-        'x-ms-console-preferred-location': location
+        'x-ms-console-preferred-location': location,
       },
       body: JSON.stringify({
         properties: {
           osType: shellType === 'powershell' ? 'Windows' : 'Linux',
           consoleDefinition: {
-            type: shellType
-          }
-        }
-      })
+            type: shellType,
+          },
+        },
+      }),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to create Cloud Shell instance: ${response.statusText}`);
+      throw new Error(
+        `Failed to create Cloud Shell instance: ${response.statusText}`
+      );
     }
 
-    const data = await response.json() as AzureCloudShellCreateResponse;
+    const data = (await response.json()) as AzureCloudShellCreateResponse;
     return data.properties.uri;
   }
 
-  private async getCloudShellWebSocketUrl(consoleUri: string, token: AzureTokenInfo): Promise<string> {
+  private async getCloudShellWebSocketUrl(
+    consoleUri: string,
+    token: AzureTokenInfo
+  ): Promise<string> {
     const response = await fetch(`${consoleUri}/connect`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token.accessToken}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         properties: {
           connectParams: {
             osType: 'Linux',
-            shellType: 'bash'
-          }
-        }
-      })
+            shellType: 'bash',
+          },
+        },
+      }),
     });
 
     if (!response.ok) {
       throw new Error(`Failed to get WebSocket URL: ${response.statusText}`);
     }
 
-    const data = await response.json() as AzureCloudShellConnectResponse;
+    const data = (await response.json()) as AzureCloudShellConnectResponse;
     return data.properties.socketUri;
   }
 
@@ -742,17 +874,22 @@ export class AzureProtocol extends BaseProtocol {
       throw new Error('Bastion resource ID is required');
     }
 
-    const response = await fetch(`https://management.azure.com${bastionResourceId}?api-version=2021-02-01`, {
-      headers: {
-        'Authorization': `Bearer ${token.accessToken}`
+    const response = await fetch(
+      `https://management.azure.com${bastionResourceId}?api-version=2021-02-01`,
+      {
+        headers: {
+          Authorization: `Bearer ${token.accessToken}`,
+        },
       }
-    });
+    );
 
     if (!response.ok) {
-      throw new Error(`Failed to get Bastion resource info: ${response.statusText}`);
+      throw new Error(
+        `Failed to get Bastion resource info: ${response.statusText}`
+      );
     }
 
-    const data = await response.json() as AzureResourceResponse;
+    const data = (await response.json()) as AzureResourceResponse;
     return {
       resourceId: data.id,
       resourceType: data.type,
@@ -760,7 +897,7 @@ export class AzureProtocol extends BaseProtocol {
       subscriptionId: data.id.split('/')[2],
       location: data.location,
       name: data.name,
-      properties: data.properties
+      properties: data.properties,
     };
   }
 
@@ -773,17 +910,20 @@ export class AzureProtocol extends BaseProtocol {
       throw new Error('Target VM resource ID is required');
     }
 
-    const response = await fetch(`https://management.azure.com${vmResourceId}?api-version=2021-03-01`, {
-      headers: {
-        'Authorization': `Bearer ${token.accessToken}`
+    const response = await fetch(
+      `https://management.azure.com${vmResourceId}?api-version=2021-03-01`,
+      {
+        headers: {
+          Authorization: `Bearer ${token.accessToken}`,
+        },
       }
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to get VM resource info: ${response.statusText}`);
     }
 
-    const data = await response.json() as AzureResourceResponse;
+    const data = (await response.json()) as AzureResourceResponse;
     return {
       resourceId: data.id,
       resourceType: data.type,
@@ -791,7 +931,7 @@ export class AzureProtocol extends BaseProtocol {
       subscriptionId: data.id.split('/')[2],
       location: data.location,
       name: data.name,
-      properties: data.properties
+      properties: data.properties,
     };
   }
 
@@ -807,23 +947,27 @@ export class AzureProtocol extends BaseProtocol {
     const response = await fetch(bastionEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token.accessToken}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        vms: [{
-          vm: {
-            id: vmInfo.resourceId
-          }
-        }]
-      })
+        vms: [
+          {
+            vm: {
+              id: vmInfo.resourceId,
+            },
+          },
+        ],
+      }),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to create Bastion connection: ${response.statusText}`);
+      throw new Error(
+        `Failed to create Bastion connection: ${response.statusText}`
+      );
     }
 
-    const data = await response.json() as AzureBastionConnectionResponse;
+    const data = (await response.json()) as AzureBastionConnectionResponse;
     return data.value[0]?.bsl || '';
   }
 
@@ -836,17 +980,22 @@ export class AzureProtocol extends BaseProtocol {
       throw new Error('Arc resource ID is required');
     }
 
-    const response = await fetch(`https://management.azure.com${arcResourceId}?api-version=2020-08-02`, {
-      headers: {
-        'Authorization': `Bearer ${token.accessToken}`
+    const response = await fetch(
+      `https://management.azure.com${arcResourceId}?api-version=2020-08-02`,
+      {
+        headers: {
+          Authorization: `Bearer ${token.accessToken}`,
+        },
       }
-    });
+    );
 
     if (!response.ok) {
-      throw new Error(`Failed to get Arc resource info: ${response.statusText}`);
+      throw new Error(
+        `Failed to get Arc resource info: ${response.statusText}`
+      );
     }
 
-    const data = await response.json() as AzureResourceResponse;
+    const data = (await response.json()) as AzureResourceResponse;
     return {
       resourceId: data.id,
       resourceType: data.type,
@@ -854,7 +1003,7 @@ export class AzureProtocol extends BaseProtocol {
       subscriptionId: data.id.split('/')[2],
       location: data.location,
       name: data.name,
-      properties: data.properties
+      properties: data.properties,
     };
   }
 
@@ -865,26 +1014,28 @@ export class AzureProtocol extends BaseProtocol {
   ): Promise<string> {
     // Create Arc connection endpoint
     const endpoint = `https://management.azure.com${arcInfo.resourceId}/providers/Microsoft.HybridConnectivity/endpoints/default`;
-    
+
     const response = await fetch(endpoint, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token.accessToken}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         properties: {
           type: 'default',
-          resourceId: arcInfo.resourceId
-        }
-      })
+          resourceId: arcInfo.resourceId,
+        },
+      }),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to create Arc connection: ${response.statusText}`);
+      throw new Error(
+        `Failed to create Arc connection: ${response.statusText}`
+      );
     }
 
-    const data = await response.json() as AzureArcConnectionResponse;
+    const data = (await response.json()) as AzureArcConnectionResponse;
     return data.properties.connectionDetails.socketUri;
   }
 
@@ -893,20 +1044,22 @@ export class AzureProtocol extends BaseProtocol {
     token: AzureTokenInfo
   ): Promise<string> {
     const endpoint = `https://management.azure.com${arcInfo.resourceId}/providers/Microsoft.HybridConnectivity/endpoints/default/listCredentials`;
-    
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token.accessToken}`,
-        'Content-Type': 'application/json'
-      }
+        Authorization: `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json',
+      },
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to get hybrid connection string: ${response.statusText}`);
+      throw new Error(
+        `Failed to get hybrid connection string: ${response.statusText}`
+      );
     }
 
-    const data = await response.json() as AzureHybridConnectionResponse;
+    const data = (await response.json()) as AzureHybridConnectionResponse;
     return data.hybridConnectionString;
   }
 
@@ -916,13 +1069,14 @@ export class AzureProtocol extends BaseProtocol {
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const webSocketUrl = (session as AzureCloudShellSession).webSocketUrl || 
-                           (session as AzureArcSession).connectionEndpoint;
+        const webSocketUrl =
+          (session as AzureCloudShellSession).webSocketUrl ||
+          (session as AzureArcSession).connectionEndpoint;
 
         const webSocket = new WebSocket(webSocketUrl, {
           headers: {
-            'Authorization': `Bearer ${session.accessToken}`
-          }
+            Authorization: `Bearer ${session.accessToken}`,
+          },
         });
 
         webSocket.on('open', () => {
@@ -934,19 +1088,24 @@ export class AzureProtocol extends BaseProtocol {
 
         webSocket.on('message', (data: Buffer | ArrayBuffer | Buffer[]) => {
           try {
-            const message = Buffer.isBuffer(data) ? data.toString() :
-                           data instanceof ArrayBuffer ? Buffer.from(data).toString() :
-                           Buffer.concat(data as Buffer[]).toString();
+            const message = Buffer.isBuffer(data)
+              ? data.toString()
+              : data instanceof ArrayBuffer
+                ? Buffer.from(data).toString()
+                : Buffer.concat(data as Buffer[]).toString();
             const output: ConsoleOutput = {
               sessionId,
               type: 'stdout',
               data: message,
               timestamp: new Date(),
-              raw: message
+              raw: message,
             };
             this.addToOutputBuffer(sessionId, output);
           } catch (error) {
-            this.logger.error(`Error processing WebSocket message for session ${sessionId}:`, error);
+            this.logger.error(
+              `Error processing WebSocket message for session ${sessionId}:`,
+              error
+            );
           }
         });
 
@@ -957,7 +1116,9 @@ export class AzureProtocol extends BaseProtocol {
         });
 
         webSocket.on('close', (code, reason) => {
-          this.logger.info(`WebSocket closed for session ${sessionId}: ${code} - ${reason}`);
+          this.logger.info(
+            `WebSocket closed for session ${sessionId}: ${code} - ${reason}`
+          );
           this.webSockets.delete(sessionId);
 
           // Attempt reconnection if not intentionally closed
@@ -965,7 +1126,6 @@ export class AzureProtocol extends BaseProtocol {
             this.scheduleReconnect(sessionId);
           }
         });
-
       } catch (error) {
         reject(error);
       }
@@ -980,16 +1140,18 @@ export class AzureProtocol extends BaseProtocol {
     // For Bastion SSH connections, we need to establish a tunnel
     // This is a simplified implementation - in practice, you'd use the Bastion API
     // to create a proper SSH tunnel
-    
+
     const localPort = 2222 + Math.floor(Math.random() * 1000);
     session.tunnelEndpoint = `localhost:${localPort}`;
     session.portForwarding = {
       localPort,
       remotePort: 22,
-      remoteHost: session.targetVmName
+      remoteHost: session.targetVmName,
     };
 
-    this.logger.info(`Bastion SSH tunnel established for session ${sessionId} on port ${localPort}`);
+    this.logger.info(
+      `Bastion SSH tunnel established for session ${sessionId} on port ${localPort}`
+    );
   }
 
   private async connectArcSession(
@@ -1004,14 +1166,18 @@ export class AzureProtocol extends BaseProtocol {
     sessionId: string,
     session: AzureCloudShellSession | AzureBastionSession | AzureArcSession
   ): void {
-    const refreshTime = session.tokenExpiry.getTime() - Date.now() - (5 * 60 * 1000); // 5 minutes before expiry
-    
+    const refreshTime =
+      session.tokenExpiry.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
+
     if (refreshTime > 0) {
       const timer = setTimeout(async () => {
         try {
           await this.refreshToken(sessionId);
         } catch (error) {
-          this.logger?.error(`Failed to refresh token for session ${sessionId}:`, error);
+          this.logger?.error(
+            `Failed to refresh token for session ${sessionId}:`,
+            error
+          );
           this.emit('error', sessionId, error as Error);
         }
       }, refreshTime);
@@ -1028,8 +1194,11 @@ export class AzureProtocol extends BaseProtocol {
       throw new Error(`Session or credential not found: ${sessionId}`);
     }
 
-    const newToken = await this.getAccessToken(credential, 'https://management.azure.com/');
-    
+    const newToken = await this.getAccessToken(
+      credential,
+      'https://management.azure.com/'
+    );
+
     // Update session with new token
     session.accessToken = newToken.accessToken;
     session.tokenExpiry = newToken.expiresOn;
@@ -1051,22 +1220,34 @@ export class AzureProtocol extends BaseProtocol {
     const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
 
     if (attempt > maxAttempts) {
-      this.logger.error(`Max reconnection attempts reached for session: ${sessionId}`);
-      this.emit('error', { sessionId, error: new Error('Max reconnection attempts reached') });
+      this.logger.error(
+        `Max reconnection attempts reached for session: ${sessionId}`
+      );
+      this.emit('error', {
+        sessionId,
+        error: new Error('Max reconnection attempts reached'),
+      });
       return;
     }
 
-    this.logger.info(`Attempting reconnection for session ${sessionId}, attempt ${attempt}`);
+    this.logger.info(
+      `Attempting reconnection for session ${sessionId}, attempt ${attempt}`
+    );
 
     const timer = setTimeout(async () => {
       try {
         const session = this.azureSessions.get(sessionId);
         if (session) {
           await this.connectWebSocket(sessionId, session);
-          this.logger.info(`Reconnected session ${sessionId} on attempt ${attempt}`);
+          this.logger.info(
+            `Reconnected session ${sessionId} on attempt ${attempt}`
+          );
         }
       } catch (error) {
-        this.logger.error(`Reconnection attempt ${attempt} failed for session ${sessionId}:`, error);
+        this.logger.error(
+          `Reconnection attempt ${attempt} failed for session ${sessionId}:`,
+          error
+        );
         this.scheduleReconnect(sessionId, attempt + 1);
       }
     }, delay);
@@ -1077,9 +1258,15 @@ export class AzureProtocol extends BaseProtocol {
   /**
    * Get secrets from Azure Key Vault
    */
-  private async getKeyVaultSecret(keyVaultUrl: string, secretName: string, credential: AzureCredentialLike): Promise<string> {
+  private async getKeyVaultSecret(
+    keyVaultUrl: string,
+    secretName: string,
+    credential: AzureCredentialLike
+  ): Promise<string> {
     if (!SecretClient) {
-      throw new Error('@azure/keyvault-secrets package is required but not available');
+      throw new Error(
+        '@azure/keyvault-secrets package is required but not available'
+      );
     }
     const secretClient = new SecretClient(keyVaultUrl, credential);
     const secret = await secretClient.getSecret(secretName);
@@ -1131,9 +1318,13 @@ export class AzureProtocol extends BaseProtocol {
       connected: webSocket?.readyState === WebSocket.OPEN,
       tokenExpiry: session.tokenExpiry,
       tokenValid: session.tokenExpiry.getTime() > Date.now(),
-      sessionType: 'webSocketUrl' in session ? 'cloud-shell' :
-                  'bastionResourceId' in session ? 'bastion' : 'arc',
-      metadata: session.metadata
+      sessionType:
+        'webSocketUrl' in session
+          ? 'cloud-shell'
+          : 'bastionResourceId' in session
+            ? 'bastion'
+            : 'arc',
+      metadata: session.metadata,
     };
   }
 
@@ -1142,7 +1333,7 @@ export class AzureProtocol extends BaseProtocol {
    */
   async cleanup(): Promise<void> {
     const sessionIds = Array.from(this.azureSessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
 
     this.azureSessions.clear();
     this.webSockets.clear();

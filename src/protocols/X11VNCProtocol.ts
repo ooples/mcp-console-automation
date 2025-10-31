@@ -6,13 +6,13 @@ import { BaseProtocol } from '../core/BaseProtocol.js';
 import {
   ProtocolCapabilities,
   ProtocolHealthStatus,
-  SessionState
+  SessionState,
 } from '../core/IProtocol.js';
 import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 
 /**
@@ -139,8 +139,25 @@ export class X11VNCProtocol extends BaseProtocol {
     supportsPTY: false,
     maxConcurrentSessions: 10,
     defaultTimeout: 30000,
-    supportedEncodings: ['utf-8', 'raw', 'tight', 'zlib', 'hextile', 'zrle', 'ultra'],
-    supportedAuthMethods: ['none', 'vnc', 'unix', 'tls', 'vencrypt', 'sasl', 'md5', 'rfb'],
+    supportedEncodings: [
+      'utf-8',
+      'raw',
+      'tight',
+      'zlib',
+      'hextile',
+      'zrle',
+      'ultra',
+    ],
+    supportedAuthMethods: [
+      'none',
+      'vnc',
+      'unix',
+      'tls',
+      'vencrypt',
+      'sasl',
+      'md5',
+      'rfb',
+    ],
     platformSupport: {
       windows: false,
       linux: true,
@@ -160,7 +177,7 @@ export class X11VNCProtocol extends BaseProtocol {
     noxdamage: true,
     xkb: true,
     defer: 10,
-    wait: 10
+    wait: 10,
   };
 
   constructor() {
@@ -236,7 +253,7 @@ export class X11VNCProtocol extends BaseProtocol {
       const result = await this.executeSystemCommand('ls', ['/tmp/.X11-unix/']);
       const matches = result.match(/X(\d+)/g);
       if (matches) {
-        displays.push(...matches.map(m => `:${m.substring(1)}`));
+        displays.push(...matches.map((m) => `:${m.substring(1)}`));
       }
     } catch {
       this.logger.debug('No X11 displays found in /tmp/.X11-unix/');
@@ -263,7 +280,7 @@ export class X11VNCProtocol extends BaseProtocol {
       isOneShot: this.isOneShotCommand(options),
       isPersistent: !this.isOneShotCommand(options),
       createdAt: new Date(),
-      lastActivity: new Date()
+      lastActivity: new Date(),
     };
     return this.doCreateSession(sessionId, options, sessionState);
   }
@@ -293,7 +310,7 @@ export class X11VNCProtocol extends BaseProtocol {
       isServerRunning: false,
       clientConnections: new Set(),
       executionState: 'idle',
-      activeCommands: new Map()
+      activeCommands: new Map(),
     };
 
     this.x11vncSessions.set(sessionId, session);
@@ -310,7 +327,7 @@ export class X11VNCProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: `X11VNC server started on port ${session.vncPort}\n`,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       return session;
@@ -438,15 +455,21 @@ export class X11VNCProtocol extends BaseProtocol {
 
     // Parse from environment variables
     if (options.env) {
-      if (options.env.X11VNC_DISPLAY) config.display = options.env.X11VNC_DISPLAY;
-      if (options.env.X11VNC_PORT) config.port = parseInt(options.env.X11VNC_PORT);
-      if (options.env.X11VNC_PASSWORD) config.password = options.env.X11VNC_PASSWORD;
+      if (options.env.X11VNC_DISPLAY)
+        config.display = options.env.X11VNC_DISPLAY;
+      if (options.env.X11VNC_PORT)
+        config.port = parseInt(options.env.X11VNC_PORT);
+      if (options.env.X11VNC_PASSWORD)
+        config.password = options.env.X11VNC_PASSWORD;
     }
 
     return config;
   }
 
-  private async startX11VNCServer(sessionId: string, session: X11VNCSession): Promise<void> {
+  private async startX11VNCServer(
+    sessionId: string,
+    session: X11VNCSession
+  ): Promise<void> {
     const config = session.config;
 
     // Allocate port
@@ -470,7 +493,9 @@ export class X11VNCProtocol extends BaseProtocol {
     if (config.password) {
       // Create temporary password file
       session.passwordFile = path.join('/tmp', `x11vnc_${sessionId}.pwd`);
-      await fs.writeFile(session.passwordFile, config.password, { mode: 0o600 });
+      await fs.writeFile(session.passwordFile, config.password, {
+        mode: 0o600,
+      });
       args.push('-rfbauth', session.passwordFile);
     } else if (config.passwordFile) {
       args.push('-rfbauth', config.passwordFile);
@@ -486,7 +511,8 @@ export class X11VNCProtocol extends BaseProtocol {
     if (config.allowLocal) args.push('-localhost');
     if (config.ssl) {
       args.push('-ssl');
-      if (config.sslCertFile) args.push('-ssldir', path.dirname(config.sslCertFile));
+      if (config.sslCertFile)
+        args.push('-ssldir', path.dirname(config.sslCertFile));
     }
     if (config.sslOnly) args.push('-sslonly');
     if (config.httpPort) {
@@ -514,7 +540,8 @@ export class X11VNCProtocol extends BaseProtocol {
 
     // Logging
     if (config.logFile || (this.logger as any).level === 'debug') {
-      session.logFile = config.logFile || path.join('/tmp', `x11vnc_${sessionId}.log`);
+      session.logFile =
+        config.logFile || path.join('/tmp', `x11vnc_${sessionId}.log`);
       args.push('-o', session.logFile);
       args.push('-verbose');
     }
@@ -524,7 +551,7 @@ export class X11VNCProtocol extends BaseProtocol {
     session.serverProcess = spawn(x11vncPath, args, {
       cwd: session.cwd,
       env: session.env,
-      detached: false
+      detached: false,
     });
 
     session.isServerRunning = true;
@@ -537,7 +564,7 @@ export class X11VNCProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: output,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     });
 
@@ -548,7 +575,7 @@ export class X11VNCProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: output,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     });
 
@@ -562,7 +589,7 @@ export class X11VNCProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: `X11VNC server exited with code ${code} (signal: ${signal})\n`,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     });
 
@@ -582,23 +609,26 @@ export class X11VNCProtocol extends BaseProtocol {
       try {
         const xvfbArgs = [
           session.virtualDisplay,
-          '-screen', '0', `${geometry}x${depth}`,
+          '-screen',
+          '0',
+          `${geometry}x${depth}`,
           '-ac', // Disable access control
-          '+extension', 'GLX',
+          '+extension',
+          'GLX',
           '+render',
-          '-noreset'
+          '-noreset',
         ];
 
         session.xvfbProcess = spawn('Xvfb', xvfbArgs, {
           env: session.env,
-          detached: false
+          detached: false,
         });
 
         session.displayServer = 'xvfb';
         session.config.display = session.virtualDisplay;
 
         // Wait for Xvfb to start
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         this.logger.info(`Created Xvfb display ${session.virtualDisplay}`);
         return;
@@ -613,13 +643,13 @@ export class X11VNCProtocol extends BaseProtocol {
         const xdummyArgs = [session.virtualDisplay];
         session.xvfbProcess = spawn('Xdummy', xdummyArgs, {
           env: session.env,
-          detached: false
+          detached: false,
         });
 
         session.displayServer = 'xdummy';
         session.config.display = session.virtualDisplay;
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         this.logger.info(`Created Xdummy display ${session.virtualDisplay}`);
         return;
@@ -661,7 +691,7 @@ export class X11VNCProtocol extends BaseProtocol {
             fps: 0,
             bandwidth: 0,
             latency: 0,
-            quality: 100
+            quality: 100,
           };
         }
         session.performanceMetrics.fps = parseFloat(match[1]);
@@ -669,7 +699,11 @@ export class X11VNCProtocol extends BaseProtocol {
     }
   }
 
-  private async waitForServerReady(sessionId: string, session: X11VNCSession, timeout: number = 10000): Promise<void> {
+  private async waitForServerReady(
+    sessionId: string,
+    session: X11VNCSession,
+    timeout: number = 10000
+  ): Promise<void> {
     const startTime = Date.now();
 
     while (Date.now() - startTime < timeout) {
@@ -684,14 +718,14 @@ export class X11VNCProtocol extends BaseProtocol {
         return;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     throw new Error('X11VNC server startup timeout');
   }
 
   private async isPortListening(port: number): Promise<boolean> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       const client = new net.Socket();
 
       client.once('connect', () => {
@@ -739,21 +773,24 @@ export class X11VNCProtocol extends BaseProtocol {
     });
   }
 
-  private async executeSystemCommand(command: string, args: string[]): Promise<string> {
+  private async executeSystemCommand(
+    command: string,
+    args: string[]
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       const process = spawn(command, args);
       let output = '';
       let error = '';
 
-      process.stdout?.on('data', data => {
+      process.stdout?.on('data', (data) => {
         output += data.toString();
       });
 
-      process.stderr?.on('data', data => {
+      process.stderr?.on('data', (data) => {
         error += data.toString();
       });
 
-      process.on('exit', code => {
+      process.on('exit', (code) => {
         if (code === 0) {
           resolve(output);
         } else {
@@ -763,7 +800,11 @@ export class X11VNCProtocol extends BaseProtocol {
     });
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
     const session = this.x11vncSessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -789,14 +830,14 @@ export class X11VNCProtocol extends BaseProtocol {
         httpPort: session.httpPort,
         clients: Array.from(session.clientConnections),
         performance: session.performanceMetrics,
-        uptime: Date.now() - session.createdAt.getTime()
+        uptime: Date.now() - session.createdAt.getTime(),
       };
 
       this.addToOutputBuffer(sessionId, {
         sessionId,
         type: 'stdout',
         data: JSON.stringify(info, null, 2) + '\n',
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     }
   }
@@ -872,7 +913,7 @@ export class X11VNCProtocol extends BaseProtocol {
 
     // Close all sessions
     const sessionIds = Array.from(this.x11vncSessions.keys());
-    await Promise.all(sessionIds.map(id => this.closeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.closeSession(id)));
 
     await this.cleanup();
   }
@@ -881,10 +922,12 @@ export class X11VNCProtocol extends BaseProtocol {
     const baseStatus = await super.getHealthStatus();
 
     // Add X11VNC-specific health checks
-    const x11vncAvailable = ((this as any)._dependencies as any)?.x11vnc || false;
-    const hasDisplayServer = ((this as any)._dependencies as any)?.xvfb ||
-                           ((this as any)._dependencies as any)?.xdummy ||
-                           false;
+    const x11vncAvailable =
+      ((this as any)._dependencies as any)?.x11vnc || false;
+    const hasDisplayServer =
+      ((this as any)._dependencies as any)?.xvfb ||
+      ((this as any)._dependencies as any)?.xdummy ||
+      false;
 
     return {
       ...baseStatus,
@@ -892,8 +935,10 @@ export class X11VNCProtocol extends BaseProtocol {
       warnings: [
         ...baseStatus.warnings,
         !x11vncAvailable ? 'x11vnc not available' : null,
-        !hasDisplayServer ? 'No virtual display server available (Xvfb/Xdummy)' : null
-      ].filter(Boolean) as string[]
+        !hasDisplayServer
+          ? 'No virtual display server available (Xvfb/Xdummy)'
+          : null,
+      ].filter(Boolean) as string[],
     };
   }
 }

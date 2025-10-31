@@ -1,27 +1,206 @@
-export type ConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto' | 'ssh' | 'sftp' | 'scp' | 'azure-shell' | 'azure-bastion' | 'azure-ssh' | 'gcp-shell' | 'gcp-ssh' | 'gcp-oslogin' | 'aws-ssm' | 'ssm-session' | 'ssm-tunnel' | 'serial' | 'com' | 'uart' | 'docker' | 'docker-exec' | 'kubectl' | 'k8s-exec' | 'k8s-logs' | 'k8s-port-forward' | 'telnet' | 'wsl' | 'wsl2' | 'rdp' | 'mstsc' | 'vnc' | 'winrm' | 'psremoting' | 'websocket-term' | 'xterm-ws' | 'web-terminal' | 'ipmi' | 'bmc' | 'idrac' | 'named-pipe' | 'unix-socket' | 'ipc' | 'ansible' | 'ansible-ssh' | 'ansible-winrm' | 'ansible-local' | 'lxc' | 'podman' | 'containerd' | 'chef' | 'dbus' | 'dotnet' | 'cassandra' | 'golang' | 'gotty' | 'hyperv' | 'guacamole' | 'ilo' | 'java' | 'jtag' | 'messagequeue' | 'mysql' | 'mssql' | 'mongodb' | 'php' | 'powershelldirect' | 'postgresql' | 'psexec' | 'node' | 'puppet' | 'python' | 'qemu' | 'redis' | 'ruby' | 'rust' | 'spice' | 'sqlite' | 'saltstack' | 'terraform' | 'vagrant' | 'vmware' | 'virtualbox' | 'wetty' | 'wmi' | 'xen' | 'x11vnc' | 'ttyd' | 'pulumi' | 'jenkins' | 'gitlab-runner' | 'github-actions' | 'circleci' | 'elasticsearch' | 'oracle' | 'neo4j' | 'jupyter' | 'vscode-remote' | 'code-server' | 'theia' | 'cloud9' | 'virtualization';
+export type ConsoleType =
+  | 'cmd'
+  | 'powershell'
+  | 'pwsh'
+  | 'bash'
+  | 'zsh'
+  | 'sh'
+  | 'auto'
+  | 'ssh'
+  | 'sftp'
+  | 'scp'
+  | 'azure-shell'
+  | 'azure-bastion'
+  | 'azure-ssh'
+  | 'gcp-shell'
+  | 'gcp-ssh'
+  | 'gcp-oslogin'
+  | 'aws-ssm'
+  | 'ssm-session'
+  | 'ssm-tunnel'
+  | 'serial'
+  | 'com'
+  | 'uart'
+  | 'docker'
+  | 'docker-exec'
+  | 'kubectl'
+  | 'k8s-exec'
+  | 'k8s-logs'
+  | 'k8s-port-forward'
+  | 'telnet'
+  | 'wsl'
+  | 'wsl2'
+  | 'rdp'
+  | 'mstsc'
+  | 'vnc'
+  | 'winrm'
+  | 'psremoting'
+  | 'websocket-term'
+  | 'xterm-ws'
+  | 'web-terminal'
+  | 'ipmi'
+  | 'bmc'
+  | 'idrac'
+  | 'named-pipe'
+  | 'unix-socket'
+  | 'ipc'
+  | 'ansible'
+  | 'ansible-ssh'
+  | 'ansible-winrm'
+  | 'ansible-local'
+  | 'lxc'
+  | 'podman'
+  | 'containerd'
+  | 'chef'
+  | 'dbus'
+  | 'dotnet'
+  | 'cassandra'
+  | 'golang'
+  | 'gotty'
+  | 'hyperv'
+  | 'guacamole'
+  | 'ilo'
+  | 'java'
+  | 'jtag'
+  | 'messagequeue'
+  | 'mysql'
+  | 'mssql'
+  | 'mongodb'
+  | 'php'
+  | 'powershelldirect'
+  | 'postgresql'
+  | 'psexec'
+  | 'node'
+  | 'puppet'
+  | 'python'
+  | 'qemu'
+  | 'redis'
+  | 'ruby'
+  | 'rust'
+  | 'spice'
+  | 'sqlite'
+  | 'saltstack'
+  | 'terraform'
+  | 'vagrant'
+  | 'vmware'
+  | 'virtualbox'
+  | 'wetty'
+  | 'wmi'
+  | 'xen'
+  | 'x11vnc'
+  | 'ttyd'
+  | 'pulumi'
+  | 'jenkins'
+  | 'gitlab-runner'
+  | 'github-actions'
+  | 'circleci'
+  | 'elasticsearch'
+  | 'oracle'
+  | 'neo4j'
+  | 'jupyter'
+  | 'vscode-remote'
+  | 'code-server'
+  | 'theia'
+  | 'cloud9'
+  | 'virtualization';
 
 // Console Type Categories
-export type LocalConsoleType = 'cmd' | 'powershell' | 'pwsh' | 'bash' | 'zsh' | 'sh' | 'auto';
-export type RemoteConsoleType = 'ssh' | 'sftp' | 'scp' | 'telnet' | 'winrm' | 'psremoting';
-export type CloudConsoleType = 'azure-shell' | 'azure-bastion' | 'azure-ssh' | 'gcp-shell' | 'gcp-ssh' | 'gcp-oslogin' | 'aws-ssm' | 'ssm-session' | 'ssm-tunnel';
-export type ContainerConsoleType = 'docker' | 'docker-exec' | 'kubectl' | 'k8s-exec' | 'lxc' | 'podman' | 'containerd';
+export type LocalConsoleType =
+  | 'cmd'
+  | 'powershell'
+  | 'pwsh'
+  | 'bash'
+  | 'zsh'
+  | 'sh'
+  | 'auto';
+export type RemoteConsoleType =
+  | 'ssh'
+  | 'sftp'
+  | 'scp'
+  | 'telnet'
+  | 'winrm'
+  | 'psremoting';
+export type CloudConsoleType =
+  | 'azure-shell'
+  | 'azure-bastion'
+  | 'azure-ssh'
+  | 'gcp-shell'
+  | 'gcp-ssh'
+  | 'gcp-oslogin'
+  | 'aws-ssm'
+  | 'ssm-session'
+  | 'ssm-tunnel';
+export type ContainerConsoleType =
+  | 'docker'
+  | 'docker-exec'
+  | 'kubectl'
+  | 'k8s-exec'
+  | 'lxc'
+  | 'podman'
+  | 'containerd';
 export type VirtualizationConsoleType = 'wsl' | 'wsl2';
-export type HardwareConsoleType = 'serial' | 'com' | 'uart' | 'ipmi' | 'bmc' | 'idrac';
+export type HardwareConsoleType =
+  | 'serial'
+  | 'com'
+  | 'uart'
+  | 'ipmi'
+  | 'bmc'
+  | 'idrac';
 export type RemoteDesktopType = 'rdp' | 'mstsc' | 'vnc';
 export type NetworkConsoleType = 'websocket-term' | 'xterm-ws' | 'web-terminal';
 export type WindowsRemoteType = 'winrm' | 'psremoting';
 export type IPCConsoleType = 'named-pipe' | 'unix-socket' | 'ipc';
-export type AutomationConsoleType = 'ansible' | 'ansible-ssh' | 'ansible-winrm' | 'ansible-local';
-export type DatabaseConsoleType = 'mysql' | 'postgresql' | 'mongodb' | 'cassandra' | 'redis' | 'sqlite';
-export type ApplicationConsoleType = 'node' | 'python' | 'java' | 'dotnet' | 'golang' | 'php' | 'ruby' | 'rust';
-export type VirtualizationProtocolType = 'hyperv' | 'vmware' | 'virtualbox' | 'qemu' | 'xen';
-export type AutomationToolType = 'chef' | 'puppet' | 'saltstack' | 'terraform' | 'vagrant';
-export type TerminalProtocolType = 'gotty' | 'wetty' | 'ttyd' | 'guacamole' | 'spice' | 'x11vnc';
-export type SystemProtocolType = 'dbus' | 'wmi' | 'messagequeue' | 'jtag' | 'psexec' | 'powershelldirect';
+export type AutomationConsoleType =
+  | 'ansible'
+  | 'ansible-ssh'
+  | 'ansible-winrm'
+  | 'ansible-local';
+export type DatabaseConsoleType =
+  | 'mysql'
+  | 'postgresql'
+  | 'mongodb'
+  | 'cassandra'
+  | 'redis'
+  | 'sqlite';
+export type ApplicationConsoleType =
+  | 'node'
+  | 'python'
+  | 'java'
+  | 'dotnet'
+  | 'golang'
+  | 'php'
+  | 'ruby'
+  | 'rust';
+export type VirtualizationProtocolType =
+  | 'hyperv'
+  | 'vmware'
+  | 'virtualbox'
+  | 'qemu'
+  | 'xen';
+export type AutomationToolType =
+  | 'chef'
+  | 'puppet'
+  | 'saltstack'
+  | 'terraform'
+  | 'vagrant';
+export type TerminalProtocolType =
+  | 'gotty'
+  | 'wetty'
+  | 'ttyd'
+  | 'guacamole'
+  | 'spice'
+  | 'x11vnc';
+export type SystemProtocolType =
+  | 'dbus'
+  | 'wmi'
+  | 'messagequeue'
+  | 'jtag'
+  | 'psexec'
+  | 'powershelldirect';
 
 export interface ConsoleSession {
   id: string;
-  sessionType?: 'one-shot' | 'persistent';  // Distinguish session types
+  sessionType?: 'one-shot' | 'persistent'; // Distinguish session types
   command: string;
   args: string[];
   cwd: string;
@@ -30,7 +209,16 @@ export interface ConsoleSession {
   createdAt: Date;
   endedAt?: Date; // Session end time
   pid?: number;
-  status: 'running' | 'stopped' | 'crashed' | 'terminated' | 'failed' | 'paused' | 'initializing' | 'recovering' | 'closed';
+  status:
+    | 'running'
+    | 'stopped'
+    | 'crashed'
+    | 'terminated'
+    | 'failed'
+    | 'paused'
+    | 'initializing'
+    | 'recovering'
+    | 'closed';
   exitCode?: number;
   type?: ConsoleType;
   streaming?: boolean;
@@ -235,7 +423,18 @@ export interface AlertConfig {
 
 export interface ConsoleEvent {
   sessionId: string;
-  type: 'started' | 'stopped' | 'error' | 'input' | 'output' | 'prompt-detected' | 'vnc-framebuffer-update' | 'vnc-message' | 'vnc-clipboard-update' | 'terminated' | 'session-closed';
+  type:
+    | 'started'
+    | 'stopped'
+    | 'error'
+    | 'input'
+    | 'output'
+    | 'prompt-detected'
+    | 'vnc-framebuffer-update'
+    | 'vnc-message'
+    | 'vnc-clipboard-update'
+    | 'terminated'
+    | 'session-closed';
   timestamp: Date;
   data?: any;
 }
@@ -342,6 +541,9 @@ export interface SSHConnectionOptions {
   tryKeyboard?: boolean;
   agentForward?: boolean;
   x11Forward?: boolean;
+  // Reconnection settings
+  reconnect?: boolean;
+  maxReconnectAttempts?: number;
 }
 
 // RDP Connection Options
@@ -351,21 +553,30 @@ export interface RDPConnectionOptions {
   username: string;
   password?: string;
   domain?: string;
-  
+
   // Protocol settings
-  protocol?: 'RDP 8.1' | 'RDP 10' | 'RDP 10.1' | 'RDP 10.2' | 'RDP 10.3' | 'RDP 10.4' | 'RDP 10.5' | 'RDP 10.6' | 'RDP 10.7';
+  protocol?:
+    | 'RDP 8.1'
+    | 'RDP 10'
+    | 'RDP 10.1'
+    | 'RDP 10.2'
+    | 'RDP 10.3'
+    | 'RDP 10.4'
+    | 'RDP 10.5'
+    | 'RDP 10.6'
+    | 'RDP 10.7';
   encryptionLevel?: 'none' | 'low' | 'medium' | 'high' | 'fips';
   enableTLS?: boolean;
   enableNLA?: boolean; // Network Level Authentication
   enableCredSSP?: boolean;
-  
+
   // Authentication
   certificatePath?: string;
   certificatePassword?: string;
   smartCardPin?: string;
   enableSmartCardAuth?: boolean;
   kerberosRealm?: string;
-  
+
   // Display settings
   width?: number;
   height?: number;
@@ -373,7 +584,7 @@ export interface RDPConnectionOptions {
   fullScreen?: boolean;
   enableMultiMonitor?: boolean;
   monitors?: RDPMonitorConfig[];
-  
+
   // Performance
   enableGPUAcceleration?: boolean;
   enableHardwareDecoding?: boolean;
@@ -382,23 +593,27 @@ export interface RDPConnectionOptions {
   enableBitmapCaching?: boolean;
   enableGlyphCaching?: boolean;
   enableOffscreenBitmapCaching?: boolean;
-  
+
   // Audio/Video
   audioMode?: 'local' | 'remote' | 'disabled';
   audioQuality?: 'low' | 'medium' | 'high' | 'dynamic';
   enableMicrophone?: boolean;
   enableWebcam?: boolean;
   videoCodec?: 'h264' | 'h265' | 'av1';
-  
+
   // File system and clipboard
   enableClipboard?: boolean;
-  clipboardDirection?: 'disabled' | 'client-to-server' | 'server-to-client' | 'bidirectional';
+  clipboardDirection?:
+    | 'disabled'
+    | 'client-to-server'
+    | 'server-to-client'
+    | 'bidirectional';
   enableFileTransfer?: boolean;
   enableDriveRedirection?: boolean;
   redirectedDrives?: string[];
   enablePrinterRedirection?: boolean;
   enablePortRedirection?: boolean;
-  
+
   // RemoteApp settings
   enableRemoteApp?: boolean;
   remoteApplicationProgram?: string;
@@ -406,7 +621,7 @@ export interface RDPConnectionOptions {
   remoteApplicationDir?: string;
   remoteApplicationName?: string;
   remoteApplicationIcon?: string;
-  
+
   // Gateway settings
   gatewayHostname?: string;
   gatewayPort?: number;
@@ -415,20 +630,20 @@ export interface RDPConnectionOptions {
   gatewayDomain?: string;
   gatewayAccessToken?: string;
   enableGatewayAuth?: boolean;
-  
+
   // Connection settings
   timeout?: number;
   keepAliveInterval?: number;
   autoReconnect?: boolean;
   maxReconnectAttempts?: number;
   reconnectDelay?: number;
-  
+
   // Session recording
   enableSessionRecording?: boolean;
   recordingPath?: string;
   recordingFormat?: 'mp4' | 'avi' | 'wmv';
   recordingQuality?: 'low' | 'medium' | 'high';
-  
+
   // Advanced settings
   loadBalanceInfo?: string;
   alternateShell?: string;
@@ -437,13 +652,13 @@ export interface RDPConnectionOptions {
   keyboardHook?: 'disabled' | 'enabled' | 'fullscreen';
   enableUnicodeKeyboard?: boolean;
   enableWindowsKey?: boolean;
-  
+
   // Security
   enableRestrictedAdmin?: boolean;
   enableRemoteCredentialGuard?: boolean;
   enableServerAuthentication?: boolean;
   ignoreCertificateErrors?: boolean;
-  
+
   // Custom settings
   customRDPFile?: string;
   additionalSettings?: Record<string, any>;
@@ -455,12 +670,12 @@ export interface VNCConnectionOptions {
   port?: number; // Default: 5900
   username?: string;
   password?: string;
-  
+
   // Protocol settings
   rfbProtocolVersion?: '3.3' | '3.7' | '3.8' | 'auto'; // Default: auto
   sharedConnection?: boolean; // Allow shared sessions
   viewOnly?: boolean; // View-only mode
-  
+
   // Display settings
   pixelFormat?: {
     bitsPerPixel?: 8 | 16 | 32; // Default: 32
@@ -474,12 +689,23 @@ export interface VNCConnectionOptions {
     greenShift?: number;
     blueShift?: number;
   };
-  
+
   // Encoding preferences (ordered by preference)
   supportedEncodings?: VNCEncoding[];
-  
+
   // Authentication
-  authMethod?: 'none' | 'vnc' | 'vencrypt' | 'tls' | 'x509' | 'plain' | 'mslogonii' | 'tight' | 'ultra' | 'ard' | 'mslogon';
+  authMethod?:
+    | 'none'
+    | 'vnc'
+    | 'vencrypt'
+    | 'tls'
+    | 'x509'
+    | 'plain'
+    | 'mslogonii'
+    | 'tight'
+    | 'ultra'
+    | 'ard'
+    | 'mslogon';
   vncPassword?: string;
   tlsOptions?: {
     enabled: boolean;
@@ -493,7 +719,7 @@ export interface VNCConnectionOptions {
     ciphers?: string;
     secureProtocol?: string;
   };
-  
+
   // VeNCrypt encryption
   veNCryptOptions?: {
     enabled: boolean;
@@ -504,26 +730,26 @@ export interface VNCConnectionOptions {
       keyFile?: string;
     };
   };
-  
+
   // Connection settings
   timeout?: number; // Connection timeout in ms
   keepAlive?: boolean;
   keepAliveInterval?: number;
   retryAttempts?: number;
   retryDelay?: number;
-  
+
   // Input settings
   enableKeyboard?: boolean;
   enableMouse?: boolean;
   enableClipboard?: boolean;
   keyboardLayout?: string; // Keyboard layout/locale
-  
+
   // Compression and quality
   compressionLevel?: number; // 0-9, higher = more compression
   qualityLevel?: number; // 0-9 for lossy encodings
   enableJPEGCompression?: boolean;
   jpegQuality?: number; // 1-100
-  
+
   // Screen settings
   screenResolution?: {
     width: number;
@@ -531,36 +757,36 @@ export interface VNCConnectionOptions {
   };
   colorDepth?: 8 | 16 | 24 | 32;
   autoResize?: boolean; // Automatically resize remote desktop
-  
+
   // Multi-monitor support
   monitors?: VNCMonitorConfig[];
   primaryMonitor?: number;
-  
+
   // File transfer
   enableFileTransfer?: boolean;
   fileTransferPath?: string; // Default transfer directory
   maxFileSize?: number; // Max file size for transfers (bytes)
-  
+
   // Extensions and features
   enableUltraVNCExtensions?: boolean;
   enableTightVNCExtensions?: boolean;
   enableRealVNCExtensions?: boolean;
   enableAppleRemoteDesktop?: boolean; // ARD extensions
-  
+
   // Bell/sound
   enableBell?: boolean;
   bellCommand?: string;
-  
+
   // Cursor handling
   cursorMode?: 'local' | 'remote' | 'dot' | 'none';
   enableCursorShapeUpdates?: boolean;
   enableRichCursor?: boolean;
-  
+
   // Session recording
   recordSession?: boolean;
   recordingPath?: string;
   recordingFormat?: 'fbs' | 'vncrec' | 'mp4';
-  
+
   // VNC Repeater/Proxy support
   repeater?: {
     enabled: boolean;
@@ -569,7 +795,7 @@ export interface VNCConnectionOptions {
     id?: string; // Repeater ID
     mode?: 'mode1' | 'mode2'; // UltraVNC repeater modes
   };
-  
+
   // Proxy settings
   proxy?: {
     type: 'http' | 'https' | 'socks4' | 'socks5';
@@ -578,17 +804,17 @@ export interface VNCConnectionOptions {
     username?: string;
     password?: string;
   };
-  
+
   // Security options
   securityTypes?: VNCSecurityType[];
   allowInsecure?: boolean; // Allow unencrypted connections
-  
+
   // Performance optimizations
   enableFastPath?: boolean;
   bufferSize?: number;
   maxUpdateRate?: number; // Max framebuffer updates per second
   enableLazyUpdates?: boolean;
-  
+
   // Advanced options
   debugLevel?: 'error' | 'warn' | 'info' | 'debug' | 'trace';
   customOptions?: Record<string, any>;
@@ -608,55 +834,55 @@ export interface VNCConnectionOptions {
   depth?: number; // Color depth
 }
 
-export type VNCEncoding = 
-  | 'raw'              // 0 - Raw pixel data
-  | 'copyrect'         // 1 - Copy rectangle
-  | 'rre'              // 2 - Rise-and-Run-length Encoding
-  | 'hextile'          // 5 - Hextile encoding
-  | 'trle'             // 15 - Tiled Run-Length Encoding
-  | 'zrle'             // 16 - ZRLE encoding
-  | 'cursor'           // -239 - Cursor pseudo-encoding
-  | 'desktopsize'      // -223 - Desktop size pseudo-encoding
-  | 'lastrect'         // -224 - LastRect pseudo-encoding
-  | 'wmvi'             // 0x574D5649 - VMware Virtual Infrastructure
-  | 'tight'            // 7 - Tight encoding
-  | 'ultra'            // 6 - UltraVNC encoding
-  | 'zlibhex'          // 8 - ZlibHex encoding
-  | 'jpeg'             // 21 - JPEG encoding (TurboVNC)
-  | 'jrle'             // 22 - JPEG+RLE encoding
-  | 'continuous'       // -312 - Continuous updates
-  | 'fence'            // -238 - Fence pseudo-encoding
-  | 'x11cursor'        // -240 - X11 cursor
-  | 'richcursor'       // -239 - Rich cursor;
+export type VNCEncoding =
+  | 'raw' // 0 - Raw pixel data
+  | 'copyrect' // 1 - Copy rectangle
+  | 'rre' // 2 - Rise-and-Run-length Encoding
+  | 'hextile' // 5 - Hextile encoding
+  | 'trle' // 15 - Tiled Run-Length Encoding
+  | 'zrle' // 16 - ZRLE encoding
+  | 'cursor' // -239 - Cursor pseudo-encoding
+  | 'desktopsize' // -223 - Desktop size pseudo-encoding
+  | 'lastrect' // -224 - LastRect pseudo-encoding
+  | 'wmvi' // 0x574D5649 - VMware Virtual Infrastructure
+  | 'tight' // 7 - Tight encoding
+  | 'ultra' // 6 - UltraVNC encoding
+  | 'zlibhex' // 8 - ZlibHex encoding
+  | 'jpeg' // 21 - JPEG encoding (TurboVNC)
+  | 'jrle' // 22 - JPEG+RLE encoding
+  | 'continuous' // -312 - Continuous updates
+  | 'fence' // -238 - Fence pseudo-encoding
+  | 'x11cursor' // -240 - X11 cursor
+  | 'richcursor'; // -239 - Rich cursor;
 
-export type VeNCryptSubType = 
-  | 'plain'            // 256 - Plain authentication
-  | 'tlsnone'          // 257 - TLS with no authentication
-  | 'tlsvnc'           // 258 - TLS with VNC authentication
-  | 'tlsplain'         // 259 - TLS with plain authentication
-  | 'x509none'         // 260 - X509 with no authentication
-  | 'x509vnc'          // 261 - X509 with VNC authentication
-  | 'x509plain'        // 262 - X509 with plain authentication
-  | 'tlssasl'          // 263 - TLS with SASL authentication
-  | 'x509sasl';        // 264 - X509 with SASL authentication
+export type VeNCryptSubType =
+  | 'plain' // 256 - Plain authentication
+  | 'tlsnone' // 257 - TLS with no authentication
+  | 'tlsvnc' // 258 - TLS with VNC authentication
+  | 'tlsplain' // 259 - TLS with plain authentication
+  | 'x509none' // 260 - X509 with no authentication
+  | 'x509vnc' // 261 - X509 with VNC authentication
+  | 'x509plain' // 262 - X509 with plain authentication
+  | 'tlssasl' // 263 - TLS with SASL authentication
+  | 'x509sasl'; // 264 - X509 with SASL authentication
 
 export type VNCSecurityType =
-  | 'none'             // 1 - No security
-  | 'vnc'              // 2 - VNC authentication
-  | 'ra2'              // 5 - RA2 authentication
-  | 'ra2ne'            // 6 - RA2NE authentication
-  | 'tight'            // 16 - Tight security
-  | 'ultra'            // 17 - Ultra security
-  | 'tls'              // 18 - TLS security
-  | 'vencrypt'         // 19 - VeNCrypt security
-  | 'sasl'             // 20 - SASL security
-  | 'md5hash'          // 21 - MD5 hash authentication
-  | 'xvp'              // 22 - Xvp authentication
-  | 'x509'             // X.509 certificate authentication
-  | 'plain'            // Plain text authentication
-  | 'mslogonii'        // Microsoft Logon II
-  | 'ard'              // Apple Remote Desktop
-  | 'mslogon';         // Microsoft Logon
+  | 'none' // 1 - No security
+  | 'vnc' // 2 - VNC authentication
+  | 'ra2' // 5 - RA2 authentication
+  | 'ra2ne' // 6 - RA2NE authentication
+  | 'tight' // 16 - Tight security
+  | 'ultra' // 17 - Ultra security
+  | 'tls' // 18 - TLS security
+  | 'vencrypt' // 19 - VeNCrypt security
+  | 'sasl' // 20 - SASL security
+  | 'md5hash' // 21 - MD5 hash authentication
+  | 'xvp' // 22 - Xvp authentication
+  | 'x509' // X.509 certificate authentication
+  | 'plain' // Plain text authentication
+  | 'mslogonii' // Microsoft Logon II
+  | 'ard' // Apple Remote Desktop
+  | 'mslogon'; // Microsoft Logon
 
 export interface VNCMonitorConfig {
   id: number;
@@ -678,7 +904,7 @@ export interface VNCSession {
   securityType: VNCSecurityType;
   sharedConnection: boolean;
   viewOnlyMode: boolean;
-  
+
   // Display information
   framebufferInfo: {
     width: number;
@@ -696,7 +922,7 @@ export interface VNCSession {
       blueShift: number;
     };
   };
-  
+
   // Supported features
   supportedEncodings: VNCEncoding[];
   serverCapabilities: {
@@ -709,12 +935,17 @@ export interface VNCSession {
     clipboardTransfer: boolean;
     audio: boolean;
   };
-  
+
   // Session state
-  status: 'connecting' | 'authenticating' | 'connected' | 'disconnected' | 'error';
+  status:
+    | 'connecting'
+    | 'authenticating'
+    | 'connected'
+    | 'disconnected'
+    | 'error';
   connectionTime?: Date;
   lastActivity?: Date;
-  
+
   // Transfer statistics
   statistics: {
     bytesReceived: number;
@@ -729,7 +960,7 @@ export interface VNCSession {
     compression: number; // compression ratio
     latency: number; // milliseconds
   };
-  
+
   // Recording info
   recording?: {
     active: boolean;
@@ -738,15 +969,15 @@ export interface VNCSession {
     format: string;
     fileSize: number;
   };
-  
+
   // Error tracking
   errorCount: number;
   warnings: string[];
   lastError?: string;
-  
+
   // Multi-monitor setup
   monitors: VNCMonitorConfig[];
-  
+
   metadata?: Record<string, any>;
 }
 
@@ -760,7 +991,7 @@ export interface VNCCapabilities {
     depths: number[];
     colorModes: ('truecolor' | 'colormap')[];
   };
-  
+
   // Feature support
   cursorShapeUpdates: boolean;
   desktopResize: boolean;
@@ -768,7 +999,7 @@ export interface VNCCapabilities {
   fileTransfer: boolean;
   clipboardTransfer: boolean;
   audio: boolean;
-  
+
   // Extensions
   tightVNCExtensions: boolean;
   ultraVNCExtensions: boolean;
@@ -776,12 +1007,12 @@ export interface VNCCapabilities {
   appleRemoteDesktop: boolean;
   tigervncExtensions: boolean;
   turbovncExtensions: boolean;
-  
+
   // Performance features
   compressionSupport: boolean;
   jpegSupport: boolean;
   multiMonitorSupport: boolean;
-  
+
   // Security features
   tlsSupport: boolean;
   vencryptSupport: boolean;
@@ -865,27 +1096,27 @@ export interface VNCClipboardSync {
 export interface VNCPerformanceMetrics {
   sessionId: string;
   timestamp: Date;
-  
+
   // Frame statistics
   frameRate: number;
   avgFrameTime: number;
   frameSkips: number;
-  
+
   // Network statistics
   bandwidth: number;
   latency: number;
   packetLoss: number;
-  
+
   // Compression statistics
   compressionRatio: number;
   uncompressedBytes: number;
   compressedBytes: number;
-  
+
   // Resource usage
   cpuUsage: number;
   memoryUsage: number;
   networkIO: number;
-  
+
   // Quality metrics
   pixelChanges: number;
   screenUpdateArea: number;
@@ -897,17 +1128,17 @@ export interface VNCServerInfo {
   version?: string;
   build?: string;
   platform?: string;
-  
+
   // Capabilities
   supportedEncodings: VNCEncoding[];
   supportedSecurityTypes: VNCSecurityType[];
   extensions: string[];
-  
+
   // Limits
   maxConnections?: number;
   maxResolution: { width: number; height: number };
   maxColors?: number;
-  
+
   // Features
   features: {
     sharedConnections: boolean;
@@ -937,10 +1168,10 @@ export interface VNCProtocolConfig {
   connectionTimeout: number;
   readTimeout: number;
   writeTimeout: number;
-  
+
   // Default encodings (ordered by preference)
   preferredEncodings: VNCEncoding[];
-  
+
   // Default pixel format
   defaultPixelFormat: {
     bitsPerPixel: number;
@@ -948,11 +1179,11 @@ export interface VNCProtocolConfig {
     bigEndianFlag: boolean;
     trueColorFlag: boolean;
   };
-  
+
   // Security preferences
   allowedSecurityTypes: VNCSecurityType[];
   requireEncryption: boolean;
-  
+
   // Performance settings
   enableCompression: boolean;
   compressionLevel: number;
@@ -960,24 +1191,24 @@ export interface VNCProtocolConfig {
   jpegQuality: number;
   maxUpdateRate: number;
   bufferSize: number;
-  
+
   // Feature flags
   enableCursorShapeUpdates: boolean;
   enableDesktopResize: boolean;
   enableContinuousUpdates: boolean;
   enableFileTransfer: boolean;
   enableClipboard: boolean;
-  
+
   // Logging and debugging
   logLevel: 'error' | 'warn' | 'info' | 'debug' | 'trace';
   enableProtocolLogging: boolean;
   enablePerformanceLogging: boolean;
-  
+
   // Session recording
   enableSessionRecording: boolean;
   recordingPath: string;
   recordingFormat: 'fbs' | 'vncrec';
-  
+
   // Extensions
   enableUltraVNCExtensions: boolean;
   enableTightVNCExtensions: boolean;
@@ -1344,14 +1575,14 @@ export interface AzureConnectionOptions {
   username?: string;
   password?: string;
   managedIdentity?: boolean;
-  
+
   // Cloud Shell specific
   cloudShellType?: 'bash' | 'powershell';
   region?: string;
   resourceGroupName?: string;
   storageAccountName?: string;
   fileShareName?: string;
-  
+
   // Bastion specific
   bastionResourceId?: string;
   bastionName?: string;
@@ -1361,20 +1592,20 @@ export interface AzureConnectionOptions {
   targetVmPassword?: string;
   targetVmPrivateKey?: string;
   protocol?: 'ssh' | 'rdp';
-  
+
   // Arc-enabled servers
   arcResourceId?: string;
   hybridConnectionEndpoint?: string;
-  
+
   // Key Vault integration
   keyVaultUrl?: string;
   secretName?: string;
   certificateName?: string;
-  
+
   // Private Link
   privateLinkServiceId?: string;
   privateDnsZoneName?: string;
-  
+
   // Connection settings
   timeout?: number;
   keepAliveInterval?: number;
@@ -1467,7 +1698,7 @@ export interface GCPConnectionOptions {
   privateKey?: string;
   scopes?: string[];
   quotaProjectId?: string;
-  
+
   // OAuth2 authentication for user accounts
   oauth2Config?: {
     clientId: string;
@@ -1477,7 +1708,7 @@ export interface GCPConnectionOptions {
     tokenUri?: string;
     authUri?: string;
   };
-  
+
   // Cloud Shell specific
   cloudShellType?: 'bash' | 'zsh' | 'fish';
   region?: string;
@@ -1486,25 +1717,25 @@ export interface GCPConnectionOptions {
   diskSizeGb?: number;
   imageFamily?: string;
   imageProject?: string;
-  
+
   // VM/Compute Engine specific
   vmName?: string;
   vmZone?: string;
   vmProject?: string;
-  
+
   // OS Login specific
   osLoginEnabled?: boolean;
   osLoginProject?: string;
   osLoginUser?: string;
   iapTunnelEnabled?: boolean;
-  
+
   // GKE specific
   clusterName?: string;
   clusterLocation?: string;
   namespace?: string;
   podName?: string;
   containerName?: string;
-  
+
   // IAP (Identity-Aware Proxy) settings
   iapConfig?: {
     enabled: boolean;
@@ -1512,13 +1743,13 @@ export interface GCPConnectionOptions {
     audience?: string;
     oauthToken?: string;
   };
-  
+
   // Network and connection settings
   timeout?: number;
   keepAliveInterval?: number;
   retryAttempts?: number;
   enableAutoReconnect?: boolean;
-  
+
   // Persistent disk settings for Cloud Shell
   persistentDisk?: {
     name?: string;
@@ -1526,7 +1757,7 @@ export interface GCPConnectionOptions {
     sizeGb?: number;
     type?: 'pd-standard' | 'pd-balanced' | 'pd-ssd' | 'pd-extreme';
   };
-  
+
   // Custom metadata
   metadata?: Record<string, string>;
   labels?: Record<string, string>;
@@ -1579,7 +1810,15 @@ export interface GCPComputeSession {
   vmProject: string;
   instanceId: string;
   machineType: string;
-  status: 'PROVISIONING' | 'STAGING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'SUSPENDING' | 'SUSPENDED' | 'TERMINATED';
+  status:
+    | 'PROVISIONING'
+    | 'STAGING'
+    | 'RUNNING'
+    | 'STOPPING'
+    | 'STOPPED'
+    | 'SUSPENDING'
+    | 'SUSPENDED'
+    | 'TERMINATED';
   accessMethod: 'ssh' | 'iap-tunnel' | 'oslogin';
   connectionInfo: {
     internalIp?: string;
@@ -1779,8 +2018,30 @@ export interface ConnectionPoolConfig {
 // Session Management Types
 export interface SessionState {
   id: string;
-  status: 'initializing' | 'running' | 'paused' | 'stopped' | 'failed' | 'recovering' | 'terminated';
-  type: 'local' | 'ssh' | 'azure' | 'serial' | 'kubernetes' | 'docker' | 'aws-ssm' | 'wsl' | 'sftp' | 'rdp' | 'winrm' | 'vnc' | 'ipc' | 'ipmi' | 'websocket-terminal';
+  status:
+    | 'initializing'
+    | 'running'
+    | 'paused'
+    | 'stopped'
+    | 'failed'
+    | 'recovering'
+    | 'terminated';
+  type:
+    | 'local'
+    | 'ssh'
+    | 'azure'
+    | 'serial'
+    | 'kubernetes'
+    | 'docker'
+    | 'aws-ssm'
+    | 'wsl'
+    | 'sftp'
+    | 'rdp'
+    | 'winrm'
+    | 'vnc'
+    | 'ipc'
+    | 'ipmi'
+    | 'websocket-terminal';
   createdAt: Date;
   lastActivity: Date;
   recoveryAttempts: number;
@@ -1852,7 +2113,11 @@ export interface NotificationConfig {
 }
 
 export interface NotificationTrigger {
-  event: 'sla_breach' | 'error_threshold' | 'anomaly_detected' | 'session_failure';
+  event:
+    | 'sla_breach'
+    | 'error_threshold'
+    | 'anomaly_detected'
+    | 'session_failure';
   condition?: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
 }
@@ -1941,7 +2206,12 @@ export interface LogEntry {
 
 export interface AuditEvent {
   timestamp: Date;
-  eventType: 'session_created' | 'session_stopped' | 'command_executed' | 'error_detected' | 'sla_breach';
+  eventType:
+    | 'session_created'
+    | 'session_stopped'
+    | 'command_executed'
+    | 'error_detected'
+    | 'sla_breach';
   sessionId?: string;
   userId?: string;
   details: Record<string, any>;
@@ -2043,12 +2313,15 @@ export interface HealthCheckResult {
   duration: number;
   nextCheck?: Date;
   // Additional properties for compatibility with monitoring systems
-  checks: Record<string, {
-    checkStatus: 'pass' | 'fail' | 'warn';
-    value?: any;
-    message?: string;
-    duration?: number;
-  }>;
+  checks: Record<
+    string,
+    {
+      checkStatus: 'pass' | 'fail' | 'warn';
+      value?: any;
+      message?: string;
+      duration?: number;
+    }
+  >;
   overallScore: number;
 }
 
@@ -2185,7 +2458,14 @@ export interface DockerSession extends ConsoleSession {
 }
 
 export interface DockerContainerState {
-  status: 'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead';
+  status:
+    | 'created'
+    | 'running'
+    | 'paused'
+    | 'restarting'
+    | 'removing'
+    | 'exited'
+    | 'dead';
   running: boolean;
   paused: boolean;
   restarting: boolean;
@@ -2230,20 +2510,23 @@ export interface DockerContainerInfo {
     networkMode: string;
   };
   networkSettings: {
-    networks: Record<string, {
-      ipamConfig?: any;
-      links?: string[];
-      aliases?: string[];
-      networkId: string;
-      endpointId: string;
-      gateway: string;
-      ipAddress: string;
-      ipPrefixLen: number;
-      ipv6Gateway: string;
-      globalIPv6Address: string;
-      globalIPv6PrefixLen: number;
-      macAddress: string;
-    }>;
+    networks: Record<
+      string,
+      {
+        ipamConfig?: any;
+        links?: string[];
+        aliases?: string[];
+        networkId: string;
+        endpointId: string;
+        gateway: string;
+        ipAddress: string;
+        ipPrefixLen: number;
+        ipv6Gateway: string;
+        globalIPv6Address: string;
+        globalIPv6PrefixLen: number;
+        macAddress: string;
+      }
+    >;
   };
   mounts: Array<{
     type: 'bind' | 'volume' | 'tmpfs';
@@ -2303,13 +2586,16 @@ export interface DockerNetworkInfo {
       ipRange?: string;
     }>;
   };
-  containers: Record<string, {
-    name: string;
-    endpointId: string;
-    macAddress: string;
-    ipv4Address: string;
-    ipv6Address: string;
-  }>;
+  containers: Record<
+    string,
+    {
+      name: string;
+      endpointId: string;
+      macAddress: string;
+      ipv4Address: string;
+      ipv6Address: string;
+    }
+  >;
   options: Record<string, any>;
   labels: Record<string, string>;
   created: Date;
@@ -2378,25 +2664,40 @@ export interface DockerBuildOptions {
 export interface DockerComposeService {
   name: string;
   image?: string;
-  build?: string | {
-    context: string;
-    dockerfile?: string;
-    args?: Record<string, string>;
-    target?: string;
-  };
+  build?:
+    | string
+    | {
+        context: string;
+        dockerfile?: string;
+        args?: Record<string, string>;
+        target?: string;
+      };
   command?: string | string[];
   entrypoint?: string | string[];
   environment?: Record<string, string> | string[];
   ports?: string[];
   volumes?: string[];
-  depends_on?: string[] | Record<string, {
-    condition?: 'service_started' | 'service_healthy' | 'service_completed_successfully';
-  }>;
-  networks?: string[] | Record<string, {
-    aliases?: string[];
-    ipv4_address?: string;
-    ipv6_address?: string;
-  }>;
+  depends_on?:
+    | string[]
+    | Record<
+        string,
+        {
+          condition?:
+            | 'service_started'
+            | 'service_healthy'
+            | 'service_completed_successfully';
+        }
+      >;
+  networks?:
+    | string[]
+    | Record<
+        string,
+        {
+          aliases?: string[];
+          ipv4_address?: string;
+          ipv6_address?: string;
+        }
+      >;
   restart?: 'no' | 'always' | 'on-failure' | 'unless-stopped';
   user?: string;
   working_dir?: string;
@@ -2505,7 +2806,17 @@ export interface DockerMetrics {
 }
 
 export interface DockerEvent {
-  type: 'container' | 'image' | 'network' | 'volume' | 'daemon' | 'plugin' | 'service' | 'node' | 'secret' | 'config';
+  type:
+    | 'container'
+    | 'image'
+    | 'network'
+    | 'volume'
+    | 'daemon'
+    | 'plugin'
+    | 'service'
+    | 'node'
+    | 'secret'
+    | 'config';
   action: string;
   actor: {
     id: string;
@@ -2522,53 +2833,53 @@ export interface WSLConnectionOptions {
   distribution?: string;
   distributionVersion?: string;
   defaultDistribution?: boolean;
-  
+
   // WSL version preference
   wslVersion?: 1 | 2 | 'auto';
-  
+
   // User and directory settings
   user?: string;
   workingDirectory?: string;
-  
+
   // Environment settings
   systemdEnabled?: boolean;
   interopEnabled?: boolean;
   appendWindowsPath?: boolean;
-  
+
   // Network settings
   networkMode?: 'mirrored' | 'nat' | 'bridged';
   dnsServers?: string[];
   hostName?: string;
-  
+
   // File system settings
   mountOptions?: string[];
   driveMountPoint?: string;
   filePermissions?: 'metadata' | 'force';
-  
+
   // Performance and resource settings
   memory?: string; // e.g., "8GB"
   processors?: number;
   swap?: string; // e.g., "2GB"
-  
+
   // WSL configuration
   localhostForwarding?: boolean;
   guiApplications?: boolean;
   nestedVirtualization?: boolean;
-  
+
   // Startup settings
   bootCommand?: string;
   systemdTimeout?: number;
-  
+
   // Debugging and logging
   debugConsole?: boolean;
   kernelCommandLine?: string;
-  
+
   // Auto-recovery settings
   autoStart?: boolean;
   autoRestart?: boolean;
   maxRestartAttempts?: number;
   restartDelay?: number;
-  
+
   // Path translation
   automaticPathTranslation?: boolean;
   pathTranslationRules?: PathTranslationRule[];
@@ -2643,7 +2954,13 @@ export interface WSLHealthStatus {
 }
 
 export interface WSLHealthIssue {
-  type: 'performance' | 'network' | 'filesystem' | 'systemd' | 'memory' | 'configuration';
+  type:
+    | 'performance'
+    | 'network'
+    | 'filesystem'
+    | 'systemd'
+    | 'memory'
+    | 'configuration';
   severity: 'low' | 'medium' | 'high' | 'critical';
   message: string;
   resolution?: string;
@@ -2662,17 +2979,20 @@ export interface WSLConfig {
     dnsTunneling?: boolean;
     autoProxy?: boolean;
   };
-  
+
   // Per-distribution configuration
-  distributions: Record<string, {
-    user?: string;
-    systemd?: boolean;
-    interop?: boolean;
-    appendWindowsPath?: boolean;
-    generateHosts?: boolean;
-    generateResolvConf?: boolean;
-    mountOptions?: string;
-  }>;
+  distributions: Record<
+    string,
+    {
+      user?: string;
+      systemd?: boolean;
+      interop?: boolean;
+      appendWindowsPath?: boolean;
+      generateHosts?: boolean;
+      generateResolvConf?: boolean;
+      mountOptions?: string;
+    }
+  >;
 }
 
 // WSL Error Patterns
@@ -2683,7 +3003,6 @@ export interface WSLErrorPattern extends ExtendedErrorPattern {
   networkRelated?: boolean;
   filesystemRelated?: boolean;
 }
-
 
 // AWS Systems Manager (SSM) Connection Options
 export interface AWSSSMConnectionOptions {
@@ -2699,24 +3018,24 @@ export interface AWSSSMConnectionOptions {
   mfaTokenCode?: string;
   externalId?: string;
   durationSeconds?: number;
-  
+
   // SSM Session specific
   instanceId?: string;
   targetType?: 'instance' | 'managed-instance' | 'fargate-task';
   documentName?: string;
   parameters?: Record<string, string[]>;
-  
+
   // Port forwarding specific (for SSM tunnel)
   portNumber?: number;
   localPortNumber?: number;
-  
+
   // Session preferences
   sessionTimeout?: number;
   maxSessionDuration?: number;
   shellProfile?: 'bash' | 'powershell' | 'cmd';
   workingDirectory?: string;
   environmentVariables?: Record<string, string>;
-  
+
   // Logging configuration
   s3BucketName?: string;
   s3KeyPrefix?: string;
@@ -2724,14 +3043,14 @@ export interface AWSSSMConnectionOptions {
   cloudWatchLogGroupName?: string;
   cloudWatchEncryptionEnabled?: boolean;
   cloudWatchStreamingEnabled?: boolean;
-  
+
   // Connection settings
   keepAliveInterval?: number;
   connectionTimeout?: number;
   retryAttempts?: number;
   backoffMultiplier?: number;
   jitterEnabled?: boolean;
-  
+
   // Advanced options
   enableSessionManagerPlugin?: boolean;
   customEndpoint?: string;
@@ -2746,43 +3065,61 @@ export interface WinRMConnectionOptions {
   port?: number; // Default 5985 (HTTP) or 5986 (HTTPS)
   protocol?: 'http' | 'https';
   endpoint?: string; // Custom WS-Management endpoint
-  
+
   // Authentication
   username: string;
   password?: string;
   domain?: string; // Windows domain
-  authType?: 'basic' | 'negotiate' | 'ntlm' | 'kerberos' | 'credssp' | 'certificate';
-  authMethod?: 'basic' | 'negotiate' | 'ntlm' | 'kerberos' | 'credssp' | 'certificate';
-  
+  authType?:
+    | 'basic'
+    | 'negotiate'
+    | 'ntlm'
+    | 'kerberos'
+    | 'credssp'
+    | 'certificate';
+  authMethod?:
+    | 'basic'
+    | 'negotiate'
+    | 'ntlm'
+    | 'kerberos'
+    | 'credssp'
+    | 'certificate';
+
   // Certificate authentication
   certificatePath?: string;
   certificatePassword?: string;
   clientCertificate?: string; // PEM format certificate
   clientKey?: string; // PEM format private key
   verifyCertificate?: boolean;
-  
+
   // Kerberos settings
   kerberosRealm?: string;
   kerberosService?: string; // Default 'HTTP'
   kerberosHostname?: string;
-  
+
   // CredSSP settings
   enableCredSSP?: boolean;
   credSSPMinVersion?: number;
   credSSPMaxVersion?: number;
-  
+
   // SSL/TLS settings
   enableTLS?: boolean;
   useSSL?: boolean; // Alternative SSL property
   ignoreCertErrors?: boolean;
   verifySSL?: boolean;
   caCertificate?: string;
-  
+
   // PowerShell Remoting specific
   shell?: 'cmd' | 'powershell' | 'pwsh';
   powershellVersion?: '5.1' | '7.0' | '7.1' | '7.2' | '7.3' | '7.4' | 'latest';
-  executionPolicy?: 'Restricted' | 'RemoteSigned' | 'AllSigned' | 'Unrestricted' | 'Bypass' | 'Undefined';
-  
+  executionPolicy?:
+    | 'Restricted'
+    | 'RemoteSigned'
+    | 'AllSigned'
+    | 'Unrestricted'
+    | 'Bypass'
+    | 'Undefined';
+
   // Session configuration
   configurationName?: string; // PowerShell session configuration
   applicationName?: string; // Default 'wsman'
@@ -2790,19 +3127,19 @@ export interface WinRMConnectionOptions {
   maxTimeoutMs?: number; // Max operation timeout
   locale?: string; // Locale for error messages
   dataLocale?: string; // Locale for data
-  
+
   // JEA (Just Enough Administration) settings
   jeaEndpoint?: string;
   jeaRoleName?: string;
   jeaSessionType?: 'RestrictedRemoteServer' | 'EmptyShell' | 'Default';
-  
+
   // Proxy settings
   proxyHost?: string;
   proxyPort?: number;
   proxyUsername?: string;
   proxyPassword?: string;
   proxyBypass?: string[];
-  
+
   // Connection pooling and management
   maxConnections?: number;
   timeout?: number;
@@ -2811,7 +3148,7 @@ export interface WinRMConnectionOptions {
   keepAliveInterval?: number;
   maxRetries?: number;
   retryDelay?: number;
-  
+
   // Advanced WS-Management options
   wsmanOptions?: {
     maxEnvelopeSize?: number;
@@ -2830,28 +3167,34 @@ export interface WinRMConnectionOptions {
     httpHeaders?: Record<string, string>;
     soapHeaders?: Record<string, string>;
   };
-  
+
   // File transfer settings
   enableFileTransfer?: boolean;
   maxFileSize?: number;
   transferChunkSize?: number;
-  
+
   // Logging and debugging
   enableLogging?: boolean;
   logLevel?: 'error' | 'warn' | 'info' | 'debug' | 'trace';
   logPath?: string;
-  
+
   // Security settings
   allowNTLMv1?: boolean;
   requireMutualAuthentication?: boolean;
   enableEncryption?: boolean;
   encryptionLevel?: 'none' | 'sign' | 'encrypt';
-  
+
   // PowerShell specific options
   powershellOptions?: {
     noProfile?: boolean;
     nonInteractive?: boolean;
-    executionPolicy?: 'Restricted' | 'RemoteSigned' | 'AllSigned' | 'Unrestricted' | 'Bypass' | 'Undefined';
+    executionPolicy?:
+      | 'Restricted'
+      | 'RemoteSigned'
+      | 'AllSigned'
+      | 'Unrestricted'
+      | 'Bypass'
+      | 'Undefined';
     windowStyle?: 'Normal' | 'Hidden' | 'Minimized' | 'Maximized';
     workingDirectory?: string;
     modules?: string[]; // Modules to import
@@ -2861,10 +3204,10 @@ export interface WinRMConnectionOptions {
     threadApartmentState?: 'STA' | 'MTA';
     outputBufferingMode?: 'None' | 'Block' | 'Line' | 'Full';
   };
-  
+
   // Custom headers
   customHeaders?: Record<string, string>;
-  
+
   // Resource limits
   resourceLimits?: {
     maxCPUUsage?: number;
@@ -2881,29 +3224,29 @@ export interface IPMIConnectionOptions {
   port?: number; // Default: 623
   username: string;
   password: string;
-  
+
   // IPMI Version Support
   ipmiVersion?: '1.5' | '2.0'; // Default: 2.0
-  
+
   // Authentication and Privilege Levels
   privilegeLevel?: 'user' | 'operator' | 'admin'; // Default: admin
   authenticationType?: 'none' | 'md2' | 'md5' | 'password' | 'oem';
-  
+
   // Cipher Suite Selection for IPMI 2.0
   cipherSuite?: number; // 0-17, Default: 3 (AES-128-CBC, SHA1-HMAC)
-  
+
   // Session Settings
   sessionTimeout?: number; // Default: 30000ms
   maxRetries?: number; // Default: 3
   retryDelay?: number; // Default: 1000ms
   keepAliveInterval?: number; // Default: 10000ms
-  
+
   // Interface Type
   interface?: 'lan' | 'lanplus' | 'serial' | 'open'; // Default: lanplus
-  
+
   // Vendor Specific Settings
   vendor?: 'dell' | 'hp' | 'ibm' | 'supermicro' | 'generic'; // Default: generic
-  
+
   // Serial over LAN Settings
   sol?: {
     enabled: boolean;
@@ -2913,7 +3256,7 @@ export interface IPMIConnectionOptions {
     encryption?: boolean;
     authentication?: boolean;
   };
-  
+
   // DCMI Settings
   dcmi?: {
     enabled: boolean;
@@ -2921,7 +3264,7 @@ export interface IPMIConnectionOptions {
     thermalManagement?: boolean;
     assetTag?: boolean;
   };
-  
+
   // Advanced Settings
   bridging?: {
     enabled: boolean;
@@ -2930,12 +3273,12 @@ export interface IPMIConnectionOptions {
     transitChannel?: number;
     transitAddress?: number;
   };
-  
+
   // Security Settings
   kg?: string; // BMC Key for enhanced security
   confidentialityAlgorithm?: 'none' | 'aes-cbc-128';
   integrityAlgorithm?: 'none' | 'hmac-sha1-96' | 'hmac-md5-128' | 'md5-128';
-  
+
   // Protocol Timeouts
   timeouts?: {
     connection: number;
@@ -2943,7 +3286,7 @@ export interface IPMIConnectionOptions {
     session: number;
     sol: number;
   };
-  
+
   // Monitoring Settings
   sensorPollingInterval?: number; // Default: 30000ms
   enableEventLog?: boolean; // Default: false
@@ -2956,7 +3299,7 @@ export interface IPCConnectionOptions {
   path: string; // Named pipe path (Windows) or Unix domain socket path
   mode?: 'stream' | 'datagram'; // Communication mode
   createIfNotExists?: boolean; // Create the IPC endpoint if it doesn't exist
-  
+
   // Named Pipe specific (Windows)
   namedPipe?: {
     pipeName: string; // e.g., '\\\\.\\pipe\\MyPipe' or 'MyPipe'
@@ -2972,7 +3315,7 @@ export interface IPCConnectionOptions {
     };
     flags?: ('write_through' | 'overlapped' | 'first_instance_only')[];
   };
-  
+
   // Unix Domain Socket specific (Linux/macOS)
   unixSocket?: {
     socketPath: string; // Absolute path to socket file
@@ -2983,7 +3326,7 @@ export interface IPCConnectionOptions {
     gid?: number; // Owner group ID
     unlink?: boolean; // Remove existing socket file
   };
-  
+
   // Docker socket integration
   dockerSocket?: {
     socketPath?: string; // Default: '/var/run/docker.sock' (Linux) or '\\\\.\\pipe\\docker_engine' (Windows)
@@ -2991,7 +3334,7 @@ export interface IPCConnectionOptions {
     timeout?: number;
     headers?: Record<string, string>;
   };
-  
+
   // Windows Mailslots (for broadcast communication)
   mailslot?: {
     mailslotName: string; // e.g., '\\\\.\\mailslot\\MyMailslot'
@@ -3000,7 +3343,7 @@ export interface IPCConnectionOptions {
     readTimeout?: number; // Read timeout in milliseconds
     broadcast?: boolean; // Enable broadcast mode
   };
-  
+
   // D-Bus integration (Linux)
   dbus?: {
     busType?: 'system' | 'session' | 'custom'; // D-Bus bus type
@@ -3010,7 +3353,7 @@ export interface IPCConnectionOptions {
     interfaceName?: string; // Interface name
     timeout?: number; // Method call timeout
   };
-  
+
   // COM integration (Windows)
   com?: {
     progId?: string; // Program ID (e.g., 'Excel.Application')
@@ -3019,14 +3362,25 @@ export interface IPCConnectionOptions {
     serverType?: 'in_process' | 'local_server' | 'remote_server';
     serverName?: string; // For remote server
     authentication?: {
-      level?: 'none' | 'connect' | 'call' | 'packet' | 'packet_integrity' | 'packet_privacy';
+      level?:
+        | 'none'
+        | 'connect'
+        | 'call'
+        | 'packet'
+        | 'packet_integrity'
+        | 'packet_privacy';
       impersonation?: 'anonymous' | 'identify' | 'impersonate' | 'delegate';
     };
   };
-  
+
   // Message framing and protocol
   messageFraming?: {
-    protocol?: 'length_prefixed' | 'delimiter' | 'fixed_length' | 'json_lines' | 'custom';
+    protocol?:
+      | 'length_prefixed'
+      | 'delimiter'
+      | 'fixed_length'
+      | 'json_lines'
+      | 'custom';
     delimiter?: string; // For delimiter-based framing
     lengthBytes?: number; // Number of bytes for length prefix (1, 2, 4, 8)
     maxMessageSize?: number; // Maximum message size
@@ -3038,14 +3392,14 @@ export interface IPCConnectionOptions {
       iv?: string | Buffer;
     };
   };
-  
+
   // Connection behavior
   reconnect?: boolean; // Automatically reconnect on disconnect
   reconnectInterval?: number; // Reconnection interval in ms
   maxReconnectAttempts?: number; // Maximum reconnection attempts
   keepAlive?: boolean; // Enable keep-alive
   keepAliveInterval?: number; // Keep-alive interval in ms
-  
+
   // Security and permissions
   security?: {
     requireAuthentication?: boolean;
@@ -3057,7 +3411,7 @@ export interface IPCConnectionOptions {
       group?: string;
     };
   };
-  
+
   // Logging and monitoring
   logging?: {
     enabled?: boolean;
@@ -3066,7 +3420,7 @@ export interface IPCConnectionOptions {
     maxLogSize?: number;
     rotateLogFiles?: boolean;
   };
-  
+
   // Performance tuning
   performance?: {
     bufferSize?: number; // I/O buffer size
@@ -3080,10 +3434,22 @@ export interface IPCConnectionOptions {
 
 export interface IPCSessionState {
   sessionId: string;
-  connectionState: 'disconnected' | 'connecting' | 'connected' | 'authenticated' | 'ready' | 'error';
-  ipcType: 'named-pipe' | 'unix-socket' | 'docker-socket' | 'mailslot' | 'dbus' | 'com';
+  connectionState:
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'authenticated'
+    | 'ready'
+    | 'error';
+  ipcType:
+    | 'named-pipe'
+    | 'unix-socket'
+    | 'docker-socket'
+    | 'mailslot'
+    | 'dbus'
+    | 'com';
   endpoint: string; // Connection endpoint/path
-  
+
   // Connection info
   connectionInfo: {
     localEndpoint?: string;
@@ -3092,7 +3458,7 @@ export interface IPCSessionState {
     established: Date;
     lastActivity: Date;
   };
-  
+
   // Security context
   securityContext?: {
     authenticated: boolean;
@@ -3101,7 +3467,7 @@ export interface IPCSessionState {
     permissions?: string[];
     securityDescriptor?: string;
   };
-  
+
   // Statistics
   statistics: {
     messagesReceived: number;
@@ -3112,7 +3478,7 @@ export interface IPCSessionState {
     reconnections: number;
     lastError?: string;
   };
-  
+
   // Protocol-specific state
   namedPipeState?: {
     pipeHandle?: any; // Windows HANDLE
@@ -3120,27 +3486,27 @@ export interface IPCSessionState {
     clientCount: number;
     instanceId: number;
   };
-  
+
   unixSocketState?: {
     socketFd?: number; // File descriptor
     socketType: 'stream' | 'dgram' | 'seqpacket';
     abstract: boolean;
     permissions: string;
   };
-  
+
   dockerSocketState?: {
     apiVersion: string;
     serverInfo?: any;
     containers?: string[];
   };
-  
+
   dbusState?: {
     busType: 'system' | 'session' | 'custom';
     uniqueName?: string;
     serviceName?: string;
     ownedNames: string[];
   };
-  
+
   comState?: {
     progId?: string;
     clsid?: string;
@@ -3154,27 +3520,27 @@ export interface IPCMessage {
   type: 'command' | 'response' | 'event' | 'broadcast';
   timestamp: Date;
   sessionId?: string;
-  
+
   // Message content
   payload: any;
   encoding?: 'utf8' | 'binary' | 'base64';
   compressed?: boolean;
   encrypted?: boolean;
-  
+
   // Routing information
   source?: string;
   destination?: string;
   replyTo?: string;
   correlationId?: string;
-  
+
   // Protocol-specific headers
   headers?: Record<string, any>;
-  
+
   // Quality of service
   priority?: 'low' | 'normal' | 'high' | 'critical';
   ttl?: number; // Time to live in milliseconds
   persistent?: boolean; // Should survive restarts
-  
+
   // Error information
   error?: {
     code: number;
@@ -3188,16 +3554,36 @@ export interface WinRMSession {
   sessionId: string;
   state: WinRMSessionState;
   options: WinRMConnectionOptions;
-  activeCommands: Map<string, { command: string; startTime: Date; status: 'running' | 'completed' | 'failed' }>;
+  activeCommands: Map<
+    string,
+    {
+      command: string;
+      startTime: Date;
+      status: 'running' | 'completed' | 'failed';
+    }
+  >;
 }
 
 export interface WinRMSessionState {
   sessionId: string;
   shellId?: string;
   commandId?: string;
-  connectionState?: 'disconnected' | 'connecting' | 'connected' | 'authenticated' | 'ready' | 'executing' | 'error';
+  connectionState?:
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'authenticated'
+    | 'ready'
+    | 'executing'
+    | 'error';
   isConnected: boolean; // Added for consistency with other session states
-  authenticationType?: 'basic' | 'negotiate' | 'ntlm' | 'kerberos' | 'credssp' | 'certificate';
+  authenticationType?:
+    | 'basic'
+    | 'negotiate'
+    | 'ntlm'
+    | 'kerberos'
+    | 'credssp'
+    | 'certificate';
   protocolVersion?: string;
   serverInfo?: {
     productVersion?: string;
@@ -3277,9 +3663,16 @@ export interface WinRMSessionState {
 export interface WinRMProtocol {
   connect(options: WinRMConnectionOptions): Promise<WinRMSession>;
   disconnect(session: WinRMSession): Promise<void>;
-  executeCommand(session: WinRMSession, command: string): Promise<{ stdout: string; stderr: string; exitCode: number }>;
+  executeCommand(
+    session: WinRMSession,
+    command: string
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }>;
   createShell(session: WinRMSession): Promise<string>;
-  executeInShell(session: WinRMSession, shellId: string, command: string): Promise<string>;
+  executeInShell(
+    session: WinRMSession,
+    shellId: string,
+    command: string
+  ): Promise<string>;
   closeShell(session: WinRMSession, shellId: string): Promise<void>;
   isConnected(session: WinRMSession): boolean;
   getCapabilities(): Promise<WinRMCapabilities>;
@@ -3291,18 +3684,25 @@ export interface IPMISessionState {
   sessionId: string;
   ipmiSessionId?: number;
   managedSystemSessionId?: number;
-  connectionState: 'disconnected' | 'connecting' | 'authenticating' | 'session-setup' | 'connected' | 'sol-active' | 'error';
+  connectionState:
+    | 'disconnected'
+    | 'connecting'
+    | 'authenticating'
+    | 'session-setup'
+    | 'connected'
+    | 'sol-active'
+    | 'error';
   ipmiVersion: '1.5' | '2.0';
   cipherSuite: number;
   authType: number;
   privilegeLevel: 'user' | 'operator' | 'admin';
-  
+
   // Session Keys (for IPMI 2.0)
   sik?: Buffer; // Session Integrity Key
-  k1?: Buffer;  // Additional Key Generation Key 1
-  k2?: Buffer;  // Additional Key Generation Key 2
-  kg?: Buffer;  // BMC Key
-  
+  k1?: Buffer; // Additional Key Generation Key 1
+  k2?: Buffer; // Additional Key Generation Key 2
+  kg?: Buffer; // BMC Key
+
   // BMC Device Info
   deviceInfo?: {
     deviceId: number;
@@ -3316,7 +3716,7 @@ export interface IPMISessionState {
     productName?: string;
     supportedFunctions: string[];
   };
-  
+
   // Serial over LAN State
   solState?: {
     active: boolean;
@@ -3326,7 +3726,7 @@ export interface IPMISessionState {
     characterCount: number;
     status: number;
   };
-  
+
   // Hardware Monitoring State
   monitoringState?: {
     enabled: boolean;
@@ -3335,14 +3735,14 @@ export interface IPMISessionState {
     hardwareHealth: 'ok' | 'warning' | 'critical';
     activeSensors: number[];
   };
-  
+
   // Power State
   powerState?: {
     current: 'off' | 'on' | 'cycling' | 'unknown';
     supportedOperations: string[];
     lastPowerOperation?: Date;
   };
-  
+
   // Virtual Media State
   virtualMediaState?: {
     mountedDevices: Array<{
@@ -3353,7 +3753,7 @@ export interface IPMISessionState {
       imagePath?: string;
     }>;
   };
-  
+
   // Connection Statistics
   statistics: {
     connectTime: Date;
@@ -3367,16 +3767,22 @@ export interface IPMISessionState {
     timeouts: number;
     reconnections: number;
   };
-  
+
   // Current Operation
   currentOperation?: {
     operationId: string;
-    type: 'command' | 'sensor-read' | 'power-control' | 'sol-data' | 'virtual-media' | 'firmware-update';
+    type:
+      | 'command'
+      | 'sensor-read'
+      | 'power-control'
+      | 'sol-data'
+      | 'virtual-media'
+      | 'firmware-update';
     startTime: Date;
     timeout: number;
     retryCount: number;
   };
-  
+
   // Error State
   errorState?: {
     lastError: string;
@@ -3385,7 +3791,7 @@ export interface IPMISessionState {
     recoveryAttempts: number;
     lastRecoveryTime?: Date;
   };
-  
+
   // Vendor Specific State
   vendorState?: {
     vendor: 'dell' | 'hp' | 'ibm' | 'supermicro' | 'generic';
@@ -3403,7 +3809,13 @@ export interface WinRMCommand {
   arguments?: string[];
   workingDirectory?: string;
   environment?: Record<string, string>;
-  status: 'queued' | 'running' | 'completed' | 'failed' | 'terminated' | 'timeout';
+  status:
+    | 'queued'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'terminated'
+    | 'timeout';
   startTime?: Date;
   endTime?: Date;
   exitCode?: number;
@@ -3589,27 +4001,27 @@ export interface WinRMPerformanceCounters {
     activeConnections: number;
     totalConnections: number;
     failedConnections: number;
-    
+
     // WS-Management counters
     requestsPerSecond: number;
     averageRequestTime: number;
     requestsQueued: number;
     requestsActive: number;
     requestsFailed: number;
-    
+
     // PowerShell counters
     shellsCreated: number;
     shellsActive: number;
     commandsExecuted: number;
     commandsPerSecond: number;
     averageCommandTime: number;
-    
+
     // System resources
     cpuUsage: number;
     memoryUsage: number;
     handleCount: number;
     threadCount: number;
-    
+
     // Network
     bytesReceivedPerSecond: number;
     bytesSentPerSecond: number;
@@ -3628,24 +4040,30 @@ export interface AWSSSMSession {
   targetType: 'instance' | 'managed-instance' | 'fargate-task';
   documentName: string;
   parameters: Record<string, string[]>;
-  status: 'Connected' | 'Connecting' | 'Disconnected' | 'Failed' | 'Terminated' | 'Terminating';
+  status:
+    | 'Connected'
+    | 'Connecting'
+    | 'Disconnected'
+    | 'Failed'
+    | 'Terminated'
+    | 'Terminating';
   creationDate: Date;
   lastAccessedDate: Date;
   owner: string;
   reason?: string;
   details?: string;
-  
+
   // Port forwarding session info
   portNumber?: number;
   localPortNumber?: number;
-  
+
   // Session configuration
   sessionTimeout: number;
   maxSessionDuration: number;
   shellProfile?: string;
   workingDirectory?: string;
   environmentVariables: Record<string, string>;
-  
+
   // Logging info
   s3OutputLocation?: {
     outputS3BucketName: string;
@@ -3656,7 +4074,7 @@ export interface AWSSSMSession {
     cloudWatchLogGroupName: string;
     cloudWatchEncryptionEnabled: boolean;
   };
-  
+
   // Connection metadata
   region: string;
   accountId: string;
@@ -3665,7 +4083,7 @@ export interface AWSSSMSession {
   sourceIp?: string;
   userAgent?: string;
   clientVersion?: string;
-  
+
   // Session statistics
   statistics?: {
     bytesIn: number;
@@ -3676,7 +4094,7 @@ export interface AWSSSMSession {
     errorsCount: number;
     lastActivityTime: Date;
   };
-  
+
   // Compliance and audit
   tags: Record<string, string>;
   complianceInfo?: {
@@ -3692,7 +4110,22 @@ export interface AWSSSMDocument {
   owner: string;
   versionName?: string;
   platformTypes: string[];
-  documentType: 'Command' | 'Policy' | 'Automation' | 'Session' | 'Package' | 'ApplicationConfiguration' | 'ApplicationConfigurationSchema' | 'DeploymentStrategy' | 'ChangeCalendar' | 'Automation.ChangeTemplate' | 'ProblemAnalysis' | 'ProblemAnalysisTemplate' | 'CloudFormation' | 'ConformancePackTemplate' | 'QuickSetup';
+  documentType:
+    | 'Command'
+    | 'Policy'
+    | 'Automation'
+    | 'Session'
+    | 'Package'
+    | 'ApplicationConfiguration'
+    | 'ApplicationConfigurationSchema'
+    | 'DeploymentStrategy'
+    | 'ChangeCalendar'
+    | 'Automation.ChangeTemplate'
+    | 'ProblemAnalysis'
+    | 'ProblemAnalysisTemplate'
+    | 'CloudFormation'
+    | 'ConformancePackTemplate'
+    | 'QuickSetup';
   schemaVersion: string;
   documentVersion: string;
   status: 'Creating' | 'Active' | 'Updating' | 'Failed' | 'Deleting';
@@ -3740,7 +4173,14 @@ export interface AWSSSMCommandExecution {
     values: string[];
   }>;
   requestedDateTime: Date;
-  status: 'Pending' | 'InProgress' | 'Success' | 'Cancelled' | 'Failed' | 'TimedOut' | 'Cancelling';
+  status:
+    | 'Pending'
+    | 'InProgress'
+    | 'Success'
+    | 'Cancelled'
+    | 'Failed'
+    | 'TimedOut'
+    | 'Cancelling';
   statusDetails: string;
   outputS3Region?: string;
   outputS3BucketName?: string;
@@ -3787,7 +4227,7 @@ export interface AWSSSMPortForwardingSession {
   owner: string;
   reason?: string;
   details?: string;
-  
+
   // Connection statistics
   statistics?: {
     connectionsActive: number;
@@ -3799,7 +4239,7 @@ export interface AWSSSMPortForwardingSession {
     errorsCount: number;
     lastActivityTime: Date;
   };
-  
+
   // Session metadata
   sessionToken: string;
   streamUrl: string;
@@ -3825,7 +4265,12 @@ export interface AWSSTSAssumedRole {
 }
 
 export interface AWSSSMTarget {
-  type: 'instance' | 'managed-instance' | 'fargate-task' | 'tag' | 'resource-group';
+  type:
+    | 'instance'
+    | 'managed-instance'
+    | 'fargate-task'
+    | 'tag'
+    | 'resource-group';
   id: string;
   name?: string;
   platformType?: 'Windows' | 'Linux' | 'MacOS';
@@ -3872,7 +4317,12 @@ export interface AWSSSMError {
 export interface AWSSSMSessionLog {
   sessionId: string;
   timestamp: Date;
-  eventType: 'SessionStart' | 'SessionEnd' | 'DataStreamEvent' | 'CommandExecution' | 'ErrorEvent';
+  eventType:
+    | 'SessionStart'
+    | 'SessionEnd'
+    | 'DataStreamEvent'
+    | 'CommandExecution'
+    | 'ErrorEvent';
   source: 'client' | 'target' | 'system';
   data: string;
   dataType: 'stdin' | 'stdout' | 'stderr' | 'system';
@@ -3886,7 +4336,7 @@ export interface AWSSSMSessionLog {
   sessionOwner: string;
   targetId?: string;
   targetType?: 'instance' | 'managed-instance' | 'fargate-task';
-  
+
   // For compliance and audit
   complianceMarkers?: {
     piiDetected?: boolean;
@@ -3903,10 +4353,17 @@ export interface AWSSSMSessionManagerConfig {
     allowedRegions: string[];
     regionPriority: string[];
   };
-  
+
   // Authentication settings
   authConfig: {
-    credentialChain: ('environment' | 'profile' | 'iam-role' | 'instance-profile' | 'ecs-task-role' | 'web-identity')[];
+    credentialChain: (
+      | 'environment'
+      | 'profile'
+      | 'iam-role'
+      | 'instance-profile'
+      | 'ecs-task-role'
+      | 'web-identity'
+    )[];
     assumeRoleConfig?: {
       roleArn: string;
       roleSessionName: string;
@@ -3920,7 +4377,7 @@ export interface AWSSSMSessionManagerConfig {
       tokenCodeCallback?: () => Promise<string>;
     };
   };
-  
+
   // Session settings
   sessionConfig: {
     defaultDocumentName: string;
@@ -3932,7 +4389,7 @@ export interface AWSSSMSessionManagerConfig {
     keepAliveInterval: number;
     maxConcurrentSessions: number;
   };
-  
+
   // Logging settings
   loggingConfig: {
     enabled: boolean;
@@ -3956,7 +4413,7 @@ export interface AWSSSMSessionManagerConfig {
       maxFiles: number;
     };
   };
-  
+
   // Connection settings
   connectionConfig: {
     connectionTimeout: number;
@@ -3966,7 +4423,7 @@ export interface AWSSSMSessionManagerConfig {
     customEndpoints?: Record<string, string>;
     useIMDSv2: boolean;
   };
-  
+
   // Security settings
   securityConfig: {
     allowedInstanceIds?: string[];
@@ -3977,7 +4434,7 @@ export interface AWSSSMSessionManagerConfig {
     encryptionInTransit: boolean;
     encryptionAtRest: boolean;
   };
-  
+
   // Monitoring and metrics
   monitoringConfig: {
     metricsEnabled: boolean;
@@ -4042,7 +4499,16 @@ export interface SFTPTransferProgress {
   transferId: string;
   sessionId: string;
   operation: 'upload' | 'download' | 'sync';
-  status: 'queued' | 'preparing' | 'transferring' | 'verifying' | 'completed' | 'failed' | 'cancelled' | 'paused' | 'resumed';
+  status:
+    | 'queued'
+    | 'preparing'
+    | 'transferring'
+    | 'verifying'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'paused'
+    | 'resumed';
   source: string;
   destination: string;
   totalBytes: number;
@@ -4099,7 +4565,7 @@ export interface SFTPSessionOptions extends SSHConnectionOptions {
 }
 
 // Type alias for ssh2-sftp-client FileInfoType
-type FileInfoType = "d" | "-" | "l";
+type FileInfoType = 'd' | '-' | 'l';
 
 export interface SFTPDirectoryOperations {
   create: (path: string, mode?: number, recursive?: boolean) => Promise<void>;
@@ -4115,14 +4581,32 @@ export interface SFTPDirectoryOperations {
 }
 
 export interface SFTPFileOperations {
-  upload: (localPath: string, remotePath: string, options?: Partial<SFTPTransferOptions>) => Promise<SFTPTransferProgress>;
-  download: (remotePath: string, localPath: string, options?: Partial<SFTPTransferOptions>) => Promise<SFTPTransferProgress>;
-  copy: (sourcePath: string, destinationPath: string, options?: Partial<SFTPTransferOptions>) => Promise<SFTPTransferProgress>;
+  upload: (
+    localPath: string,
+    remotePath: string,
+    options?: Partial<SFTPTransferOptions>
+  ) => Promise<SFTPTransferProgress>;
+  download: (
+    remotePath: string,
+    localPath: string,
+    options?: Partial<SFTPTransferOptions>
+  ) => Promise<SFTPTransferProgress>;
+  copy: (
+    sourcePath: string,
+    destinationPath: string,
+    options?: Partial<SFTPTransferOptions>
+  ) => Promise<SFTPTransferProgress>;
   move: (sourcePath: string, destinationPath: string) => Promise<void>;
   remove: (path: string) => Promise<void>;
   exists: (path: string) => Promise<false | FileInfoType>;
-  checksum: (path: string, algorithm?: 'md5' | 'sha1' | 'sha256') => Promise<string>;
-  compare: (localPath: string, remotePath: string) => Promise<{ identical: boolean; differences: string[] }>;
+  checksum: (
+    path: string,
+    algorithm?: 'md5' | 'sha1' | 'sha256'
+  ) => Promise<string>;
+  compare: (
+    localPath: string,
+    remotePath: string
+  ) => Promise<{ identical: boolean; differences: string[] }>;
 }
 
 export interface SFTPSyncOptions extends SFTPTransferOptions {
@@ -4133,7 +4617,13 @@ export interface SFTPSyncOptions extends SFTPTransferOptions {
   ignoreSymlinks?: boolean;
   ignoreHiddenFiles?: boolean;
   syncMode: 'timestamp' | 'checksum' | 'size' | 'hybrid';
-  conflictResolution: 'newer' | 'larger' | 'local' | 'remote' | 'prompt' | 'skip';
+  conflictResolution:
+    | 'newer'
+    | 'larger'
+    | 'local'
+    | 'remote'
+    | 'prompt'
+    | 'skip';
   dryRun?: boolean;
 }
 
@@ -4189,7 +4679,8 @@ export interface SFTPConnectionState {
   };
 }
 
-export interface SCPTransferOptions extends Omit<SFTPTransferOptions, 'compression'> {
+export interface SCPTransferOptions
+  extends Omit<SFTPTransferOptions, 'compression'> {
   scpMode: 'source' | 'sink';
   preserveAttributes?: boolean;
   quiet?: boolean;
@@ -4218,7 +4709,7 @@ export interface WebSocketTerminalConnectionOptions {
   url: string; // WebSocket URL (ws:// or wss://)
   protocol?: string | string[]; // WebSocket subprotocols
   headers?: Record<string, string>; // Additional HTTP headers for connection
-  
+
   // Authentication
   authType?: 'none' | 'basic' | 'bearer' | 'cookie' | 'query' | 'custom';
   username?: string;
@@ -4227,24 +4718,31 @@ export interface WebSocketTerminalConnectionOptions {
   apiKey?: string;
   cookies?: Record<string, string>;
   customAuth?: Record<string, any>;
-  
+
   // Terminal emulation
-  terminalType?: 'xterm' | 'vt100' | 'vt220' | 'ansi' | 'linux' | 'screen' | 'tmux';
+  terminalType?:
+    | 'xterm'
+    | 'vt100'
+    | 'vt220'
+    | 'ansi'
+    | 'linux'
+    | 'screen'
+    | 'tmux';
   terminalMode?: 'raw' | 'cooked' | 'cbreak';
   encoding?: 'utf8' | 'ascii' | 'binary' | 'base64';
-  
+
   // Screen dimensions
   cols?: number; // Terminal width (default: 80)
   rows?: number; // Terminal height (default: 24)
   autoResize?: boolean; // Auto-resize on window changes
-  
+
   // WebSocket options
   pingInterval?: number; // Ping interval in ms (default: 30000)
   pongTimeout?: number; // Pong timeout in ms (default: 5000)
   maxRetries?: number; // Max reconnection attempts (default: 5)
   retryDelay?: number; // Delay between retries in ms (default: 1000)
   exponentialBackoff?: boolean; // Use exponential backoff for retries
-  
+
   // SSL/TLS options for WSS
   ssl?: {
     enabled: boolean;
@@ -4256,7 +4754,7 @@ export interface WebSocketTerminalConnectionOptions {
     ciphers?: string;
     secureProtocol?: string;
   };
-  
+
   // Proxy settings
   proxy?: {
     type: 'http' | 'https' | 'socks4' | 'socks5';
@@ -4266,7 +4764,7 @@ export interface WebSocketTerminalConnectionOptions {
     password?: string;
     headers?: Record<string, string>;
   };
-  
+
   // Protocol-specific options
   protocolOptions?: {
     // xterm.js protocol
@@ -4282,7 +4780,7 @@ export interface WebSocketTerminalConnectionOptions {
       fontSize?: number;
       theme?: Record<string, string>;
     };
-    
+
     // ttyd protocol
     ttyd?: {
       enableReconnect?: boolean;
@@ -4291,7 +4789,7 @@ export interface WebSocketTerminalConnectionOptions {
       enableSixel?: boolean;
       rendererType?: 'canvas' | 'dom';
     };
-    
+
     // wetty protocol
     wetty?: {
       base?: string;
@@ -4300,7 +4798,7 @@ export interface WebSocketTerminalConnectionOptions {
       sshUser?: string;
       sshKey?: string;
     };
-    
+
     // gotty protocol
     gotty?: {
       enableReconnect?: boolean;
@@ -4308,30 +4806,30 @@ export interface WebSocketTerminalConnectionOptions {
       titleFormat?: string;
       argument?: string;
     };
-    
+
     // Cloud IDE terminals
     vscode?: {
       workspaceId?: string;
       instanceId?: string;
       sessionToken?: string;
     };
-    
+
     cloud9?: {
       workspaceId?: string;
       environmentId?: string;
       region?: string;
     };
-    
+
     gitpod?: {
       workspaceId?: string;
       instanceId?: string;
       supervisorToken?: string;
     };
-    
+
     // Custom protocol options
     custom?: Record<string, any>;
   };
-  
+
   // File transfer support
   fileTransfer?: {
     enabled: boolean;
@@ -4341,7 +4839,7 @@ export interface WebSocketTerminalConnectionOptions {
     timeout?: number; // Transfer timeout in ms
     retryCount?: number;
   };
-  
+
   // Session persistence
   sessionPersistence?: {
     enabled: boolean;
@@ -4349,7 +4847,7 @@ export interface WebSocketTerminalConnectionOptions {
     persistenceType?: 'memory' | 'file' | 'redis' | 'database';
     persistenceConfig?: Record<string, any>;
   };
-  
+
   // Terminal multiplexing
   multiplexing?: {
     enabled: boolean;
@@ -4358,7 +4856,7 @@ export interface WebSocketTerminalConnectionOptions {
     shareScreen?: boolean;
     masterSession?: string;
   };
-  
+
   // Latency compensation
   latencyCompensation?: {
     enabled: boolean;
@@ -4367,24 +4865,24 @@ export interface WebSocketTerminalConnectionOptions {
     maxLatency?: number; // Max acceptable latency in ms
     measurementInterval?: number;
   };
-  
+
   // Connection settings
   timeout?: number; // Connection timeout in ms
   keepAlive?: boolean;
   keepAliveInterval?: number;
   maxPayloadSize?: number; // Max message size in bytes
   compression?: boolean; // Enable compression
-  
+
   // Logging and debugging
   debug?: boolean;
   logLevel?: 'error' | 'warn' | 'info' | 'debug' | 'trace';
   protocolLogging?: boolean;
-  
+
   // Custom message handlers
   messageHandlers?: {
     [messageType: string]: (data: any) => void;
   };
-  
+
   // Feature flags
   features?: {
     enableBinaryFrames?: boolean;
@@ -4396,16 +4894,21 @@ export interface WebSocketTerminalConnectionOptions {
 }
 
 export interface WebSocketTerminalSessionState {
-  connectionState: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
+  connectionState:
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'reconnecting'
+    | 'failed';
   sessionId: string;
   webSocketUrl: string;
   protocol?: string;
-  
+
   // Connection info
   connectedAt?: Date;
   lastActivity?: Date;
   reconnectCount: number;
-  
+
   // Terminal state
   terminalSize: { cols: number; rows: number };
   currentEncoding: string;
@@ -4414,32 +4917,32 @@ export interface WebSocketTerminalSessionState {
   encoding?: string;
   bytesTransferred?: number;
   supportsReconnection?: boolean;
-  
+
   // WebSocket state
   webSocket?: any; // WebSocket instance
   readyState: number; // WebSocket ready state
   lastPingTime?: Date;
   lastPongTime?: Date;
   latency?: number; // Round-trip time in ms
-  
+
   // Buffer state
   inputBuffer: Buffer[];
   outputBuffer: Buffer[];
   bufferSize: number;
-  
+
   // Transfer state
   activeTransfers: Map<string, WebSocketFileTransfer>;
   transferQueue: WebSocketFileTransfer[];
-  
+
   // Session persistence
   persistentSessionId?: string;
   restoredFromPersistence?: boolean;
-  
+
   // Multiplexing state
   multiplexSessions?: Map<string, WebSocketMultiplexSession>;
   isMasterSession?: boolean;
   masterSessionId?: string;
-  
+
   // Statistics
   statistics: {
     messagesReceived: number;
@@ -4452,7 +4955,7 @@ export interface WebSocketTerminalSessionState {
     maxLatency: number;
     minLatency: number;
   };
-  
+
   // Error tracking
   lastError?: string;
   errorHistory: Array<{
@@ -4472,7 +4975,13 @@ export interface WebSocketFileTransfer {
   transferredBytes: number;
   progress: number; // 0-100
   speed: number; // bytes per second
-  status: 'queued' | 'transferring' | 'completed' | 'failed' | 'cancelled' | 'paused';
+  status:
+    | 'queued'
+    | 'transferring'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'paused';
   protocol: 'xmodem' | 'ymodem' | 'zmodem' | 'kermit' | 'http';
   startTime: Date;
   endTime?: Date;
@@ -4504,14 +5013,14 @@ export interface WebSocketTerminalCapabilities {
   supportedProtocols: string[];
   supportedEncodings: string[];
   supportedTerminalTypes: string[];
-  
+
   // Feature support
   binaryFrames: boolean;
   textFrames: boolean;
   compression: boolean;
   fragmentation: boolean;
   extensions: string[];
-  
+
   // Terminal features
   colorSupport: boolean;
   unicodeSupport: boolean;
@@ -4519,18 +5028,18 @@ export interface WebSocketTerminalCapabilities {
   clipboardSupport: boolean;
   fileTransferSupport: boolean;
   multiplexingSupport: boolean;
-  
+
   // Authentication methods
   authMethods: string[];
   sslSupport: boolean;
   proxySupport: boolean;
-  
+
   // Limits
   maxConnections: number;
   maxMessageSize: number;
   maxSessions: number;
   maxFileSize: number;
-  
+
   // Version info
   protocolVersion: string;
   serverVersion?: string;
@@ -4538,7 +5047,15 @@ export interface WebSocketTerminalCapabilities {
 }
 
 export interface WebSocketTerminalMessage {
-  type: 'data' | 'resize' | 'ping' | 'pong' | 'auth' | 'control' | 'file' | 'multiplex';
+  type:
+    | 'data'
+    | 'resize'
+    | 'ping'
+    | 'pong'
+    | 'auth'
+    | 'control'
+    | 'file'
+    | 'multiplex';
   sessionId?: string;
   timestamp: Date;
   sequenceNumber?: number;
@@ -4559,47 +5076,47 @@ export interface WebSocketTerminalProtocolConfig {
   connectionTimeout: number;
   readTimeout: number;
   writeTimeout: number;
-  
+
   // Reconnection settings
   maxRetries: number;
   retryDelay: number;
   exponentialBackoff: boolean;
   maxRetryDelay: number;
-  
+
   // Keep-alive settings
   pingInterval: number;
   pongTimeout: number;
   keepAliveEnabled: boolean;
-  
+
   // Buffer settings
   maxBufferSize: number;
   flushInterval: number;
   enableBuffering: boolean;
-  
+
   // Terminal settings
   defaultCols: number;
   defaultRows: number;
   defaultEncoding: string;
   defaultTerminalType: string;
-  
+
   // Security settings
   allowInsecure: boolean;
   requireAuthentication: boolean;
   maxAuthAttempts: number;
   sessionTimeout: number;
-  
+
   // Feature flags
   enableFileTransfer: boolean;
   enableMultiplexing: boolean;
   enableSessionPersistence: boolean;
   enableLatencyCompensation: boolean;
   enableCompression: boolean;
-  
+
   // Logging
   logLevel: 'error' | 'warn' | 'info' | 'debug' | 'trace';
   enableProtocolLogging: boolean;
   enablePerformanceLogging: boolean;
-  
+
   // Popular terminal configurations
   popularTerminals: {
     wetty: Partial<WebSocketTerminalConnectionOptions>;
@@ -4620,7 +5137,7 @@ export interface AnsibleConnectionOptions {
   user?: string;
   password?: string;
   connectionType?: 'ssh' | 'winrm' | 'local' | 'docker' | 'kubectl';
-  
+
   // SSH specific options
   sshPort?: number;
   sshCommonArgs?: string[];
@@ -4628,29 +5145,29 @@ export interface AnsibleConnectionOptions {
   sshExecutable?: string;
   hostKeyChecking?: boolean;
   sshTimeout?: number;
-  
+
   // WinRM specific options
   winrmPort?: number;
   winrmScheme?: 'http' | 'https';
   winrmPath?: string;
   winrmTransport?: 'plaintext' | 'ssl' | 'kerberos' | 'ntlm' | 'basic';
-  
+
   // Python environment
   pythonPath?: string;
   virtualEnv?: string;
   pythonInterpreter?: string;
-  
+
   // Ansible configuration
   ansibleConfig?: string;
   playbookPath?: string;
   rolesPath?: string[];
   collectionsPath?: string[];
-  
+
   // Vault settings
   vaultPasswordFile?: string;
   vaultIds?: string[];
   askVaultPass?: boolean;
-  
+
   // Execution options
   forks?: number;
   strategy?: string;
@@ -4658,12 +5175,12 @@ export interface AnsibleConnectionOptions {
   skipTags?: string[];
   limit?: string;
   extraVars?: Record<string, any>;
-  
+
   // Output options
   verbosity?: number;
   noColor?: boolean;
   tree?: string;
-  
+
   // Advanced options
   moduleSearchPath?: string[];
   actionPluginPath?: string[];
@@ -4671,11 +5188,11 @@ export interface AnsibleConnectionOptions {
   lookupPluginPath?: string[];
   filterPluginPath?: string[];
   testPluginPath?: string[];
-  
+
   // Timeout and retry settings
   timeout?: number;
   retries?: number;
-  
+
   // AWX/Tower integration
   towerHost?: string;
   towerUsername?: string;
@@ -4700,11 +5217,11 @@ export interface AnsiblePlaybookOptions {
   listTasks?: boolean;
   listTags?: boolean;
   listHosts?: string;
-  
+
   // Variables
   extraVars?: Record<string, any>;
   extraVarsFile?: string[];
-  
+
   // Connection options
   connection?: string;
   user?: string;
@@ -4713,7 +5230,7 @@ export interface AnsiblePlaybookOptions {
   sshExtraArgs?: string[];
   scpExtraArgs?: string[];
   sftpExtraArgs?: string[];
-  
+
   // Execution control
   forks?: number;
   vault?: {
@@ -4721,22 +5238,22 @@ export interface AnsiblePlaybookOptions {
     ids?: string[];
     askPass?: boolean;
   };
-  
+
   // Output control
   verbosity?: number;
   oneLine?: boolean;
   tree?: string;
-  
+
   // Callback plugins
   callbacks?: string[];
   callbackWhitelist?: string[];
-  
+
   // Performance
   pipelining?: boolean;
   factCaching?: string;
   factCachingConnection?: string;
   factCachingTimeout?: number;
-  
+
   // Advanced
   moduleArgs?: string;
   becomeSudo?: boolean;
@@ -4756,15 +5273,21 @@ export interface AnsibleInventory {
   type: 'static' | 'dynamic' | 'plugin';
   source: string;
   format?: 'ini' | 'yaml' | 'json';
-  groups?: Record<string, {
-    hosts?: string[];
-    vars?: Record<string, any>;
-    children?: string[];
-  }>;
-  hosts?: Record<string, {
-    vars?: Record<string, any>;
-    groups?: string[];
-  }>;
+  groups?: Record<
+    string,
+    {
+      hosts?: string[];
+      vars?: Record<string, any>;
+      children?: string[];
+    }
+  >;
+  hosts?: Record<
+    string,
+    {
+      vars?: Record<string, any>;
+      groups?: string[];
+    }
+  >;
   vars?: Record<string, any>;
 }
 
@@ -4879,7 +5402,14 @@ export interface AnsibleTowerJob {
   name: string;
   description?: string;
   jobTemplateId: number;
-  status: 'pending' | 'waiting' | 'running' | 'successful' | 'failed' | 'error' | 'canceled';
+  status:
+    | 'pending'
+    | 'waiting'
+    | 'running'
+    | 'successful'
+    | 'failed'
+    | 'error'
+    | 'canceled';
   created: Date;
   modified?: Date;
   started?: Date;
@@ -4905,40 +5435,40 @@ export interface AnsibleProtocolConfig {
   defaultUser: string;
   defaultTimeout: number;
   defaultForks: number;
-  
+
   // Python environment
   pythonPath: string;
   virtualEnvPath?: string;
-  
+
   // Ansible configuration
   configFile?: string;
   inventoryFile?: string;
   playbookDir: string;
   rolesPath: string[];
   collectionsPath: string[];
-  
+
   // Vault settings
   vaultConfig?: AnsibleVaultConfig;
-  
+
   // Callback and logging
   callbackPlugins: string[];
   stdoutCallback: string;
   logPath?: string;
   logLevel: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
-  
+
   // Performance settings
   gatheringPolicy: 'implicit' | 'explicit' | 'smart';
   factCaching: string;
   factCachingTimeout: number;
   pipelining: boolean;
-  
+
   // Security settings
   hostKeyChecking: boolean;
   requireTty: boolean;
-  
+
   // AWX/Tower integration
   towerConfig?: AnsibleTowerConfig;
-  
+
   // Feature flags
   enableFactGathering: boolean;
   enableCallbacks: boolean;
@@ -4948,12 +5478,22 @@ export interface AnsibleProtocolConfig {
 }
 
 // Protocol interfaces re-exports
-export type { IProtocol, ProtocolCapabilities } from '../core/ProtocolFactory.js';
+export type {
+  IProtocol,
+  ProtocolCapabilities,
+} from '../core/ProtocolFactory.js';
 
 // Telnet Session State Interface (missing definition)
 export interface TelnetSessionState {
   sessionId: string;
-  connectionState: 'disconnected' | 'connecting' | 'connected' | 'authenticated' | 'ready' | 'executing' | 'error';
+  connectionState:
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'authenticated'
+    | 'ready'
+    | 'executing'
+    | 'error';
   username?: string;
   host?: string;
   port?: number;
@@ -5059,7 +5599,14 @@ export interface BackgroundJob {
   cwd?: string;
   env?: Record<string, string>;
   options?: Partial<SessionOptions>;
-  status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout';
+  status:
+    | 'pending'
+    | 'queued'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'timeout';
   createdAt: Date;
   startedAt?: Date;
   completedAt?: Date;
@@ -5126,7 +5673,12 @@ export interface BackgroundJobOptions {
 }
 
 export interface JobManager {
-  startBackgroundJob(sessionId: string, command: string, args?: string[], options?: BackgroundJobOptions): Promise<{ jobId: string }>;
+  startBackgroundJob(
+    sessionId: string,
+    command: string,
+    args?: string[],
+    options?: BackgroundJobOptions
+  ): Promise<{ jobId: string }>;
   getJobStatus(jobId: string): Promise<BackgroundJob>;
   getJobOutput(jobId: string, latest?: boolean): Promise<BackgroundJobOutput[]>;
   cancelJob(jobId: string): Promise<void>;
@@ -5178,7 +5730,15 @@ export interface JobQueueConfig {
 
 export interface JobEvent {
   jobId: string;
-  type: 'created' | 'started' | 'progress' | 'output' | 'completed' | 'failed' | 'cancelled' | 'timeout';
+  type:
+    | 'created'
+    | 'started'
+    | 'progress'
+    | 'output'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'timeout';
   timestamp: Date;
   data?: any;
   sessionId?: string;

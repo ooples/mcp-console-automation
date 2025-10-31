@@ -39,25 +39,30 @@ export class SnapshotDiffer {
   /**
    * Compare two snapshots and return basic diff
    */
-  compare(snapshot1: SessionSnapshot, snapshot2: SessionSnapshot): SnapshotDiff {
+  compare(
+    snapshot1: SessionSnapshot,
+    snapshot2: SessionSnapshot
+  ): SnapshotDiff {
     const outputDiff = this.compareOutput(snapshot1.output, snapshot2.output);
     const stateDiff = this.compareState(snapshot1.state, snapshot2.state);
 
     const added = [
-      ...outputDiff.filter(d => d.type === 'added').map(d => d.content),
+      ...outputDiff.filter((d) => d.type === 'added').map((d) => d.content),
       ...stateDiff.added,
     ];
 
     const removed = [
-      ...outputDiff.filter(d => d.type === 'removed').map(d => d.content),
+      ...outputDiff.filter((d) => d.type === 'removed').map((d) => d.content),
       ...stateDiff.removed,
     ];
 
     const changed = stateDiff.modified.map(
-      m => `${m.key}: ${JSON.stringify(m.oldValue)} -> ${JSON.stringify(m.newValue)}`
+      (m) =>
+        `${m.key}: ${JSON.stringify(m.oldValue)} -> ${JSON.stringify(m.newValue)}`
     );
 
-    const identical = added.length === 0 && removed.length === 0 && changed.length === 0;
+    const identical =
+      added.length === 0 && removed.length === 0 && changed.length === 0;
     const similarity = this.calculateSimilarity(snapshot1, snapshot2);
 
     return {
@@ -77,24 +82,30 @@ export class SnapshotDiffer {
     snapshot2: SessionSnapshot,
     options: DiffOptions = {}
   ): DetailedDiff {
-    const outputDiff = this.compareOutput(snapshot1.output, snapshot2.output, options);
+    const outputDiff = this.compareOutput(
+      snapshot1.output,
+      snapshot2.output,
+      options
+    );
     const stateDiff = this.compareState(snapshot1.state, snapshot2.state);
 
     const added = [
-      ...outputDiff.filter(d => d.type === 'added').map(d => d.content),
+      ...outputDiff.filter((d) => d.type === 'added').map((d) => d.content),
       ...stateDiff.added,
     ];
 
     const removed = [
-      ...outputDiff.filter(d => d.type === 'removed').map(d => d.content),
+      ...outputDiff.filter((d) => d.type === 'removed').map((d) => d.content),
       ...stateDiff.removed,
     ];
 
     const changed = stateDiff.modified.map(
-      m => `${m.key}: ${JSON.stringify(m.oldValue)} -> ${JSON.stringify(m.newValue)}`
+      (m) =>
+        `${m.key}: ${JSON.stringify(m.oldValue)} -> ${JSON.stringify(m.newValue)}`
     );
 
-    const identical = added.length === 0 && removed.length === 0 && changed.length === 0;
+    const identical =
+      added.length === 0 && removed.length === 0 && changed.length === 0;
     const similarity = this.calculateSimilarity(snapshot1, snapshot2);
 
     return {
@@ -111,7 +122,11 @@ export class SnapshotDiffer {
   /**
    * Compare output strings line by line
    */
-  private compareOutput(output1: string, output2: string, options: DiffOptions = {}): LineDiff[] {
+  private compareOutput(
+    output1: string,
+    output2: string,
+    options: DiffOptions = {}
+  ): LineDiff[] {
     const { ignoreWhitespace = false, ignoreCase = false } = options;
 
     const lines1 = this.normalizeLines(output1, ignoreWhitespace, ignoreCase);
@@ -123,15 +138,19 @@ export class SnapshotDiffer {
   /**
    * Normalize lines for comparison
    */
-  private normalizeLines(text: string, ignoreWhitespace: boolean, ignoreCase: boolean): string[] {
+  private normalizeLines(
+    text: string,
+    ignoreWhitespace: boolean,
+    ignoreCase: boolean
+  ): string[] {
     let lines = text.split('\n');
 
     if (ignoreWhitespace) {
-      lines = lines.map(line => line.trim());
+      lines = lines.map((line) => line.trim());
     }
 
     if (ignoreCase) {
-      lines = lines.map(line => line.toLowerCase());
+      lines = lines.map((line) => line.toLowerCase());
     }
 
     return lines;
@@ -158,7 +177,10 @@ export class SnapshotDiffer {
         });
         i++;
         j++;
-      } else if (j >= lines2.length || (i < lines1.length && !lcs.includes(lines1[i]))) {
+      } else if (
+        j >= lines2.length ||
+        (i < lines1.length && !lcs.includes(lines1[i]))
+      ) {
         // Line removed
         diff.push({
           type: 'removed',
@@ -268,7 +290,11 @@ export class SnapshotDiffer {
       const fullKey = prefix ? `${prefix}.${key}` : key;
       keys.push(fullKey);
 
-      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
         keys.push(...this.getAllKeys(value, fullKey));
       }
     }
@@ -310,7 +336,7 @@ export class SnapshotDiffer {
       const keysA = Object.keys(a);
       const keysB = Object.keys(b);
       if (keysA.length !== keysB.length) return false;
-      return keysA.every(key => this.deepEqual(a[key], b[key]));
+      return keysA.every((key) => this.deepEqual(a[key], b[key]));
     }
 
     return false;
@@ -319,7 +345,10 @@ export class SnapshotDiffer {
   /**
    * Calculate similarity percentage between snapshots
    */
-  calculateSimilarity(snapshot1: SessionSnapshot, snapshot2: SessionSnapshot): number {
+  calculateSimilarity(
+    snapshot1: SessionSnapshot,
+    snapshot2: SessionSnapshot
+  ): number {
     const output1Lines = snapshot1.output.split('\n');
     const output2Lines = snapshot2.output.split('\n');
 
@@ -330,9 +359,15 @@ export class SnapshotDiffer {
 
     // Calculate state similarity
     const stateDiff = this.compareState(snapshot1.state, snapshot2.state);
-    const totalStateKeys = this.getAllKeys(snapshot1.state).length + this.getAllKeys(snapshot2.state).length;
-    const changedStateKeys = stateDiff.added.length + stateDiff.removed.length + stateDiff.modified.length;
-    const stateSimilarity = totalStateKeys === 0 ? 1 : 1 - changedStateKeys / totalStateKeys;
+    const totalStateKeys =
+      this.getAllKeys(snapshot1.state).length +
+      this.getAllKeys(snapshot2.state).length;
+    const changedStateKeys =
+      stateDiff.added.length +
+      stateDiff.removed.length +
+      stateDiff.modified.length;
+    const stateSimilarity =
+      totalStateKeys === 0 ? 1 : 1 - changedStateKeys / totalStateKeys;
 
     // Weighted average (70% output, 30% state)
     return outputSimilarity * 0.7 + stateSimilarity * 0.3;
@@ -341,7 +376,10 @@ export class SnapshotDiffer {
   /**
    * Format diff for display
    */
-  formatDiff(diff: DetailedDiff, options: { colors?: boolean; context?: number } = {}): string {
+  formatDiff(
+    diff: DetailedDiff,
+    options: { colors?: boolean; context?: number } = {}
+  ): string {
     const { colors = false, context = 3 } = options;
     const lines: string[] = [];
 
@@ -364,16 +402,25 @@ export class SnapshotDiffer {
 
         if (lineDiff.type === 'unchanged') {
           // Show context lines
-          if (i > 0 && diff.outputDiff[i - 1].type !== 'unchanged' && i - lastShownLine <= context) {
+          if (
+            i > 0 &&
+            diff.outputDiff[i - 1].type !== 'unchanged' &&
+            i - lastShownLine <= context
+          ) {
             lines.push(`  ${lineDiff.content}`);
             lastShownLine = i;
-          } else if (i < diff.outputDiff.length - 1 && diff.outputDiff[i + 1].type !== 'unchanged') {
+          } else if (
+            i < diff.outputDiff.length - 1 &&
+            diff.outputDiff[i + 1].type !== 'unchanged'
+          ) {
             lines.push(`  ${lineDiff.content}`);
             lastShownLine = i;
           }
         } else {
           const prefix = lineDiff.type === 'added' ? '+ ' : '- ';
-          const line = colors ? this.colorize(prefix + lineDiff.content, lineDiff.type) : prefix + lineDiff.content;
+          const line = colors
+            ? this.colorize(prefix + lineDiff.content, lineDiff.type)
+            : prefix + lineDiff.content;
           lines.push(line);
           lastShownLine = i;
         }
@@ -383,12 +430,16 @@ export class SnapshotDiffer {
     }
 
     // State diff
-    if (diff.stateDiff.added.length > 0 || diff.stateDiff.removed.length > 0 || diff.stateDiff.modified.length > 0) {
+    if (
+      diff.stateDiff.added.length > 0 ||
+      diff.stateDiff.removed.length > 0 ||
+      diff.stateDiff.modified.length > 0
+    ) {
       lines.push('--- State Diff ---');
 
       if (diff.stateDiff.added.length > 0) {
         lines.push('Added:');
-        diff.stateDiff.added.forEach(key => {
+        diff.stateDiff.added.forEach((key) => {
           const line = `  + ${key}`;
           lines.push(colors ? this.colorize(line, 'added') : line);
         });
@@ -396,7 +447,7 @@ export class SnapshotDiffer {
 
       if (diff.stateDiff.removed.length > 0) {
         lines.push('Removed:');
-        diff.stateDiff.removed.forEach(key => {
+        diff.stateDiff.removed.forEach((key) => {
           const line = `  - ${key}`;
           lines.push(colors ? this.colorize(line, 'removed') : line);
         });
@@ -418,7 +469,10 @@ export class SnapshotDiffer {
   /**
    * Colorize text for terminal output
    */
-  private colorize(text: string, type: 'added' | 'removed' | 'unchanged' | 'modified'): string {
+  private colorize(
+    text: string,
+    type: 'added' | 'removed' | 'unchanged' | 'modified'
+  ): string {
     const colors = {
       added: '\x1b[32m',
       removed: '\x1b[31m',
@@ -441,9 +495,9 @@ export class SnapshotDiffer {
     stateKeysModified: number;
   } {
     return {
-      linesAdded: diff.outputDiff.filter(d => d.type === 'added').length,
-      linesRemoved: diff.outputDiff.filter(d => d.type === 'removed').length,
-      linesChanged: diff.outputDiff.filter(d => d.type === 'modified').length,
+      linesAdded: diff.outputDiff.filter((d) => d.type === 'added').length,
+      linesRemoved: diff.outputDiff.filter((d) => d.type === 'removed').length,
+      linesChanged: diff.outputDiff.filter((d) => d.type === 'modified').length,
       stateKeysAdded: diff.stateDiff.added.length,
       stateKeysRemoved: diff.stateDiff.removed.length,
       stateKeysModified: diff.stateDiff.modified.length,

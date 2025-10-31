@@ -4,7 +4,7 @@ import {
   ConsoleSession,
   SessionOptions,
   ConsoleType,
-  ConsoleOutput
+  ConsoleOutput,
 } from '../types/index.js';
 import {
   ProtocolCapabilities,
@@ -12,7 +12,7 @@ import {
   ErrorContext,
   ProtocolHealthStatus,
   ErrorRecoveryResult,
-  ResourceUsage
+  ResourceUsage,
 } from '../core/IProtocol.js';
 
 // PowerShell Direct Protocol connection options
@@ -48,7 +48,13 @@ interface PowerShellDirectConnectionOptions extends SessionOptions {
     skipRevocationCheck?: boolean;
     useUTF16?: boolean;
   };
-  executionPolicy?: 'restricted' | 'allsigned' | 'remotesigned' | 'unrestricted' | 'bypass' | 'undefined';
+  executionPolicy?:
+    | 'restricted'
+    | 'allsigned'
+    | 'remotesigned'
+    | 'unrestricted'
+    | 'bypass'
+    | 'undefined';
   psVersion?: string;
   useProfile?: boolean;
   noLogo?: boolean;
@@ -163,9 +169,9 @@ export class PowerShellDirectProtocol extends BaseProtocol {
         totalSessions: this.sessions.size,
         averageLatency: 0,
         successRate: 100,
-        uptime: 0
+        uptime: 0,
       },
-      dependencies: {}
+      dependencies: {},
     };
   }
 
@@ -192,13 +198,18 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       maxConcurrentSessions: 32, // PowerShell Direct session limit
       defaultTimeout: 60000, // Remote operations can take time
       supportedEncodings: ['utf-8', 'utf-16'],
-      supportedAuthMethods: ['password', 'certificate', 'kerberos', 'credential'],
+      supportedAuthMethods: [
+        'password',
+        'certificate',
+        'kerberos',
+        'credential',
+      ],
       platformSupport: {
         windows: true, // PowerShell Direct is Windows-specific
         linux: false,
         macos: false,
-        freebsd: false
-      }
+        freebsd: false,
+      },
     };
   }
 
@@ -209,9 +220,14 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       // Check if PowerShell and Hyper-V are available
       await this.checkPowerShellDirectAvailability();
       this.isInitialized = true;
-      this.logger.info('PowerShell Direct protocol initialized with production features');
+      this.logger.info(
+        'PowerShell Direct protocol initialized with production features'
+      );
     } catch (error: any) {
-      this.logger.error('Failed to initialize PowerShell Direct protocol', error);
+      this.logger.error(
+        'Failed to initialize PowerShell Direct protocol',
+        error
+      );
       throw error;
     }
   }
@@ -225,8 +241,13 @@ export class PowerShellDirectProtocol extends BaseProtocol {
     await this.cleanup();
   }
 
-  async executeCommand(sessionId: string, command: string, args?: string[]): Promise<void> {
-    const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
+  async executeCommand(
+    sessionId: string,
+    command: string,
+    args?: string[]
+  ): Promise<void> {
+    const fullCommand =
+      args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
     await this.sendInput(sessionId, fullCommand + '\n');
   }
 
@@ -247,7 +268,9 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       timestamp: new Date(),
     });
 
-    this.logger.debug(`Sent input to PowerShell Direct session ${sessionId}: ${input.substring(0, 100)}`);
+    this.logger.debug(
+      `Sent input to PowerShell Direct session ${sessionId}: ${input.substring(0, 100)}`
+    );
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -281,12 +304,19 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       this.logger.info(`PowerShell Direct session ${sessionId} closed`);
       this.emit('session-closed', sessionId);
     } catch (error) {
-      this.logger.error(`Error closing PowerShell Direct session ${sessionId}:`, error);
+      this.logger.error(
+        `Error closing PowerShell Direct session ${sessionId}:`,
+        error
+      );
       throw error;
     }
   }
 
-  async doCreateSession(sessionId: string, options: SessionOptions, sessionState: SessionState): Promise<ConsoleSession> {
+  async doCreateSession(
+    sessionId: string,
+    options: SessionOptions,
+    sessionState: SessionState
+  ): Promise<ConsoleSession> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -294,22 +324,42 @@ export class PowerShellDirectProtocol extends BaseProtocol {
     const psDirectOptions = options as PowerShellDirectConnectionOptions;
 
     // Validate required parameters based on session type
-    if (psDirectOptions.sessionType === 'vm' && !psDirectOptions.vmName && !psDirectOptions.vmId) {
-      throw new Error('VM name or ID is required for PowerShell Direct VM sessions');
+    if (
+      psDirectOptions.sessionType === 'vm' &&
+      !psDirectOptions.vmName &&
+      !psDirectOptions.vmId
+    ) {
+      throw new Error(
+        'VM name or ID is required for PowerShell Direct VM sessions'
+      );
     }
-    if (psDirectOptions.sessionType === 'container' && !psDirectOptions.containerName && !psDirectOptions.containerId) {
-      throw new Error('Container name or ID is required for PowerShell Direct container sessions');
+    if (
+      psDirectOptions.sessionType === 'container' &&
+      !psDirectOptions.containerName &&
+      !psDirectOptions.containerId
+    ) {
+      throw new Error(
+        'Container name or ID is required for PowerShell Direct container sessions'
+      );
     }
 
     // Build PowerShell Direct command
     const psDirectCommand = this.buildPowerShellDirectCommand(psDirectOptions);
 
     // Spawn PowerShell Direct process
-    const powerShellProcess = spawn(psDirectCommand[0], psDirectCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(psDirectOptions), ...options.env }
-    });
+    const powerShellProcess = spawn(
+      psDirectCommand[0],
+      psDirectCommand.slice(1),
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: options.cwd || process.cwd(),
+        env: {
+          ...process.env,
+          ...this.buildEnvironment(psDirectOptions),
+          ...options.env,
+        },
+      }
+    );
 
     // Set up output handling
     powerShellProcess.stdout?.on('data', (data) => {
@@ -317,7 +367,7 @@ export class PowerShellDirectProtocol extends BaseProtocol {
         sessionId,
         type: 'stdout',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
@@ -327,18 +377,23 @@ export class PowerShellDirectProtocol extends BaseProtocol {
         sessionId,
         type: 'stderr',
         data: data.toString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       this.addToOutputBuffer(sessionId, output);
     });
 
     powerShellProcess.on('error', (error) => {
-      this.logger.error(`PowerShell Direct process error for session ${sessionId}:`, error);
+      this.logger.error(
+        `PowerShell Direct process error for session ${sessionId}:`,
+        error
+      );
       this.emit('session-error', { sessionId, error });
     });
 
     powerShellProcess.on('close', (code) => {
-      this.logger.info(`PowerShell Direct process closed for session ${sessionId} with code ${code}`);
+      this.logger.info(
+        `PowerShell Direct process closed for session ${sessionId} with code ${code}`
+      );
       this.markSessionComplete(sessionId, code || 0);
     });
 
@@ -351,7 +406,11 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       command: psDirectCommand[0],
       args: psDirectCommand.slice(1),
       cwd: options.cwd || process.cwd(),
-      env: { ...process.env, ...this.buildEnvironment(psDirectOptions), ...options.env },
+      env: {
+        ...process.env,
+        ...this.buildEnvironment(psDirectOptions),
+        ...options.env,
+      },
       createdAt: new Date(),
       lastActivity: new Date(),
       status: 'running',
@@ -359,14 +418,21 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       streaming: options.streaming,
       executionState: 'idle',
       activeCommands: new Map(),
-      pid: powerShellProcess.pid
+      pid: powerShellProcess.pid,
     };
 
     this.sessions.set(sessionId, session);
 
-    const target = psDirectOptions.vmName || psDirectOptions.containerName || 'local';
-    this.logger.info(`PowerShell Direct session ${sessionId} created for ${target}`);
-    this.emit('session-created', { sessionId, type: 'powershelldirect', session });
+    const target =
+      psDirectOptions.vmName || psDirectOptions.containerName || 'local';
+    this.logger.info(
+      `PowerShell Direct session ${sessionId} created for ${target}`
+    );
+    this.emit('session-created', {
+      sessionId,
+      type: 'powershelldirect',
+      session,
+    });
 
     return session;
   }
@@ -374,7 +440,7 @@ export class PowerShellDirectProtocol extends BaseProtocol {
   // Override getOutput to satisfy old ProtocolFactory interface (returns string)
   async getOutput(sessionId: string, since?: Date): Promise<any> {
     const outputs = await super.getOutput(sessionId, since);
-    return outputs.map(output => output.data).join('');
+    return outputs.map((output) => output.data).join('');
   }
 
   // Missing IProtocol methods for compatibility
@@ -383,8 +449,8 @@ export class PowerShellDirectProtocol extends BaseProtocol {
   }
 
   getActiveSessions(): ConsoleSession[] {
-    return Array.from(this.sessions.values()).filter(session =>
-      session.status === 'running'
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.status === 'running'
     );
   }
 
@@ -406,25 +472,30 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
       pid: session.pid,
-      metadata: {}
+      metadata: {},
     };
   }
 
-  async handleError(error: Error, context: ErrorContext): Promise<ErrorRecoveryResult> {
-    this.logger.error(`Error in PowerShell Direct session ${context.sessionId}: ${error.message}`);
+  async handleError(
+    error: Error,
+    context: ErrorContext
+  ): Promise<ErrorRecoveryResult> {
+    this.logger.error(
+      `Error in PowerShell Direct session ${context.sessionId}: ${error.message}`
+    );
 
     return {
       recovered: false,
       strategy: 'none',
       attempts: 0,
       duration: 0,
-      error: error.message
+      error: error.message,
     };
   }
 
   async recoverSession(sessionId: string): Promise<boolean> {
     const powerShellProcess = this.powerShellProcesses.get(sessionId);
-    return powerShellProcess && !powerShellProcess.killed || false;
+    return (powerShellProcess && !powerShellProcess.killed) || false;
   }
 
   getResourceUsage(): ResourceUsage {
@@ -435,26 +506,26 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       memory: {
         used: memUsage.heapUsed,
         available: memUsage.heapTotal,
-        peak: memUsage.heapTotal
+        peak: memUsage.heapTotal,
       },
       cpu: {
         usage: cpuUsage.user + cpuUsage.system,
-        load: [0, 0, 0]
+        load: [0, 0, 0],
       },
       network: {
         bytesIn: 0,
         bytesOut: 0,
-        connectionsActive: this.powerShellProcesses.size
+        connectionsActive: this.powerShellProcesses.size,
       },
       storage: {
         bytesRead: 0,
-        bytesWritten: 0
+        bytesWritten: 0,
       },
       sessions: {
         active: this.sessions.size,
         total: this.sessions.size,
-        peak: this.sessions.size
-      }
+        peak: this.sessions.size,
+      },
     };
   }
 
@@ -467,18 +538,21 @@ export class PowerShellDirectProtocol extends BaseProtocol {
         ...baseStatus,
         dependencies: {
           powershell: { available: true },
-          hyperv: { available: true }
-        }
+          hyperv: { available: true },
+        },
       };
     } catch (error) {
       return {
         ...baseStatus,
         isHealthy: false,
-        errors: [...baseStatus.errors, `PowerShell Direct not available: ${error}`],
+        errors: [
+          ...baseStatus.errors,
+          `PowerShell Direct not available: ${error}`,
+        ],
         dependencies: {
           powershell: { available: false },
-          hyperv: { available: false }
-        }
+          hyperv: { available: false },
+        },
       };
     }
   }
@@ -486,18 +560,30 @@ export class PowerShellDirectProtocol extends BaseProtocol {
   private async checkPowerShellDirectAvailability(): Promise<void> {
     return new Promise((resolve, reject) => {
       // Check PowerShell availability first
-      const testProcess = spawn('powershell', ['-Command', 'Get-Command Enter-PSSession'], { stdio: 'pipe' });
+      const testProcess = spawn(
+        'powershell',
+        ['-Command', 'Get-Command Enter-PSSession'],
+        { stdio: 'pipe' }
+      );
 
       testProcess.on('close', (code) => {
         if (code === 0) {
           // Check Hyper-V availability
-          const hvProcess = spawn('powershell', ['-Command', 'Get-WindowsFeature -Name Hyper-V'], { stdio: 'pipe' });
+          const hvProcess = spawn(
+            'powershell',
+            ['-Command', 'Get-WindowsFeature -Name Hyper-V'],
+            { stdio: 'pipe' }
+          );
 
           hvProcess.on('close', (hvCode) => {
             if (hvCode === 0) {
               resolve();
             } else {
-              reject(new Error('Hyper-V feature not available. PowerShell Direct requires Hyper-V.'));
+              reject(
+                new Error(
+                  'Hyper-V feature not available. PowerShell Direct requires Hyper-V.'
+                )
+              );
             }
           });
 
@@ -515,7 +601,9 @@ export class PowerShellDirectProtocol extends BaseProtocol {
     });
   }
 
-  private buildPowerShellDirectCommand(options: PowerShellDirectConnectionOptions): string[] {
+  private buildPowerShellDirectCommand(
+    options: PowerShellDirectConnectionOptions
+  ): string[] {
     const command = [];
 
     // PowerShell executable
@@ -594,7 +682,9 @@ export class PowerShellDirectProtocol extends BaseProtocol {
         sessionOpts.push(`-UICulture '${options.sessionOption.uiCulture}'`);
       }
       if (options.sessionOption.maximumRedirection) {
-        sessionOpts.push(`-MaximumRedirection ${options.sessionOption.maximumRedirection}`);
+        sessionOpts.push(
+          `-MaximumRedirection ${options.sessionOption.maximumRedirection}`
+        );
       }
       if (options.sessionOption.noCompression) {
         sessionOpts.push(`-NoCompression`);
@@ -603,10 +693,14 @@ export class PowerShellDirectProtocol extends BaseProtocol {
         sessionOpts.push(`-NoEncryption`);
       }
       if (options.sessionOption.operationTimeout) {
-        sessionOpts.push(`-OperationTimeout ${options.sessionOption.operationTimeout}`);
+        sessionOpts.push(
+          `-OperationTimeout ${options.sessionOption.operationTimeout}`
+        );
       }
       if (options.sessionOption.outputBufferingMode) {
-        sessionOpts.push(`-OutputBufferingMode '${options.sessionOption.outputBufferingMode}'`);
+        sessionOpts.push(
+          `-OutputBufferingMode '${options.sessionOption.outputBufferingMode}'`
+        );
       }
       if (options.sessionOption.skipCACheck) {
         sessionOpts.push(`-SkipCACheck`);
@@ -651,7 +745,6 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       if (options.credential) {
         psCommand += ` -Credential $credential`;
       }
-
     } else if (options.sessionType === 'container') {
       psCommand += 'Enter-PSSession';
 
@@ -664,7 +757,6 @@ export class PowerShellDirectProtocol extends BaseProtocol {
       if (options.credential) {
         psCommand += ` -Credential $credential`;
       }
-
     } else {
       // Local session or remote session
       psCommand += 'Enter-PSSession';
@@ -721,7 +813,9 @@ export class PowerShellDirectProtocol extends BaseProtocol {
     return command;
   }
 
-  private buildEnvironment(options: PowerShellDirectConnectionOptions): Record<string, string> {
+  private buildEnvironment(
+    options: PowerShellDirectConnectionOptions
+  ): Record<string, string> {
     const env: Record<string, string> = {};
 
     // PowerShell environment variables
@@ -866,7 +960,10 @@ export class PowerShellDirectProtocol extends BaseProtocol {
           }
         }, 2000);
       } catch (error) {
-        this.logger.error(`Error killing PowerShell Direct process for session ${sessionId}:`, error);
+        this.logger.error(
+          `Error killing PowerShell Direct process for session ${sessionId}:`,
+          error
+        );
       }
     }
 

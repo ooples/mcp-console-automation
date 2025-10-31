@@ -1,18 +1,22 @@
 /**
  * Protocol Modules Export Index
- * 
+ *
  * This file provides a centralized export point for all protocol implementations
  * in the console automation system. It enables lazy loading and dynamic protocol
  * discovery while maintaining clean imports throughout the application.
  */
 
 // Core Protocol Interfaces and Base Classes
-export { IProtocol, ProtocolCapabilities, ProtocolHealthStatus } from '../core/ProtocolFactory.js';
+export {
+  IProtocol,
+  ProtocolCapabilities,
+  ProtocolHealthStatus,
+} from '../core/ProtocolFactory.js';
 
 // Local Shell Protocols
 export { LocalProtocol } from './LocalProtocol.js';
 
-// Remote Access Protocols  
+// Remote Access Protocols
 export { SSHProtocol } from './SSHProtocol.js';
 export { TelnetProtocol } from './TelnetProtocol.js';
 export { SFTPProtocol } from './SFTPProtocol.js';
@@ -180,7 +184,12 @@ export const PROTOCOL_MODULES: Record<string, ProtocolModule> = {
     type: 'container',
     description: 'Docker container management and execution',
     version: '1.0.0',
-    platformSupport: { windows: true, linux: true, macos: true, freebsd: false },
+    platformSupport: {
+      windows: true,
+      linux: true,
+      macos: true,
+      freebsd: false,
+    },
     capabilities: {
       streaming: true,
       fileTransfer: true,
@@ -226,7 +235,12 @@ export const PROTOCOL_MODULES: Record<string, ProtocolModule> = {
     type: 'virtualization',
     description: 'Windows Subsystem for Linux access',
     version: '1.0.0',
-    platformSupport: { windows: true, linux: false, macos: false, freebsd: false },
+    platformSupport: {
+      windows: true,
+      linux: false,
+      macos: false,
+      freebsd: false,
+    },
     capabilities: {
       streaming: true,
       fileTransfer: true,
@@ -249,7 +263,12 @@ export const PROTOCOL_MODULES: Record<string, ProtocolModule> = {
     type: 'windows-remote',
     description: 'Windows Remote Management protocol',
     version: '1.0.0',
-    platformSupport: { windows: true, linux: false, macos: false, freebsd: false },
+    platformSupport: {
+      windows: true,
+      linux: false,
+      macos: false,
+      freebsd: false,
+    },
     capabilities: {
       streaming: true,
       fileTransfer: false,
@@ -318,7 +337,12 @@ export const PROTOCOL_MODULES: Record<string, ProtocolModule> = {
     type: 'remote-desktop',
     description: 'Remote Desktop Protocol',
     version: '1.0.0',
-    platformSupport: { windows: true, linux: true, macos: true, freebsd: false },
+    platformSupport: {
+      windows: true,
+      linux: true,
+      macos: true,
+      freebsd: false,
+    },
     capabilities: {
       streaming: true,
       fileTransfer: true,
@@ -388,19 +412,19 @@ export class DefaultProtocolLoader implements ProtocolLoader {
 
   private async dynamicImport(type: string): Promise<any> {
     const protocolMap: Record<string, () => Promise<any>> = {
-      'local': () => import('./LocalProtocol.js'),
-      'ssh': () => import('./SSHProtocol.js'),
-      'telnet': () => import('./TelnetProtocol.js'),
-      'docker': () => import('./DockerProtocol.js'),
-      'kubernetes': () => import('./KubernetesProtocol.js'),
-      'wsl': () => import('./WSLProtocol.js'),
+      local: () => import('./LocalProtocol.js'),
+      ssh: () => import('./SSHProtocol.js'),
+      telnet: () => import('./TelnetProtocol.js'),
+      docker: () => import('./DockerProtocol.js'),
+      kubernetes: () => import('./KubernetesProtocol.js'),
+      wsl: () => import('./WSLProtocol.js'),
       'azure-shell': () => import('./AzureProtocol.js'),
       'gcp-shell': () => import('./GCPProtocol.js'),
       'aws-ssm': () => import('./AWSSSMProtocol.js'),
-      'serial': () => import('./SerialProtocol.js'),
-      'rdp': () => import('./RDPProtocol.js'),
-      'vnc': () => import('./VNCProtocol.js'),
-      'winrm': () => import('./WinRMProtocol.js'),
+      serial: () => import('./SerialProtocol.js'),
+      rdp: () => import('./RDPProtocol.js'),
+      vnc: () => import('./VNCProtocol.js'),
+      winrm: () => import('./WinRMProtocol.js'),
     };
 
     const loader = protocolMap[type];

@@ -32,7 +32,7 @@ export class JSONReporter extends TestReporter {
       generatedAt: report.generatedAt,
       outputPath: report.outputPath,
       summary: report.summary,
-      suiteResults: report.suiteResults.map(suiteResult => ({
+      suiteResults: report.suiteResults.map((suiteResult) => ({
         suite: {
           name: suiteResult.suite.name,
           description: suiteResult.suite.description,
@@ -47,7 +47,7 @@ export class JSONReporter extends TestReporter {
         duration: suiteResult.duration,
         startTime: suiteResult.startTime,
         endTime: suiteResult.endTime,
-        tests: suiteResult.tests.map(testResult => ({
+        tests: suiteResult.tests.map((testResult) => ({
           test: {
             name: testResult.test.name,
             description: testResult.test.description,
@@ -64,7 +64,7 @@ export class JSONReporter extends TestReporter {
           endTime: testResult.endTime,
           retries: testResult.retries,
           output: testResult.output,
-          assertions: testResult.assertions.map(assertion => ({
+          assertions: testResult.assertions.map((assertion) => ({
             passed: assertion.passed,
             message: assertion.message,
             assertion: {
