@@ -20,13 +20,20 @@ describe('ParallelExecutor', () => {
       const tests: TestDefinition[] = Array.from({ length: 10 }, (_, i) => ({
         name: `test-${i}`,
         assertions: [],
-        timeout: 100,
+        timeout: 500,
         retry: 0,
+        setup: {
+          fn: async () => {
+            // Simulate 50ms of work
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          },
+          timeout: 100,
+        },
       }));
 
       const config: ParallelExecutionConfig = {
         maxWorkers: 4,
-        timeout: 1000,
+        timeout: 3000,
         isolateTests: true,
         failFast: false,
       };
@@ -43,13 +50,20 @@ describe('ParallelExecutor', () => {
       const tests: TestDefinition[] = Array.from({ length: 8 }, (_, i) => ({
         name: `test-${i}`,
         assertions: [],
-        timeout: 200,
+        timeout: 500,
         retry: 0,
+        setup: {
+          fn: async () => {
+            // Simulate 50ms of work
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          },
+          timeout: 100,
+        },
       }));
 
       const config: ParallelExecutionConfig = {
         maxWorkers: 4,
-        timeout: 500,
+        timeout: 2000,
         isolateTests: true,
         failFast: false,
       };

@@ -264,7 +264,7 @@ export class WorkerPool extends EventEmitter {
 
     const workerResult: WorkerResult = {
       taskId: task.id,
-      result,
+      result: result.result, // Extract the actual TestResult from the nested structure
     };
 
     this.emit('task-complete', workerResult);

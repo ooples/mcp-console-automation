@@ -1,23 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\phase4-performance.test.ts">
-    <testCase name="Phase 4 Performance Parallel vs Sequential Speedup should demonstrate 3-5x speedup with 4 workers" duration="124">
-      <failure message="Error: expect(received).toBeGreaterThan(expected)"><![CDATA[Error: expect(received).toBeGreaterThan(expected)
-
-Expected: > 2
-Received:   0
-    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\phase4-performance.test.ts:72:23)
-    at processTicksAndRejections (node:internal/process/task_queues:105:5)]]></failure>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\ParallelExecutor.test.ts">
+    <testCase name="ParallelExecutor Parallel Execution should execute tests in parallel" duration="30013">
+      <failure message="Error: thrown: &quot;Exceeded timeout of 30000 ms for a test."><![CDATA[Error: thrown: "Exceeded timeout of 30000 ms for a test.
+Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+    at C:\Users\cheat\source\repos\mcp-console-automation\src\tests\ParallelExecutor.test.ts:19:5
+    at _dispatchDescribe (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\index.js:91:26)
+    at describe (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\index.js:55:5)
+    at C:\Users\cheat\source\repos\mcp-console-automation\src\tests\ParallelExecutor.test.ts:18:3
+    at _dispatchDescribe (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\index.js:91:26)
+    at describe (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\index.js:55:5)
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\ParallelExecutor.test.ts:11:1)
+    at Runtime._execModule (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runtime\build\index.js:1439:24)
+    at Runtime._loadModule (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runtime\build\index.js:1022:12)
+    at Runtime.requireModule (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runtime\build\index.js:882:12)
+    at jestAdapter (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:77:13)
+    at runTestInternal (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runner\build\runTest.js:367:16)
+    at runTest (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runner\build\runTest.js:444:34)]]></failure>
     </testCase>
-    <testCase name="Phase 4 Performance Parallel vs Sequential Speedup should scale with different worker counts" duration="305">
-      <failure message="Error: expect(received).toBeLessThanOrEqual(expected)"><![CDATA[Error: expect(received).toBeLessThanOrEqual(expected)
-
-Expected: <= 63
-Received:    102
-    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\phase4-performance.test.ts:143:35)
-    at processTicksAndRejections (node:internal/process/task_queues:105:5)]]></failure>
+    <testCase name="ParallelExecutor Parallel Execution should demonstrate speedup over sequential execution" duration="30006">
+      <failure message="Error: thrown: &quot;Exceeded timeout of 30000 ms for a test."><![CDATA[Error: thrown: "Exceeded timeout of 30000 ms for a test.
+Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+    at C:\Users\cheat\source\repos\mcp-console-automation\src\tests\ParallelExecutor.test.ts:49:5
+    at _dispatchDescribe (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\index.js:91:26)
+    at describe (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\index.js:55:5)
+    at C:\Users\cheat\source\repos\mcp-console-automation\src\tests\ParallelExecutor.test.ts:18:3
+    at _dispatchDescribe (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\index.js:91:26)
+    at describe (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\index.js:55:5)
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\ParallelExecutor.test.ts:11:1)
+    at Runtime._execModule (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runtime\build\index.js:1439:24)
+    at Runtime._loadModule (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runtime\build\index.js:1022:12)
+    at Runtime.requireModule (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runtime\build\index.js:882:12)
+    at jestAdapter (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:77:13)
+    at runTestInternal (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runner\build\runTest.js:367:16)
+    at runTest (C:\Users\cheat\source\repos\mcp-console-automation\node_modules\jest-runner\build\runTest.js:444:34)]]></failure>
     </testCase>
-    <testCase name="Phase 4 Performance Parallel vs Sequential Speedup should handle large test suite efficiently" duration="264"/>
-    <testCase name="Phase 4 Performance Performance Metrics should track execution metrics accurately" duration="74"/>
+    <testCase name="ParallelExecutor Fail-Fast Mode should stop on first failure in fail-fast mode" duration="110"/>
+    <testCase name="ParallelExecutor Test Isolation should isolate tests in separate workers" duration="93"/>
+    <testCase name="ParallelExecutor Empty Test Array should handle empty test array" duration="3"/>
+    <testCase name="ParallelExecutor Skipped Tests should skip tests marked as skip" duration="77"/>
+    <testCase name="ParallelExecutor Worker Pool Statistics should provide worker pool statistics" duration="88"/>
+    <testCase name="ParallelExecutor Execution Metrics should collect execution metrics" duration="83"/>
   </file>
 </testExecutions>
