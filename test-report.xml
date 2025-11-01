@@ -1,29 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\SnapshotManager.test.ts">
-    <testCase name="SnapshotManager capture should capture snapshot with all data" duration="7"/>
-    <testCase name="SnapshotManager capture should generate hash for integrity" duration="2"/>
-    <testCase name="SnapshotManager save and load should save snapshot to disk" duration="26"/>
-    <testCase name="SnapshotManager save and load should load snapshot from disk" duration="9"/>
-    <testCase name="SnapshotManager save and load should verify hash on load" duration="34"/>
-    <testCase name="SnapshotManager save and load should save with pretty formatting" duration="5"/>
-    <testCase name="SnapshotManager save and load should save without pretty formatting" duration="5"/>
-    <testCase name="SnapshotManager loadBySessionId should load most recent snapshot by session ID" duration="32"/>
-    <testCase name="SnapshotManager loadBySessionId should load snapshot by session ID and timestamp" duration="13"/>
-    <testCase name="SnapshotManager loadBySessionId should throw if session not found" duration="4"/>
-    <testCase name="SnapshotManager listSnapshots should list all snapshots" duration="7"/>
-    <testCase name="SnapshotManager listSnapshots should filter by session ID" duration="46"/>
-    <testCase name="SnapshotManager listSnapshots should return empty array when no snapshots exist" duration="2"/>
-    <testCase name="SnapshotManager delete operations should delete a snapshot" duration="3"/>
-    <testCase name="SnapshotManager delete operations should delete all snapshots for a session" duration="30"/>
-    <testCase name="SnapshotManager delete operations should delete all snapshots" duration="17"/>
-    <testCase name="SnapshotManager getStats should return statistics" duration="8"/>
-    <testCase name="SnapshotManager getStats should return zero stats when no snapshots" duration="3"/>
-    <testCase name="SnapshotManager cleanup should keep only N most recent snapshots per session" duration="111"/>
-    <testCase name="SnapshotManager cleanup should handle multiple sessions independently" duration="78"/>
-    <testCase name="SnapshotManager export should export as JSON" duration="2"/>
-    <testCase name="SnapshotManager export should export as YAML" duration="2"/>
-    <testCase name="SnapshotManager export should export as text" duration="3"/>
-    <testCase name="SnapshotManager export should throw for unsupported format" duration="3"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\phase1-integration.test.ts">
+    <testCase name="Phase 1 Integration Tests End-to-End Workflow should record, save, replay, and generate code" duration="96"/>
+    <testCase name="Phase 1 Integration Tests End-to-End Workflow should handle multiple recordings" duration="39"/>
+    <testCase name="Phase 1 Integration Tests Recording Workflow should capture timing information correctly" duration="151"/>
+    <testCase name="Phase 1 Integration Tests Recording Workflow should preserve all metadata through save/load cycle" duration="23"/>
+    <testCase name="Phase 1 Integration Tests Code Generation Workflow should generate executable test code" duration="29"/>
+    <testCase name="Phase 1 Integration Tests Code Generation Workflow should generate code with different framework options" duration="23"/>
+    <testCase name="Phase 1 Integration Tests Error Handling should handle recording errors gracefully" duration="50"/>
+    <testCase name="Phase 1 Integration Tests Error Handling should handle file system errors" duration="29"/>
+    <testCase name="Phase 1 Integration Tests Utility Functions should provide accurate recording statistics" duration="28"/>
+    <testCase name="Phase 1 Integration Tests Utility Functions should allow canceling recordings" duration="22"/>
+    <testCase name="Phase 1 Integration Tests Utility Functions should delete recordings" duration="29"/>
+    <testCase name="Phase 1 Integration Tests Complex Scenarios should handle multi-session recordings" duration="28"/>
+    <testCase name="Phase 1 Integration Tests Complex Scenarios should handle recordings with wait steps" duration="28"/>
   </file>
 </testExecutions>

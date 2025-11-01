@@ -117,7 +117,7 @@ describe('Phase 1 Integration Tests', () => {
         framework: 'jest',
       });
       expect(jsCode).toContain('e2e_test');
-      expect(jsCode).toContain('echo "Hello, World!"');
+      expect(jsCode).toContain('echo \\\"Hello, World!\\\"');
 
       const tsCode = codeGenerator.generateCode(loaded, {
         language: 'typescript',

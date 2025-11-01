@@ -86,7 +86,7 @@ export class TestRecorder {
     this.isRecording = false;
 
     // Save to file
-    const filename = this.sanitizeFilename(this.recording.name) + '.json';
+    const filename = TestRecorder.sanitizeFilename(this.recording.name) + '.json';
     const filepath = path.join(this.outputDir, filename);
 
     fs.writeFileSync(
@@ -245,7 +245,8 @@ export class TestRecorder {
     name: string,
     outputDir = 'data/recordings'
   ): void {
-    const filename = name.endsWith('.json') ? name : `${name}.json`;
+    const sanitizedName = TestRecorder.sanitizeFilename(name);
+    const filename = sanitizedName.endsWith('.json') ? sanitizedName : `${sanitizedName}.json`;
     const filepath = path.join(outputDir, filename);
 
     if (fs.existsSync(filepath)) {
@@ -279,8 +280,8 @@ export class TestRecorder {
     };
   }
 
-  private sanitizeFilename(name: string): string {
-    return name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+  private static sanitizeFilename(name: string): string {
+    return name.replace(/[^a-z0-9_]/gi, '_').toLowerCase();
   }
 
   /**
