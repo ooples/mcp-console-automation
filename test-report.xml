@@ -1,22 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\TestReplayEngine.test.ts">
-    <testCase name="TestReplayEngine replay should replay a simple recording" duration="138"/>
-    <testCase name="TestReplayEngine replay should handle recording with wait_for_output" duration="112"/>
-    <testCase name="TestReplayEngine replay should skip assertion and snapshot steps (Phase 2)" duration="66"/>
-    <testCase name="TestReplayEngine replay should handle errors in steps" duration="33"/>
-    <testCase name="TestReplayEngine replay should stop on error if stopOnError is true" duration="34"/>
-    <testCase name="TestReplayEngine replay should continue on error if stopOnError is false" duration="48"/>
-    <testCase name="TestReplayEngine replay should respect timeout option" duration="116"/>
-    <testCase name="TestReplayEngine replay should validate output if validateOutput is true" duration="33"/>
-    <testCase name="TestReplayEngine replay should cleanup sessions after replay" duration="35"/>
-    <testCase name="TestReplayEngine replayByName should load and replay recording by name" duration="10"/>
-    <testCase name="TestReplayEngine replayByName should throw error if recording not found" duration="33"/>
-    <testCase name="TestReplayEngine Speed control should replay at normal speed (1x)" duration="123"/>
-    <testCase name="TestReplayEngine Speed control should replay at 2x speed" duration="64"/>
-    <testCase name="TestReplayEngine Speed control should fast-forward when speed is 0" duration="7"/>
-    <testCase name="TestReplayEngine Static methods getReplayStats should calculate replay statistics" duration="8"/>
-    <testCase name="TestReplayEngine Static methods formatResult should format result as human-readable string" duration="11"/>
-    <testCase name="TestReplayEngine Static methods formatResult should include error message if present" duration="6"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\AssertionEngine.test.ts">
+    <testCase name="AssertionEngine output_contains assertions should pass when output contains expected text" duration="5"/>
+    <testCase name="AssertionEngine output_contains assertions should fail when output does not contain expected text" duration="2"/>
+    <testCase name="AssertionEngine output_contains assertions should throw on assert failure" duration="22"/>
+    <testCase name="AssertionEngine output_matches assertions should pass when output matches regex" duration="2"/>
+    <testCase name="AssertionEngine output_matches assertions should work with string regex" duration="5"/>
+    <testCase name="AssertionEngine output_matches assertions should fail when output does not match regex" duration="1"/>
+    <testCase name="AssertionEngine exit_code assertions should pass when exit codes match" duration="1"/>
+    <testCase name="AssertionEngine exit_code assertions should fail when exit codes do not match" duration="1"/>
+    <testCase name="AssertionEngine exit_code assertions should validate types" duration="4"/>
+    <testCase name="AssertionEngine no_errors assertions should pass when output has no errors" duration="2"/>
+    <testCase name="AssertionEngine no_errors assertions should fail when output contains error keywords" duration="2"/>
+    <testCase name="AssertionEngine no_errors assertions should detect various error patterns" duration="3"/>
+    <testCase name="AssertionEngine state_equals assertions should pass when states are deeply equal" duration="1"/>
+    <testCase name="AssertionEngine state_equals assertions should fail when states differ" duration="1"/>
+    <testCase name="AssertionEngine state_equals assertions should handle nested objects" duration="1"/>
+    <testCase name="AssertionEngine custom assertions should register and use custom matcher" duration="2"/>
+    <testCase name="AssertionEngine custom assertions should fail with unknown custom matcher" duration="3"/>
+    <testCase name="AssertionEngine custom assertions should require operator for custom assertions" duration="2"/>
+    <testCase name="AssertionEngine evaluateAll should evaluate multiple assertions" duration="1"/>
+    <testCase name="AssertionEngine evaluateAll should continue evaluating after failures" duration="1"/>
+    <testCase name="AssertionEngine assertAll should pass when all assertions pass" duration="6"/>
+    <testCase name="AssertionEngine assertAll should throw on first failure" duration="2"/>
+    <testCase name="AssertionEngine checkAll should return passed status and results" duration="2"/>
+    <testCase name="AssertionEngine checkAll should indicate failure without throwing" duration="1"/>
+    <testCase name="AssertionEngine error messages should provide clear error messages for failures" duration="2"/>
+    <testCase name="AssertionEngine error messages should truncate long output in messages" duration="2"/>
+    <testCase name="AssertionEngine getCustomMatchers should return all registered matchers" duration="2"/>
   </file>
 </testExecutions>
