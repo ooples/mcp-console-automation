@@ -1,7 +1,7 @@
 {
   "name": "test-by-name",
   "version": "1.0.0",
-  "createdAt": "2025-11-01T03:14:16.112Z",
+  "createdAt": "2025-11-01T04:09:02.390Z",
   "duration": 0,
   "steps": [
     {
@@ -18,7 +18,7 @@
       "platform": "win32",
       "nodeVersion": "v22.20.0",
       "cwd": "C:\\Users\\cheat\\source\\repos\\mcp-console-automation",
-      "timestamp": "2025-11-01T03:14:16.112Z"
+      "timestamp": "2025-11-01T04:09:02.390Z"
     }
   }
 }

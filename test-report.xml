@@ -1,47 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
   <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\TestReplayEngine.test.ts">
-    <testCase name="TestReplayEngine replay should replay a simple recording" duration="130"/>
-    <testCase name="TestReplayEngine replay should handle recording with wait_for_output" duration="124">
-      <failure message="Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)"><![CDATA[Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
-
-- Expected
-+ Received
-
-- "test-session-123",
-+ {"sessionId": "test-session-123", "success": true},
-  "prompt>",
-  {"timeout": 5000},
-
-Number of calls: 1
-    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\TestReplayEngine.test.ts:110:48)]]></failure>
-    </testCase>
-    <testCase name="TestReplayEngine replay should skip assertion and snapshot steps (Phase 2)" duration="63">
-      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: "success"
-Received: "failure"
-    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\TestReplayEngine.test.ts:140:29)]]></failure>
-    </testCase>
-    <testCase name="TestReplayEngine replay should handle errors in steps" duration="29"/>
-    <testCase name="TestReplayEngine replay should stop on error if stopOnError is true" duration="31"/>
-    <testCase name="TestReplayEngine replay should continue on error if stopOnError is false" duration="47"/>
-    <testCase name="TestReplayEngine replay should respect timeout option" duration="221">
-      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: "error"
-Received: "success"
-    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\TestReplayEngine.test.ts:249:29)]]></failure>
-    </testCase>
-    <testCase name="TestReplayEngine replay should validate output if validateOutput is true" duration="30"/>
-    <testCase name="TestReplayEngine replay should cleanup sessions after replay" duration="31"/>
-    <testCase name="TestReplayEngine replayByName should load and replay recording by name" duration="9"/>
-    <testCase name="TestReplayEngine replayByName should throw error if recording not found" duration="20"/>
-    <testCase name="TestReplayEngine Speed control should replay at normal speed (1x)" duration="112"/>
+    <testCase name="TestReplayEngine replay should replay a simple recording" duration="138"/>
+    <testCase name="TestReplayEngine replay should handle recording with wait_for_output" duration="112"/>
+    <testCase name="TestReplayEngine replay should skip assertion and snapshot steps (Phase 2)" duration="66"/>
+    <testCase name="TestReplayEngine replay should handle errors in steps" duration="33"/>
+    <testCase name="TestReplayEngine replay should stop on error if stopOnError is true" duration="34"/>
+    <testCase name="TestReplayEngine replay should continue on error if stopOnError is false" duration="48"/>
+    <testCase name="TestReplayEngine replay should respect timeout option" duration="116"/>
+    <testCase name="TestReplayEngine replay should validate output if validateOutput is true" duration="33"/>
+    <testCase name="TestReplayEngine replay should cleanup sessions after replay" duration="35"/>
+    <testCase name="TestReplayEngine replayByName should load and replay recording by name" duration="10"/>
+    <testCase name="TestReplayEngine replayByName should throw error if recording not found" duration="33"/>
+    <testCase name="TestReplayEngine Speed control should replay at normal speed (1x)" duration="123"/>
     <testCase name="TestReplayEngine Speed control should replay at 2x speed" duration="64"/>
-    <testCase name="TestReplayEngine Speed control should fast-forward when speed is 0" duration="5"/>
-    <testCase name="TestReplayEngine Static methods getReplayStats should calculate replay statistics" duration="7"/>
-    <testCase name="TestReplayEngine Static methods formatResult should format result as human-readable string" duration="12"/>
-    <testCase name="TestReplayEngine Static methods formatResult should include error message if present" duration="7"/>
+    <testCase name="TestReplayEngine Speed control should fast-forward when speed is 0" duration="7"/>
+    <testCase name="TestReplayEngine Static methods getReplayStats should calculate replay statistics" duration="8"/>
+    <testCase name="TestReplayEngine Static methods formatResult should format result as human-readable string" duration="11"/>
+    <testCase name="TestReplayEngine Static methods formatResult should include error message if present" duration="6"/>
   </file>
 </testExecutions>

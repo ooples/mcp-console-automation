@@ -71,7 +71,7 @@ export class TestReplayEngine {
         const step = recording.steps[i];
         const stepStartTime = Date.now();
 
-        // Check overall timeout
+        // Check overall timeout before step
         if (Date.now() - startTime > timeout) {
           throw new Error(`Replay timeout exceeded: ${timeout}ms`);
         }
@@ -87,12 +87,18 @@ export class TestReplayEngine {
 
         lastStepTime = step.timestamp;
 
-        // Execute step
-        const stepResult = await this.executeStep(step, validateOutput);
+        // Execute step with timeout
+        const remainingTime = timeout - (Date.now() - startTime);
+        const stepPromise = this.executeStep(step, validateOutput);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Replay timeout exceeded: ${timeout}ms`)), remainingTime)
+        );
+
+        const stepResult = await Promise.race([stepPromise, timeoutPromise]);
         results.push(stepResult);
 
         // Check step result
-        if (stepResult.status === 'fail' || stepResult.status === 'skip') {
+        if (stepResult.status === 'fail') {
           overallStatus = 'failure';
           if (stopOnError) {
             break;
@@ -196,7 +202,8 @@ export class TestReplayEngine {
     const recordedSessionId = step.sessionId || 'default';
 
     try {
-      const actualSessionId = await this.consoleManager.createSession(data);
+      const result = await this.consoleManager.createSession(data);
+      const actualSessionId = typeof result === 'string' ? result : result.sessionId;
 
       // Map recorded session ID to actual session ID
       this.sessionMap.set(recordedSessionId, actualSessionId);
