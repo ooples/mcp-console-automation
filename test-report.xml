@@ -1,38 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
   <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts">
-    <testCase name="OutputFilterEngine Basic Pattern Matching should filter lines with simple regex pattern" duration="0"/>
-    <testCase name="OutputFilterEngine Basic Pattern Matching should handle case-insensitive matching" duration="0"/>
-    <testCase name="OutputFilterEngine Basic Pattern Matching should handle complex regex patterns" duration="0"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should filter by absolute timestamp (ISO)" duration="0"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should filter by relative timestamp" duration="0"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should handle various relative time formats" duration="0"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return first N lines (head)" duration="0"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return last N lines (tail)" duration="0"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return specific line range" duration="0"/>
-    <testCase name="OutputFilterEngine Line-based Operations should handle invalid line ranges gracefully" duration="0"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should handle AND logic with multiple patterns" duration="51">
-      <failure message="Error: expect(received).toHaveLength(expected)"><![CDATA[Error: expect(received).toHaveLength(expected)
+    <testCase name="OutputFilterEngine Basic Pattern Matching should filter lines with simple regex pattern" duration="38"/>
+    <testCase name="OutputFilterEngine Basic Pattern Matching should handle case-insensitive matching" duration="8"/>
+    <testCase name="OutputFilterEngine Basic Pattern Matching should handle complex regex patterns" duration="4"/>
+    <testCase name="OutputFilterEngine Time-based Filtering should filter by absolute timestamp (ISO)" duration="4"/>
+    <testCase name="OutputFilterEngine Time-based Filtering should filter by relative timestamp" duration="4"/>
+    <testCase name="OutputFilterEngine Time-based Filtering should handle various relative time formats" duration="4"/>
+    <testCase name="OutputFilterEngine Line-based Operations should return first N lines (head)" duration="3"/>
+    <testCase name="OutputFilterEngine Line-based Operations should return last N lines (tail)" duration="4"/>
+    <testCase name="OutputFilterEngine Line-based Operations should return specific line range" duration="5"/>
+    <testCase name="OutputFilterEngine Line-based Operations should handle invalid line ranges gracefully" duration="4"/>
+    <testCase name="OutputFilterEngine Multi-pattern Search should handle AND logic with multiple patterns" duration="11"/>
+    <testCase name="OutputFilterEngine Multi-pattern Search should handle OR logic with multiple patterns" duration="5"/>
+    <testCase name="OutputFilterEngine Multi-pattern Search should combine multi-pattern with other filters" duration="4"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle 100k+ lines efficiently" duration="241"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should use streaming mode for large outputs" duration="190">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
 
-Expected length: 3
-Received length: 2
-Received array:  [{"data": "ERROR: Database connection failed", "sessionId": "test-session", "timestamp": 2025-10-31T23:55:43.453Z, "type": "stdout"}, {"data": "ERROR: Database timeout", "sessionId": "test-session", "timestamp": 2025-10-31T23:55:47.453Z, "type": "stdout"}]
-    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts:247:37)]]></failure>
+Expected: 300
+Received: 1
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts:322:44)]]></failure>
     </testCase>
-    <testCase name="OutputFilterEngine Multi-pattern Search should handle OR logic with multiple patterns" duration="0"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should combine multi-pattern with other filters" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle 100k+ lines efficiently" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should use streaming mode for large outputs" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should respect maxLines limit for performance" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should maintain performance with complex regex patterns" duration="0"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle memory efficiently with streaming" duration="0"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should apply multiple filters in correct order" duration="0"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should handle edge cases with empty results" duration="0"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should validate filter options" duration="0"/>
-    <testCase name="OutputFilterEngine Caching and Optimization should cache regex patterns for performance" duration="0"/>
-    <testCase name="OutputFilterEngine Caching and Optimization should cache timestamp parsing for performance" duration="0"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should filter application logs effectively" duration="0"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should handle build output filtering" duration="0"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should filter server access logs" duration="0"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should respect maxLines limit for performance" duration="235">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: 500
+Received: 8
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts:336:44)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should maintain performance with complex regex patterns" duration="73"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle memory efficiently with streaming" duration="244"/>
+    <testCase name="OutputFilterEngine Combined Filter Operations should apply multiple filters in correct order" duration="4"/>
+    <testCase name="OutputFilterEngine Combined Filter Operations should handle edge cases with empty results" duration="4"/>
+    <testCase name="OutputFilterEngine Combined Filter Operations should validate filter options" duration="3"/>
+    <testCase name="OutputFilterEngine Caching and Optimization should cache regex patterns for performance" duration="18"/>
+    <testCase name="OutputFilterEngine Caching and Optimization should cache timestamp parsing for performance" duration="24"/>
+    <testCase name="OutputFilterEngine Real-world Scenarios should filter application logs effectively" duration="5"/>
+    <testCase name="OutputFilterEngine Real-world Scenarios should handle build output filtering" duration="4"/>
+    <testCase name="OutputFilterEngine Real-world Scenarios should filter server access logs" duration="4"/>
   </file>
 </testExecutions>

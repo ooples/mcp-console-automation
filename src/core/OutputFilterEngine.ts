@@ -161,30 +161,20 @@ export class OutputFilterEngine {
         filterStats.timeFiltered = timeResult.removed;
       }
 
-      // Step 2: Line-based operations (apply before pattern matching for efficiency)
+      // Step 2: Line-based operations (line range only, before pattern matching)
       if (options.lineRange) {
         const lineResult = this.applyLineRangeFilter(result, options.lineRange);
         result = lineResult.filtered;
         filterStats.lineRangeFiltered = lineResult.removed;
       }
 
-      if (options.head && !options.tail) {
-        result = result.slice(0, options.head);
-      } else if (options.tail && !options.head) {
-        result = result.slice(-options.tail);
-      } else if (options.head && options.tail) {
-        // Apply head first, then tail (take first N, then last M of those)
-        result = result.slice(0, options.head).slice(-options.tail);
-      }
-
-      // Step 3: Pattern matching (most CPU-intensive, apply after reduction)
+      // Step 3: Pattern matching (grep and multi-pattern before head/tail)
       if (options.grep) {
         const grepResult = this.applyGrepFilter(result, options.grep, options);
         result = grepResult.filtered;
         filterStats.grepMatches = grepResult.matches;
       }
 
-      // Step 4: Multi-pattern search
       if (options.multiPattern) {
         const multiResult = this.applyMultiPatternFilter(
           result,
@@ -192,6 +182,16 @@ export class OutputFilterEngine {
         );
         result = multiResult.filtered;
         filterStats.multiPatternMatches = multiResult.matches;
+      }
+
+      // Step 4: head/tail operations (apply after pattern matching)
+      if (options.head && !options.tail) {
+        result = result.slice(0, options.head);
+      } else if (options.tail && !options.head) {
+        result = result.slice(-options.tail);
+      } else if (options.head && options.tail) {
+        // Apply head first, then tail (take first N, then last M of those)
+        result = result.slice(0, options.head).slice(-options.tail);
       }
 
       const endTime = performance.now();
@@ -450,7 +450,7 @@ export class OutputFilterEngine {
 
     this.metrics.cacheMisses++;
 
-    let flags = 'g';
+    let flags = '';
     if (options.ignoreCase) flags += 'i';
 
     const regex = new RegExp(pattern, flags);
