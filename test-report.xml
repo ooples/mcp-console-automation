@@ -1,32 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\AssertionEngine.test.ts">
-    <testCase name="AssertionEngine output_contains assertions should pass when output contains expected text" duration="5"/>
-    <testCase name="AssertionEngine output_contains assertions should fail when output does not contain expected text" duration="2"/>
-    <testCase name="AssertionEngine output_contains assertions should throw on assert failure" duration="22"/>
-    <testCase name="AssertionEngine output_matches assertions should pass when output matches regex" duration="2"/>
-    <testCase name="AssertionEngine output_matches assertions should work with string regex" duration="5"/>
-    <testCase name="AssertionEngine output_matches assertions should fail when output does not match regex" duration="1"/>
-    <testCase name="AssertionEngine exit_code assertions should pass when exit codes match" duration="1"/>
-    <testCase name="AssertionEngine exit_code assertions should fail when exit codes do not match" duration="1"/>
-    <testCase name="AssertionEngine exit_code assertions should validate types" duration="4"/>
-    <testCase name="AssertionEngine no_errors assertions should pass when output has no errors" duration="2"/>
-    <testCase name="AssertionEngine no_errors assertions should fail when output contains error keywords" duration="2"/>
-    <testCase name="AssertionEngine no_errors assertions should detect various error patterns" duration="3"/>
-    <testCase name="AssertionEngine state_equals assertions should pass when states are deeply equal" duration="1"/>
-    <testCase name="AssertionEngine state_equals assertions should fail when states differ" duration="1"/>
-    <testCase name="AssertionEngine state_equals assertions should handle nested objects" duration="1"/>
-    <testCase name="AssertionEngine custom assertions should register and use custom matcher" duration="2"/>
-    <testCase name="AssertionEngine custom assertions should fail with unknown custom matcher" duration="3"/>
-    <testCase name="AssertionEngine custom assertions should require operator for custom assertions" duration="2"/>
-    <testCase name="AssertionEngine evaluateAll should evaluate multiple assertions" duration="1"/>
-    <testCase name="AssertionEngine evaluateAll should continue evaluating after failures" duration="1"/>
-    <testCase name="AssertionEngine assertAll should pass when all assertions pass" duration="6"/>
-    <testCase name="AssertionEngine assertAll should throw on first failure" duration="2"/>
-    <testCase name="AssertionEngine checkAll should return passed status and results" duration="2"/>
-    <testCase name="AssertionEngine checkAll should indicate failure without throwing" duration="1"/>
-    <testCase name="AssertionEngine error messages should provide clear error messages for failures" duration="2"/>
-    <testCase name="AssertionEngine error messages should truncate long output in messages" duration="2"/>
-    <testCase name="AssertionEngine getCustomMatchers should return all registered matchers" duration="2"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\CodeGenerator.test.ts">
+    <testCase name="CodeGenerator generateCode should generate JavaScript code" duration="6"/>
+    <testCase name="CodeGenerator generateCode should generate TypeScript code" duration="2"/>
+    <testCase name="CodeGenerator generateCode should generate Python code" duration="2"/>
+    <testCase name="CodeGenerator generateCode should support mocha framework" duration="2"/>
+    <testCase name="CodeGenerator generateCode should include setup code when includeSetup is true" duration="2"/>
+    <testCase name="CodeGenerator generateCode should exclude setup code when includeSetup is false" duration="2"/>
+    <testCase name="CodeGenerator generateCode should include teardown code when includeTeardown is true" duration="2"/>
+    <testCase name="CodeGenerator generateCode should handle special characters in test names" duration="1"/>
+    <testCase name="CodeGenerator generateCode should escape strings in generated code" duration="1"/>
+    <testCase name="CodeGenerator generateCodeFromFile should load recording from file and generate code" duration="3"/>
+    <testCase name="CodeGenerator generateCodeFromFile should throw error if recording file not found" duration="27"/>
+    <testCase name="CodeGenerator generateAndSaveCode should generate code and save to file" duration="3"/>
+    <testCase name="CodeGenerator generateAndSaveCode should create output directory if it does not exist" duration="5"/>
+    <testCase name="CodeGenerator Code generation for different step types should generate code for create_session step" duration="4"/>
+    <testCase name="CodeGenerator Code generation for different step types should generate code for send_input step" duration="2"/>
+    <testCase name="CodeGenerator Code generation for different step types should generate code for send_key step" duration="2"/>
+    <testCase name="CodeGenerator Code generation for different step types should generate code for wait_for_output step" duration="2"/>
+    <testCase name="CodeGenerator Code generation for different step types should add comment for unimplemented step types" duration="6"/>
+    <testCase name="CodeGenerator Template loading should throw error if template not found" duration="1"/>
+    <testCase name="CodeGenerator Edge cases should handle empty recordings" duration="1"/>
+    <testCase name="CodeGenerator Edge cases should handle recordings with only metadata" duration="1"/>
+    <testCase name="CodeGenerator Edge cases should handle very long input strings" duration="2"/>
   </file>
 </testExecutions>

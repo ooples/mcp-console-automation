@@ -28,7 +28,13 @@ describe('CodeGenerator', () => {
     if (fs.existsSync(testOutputDir)) {
       const files = fs.readdirSync(testOutputDir);
       files.forEach((file) => {
-        fs.unlinkSync(path.join(testOutputDir, file));
+        const fullPath = path.join(testOutputDir, file);
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(fullPath);
+        }
       });
     }
   });
@@ -78,7 +84,7 @@ describe('CodeGenerator', () => {
       expect(code).toContain('afterAll');
       expect(code).toContain('createSession');
       expect(code).toContain('sendInput');
-      expect(code).toContain('echo "hello"');
+      expect(code).toContain('echo \\\"hello\\\"');
     });
 
     it('should generate TypeScript code', () => {
