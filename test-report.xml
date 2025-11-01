@@ -1,43 +1,70 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts">
-    <testCase name="OutputFilterEngine Basic Pattern Matching should filter lines with simple regex pattern" duration="38"/>
-    <testCase name="OutputFilterEngine Basic Pattern Matching should handle case-insensitive matching" duration="8"/>
-    <testCase name="OutputFilterEngine Basic Pattern Matching should handle complex regex patterns" duration="4"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should filter by absolute timestamp (ISO)" duration="4"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should filter by relative timestamp" duration="4"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should handle various relative time formats" duration="4"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return first N lines (head)" duration="3"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return last N lines (tail)" duration="4"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return specific line range" duration="5"/>
-    <testCase name="OutputFilterEngine Line-based Operations should handle invalid line ranges gracefully" duration="4"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should handle AND logic with multiple patterns" duration="11"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should handle OR logic with multiple patterns" duration="5"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should combine multi-pattern with other filters" duration="4"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle 100k+ lines efficiently" duration="241"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should use streaming mode for large outputs" duration="190">
-      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: 300
-Received: 1
-    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts:322:44)]]></failure>
-    </testCase>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should respect maxLines limit for performance" duration="235">
-      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: 500
-Received: 8
-    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts:336:44)]]></failure>
-    </testCase>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should maintain performance with complex regex patterns" duration="73"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle memory efficiently with streaming" duration="244"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should apply multiple filters in correct order" duration="4"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should handle edge cases with empty results" duration="4"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should validate filter options" duration="3"/>
-    <testCase name="OutputFilterEngine Caching and Optimization should cache regex patterns for performance" duration="18"/>
-    <testCase name="OutputFilterEngine Caching and Optimization should cache timestamp parsing for performance" duration="24"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should filter application logs effectively" duration="5"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should handle build output filtering" duration="4"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should filter server access logs" duration="4"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\Matchers.test.ts">
+    <testCase name="Matchers toContain should return true when string contains substring" duration="3"/>
+    <testCase name="Matchers toContain should return false when string does not contain substring" duration="1"/>
+    <testCase name="Matchers toContain should throw error for non-string inputs" duration="35"/>
+    <testCase name="Matchers toMatch should match with regex pattern" duration="2"/>
+    <testCase name="Matchers toMatch should match with string pattern" duration="2"/>
+    <testCase name="Matchers toMatch should return false for non-matching pattern" duration="2"/>
+    <testCase name="Matchers toEqual should compare primitives with === equality" duration="2"/>
+    <testCase name="Matchers toDeepEqual should deeply compare objects" duration="2"/>
+    <testCase name="Matchers toDeepEqual should deeply compare arrays" duration="1"/>
+    <testCase name="Matchers toDeepEqual should handle nested structures" duration="1"/>
+    <testCase name="Matchers toDeepEqual should handle Date objects" duration="1"/>
+    <testCase name="Matchers toDeepEqual should handle RegExp objects" duration="2"/>
+    <testCase name="Matchers toDeepEqual should handle null and undefined" duration="2"/>
+    <testCase name="Matchers toBeGreaterThan should return true when actual &gt; expected" duration="2"/>
+    <testCase name="Matchers toBeGreaterThan should throw error for non-number inputs" duration="2"/>
+    <testCase name="Matchers toBeGreaterThanOrEqual should return true when actual &gt;= expected" duration="1"/>
+    <testCase name="Matchers toBeLessThan should return true when actual &lt; expected" duration="1"/>
+    <testCase name="Matchers toBeLessThanOrEqual should return true when actual &lt;= expected" duration="8"/>
+    <testCase name="Matchers toStartWith should return true when string starts with prefix" duration="2"/>
+    <testCase name="Matchers toStartWith should throw error for non-string inputs" duration="2"/>
+    <testCase name="Matchers toEndWith should return true when string ends with suffix" duration="1"/>
+    <testCase name="Matchers toInclude should return true when array includes item" duration="1"/>
+    <testCase name="Matchers toInclude should handle object comparison" duration="2"/>
+    <testCase name="Matchers toInclude should throw error for non-array input" duration="2"/>
+    <testCase name="Matchers toHaveLength should check array length" duration="1"/>
+    <testCase name="Matchers toHaveLength should check string length" duration="1"/>
+    <testCase name="Matchers toHaveLength should throw error for invalid inputs" duration="2"/>
+    <testCase name="Matchers toBeEmpty should check empty arrays" duration="1"/>
+    <testCase name="Matchers toBeEmpty should check empty strings" duration="1"/>
+    <testCase name="Matchers toBeEmpty should check empty objects" duration="1"/>
+    <testCase name="Matchers toThrow should return true when function throws" duration="1"/>
+    <testCase name="Matchers toThrow should match error message with string" duration="1"/>
+    <testCase name="Matchers toThrow should match error message with regex" duration="2"/>
+    <testCase name="Matchers toContainError should detect default error patterns" duration="3"/>
+    <testCase name="Matchers toContainError should match custom error pattern string" duration="1"/>
+    <testCase name="Matchers toContainError should match custom error pattern regex" duration="6"/>
+    <testCase name="Matchers toMatchPattern should match with custom function" duration="1"/>
+    <testCase name="Matchers toMatchPattern should throw error for non-function pattern" duration="2"/>
+    <testCase name="Matchers toBeTruthy should check truthy values" duration="1"/>
+    <testCase name="Matchers toBeFalsy should check falsy values" duration="2"/>
+    <testCase name="Matchers toBeNull should check null value" duration="1"/>
+    <testCase name="Matchers toBeUndefined should check undefined value" duration="2"/>
+    <testCase name="Matchers toBeDefined should check defined values" duration="1"/>
+    <testCase name="Matchers toBeType should check value types" duration="2"/>
+    <testCase name="Matchers toBeType should throw error for invalid type" duration="1"/>
+    <testCase name="Matchers toBeInstanceOf should check instanceof" duration="2"/>
+    <testCase name="Matchers toHaveProperty should check object has property" duration="1"/>
+    <testCase name="Matchers toHaveProperty should throw error for non-object" duration="2"/>
+    <testCase name="Matchers toHavePropertyValue should check property value" duration="1"/>
+    <testCase name="Matchers toHavePropertyValue should deeply compare property values" duration="1"/>
+    <testCase name="Matchers toBeCloseTo should check if numbers are close" duration="1"/>
+    <testCase name="Matchers toBeCloseTo should use default delta" duration="6"/>
+    <testCase name="Matchers toContainAll should check array contains all items" duration="2"/>
+    <testCase name="Matchers toContainAll should check string contains all substrings" duration="1"/>
+    <testCase name="Matchers toContainAny should check array contains any item" duration="1"/>
+    <testCase name="Matchers toContainAny should check string contains any substring" duration="1"/>
+    <testCase name="Matchers toMatchJSON should parse and match JSON" duration="1"/>
+    <testCase name="Matchers toMatchJSON should return false for invalid JSON" duration="1"/>
+    <testCase name="Matchers toBeBetween should check if number is between min and max" duration="2"/>
+    <testCase name="Matchers toBeBefore should check if date is before another" duration="1"/>
+    <testCase name="Matchers toBeAfter should check if date is after another" duration="1"/>
+    <testCase name="Matchers toBeSorted should check if array is sorted ascending" duration="2"/>
+    <testCase name="Matchers toBeSorted should check if array is sorted descending" duration="1"/>
+    <testCase name="Matchers toHaveUniqueElements should check if array has unique elements" duration="2"/>
+    <testCase name="Matchers toHaveUniqueElements should handle object uniqueness" duration="1"/>
   </file>
 </testExecutions>
