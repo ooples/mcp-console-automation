@@ -155,7 +155,9 @@ describe('SnapshotManager', () => {
 
     it('should filter by session ID', async () => {
       const snap1 = await manager.capture('session1', 'output', {}, {});
+      await new Promise((resolve) => setTimeout(resolve, 2)); // Ensure unique timestamp
       const snap2 = await manager.capture('session2', 'output', {}, {});
+      await new Promise((resolve) => setTimeout(resolve, 2)); // Ensure unique timestamp
       const snap3 = await manager.capture('session1', 'output2', {}, {});
       await manager.save(snap1);
       await manager.save(snap2);
@@ -182,7 +184,9 @@ describe('SnapshotManager', () => {
 
     it('should delete all snapshots for a session', async () => {
       const snap1 = await manager.capture('session1', 'output1', {}, {});
+      await new Promise((resolve) => setTimeout(resolve, 2)); // Ensure unique timestamp
       const snap2 = await manager.capture('session1', 'output2', {}, {});
+      await new Promise((resolve) => setTimeout(resolve, 2)); // Ensure unique timestamp
       const snap3 = await manager.capture('session2', 'output3', {}, {});
       await manager.save(snap1);
       await manager.save(snap2);
