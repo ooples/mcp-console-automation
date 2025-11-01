@@ -154,7 +154,7 @@ export class RetryManager {
   getRetryStatistics(retryResults: RetryResult[]) {
     const totalTests = retryResults.length;
     const successAfterRetry = retryResults.filter(
-      (r) => r.finalResult.status === 'pass' && r.attempts > 1
+      (r) => r.finalResult.status === 'pass' && r.attempts >= 1
     ).length;
     const failedAfterRetry = retryResults.filter(
       (r) => r.finalResult.status !== 'pass'

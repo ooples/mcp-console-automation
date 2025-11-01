@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\FlakeDetector.test.ts">
-    <testCase name="FlakeDetector Flake Detection should detect flaky test with inconsistent results" duration="4"/>
-    <testCase name="FlakeDetector Flake Detection should mark stable test as not flaky" duration="2"/>
-    <testCase name="FlakeDetector Flake Detection should detect flaky test with occasional failures" duration="2"/>
-    <testCase name="FlakeDetector Failure Patterns should extract failure patterns" duration="1"/>
-    <testCase name="FlakeDetector Batch Flake Detection should detect multiple flaky tests" duration="1"/>
-    <testCase name="FlakeDetector Flake Summary should generate summary for multiple tests" duration="5"/>
-    <testCase name="FlakeDetector Recommendations should generate recommendations for flaky tests" duration="1"/>
-    <testCase name="FlakeDetector Parallel vs Sequential Detection should run detection in parallel when configured" duration="709"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\RetryManager.test.ts">
+    <testCase name="RetryManager Basic Retry Logic should retry failed tests up to maxRetries" duration="52"/>
+    <testCase name="RetryManager Basic Retry Logic should stop retrying after success" duration="1"/>
+    <testCase name="RetryManager Exponential Backoff should apply exponential backoff between retries" duration="724"/>
+    <testCase name="RetryManager Selective Retry should only retry on specific error types" duration="3"/>
+    <testCase name="RetryManager Selective Retry should retry on timeout if configured" duration="59"/>
+    <testCase name="RetryManager Retry Statistics should generate statistics for retry results" duration="3"/>
+    <testCase name="CircuitBreaker should open circuit after threshold failures" duration="2"/>
+    <testCase name="CircuitBreaker should close circuit after successful execution" duration="2"/>
   </file>
 </testExecutions>
