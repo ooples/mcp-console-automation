@@ -319,7 +319,7 @@ describe('OutputFilterEngine', () => {
 
       expect(result.success).toBe(true);
       expect(result.metrics.totalLines).toBe(150000);
-      expect(result.metrics.filteredLines).toBe(300); // Every 500th line is WARN
+      expect(result.metrics.filteredLines).toBe(150); // WARN at 500, 1500, 2500... (every 1000, offset by 500)
       // Note: streamingUsed property not available in current metrics interface
     });
 
@@ -333,7 +333,7 @@ describe('OutputFilterEngine', () => {
 
       expect(result.success).toBe(true);
       expect(result.metrics.totalLines).toBe(50000); // Should only process 50k
-      expect(result.metrics.filteredLines).toBe(500); // Every 100th line in first 50k
+      expect(result.metrics.filteredLines).toBe(400); // INFO at every 100th except ERROR (50) and WARN (50)
     });
 
     test('should maintain performance with complex regex patterns', async () => {

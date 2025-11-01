@@ -258,13 +258,6 @@ export class OutputFilterEngine {
 
       // Yield control to event loop every chunk
       await new Promise((resolve) => setImmediate(resolve));
-
-      // Memory pressure check
-      if (this.getMemoryUsage() > 100 * 1024 * 1024) {
-        // 100MB threshold
-        this.logger.warn('Memory pressure detected, reducing chunk size');
-        break;
-      }
     }
 
     return result;
