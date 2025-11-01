@@ -1,27 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\CodeGenerator.test.ts">
-    <testCase name="CodeGenerator generateCode should generate JavaScript code" duration="6"/>
-    <testCase name="CodeGenerator generateCode should generate TypeScript code" duration="2"/>
-    <testCase name="CodeGenerator generateCode should generate Python code" duration="2"/>
-    <testCase name="CodeGenerator generateCode should support mocha framework" duration="2"/>
-    <testCase name="CodeGenerator generateCode should include setup code when includeSetup is true" duration="2"/>
-    <testCase name="CodeGenerator generateCode should exclude setup code when includeSetup is false" duration="2"/>
-    <testCase name="CodeGenerator generateCode should include teardown code when includeTeardown is true" duration="2"/>
-    <testCase name="CodeGenerator generateCode should handle special characters in test names" duration="1"/>
-    <testCase name="CodeGenerator generateCode should escape strings in generated code" duration="1"/>
-    <testCase name="CodeGenerator generateCodeFromFile should load recording from file and generate code" duration="3"/>
-    <testCase name="CodeGenerator generateCodeFromFile should throw error if recording file not found" duration="27"/>
-    <testCase name="CodeGenerator generateAndSaveCode should generate code and save to file" duration="3"/>
-    <testCase name="CodeGenerator generateAndSaveCode should create output directory if it does not exist" duration="5"/>
-    <testCase name="CodeGenerator Code generation for different step types should generate code for create_session step" duration="4"/>
-    <testCase name="CodeGenerator Code generation for different step types should generate code for send_input step" duration="2"/>
-    <testCase name="CodeGenerator Code generation for different step types should generate code for send_key step" duration="2"/>
-    <testCase name="CodeGenerator Code generation for different step types should generate code for wait_for_output step" duration="2"/>
-    <testCase name="CodeGenerator Code generation for different step types should add comment for unimplemented step types" duration="6"/>
-    <testCase name="CodeGenerator Template loading should throw error if template not found" duration="1"/>
-    <testCase name="CodeGenerator Edge cases should handle empty recordings" duration="1"/>
-    <testCase name="CodeGenerator Edge cases should handle recordings with only metadata" duration="1"/>
-    <testCase name="CodeGenerator Edge cases should handle very long input strings" duration="2"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\FlakeDetector.test.ts">
+    <testCase name="FlakeDetector Flake Detection should detect flaky test with inconsistent results" duration="4"/>
+    <testCase name="FlakeDetector Flake Detection should mark stable test as not flaky" duration="2"/>
+    <testCase name="FlakeDetector Flake Detection should detect flaky test with occasional failures" duration="2"/>
+    <testCase name="FlakeDetector Failure Patterns should extract failure patterns" duration="1"/>
+    <testCase name="FlakeDetector Batch Flake Detection should detect multiple flaky tests" duration="1"/>
+    <testCase name="FlakeDetector Flake Summary should generate summary for multiple tests" duration="5"/>
+    <testCase name="FlakeDetector Recommendations should generate recommendations for flaky tests" duration="1"/>
+    <testCase name="FlakeDetector Parallel vs Sequential Detection should run detection in parallel when configured" duration="709"/>
   </file>
 </testExecutions>

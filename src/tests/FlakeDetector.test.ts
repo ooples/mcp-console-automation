@@ -254,14 +254,20 @@ describe('FlakeDetector', () => {
         retry: 0,
       };
 
-      const executor = async (t: TestDefinition): Promise<TestResult> => ({
-        test: t,
-        status: Math.random() > 0.5 ? 'pass' : 'fail',
-        duration: 50,
-        startTime: Date.now(),
-        endTime: Date.now() + 50,
-        assertions: [],
-      });
+      const executor = async (t: TestDefinition): Promise<TestResult> => {
+        const start = Date.now();
+        // Actually wait 50ms to simulate async work
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const end = Date.now();
+        return {
+          test: t,
+          status: Math.random() > 0.5 ? 'pass' : 'fail',
+          duration: end - start,
+          startTime: start,
+          endTime: end,
+          assertions: [],
+        };
+      };
 
       const startParallel = Date.now();
       await detector.detectFlake(test, executor, {
