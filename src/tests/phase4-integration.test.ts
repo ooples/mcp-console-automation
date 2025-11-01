@@ -141,7 +141,9 @@ describe('Phase 4 Integration', () => {
 
       // Step 3: Collect metrics
       parallelResult.results.forEach((result) => {
-        metricsCollector.recordTest(result.test.name, result);
+        if (result.test) {
+          metricsCollector.recordTest(result.test.name, result);
+        }
       });
 
       const metrics = metricsCollector.getSummary();

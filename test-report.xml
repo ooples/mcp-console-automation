@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\phase1-integration.test.ts">
-    <testCase name="Phase 1 Integration Tests End-to-End Workflow should record, save, replay, and generate code" duration="96"/>
-    <testCase name="Phase 1 Integration Tests End-to-End Workflow should handle multiple recordings" duration="39"/>
-    <testCase name="Phase 1 Integration Tests Recording Workflow should capture timing information correctly" duration="151"/>
-    <testCase name="Phase 1 Integration Tests Recording Workflow should preserve all metadata through save/load cycle" duration="23"/>
-    <testCase name="Phase 1 Integration Tests Code Generation Workflow should generate executable test code" duration="29"/>
-    <testCase name="Phase 1 Integration Tests Code Generation Workflow should generate code with different framework options" duration="23"/>
-    <testCase name="Phase 1 Integration Tests Error Handling should handle recording errors gracefully" duration="50"/>
-    <testCase name="Phase 1 Integration Tests Error Handling should handle file system errors" duration="29"/>
-    <testCase name="Phase 1 Integration Tests Utility Functions should provide accurate recording statistics" duration="28"/>
-    <testCase name="Phase 1 Integration Tests Utility Functions should allow canceling recordings" duration="22"/>
-    <testCase name="Phase 1 Integration Tests Utility Functions should delete recordings" duration="29"/>
-    <testCase name="Phase 1 Integration Tests Complex Scenarios should handle multi-session recordings" duration="28"/>
-    <testCase name="Phase 1 Integration Tests Complex Scenarios should handle recordings with wait steps" duration="28"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\phase4-performance.test.ts">
+    <testCase name="Phase 4 Performance Parallel vs Sequential Speedup should demonstrate 3-5x speedup with 4 workers" duration="124">
+      <failure message="Error: expect(received).toBeGreaterThan(expected)"><![CDATA[Error: expect(received).toBeGreaterThan(expected)
+
+Expected: > 2
+Received:   0
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\phase4-performance.test.ts:72:23)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)]]></failure>
+    </testCase>
+    <testCase name="Phase 4 Performance Parallel vs Sequential Speedup should scale with different worker counts" duration="305">
+      <failure message="Error: expect(received).toBeLessThanOrEqual(expected)"><![CDATA[Error: expect(received).toBeLessThanOrEqual(expected)
+
+Expected: <= 63
+Received:    102
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\phase4-performance.test.ts:143:35)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)]]></failure>
+    </testCase>
+    <testCase name="Phase 4 Performance Parallel vs Sequential Speedup should handle large test suite efficiently" duration="264"/>
+    <testCase name="Phase 4 Performance Performance Metrics should track execution metrics accurately" duration="74"/>
   </file>
 </testExecutions>
