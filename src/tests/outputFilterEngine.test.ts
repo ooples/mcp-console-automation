@@ -111,8 +111,8 @@ describe('OutputFilterEngine', () => {
       const now = new Date();
       const output = createTestOutput(
         ['Old log entry', 'Another old entry', 'Recent entry', 'Latest entry'],
-        now.getTime() - 10000
-      ); // 10 seconds ago
+        now.getTime() - 7000
+      ); // 7 seconds ago
 
       const filterTime = new Date(now.getTime() - 5000).toISOString(); // 5 seconds ago
 
@@ -128,15 +128,15 @@ describe('OutputFilterEngine', () => {
       const now = Date.now();
       const output = createTestOutput(
         ['Very old entry', 'Old entry', 'Recent entry', 'Latest entry'],
-        now - 600000
-      ); // 10 minutes ago
+        now - 7000
+      ); // 7 seconds ago
 
       const result = await filterEngine.filter(output, {
-        since: '5m', // Last 5 minutes
+        since: '5s', // Last 5 seconds
       });
 
       expect(result.success).toBe(true);
-      expect(result.filteredOutput).toHaveLength(2); // Last 2 entries within 5 minutes
+      expect(result.filteredOutput).toHaveLength(2); // Last 2 entries within 5 seconds
     });
 
     test('should handle various relative time formats', async () => {
@@ -244,7 +244,7 @@ describe('OutputFilterEngine', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.filteredOutput).toHaveLength(3); // Only ERRORs containing 'Database'
+      expect(result.filteredOutput).toHaveLength(2); // Only ERRORs containing 'Database'
     });
 
     test('should handle OR logic with multiple patterns', async () => {

@@ -1,49 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\tests\integration\protocols\wsl.test.ts">
-    <testCase name="WSL Protocol Integration Tests WSL Service Management should initialize WSL service successfully" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests WSL Service Management should list available distributions" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests WSL Service Management should get default distribution" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests WSL Service Management should set default distribution" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests WSL Service Management should handle WSL service unavailability" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Session Management should create WSL session successfully" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Session Management should create session with default distribution" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Session Management should create session with specific user" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Session Management should handle invalid distribution" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Session Management should handle invalid user" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Command Execution should execute simple commands successfully" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Command Execution should execute Linux-specific commands" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Command Execution should handle file system operations" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Command Execution should handle Windows interoperability" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Command Execution should handle file path conversions" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Command Execution should handle command timeouts" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Command Execution should handle restricted commands" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Command Execution should capture command output with streaming" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests System Information and Monitoring should collect WSL system information" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests System Information and Monitoring should monitor resource usage" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests System Information and Monitoring should perform health checks" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests System Information and Monitoring should track file system usage" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Network Configuration should configure port forwarding" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Network Configuration should handle network connectivity" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Network Configuration should configure DNS settings" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests File System Operations should handle Windows-Linux file path conversion" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests File System Operations should handle file permissions correctly" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests File System Operations should handle symbolic links" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests File System Operations should handle case sensitivity correctly" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Distribution Management should start and stop distributions" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Distribution Management should restart distribution" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Distribution Management should get distribution configuration" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Distribution Management should update distribution configuration" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Security and Access Control should enforce user restrictions" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Security and Access Control should block restricted commands" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Security and Access Control should audit command execution" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Security and Access Control should enforce root access restrictions" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Error Handling and Resilience should handle WSL service restart" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Error Handling and Resilience should handle distribution unavailability" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Error Handling and Resilience should handle resource exhaustion" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Error Handling and Resilience should handle concurrent operations" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Session Cleanup and Termination should terminate session gracefully" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Session Cleanup and Termination should force terminate unresponsive sessions" duration="0"/>
-    <testCase name="WSL Protocol Integration Tests Session Cleanup and Termination should cleanup all resources on protocol shutdown" duration="0"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts">
+    <testCase name="OutputFilterEngine Basic Pattern Matching should filter lines with simple regex pattern" duration="0"/>
+    <testCase name="OutputFilterEngine Basic Pattern Matching should handle case-insensitive matching" duration="0"/>
+    <testCase name="OutputFilterEngine Basic Pattern Matching should handle complex regex patterns" duration="0"/>
+    <testCase name="OutputFilterEngine Time-based Filtering should filter by absolute timestamp (ISO)" duration="0"/>
+    <testCase name="OutputFilterEngine Time-based Filtering should filter by relative timestamp" duration="0"/>
+    <testCase name="OutputFilterEngine Time-based Filtering should handle various relative time formats" duration="0"/>
+    <testCase name="OutputFilterEngine Line-based Operations should return first N lines (head)" duration="0"/>
+    <testCase name="OutputFilterEngine Line-based Operations should return last N lines (tail)" duration="0"/>
+    <testCase name="OutputFilterEngine Line-based Operations should return specific line range" duration="0"/>
+    <testCase name="OutputFilterEngine Line-based Operations should handle invalid line ranges gracefully" duration="0"/>
+    <testCase name="OutputFilterEngine Multi-pattern Search should handle AND logic with multiple patterns" duration="51">
+      <failure message="Error: expect(received).toHaveLength(expected)"><![CDATA[Error: expect(received).toHaveLength(expected)
+
+Expected length: 3
+Received length: 2
+Received array:  [{"data": "ERROR: Database connection failed", "sessionId": "test-session", "timestamp": 2025-10-31T23:55:43.453Z, "type": "stdout"}, {"data": "ERROR: Database timeout", "sessionId": "test-session", "timestamp": 2025-10-31T23:55:47.453Z, "type": "stdout"}]
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts:247:37)]]></failure>
+    </testCase>
+    <testCase name="OutputFilterEngine Multi-pattern Search should handle OR logic with multiple patterns" duration="0"/>
+    <testCase name="OutputFilterEngine Multi-pattern Search should combine multi-pattern with other filters" duration="0"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle 100k+ lines efficiently" duration="0"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should use streaming mode for large outputs" duration="0"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should respect maxLines limit for performance" duration="0"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should maintain performance with complex regex patterns" duration="0"/>
+    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle memory efficiently with streaming" duration="0"/>
+    <testCase name="OutputFilterEngine Combined Filter Operations should apply multiple filters in correct order" duration="0"/>
+    <testCase name="OutputFilterEngine Combined Filter Operations should handle edge cases with empty results" duration="0"/>
+    <testCase name="OutputFilterEngine Combined Filter Operations should validate filter options" duration="0"/>
+    <testCase name="OutputFilterEngine Caching and Optimization should cache regex patterns for performance" duration="0"/>
+    <testCase name="OutputFilterEngine Caching and Optimization should cache timestamp parsing for performance" duration="0"/>
+    <testCase name="OutputFilterEngine Real-world Scenarios should filter application logs effectively" duration="0"/>
+    <testCase name="OutputFilterEngine Real-world Scenarios should handle build output filtering" duration="0"/>
+    <testCase name="OutputFilterEngine Real-world Scenarios should filter server access logs" duration="0"/>
   </file>
 </testExecutions>

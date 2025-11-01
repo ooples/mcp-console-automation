@@ -118,6 +118,15 @@ export class OutputFilterEngine {
     const initialMemory = this.getMemoryUsage();
 
     try {
+      // Validate filter options first
+      const validation = this.validateFilterOptions(options);
+      if (!validation.valid) {
+        return {
+          success: false,
+          error: validation.errors.join('; '),
+        };
+      }
+
       this.logger.debug('Starting filter operation', {
         outputLines: output.length,
         options: JSON.stringify(options, null, 2),
@@ -130,6 +139,11 @@ export class OutputFilterEngine {
 
       let result = [...output]; // Start with copy to avoid mutation
       const filterStats: any = {};
+
+      // Apply maxLines limit first to reduce processing
+      if (options.maxLines && result.length > options.maxLines) {
+        result = result.slice(0, options.maxLines);
+      }
 
       // Apply streaming mode processing for large outputs
       if (options.streamingMode || output.length > 10000) {
@@ -180,19 +194,19 @@ export class OutputFilterEngine {
         filterStats.multiPatternMatches = multiResult.matches;
       }
 
-      // Step 5: Apply final limits
-      if (options.maxLines && result.length > options.maxLines) {
-        result = result.slice(0, options.maxLines);
-      }
-
       const endTime = performance.now();
       const finalMemory = this.getMemoryUsage();
       const processingTime = endTime - startTime;
 
+      // Determine total lines processed (either limited by maxLines or full output)
+      const totalLinesProcessed = options.maxLines && output.length > options.maxLines
+        ? options.maxLines
+        : output.length;
+
       // Update metrics
       this.updateMetrics(
         processingTime,
-        output.length,
+        totalLinesProcessed,
         finalMemory - initialMemory
       );
 
@@ -201,7 +215,7 @@ export class OutputFilterEngine {
         filteredOutput: result,
         output: result, // Legacy compatibility
         metrics: {
-          totalLines: output.length,
+          totalLines: totalLinesProcessed,
           filteredLines: result.length,
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
@@ -209,7 +223,7 @@ export class OutputFilterEngine {
           filterStats,
         },
         metadata: {
-          totalLines: output.length,
+          totalLines: totalLinesProcessed,
           filteredLines: result.length,
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
@@ -327,6 +341,8 @@ export class OutputFilterEngine {
     let matches = 0;
     const filtered = output.filter((item) => {
       const text = item.data;
+      // Reset lastIndex to avoid issues with global flag
+      regex.lastIndex = 0;
       const isMatch = regex.test(text);
 
       if (isMatch) matches++;
@@ -354,7 +370,11 @@ export class OutputFilterEngine {
     let matches = 0;
     const filtered = output.filter((item) => {
       const text = item.data;
-      const results = regexes.map((regex) => regex.test(text));
+      const results = regexes.map((regex) => {
+        // Reset lastIndex to avoid issues with global flag
+        regex.lastIndex = 0;
+        return regex.test(text);
+      });
 
       const isMatch =
         logic === 'AND'
@@ -574,7 +594,7 @@ export class OutputFilterEngine {
       try {
         new RegExp(options.grep);
       } catch (error) {
-        errors.push(`Invalid grep pattern: ${options.grep}`);
+        errors.push(`Invalid regex pattern: ${options.grep}`);
       }
     }
 
@@ -592,10 +612,10 @@ export class OutputFilterEngine {
     if (options.lineRange) {
       const [start, end] = options.lineRange;
       if (start < 1) {
-        errors.push('Line range start must be >= 1');
+        errors.push('Invalid line range: start must be >= 1');
       }
       if (end < start) {
-        errors.push('Line range end must be >= start');
+        errors.push('Invalid line range: end must be >= start');
       }
     }
 
