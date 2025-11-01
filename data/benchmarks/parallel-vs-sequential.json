@@ -1,1 +1,23 @@
-{"runs": [], "latestRun": null, "averageSpeedup": 0}
+{
+  "runs": [
+    {
+      "timestamp": "2025-11-01T17:23:28.245Z",
+      "testCount": 12,
+      "workers": 4,
+      "sequentialDuration": 1,
+      "parallelDuration": 131,
+      "speedup": 0.01,
+      "timeSaved": -130
+    }
+  ],
+  "latestRun": {
+    "timestamp": "2025-11-01T17:23:28.245Z",
+    "testCount": 12,
+    "workers": 4,
+    "sequentialDuration": 1,
+    "parallelDuration": 131,
+    "speedup": 0.01,
+    "timeSaved": -130
+  },
+  "averageSpeedup": 0.01
+}
