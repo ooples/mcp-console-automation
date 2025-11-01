@@ -1,31 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testExecutions version="1">
-  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\outputFilterEngine.test.ts">
-    <testCase name="OutputFilterEngine Basic Pattern Matching should filter lines with simple regex pattern" duration="39"/>
-    <testCase name="OutputFilterEngine Basic Pattern Matching should handle case-insensitive matching" duration="2"/>
-    <testCase name="OutputFilterEngine Basic Pattern Matching should handle complex regex patterns" duration="2"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should filter by absolute timestamp (ISO)" duration="2"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should filter by relative timestamp" duration="3"/>
-    <testCase name="OutputFilterEngine Time-based Filtering should handle various relative time formats" duration="4"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return first N lines (head)" duration="2"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return last N lines (tail)" duration="7"/>
-    <testCase name="OutputFilterEngine Line-based Operations should return specific line range" duration="4"/>
-    <testCase name="OutputFilterEngine Line-based Operations should handle invalid line ranges gracefully" duration="4"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should handle AND logic with multiple patterns" duration="3"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should handle OR logic with multiple patterns" duration="4"/>
-    <testCase name="OutputFilterEngine Multi-pattern Search should combine multi-pattern with other filters" duration="4"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle 100k+ lines efficiently" duration="178"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should use streaming mode for large outputs" duration="200"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should respect maxLines limit for performance" duration="214"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should maintain performance with complex regex patterns" duration="83"/>
-    <testCase name="OutputFilterEngine Performance and Large Data Tests should handle memory efficiently with streaming" duration="267"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should apply multiple filters in correct order" duration="2"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should handle edge cases with empty results" duration="2"/>
-    <testCase name="OutputFilterEngine Combined Filter Operations should validate filter options" duration="2"/>
-    <testCase name="OutputFilterEngine Caching and Optimization should cache regex patterns for performance" duration="18"/>
-    <testCase name="OutputFilterEngine Caching and Optimization should cache timestamp parsing for performance" duration="14"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should filter application logs effectively" duration="3"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should handle build output filtering" duration="3"/>
-    <testCase name="OutputFilterEngine Real-world Scenarios should filter server access logs" duration="3"/>
+  <file path="C:\Users\cheat\source\repos\mcp-console-automation\src\tests\TestReplayEngine.test.ts">
+    <testCase name="TestReplayEngine replay should replay a simple recording" duration="130"/>
+    <testCase name="TestReplayEngine replay should handle recording with wait_for_output" duration="124">
+      <failure message="Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)"><![CDATA[Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+- Expected
++ Received
+
+- "test-session-123",
++ {"sessionId": "test-session-123", "success": true},
+  "prompt>",
+  {"timeout": 5000},
+
+Number of calls: 1
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\TestReplayEngine.test.ts:110:48)]]></failure>
+    </testCase>
+    <testCase name="TestReplayEngine replay should skip assertion and snapshot steps (Phase 2)" duration="63">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: "success"
+Received: "failure"
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\TestReplayEngine.test.ts:140:29)]]></failure>
+    </testCase>
+    <testCase name="TestReplayEngine replay should handle errors in steps" duration="29"/>
+    <testCase name="TestReplayEngine replay should stop on error if stopOnError is true" duration="31"/>
+    <testCase name="TestReplayEngine replay should continue on error if stopOnError is false" duration="47"/>
+    <testCase name="TestReplayEngine replay should respect timeout option" duration="221">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: "error"
+Received: "success"
+    at Object.<anonymous> (C:\Users\cheat\source\repos\mcp-console-automation\src\tests\TestReplayEngine.test.ts:249:29)]]></failure>
+    </testCase>
+    <testCase name="TestReplayEngine replay should validate output if validateOutput is true" duration="30"/>
+    <testCase name="TestReplayEngine replay should cleanup sessions after replay" duration="31"/>
+    <testCase name="TestReplayEngine replayByName should load and replay recording by name" duration="9"/>
+    <testCase name="TestReplayEngine replayByName should throw error if recording not found" duration="20"/>
+    <testCase name="TestReplayEngine Speed control should replay at normal speed (1x)" duration="112"/>
+    <testCase name="TestReplayEngine Speed control should replay at 2x speed" duration="64"/>
+    <testCase name="TestReplayEngine Speed control should fast-forward when speed is 0" duration="5"/>
+    <testCase name="TestReplayEngine Static methods getReplayStats should calculate replay statistics" duration="7"/>
+    <testCase name="TestReplayEngine Static methods formatResult should format result as human-readable string" duration="12"/>
+    <testCase name="TestReplayEngine Static methods formatResult should include error message if present" duration="7"/>
   </file>
 </testExecutions>
