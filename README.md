@@ -18,6 +18,10 @@ This server is **fully production-ready** with:
 - ✅ Easy installation scripts for all major MCP clients
 - ✅ All tests passing (see test-functionality.js)
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/ooples-mcp-console-automation).
+
 ## Features
 
 ### 🚀 Core Capabilities
