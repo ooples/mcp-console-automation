@@ -1,7 +1,7 @@
 {
   "name": "ooples-prod",
-  "host": "<FILL-IN-SERVER-IP-OR-HOST>",
+  "host": "51.81.109.208",
   "port": 22,
-  "username": "<FILL-IN-SSH-USERNAME>",
+  "username": "ubuntu",
   "_comment": "Non-secret connection metadata shared across all machines. Contains NO credentials. Each machine authenticates with its own ~/.ssh/claude_automation key (public key added to the server's authorized_keys). Fill host+username, commit, and every machine's bootstrap reads this."
 }
