@@ -8,6 +8,7 @@ import {
   SSHSessionOptions,
 } from '../core/SSHSessionHandler.js';
 import { Logger } from '../utils/logger.js';
+import { readFileSync } from 'fs';
 
 export class SSHBridge {
   private sshHandler: SSHSessionHandler;
@@ -46,13 +47,22 @@ export class SSHBridge {
    */
   async createSession(options: any): Promise<string> {
     try {
+      // Resolve the private key. Callers may supply the key inline via
+      // `privateKey` OR as a filesystem path via `privateKeyPath`. The
+      // underlying ssh2 client needs the key CONTENT, so read the file when a
+      // path is provided (or when `privateKey` itself points at a file on
+      // disk). Previously `privateKeyPath` was ignored entirely, so key-only
+      // callers reached ssh2 with no credentials -> "All configured
+      // authentication methods failed".
+      const resolvedPrivateKey = this.resolvePrivateKey(options);
+
       // Convert MCP options to SSH options
       const sshOptions: SSHSessionOptions = {
         host: options.sshOptions?.host || options.host,
         port: options.sshOptions?.port || options.port || 22,
         username: options.sshOptions?.username || options.username,
         password: options.sshOptions?.password || options.password,
-        privateKey: options.sshOptions?.privateKey || options.privateKey,
+        privateKey: resolvedPrivateKey,
         passphrase: options.sshOptions?.passphrase || options.passphrase,
         tryKeyboard: options.sshOptions?.tryKeyboard !== false,
         keepAliveInterval: options.sshOptions?.keepAliveInterval || 10000,
@@ -78,6 +88,46 @@ export class SSHBridge {
     } catch (error) {
       this.logger.error('Failed to create SSH session:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Resolve a private key value from MCP options into key CONTENT suitable for
+   * the ssh2 client. Accepts an inline key (`privateKey`) or a path
+   * (`privateKeyPath`); if `privateKey` itself looks like a filesystem path
+   * rather than PEM/OpenSSH content, it is read from disk.
+   */
+  private resolvePrivateKey(options: any): string | undefined {
+    const inlineKey: string | undefined =
+      options.sshOptions?.privateKey || options.privateKey;
+    const keyPath: string | undefined =
+      options.sshOptions?.privateKeyPath || options.privateKeyPath;
+
+    // Explicit path wins.
+    if (keyPath) {
+      try {
+        return readFileSync(keyPath, 'utf8');
+      } catch (error) {
+        this.logger.error(`Failed to read private key at ${keyPath}:`, error);
+        throw new Error(`Failed to read private key file: ${keyPath}`);
+      }
+    }
+
+    if (!inlineKey) {
+      return undefined;
+    }
+
+    // If the inline value is actual key material, use it as-is.
+    if (inlineKey.includes('BEGIN') && inlineKey.includes('PRIVATE KEY')) {
+      return inlineKey;
+    }
+
+    // Otherwise it may be a path passed in the privateKey field; read it.
+    try {
+      return readFileSync(inlineKey, 'utf8');
+    } catch {
+      // Not a readable path -- fall back to treating it as raw key content.
+      return inlineKey;
     }
   }
 
