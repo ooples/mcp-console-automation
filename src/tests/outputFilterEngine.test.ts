@@ -326,7 +326,9 @@ describe('OutputFilterEngine', () => {
 
       expect(result.success).toBe(true);
       expect(result.metrics.totalLines).toBe(150000);
-      expect(result.metrics.filteredLines).toBe(300); // Every 500th line is WARN
+      // Every 500th line is WARN or ERROR (300 lines), but the every-1000th (150) are ERROR,
+      // so exactly 150 are WARN.
+      expect(result.metrics.filteredLines).toBe(150);
       // Note: streamingUsed property not available in current metrics interface
     });
 

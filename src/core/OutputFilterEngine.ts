@@ -128,6 +128,18 @@ export class OutputFilterEngine {
         return this.createEmptyResult(startTime, initialMemory);
       }
 
+      // Validate options up front and fail gracefully instead of throwing mid-filter — e.g. an
+      // invalid grep regex would otherwise blow up in getOrCreateRegex.
+      const validation = this.validateFilterOptions(options);
+      if (!validation.valid) {
+        return this.createErrorResult(
+          validation.errors.join('; '),
+          startTime,
+          initialMemory,
+          output.length
+        );
+      }
+
       // maxLines caps how many lines are PROCESSED (documented "Maximum lines to process"):
       // truncate the input up front so both the work done and the reported totalLines reflect
       // the processed subset, rather than slicing the already-filtered output at the end.
@@ -161,15 +173,6 @@ export class OutputFilterEngine {
         filterStats.lineRangeFiltered = lineResult.removed;
       }
 
-      if (options.head && !options.tail) {
-        result = result.slice(0, options.head);
-      } else if (options.tail && !options.head) {
-        result = result.slice(-options.tail);
-      } else if (options.head && options.tail) {
-        // Apply head first, then tail (take first N, then last M of those)
-        result = result.slice(0, options.head).slice(-options.tail);
-      }
-
       // Step 3: Pattern matching (most CPU-intensive, apply after reduction)
       if (options.grep) {
         const grepResult = this.applyGrepFilter(result, options.grep, options);
@@ -185,6 +188,17 @@ export class OutputFilterEngine {
         );
         result = multiResult.filtered;
         filterStats.multiPatternMatches = multiResult.matches;
+      }
+
+      // Step 5: head/tail take the first/last N of the FILTERED output, so they must run AFTER the
+      // pattern filters — otherwise tail keeps the last N raw lines and the patterns then drop most.
+      if (options.head && !options.tail) {
+        result = result.slice(0, options.head);
+      } else if (options.tail && !options.head) {
+        result = result.slice(-options.tail);
+      } else if (options.head && options.tail) {
+        // First N, then last M of those.
+        result = result.slice(0, options.head).slice(-options.tail);
       }
 
       const endTime = performance.now();
@@ -506,6 +520,31 @@ export class OutputFilterEngine {
     };
   }
 
+  private createErrorResult(
+    error: string,
+    startTime: number,
+    initialMemory: number,
+    totalLines: number
+  ): FilterResult {
+    const endTime = performance.now();
+    const metrics = {
+      totalLines,
+      filteredLines: 0,
+      processingTimeMs: endTime - startTime,
+      memoryUsageBytes: this.getMemoryUsage() - initialMemory,
+      truncated: false,
+      filterStats: {},
+    };
+    return {
+      success: false,
+      error,
+      filteredOutput: [],
+      output: [], // Legacy compatibility
+      metrics,
+      metadata: { ...metrics }, // Legacy compatibility
+    };
+  }
+
   /**
    * Clear caches to free memory
    */
@@ -573,7 +612,7 @@ export class OutputFilterEngine {
       try {
         new RegExp(options.grep);
       } catch (error) {
-        errors.push(`Invalid grep pattern: ${options.grep}`);
+        errors.push(`Invalid regex pattern: ${options.grep}`);
       }
     }
 
@@ -591,10 +630,10 @@ export class OutputFilterEngine {
     if (options.lineRange) {
       const [start, end] = options.lineRange;
       if (start < 1) {
-        errors.push('Line range start must be >= 1');
+        errors.push('Invalid line range: start must be >= 1');
       }
       if (end < start) {
-        errors.push('Line range end must be >= start');
+        errors.push('Invalid line range: end must be >= start');
       }
     }
 
