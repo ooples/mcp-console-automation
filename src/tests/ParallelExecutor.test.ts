@@ -68,7 +68,9 @@ describe('ParallelExecutor', () => {
       // Both paths execute every test correctly. Wall-clock speedup is non-deterministic on shared
       // CI runners (and often negative for trivial workloads, where parallel is pure overhead), so
       // assert result correctness rather than a timing ratio.
-      expect(parallelResult.results.every((r) => r.status === 'pass')).toBe(true);
+      expect(parallelResult.results.every((r) => r.status === 'pass')).toBe(
+        true
+      );
       expect(sequentialResult.every((r) => r.status === 'pass')).toBe(true);
     });
   });

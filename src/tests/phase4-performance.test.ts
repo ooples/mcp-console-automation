@@ -73,7 +73,9 @@ describe('Phase 4 Performance', () => {
       // local speedup ratio is even Infinity when parallelDuration rounds to 0ms), so assert
       // correctness: all 12 tests ran and produced valid results.
       expect(parallelResult.results).toHaveLength(12);
-      expect(parallelResult.results.every((r) => r.test !== undefined)).toBe(true);
+      expect(parallelResult.results.every((r) => r.test !== undefined)).toBe(
+        true
+      );
 
       // Save benchmark results
       const benchmarkResult = {

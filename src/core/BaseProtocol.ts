@@ -283,7 +283,8 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
 
     // Check for direct .exe/.dll execution
     if (
-      (session.command?.endsWith('.exe') || session.command?.endsWith('.dll')) &&
+      (session.command?.endsWith('.exe') ||
+        session.command?.endsWith('.dll')) &&
       args.length > 0
     ) {
       return true;
@@ -355,9 +356,7 @@ export abstract class BaseProtocol extends EventEmitter implements IProtocol {
         // Extract quit character from prompt if present, otherwise use configured/default
         const extractedQuitChar = this.extractQuitCharFromPrompt(output.data);
         const quitCommand =
-          extractedQuitChar ||
-          sessionOptions?.dotnetQuitCommand ||
-          'q';
+          extractedQuitChar || sessionOptions?.dotnetQuitCommand || 'q';
 
         // Get flush delay from options or use default
         const flushDelay = sessionOptions?.completionFlushDelay ?? 200;
