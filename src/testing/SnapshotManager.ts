@@ -303,7 +303,10 @@ export class SnapshotManager {
       /[^a-zA-Z0-9_-]/g,
       '_'
     );
-    return `${sanitizedSessionId}-${snapshot.timestamp}.json`;
+    // Include a short content hash so multiple snapshots for the same session captured within the
+    // same millisecond (identical Date.now()) get distinct filenames instead of overwriting.
+    const suffix = snapshot.hash ? `-${snapshot.hash.slice(0, 12)}` : '';
+    return `${sanitizedSessionId}-${snapshot.timestamp}${suffix}.json`;
   }
 
   /**
