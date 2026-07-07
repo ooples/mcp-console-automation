@@ -156,12 +156,13 @@ export class AssertionEngine {
       throw new Error(`Expected actual to be string, got ${typeof actual}`);
     }
 
-    // Check for common error patterns
+    // Check for common error patterns. Match the bare words too (not just the colon-suffixed
+    // forms) so "Exception occurred" / "Fatal error" are detected as errors.
     const errorPatterns = [
-      /error:/i,
-      /exception:/i,
-      /fatal:/i,
-      /failed:/i,
+      /error/i,
+      /exception/i,
+      /fatal/i,
+      /fail(ed|ure)?/i,
       /cannot/i,
       /unable to/i,
       /permission denied/i,
