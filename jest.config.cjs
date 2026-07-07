@@ -62,7 +62,10 @@ module.exports = {
     '^.+\\.(js|jsx|cjs)$': 'babel-jest'
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(@kubernetes/client-node)/)'
+    // uuid ships ESM-only (dist-node is `import`); babel-jest (preset-env modules:commonjs)
+    // transpiles it to CJS so `import { v4 } from 'uuid'` loads under Jest instead of throwing
+    // "Must use import to load ES Module".
+    'node_modules/(?!(@kubernetes/client-node|uuid)/)'
   ],
   setupFilesAfterEnv: [
     '<rootDir>/tests/setup/jest.setup.ts'
