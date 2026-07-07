@@ -248,7 +248,10 @@ describe('OutputFilterEngine', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.filteredOutput).toHaveLength(3); // Only ERRORs containing 'Database'
+      // Only 2 lines contain BOTH 'ERROR' and 'Database':
+      // "ERROR: Database connection failed" and "ERROR: Database timeout".
+      // ("ERROR: Authentication failed" has ERROR but not Database.)
+      expect(result.filteredOutput).toHaveLength(2);
     });
 
     test('should handle OR logic with multiple patterns', async () => {
@@ -337,7 +340,9 @@ describe('OutputFilterEngine', () => {
 
       expect(result.success).toBe(true);
       expect(result.metrics.totalLines).toBe(50000); // Should only process 50k
-      expect(result.metrics.filteredLines).toBe(500); // Every 100th line in first 50k
+      // In the first 50k, i%100===0 gives 500 lines, but 100 of those are WARN/ERROR
+      // (i%500===0), so exactly 400 are INFO.
+      expect(result.metrics.filteredLines).toBe(400);
     });
 
     test('should maintain performance with complex regex patterns', async () => {

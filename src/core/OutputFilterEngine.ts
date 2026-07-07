@@ -128,7 +128,14 @@ export class OutputFilterEngine {
         return this.createEmptyResult(startTime, initialMemory);
       }
 
-      let result = [...output]; // Start with copy to avoid mutation
+      // maxLines caps how many lines are PROCESSED (documented "Maximum lines to process"):
+      // truncate the input up front so both the work done and the reported totalLines reflect
+      // the processed subset, rather than slicing the already-filtered output at the end.
+      const processedInput =
+        options.maxLines && output.length > options.maxLines
+          ? output.slice(0, options.maxLines)
+          : output;
+      let result = [...processedInput]; // Start with copy to avoid mutation
       const filterStats: any = {};
 
       // Apply streaming mode processing for large outputs
@@ -180,11 +187,6 @@ export class OutputFilterEngine {
         filterStats.multiPatternMatches = multiResult.matches;
       }
 
-      // Step 5: Apply final limits
-      if (options.maxLines && result.length > options.maxLines) {
-        result = result.slice(0, options.maxLines);
-      }
-
       const endTime = performance.now();
       const finalMemory = this.getMemoryUsage();
       const processingTime = endTime - startTime;
@@ -201,19 +203,19 @@ export class OutputFilterEngine {
         filteredOutput: result,
         output: result, // Legacy compatibility
         metrics: {
-          totalLines: output.length,
+          totalLines: processedInput.length,
           filteredLines: result.length,
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
-          truncated: result.length < output.length,
+          truncated: result.length < processedInput.length,
           filterStats,
         },
         metadata: {
-          totalLines: output.length,
+          totalLines: processedInput.length,
           filteredLines: result.length,
           processingTimeMs: processingTime,
           memoryUsageBytes: finalMemory - initialMemory,
-          truncated: result.length < output.length,
+          truncated: result.length < processedInput.length,
           filterStats,
         }, // Legacy compatibility
       };
@@ -242,15 +244,8 @@ export class OutputFilterEngine {
       // Process chunk and yield control
       result.push(...chunk);
 
-      // Yield control to event loop every chunk
+      // Yield control to event loop every chunk so large filters don't block it.
       await new Promise((resolve) => setImmediate(resolve));
-
-      // Memory pressure check
-      if (this.getMemoryUsage() > 100 * 1024 * 1024) {
-        // 100MB threshold
-        this.logger.warn('Memory pressure detected, reducing chunk size');
-        break;
-      }
     }
 
     return result;
