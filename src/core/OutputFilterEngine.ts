@@ -430,7 +430,11 @@ export class OutputFilterEngine {
 
     this.metrics.cacheMisses++;
 
-    let flags = 'g';
+    // No 'g' flag: these cached regexes are only used with .test() (applyGrepFilter /
+    // applyMultiPatternFilter). A global regex makes .test() stateful — it advances lastIndex,
+    // so reusing the cached instance across lines and calls silently skips matches. Only add
+    // 'i' when case-insensitive matching is requested.
+    let flags = '';
     if (options.ignoreCase) flags += 'i';
 
     const regex = new RegExp(pattern, flags);
