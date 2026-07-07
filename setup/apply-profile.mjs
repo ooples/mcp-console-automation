@@ -32,7 +32,13 @@ mkdirSync(cfgDir, { recursive: true });
 
 let cfg = { connectionProfiles: [], applicationProfiles: [] };
 if (existsSync(cfgFile)) {
-  try { cfg = JSON.parse(readFileSync(cfgFile, 'utf8')); } catch { /* start fresh on parse error */ }
+  try {
+    cfg = JSON.parse(readFileSync(cfgFile, 'utf8'));
+  } catch (err) {
+    console.error(`Existing config at ${cfgFile} could not be parsed (${err.message}).`);
+    console.error('Refusing to overwrite it automatically — back it up or fix it manually, then re-run.');
+    process.exit(1);
+  }
 }
 cfg.connectionProfiles = cfg.connectionProfiles || [];
 
@@ -45,7 +51,9 @@ const profile = {
     port: server.port || 22,
     username: server.username,
     privateKeyPath: keyPath,        // absolute local path — no ~ expansion ambiguity
-    strictHostKeyChecking: false,   // first-connect friendly; tighten later if desired
+    // Verify the server's host key (guards against MITM). Populate known_hosts once with a manual
+    // first connect — `ssh -p <port> <username>@<host>` — before running the MCP against this profile.
+    strictHostKeyChecking: true,
   },
 };
 

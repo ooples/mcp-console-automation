@@ -8,7 +8,17 @@ $key = Join-Path $sshDir 'claude_automation'
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "Node >=18 required" }
 
 Write-Host "[1/4] Build the MCP"
-Push-Location $repo; npm install; npm run build; Pop-Location
+# $ErrorActionPreference='Stop' does NOT trip on native exit codes, so check $LASTEXITCODE
+# after each npm call; try/finally guarantees Pop-Location even if a step throws.
+Push-Location $repo
+try {
+  npm install
+  if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE" }
+  npm run build
+  if ($LASTEXITCODE -ne 0) { throw "npm run build failed with exit code $LASTEXITCODE" }
+} finally {
+  Pop-Location
+}
 
 Write-Host "[2/4] Register the MCP with Claude Code (user scope)"
 if (Get-Command claude -ErrorAction SilentlyContinue) {
