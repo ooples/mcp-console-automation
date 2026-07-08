@@ -187,7 +187,11 @@ describe('Phase 1 Integration Tests', () => {
 
       const recording = recorder.stopRecording();
 
-      expect(recording.steps[0].timestamp).toBe(0);
+      // The recorder anchors timestamps to startRecording(), so the first step is
+      // "close to 0" rather than exactly 0 — a sub-millisecond gap before the first
+      // recordSendInput can make it 1 on a slow runner. This matches the recorder's
+      // own contract asserted in TestRecorder.test.ts (steps[0] <= 5).
+      expect(recording.steps[0].timestamp).toBeLessThanOrEqual(5);
       expect(recording.steps[1].timestamp).toBeGreaterThan(40);
       expect(recording.steps[2].timestamp).toBeGreaterThan(
         recording.steps[1].timestamp
