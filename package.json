@@ -134,12 +134,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ooples/console-automation-mcp.git"
+    "url": "git+https://github.com/ooples/mcp-console-automation.git"
   },
   "bugs": {
-    "url": "https://github.com/ooples/console-automation-mcp/issues"
+    "url": "https://github.com/ooples/mcp-console-automation/issues"
   },
-  "homepage": "https://github.com/ooples/console-automation-mcp#readme",
+  "homepage": "https://github.com/ooples/mcp-console-automation#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

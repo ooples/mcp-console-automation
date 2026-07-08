@@ -1,6 +1,6 @@
 {
   "branches": ["master"],
-  "repositoryUrl": "https://github.com/ooples/console-automation-mcp",
+  "repositoryUrl": "https://github.com/ooples/mcp-console-automation",
   "tagFormat": "v${version}",
   "plugins": [
     [
