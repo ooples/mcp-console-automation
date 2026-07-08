@@ -48,7 +48,8 @@ module.exports = {
     '^strip-ansi$': '<rootDir>/src/tests/__mocks__/strip-ansi.cjs',
     '^ansi-regex$': '<rootDir>/src/tests/__mocks__/ansi-regex.cjs',
     '^p-queue$': '<rootDir>/src/tests/__mocks__/p-queue.cjs',
-    '^@kubernetes/client-node$': '<rootDir>/src/tests/__mocks__/@kubernetes/client-node.cjs'
+    '^@kubernetes/client-node$': '<rootDir>/src/tests/__mocks__/@kubernetes/client-node.cjs',
+    '^uuid$': '<rootDir>/src/tests/__mocks__/uuid.cjs'
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node', 'mjs'],
   globals: {
@@ -62,10 +63,7 @@ module.exports = {
     '^.+\\.(js|jsx|cjs)$': 'babel-jest'
   },
   transformIgnorePatterns: [
-    // uuid ships ESM-only (dist-node is `import`); babel-jest (preset-env modules:commonjs)
-    // transpiles it to CJS so `import { v4 } from 'uuid'` loads under Jest instead of throwing
-    // "Must use import to load ES Module".
-    'node_modules/(?!(@kubernetes/client-node|uuid)/)'
+    'node_modules/(?!(@kubernetes/client-node)/)'
   ],
   setupFilesAfterEnv: [
     '<rootDir>/tests/setup/jest.setup.ts'
