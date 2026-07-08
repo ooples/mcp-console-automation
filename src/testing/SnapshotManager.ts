@@ -16,6 +16,11 @@ export interface SnapshotOptions {
 
 export class SnapshotManager {
   private snapshotsDir: string;
+  // Tracks the last timestamp handed out so two snapshots captured within the
+  // same millisecond still get distinct, strictly-increasing timestamps. A
+  // snapshot's timestamp is its identity for loadBySessionId(sessionId, ts), so
+  // collisions from a fast Date.now() would make that lookup ambiguous.
+  private lastTimestamp = 0;
 
   constructor(snapshotsDir?: string) {
     this.snapshotsDir =
@@ -41,7 +46,8 @@ export class SnapshotManager {
     state: any,
     metadata?: Record<string, any>
   ): Promise<SessionSnapshot> {
-    const timestamp = Date.now();
+    const timestamp = Math.max(Date.now(), this.lastTimestamp + 1);
+    this.lastTimestamp = timestamp;
 
     const snapshot: SessionSnapshot = {
       sessionId,
