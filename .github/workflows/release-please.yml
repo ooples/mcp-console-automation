@@ -1,0 +1,228 @@
+name: Release Please
+
+# Release-please maintains a "Release PR" that accumulates the version bump and
+# CHANGELOG entries from conventional commits merged to master. Merging that PR
+# creates the git tag + GitHub Release and sets release_created=true, which gates
+# the publish jobs below. Nothing is committed directly to the protected master
+# branch, so this avoids the GH006 "changes must be made through a pull request"
+# failure the old semantic-release @semantic-release/git step hit.
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish-npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for production
+        run: npm run build
+
+      # package.json is already bumped in the release commit that this tag points
+      # at, so no version rewrite is needed here.
+      - name: Publish to npm (provenance)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify publication
+        run: |
+          sleep 10
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          VERSION="${{ needs.release-please.outputs.version }}"
+          echo "Verifying publication of ${PACKAGE_NAME}@${VERSION}"
+          PUBLISHED_VERSION=$(npm view "${PACKAGE_NAME}@${VERSION}" version 2>/dev/null || echo "not_found")
+          if [ "$PUBLISHED_VERSION" = "$VERSION" ]; then
+            echo "Package successfully published!"
+          else
+            echo "Warning: Could not verify package publication"
+          fi
+
+  publish-mcp-registry:
+    name: Publish to MCP Registry
+    runs-on: ubuntu-latest
+    needs: [release-please, publish-npm]
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update server.json version
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          export VERSION
+          node -e "
+            const fs = require('fs');
+            const p = 'server.json';
+            if (!fs.existsSync(p)) { process.exit(0); }
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            j.version = process.env.VERSION;
+            if (Array.isArray(j.packages) && j.packages[0]) {
+              j.packages[0].version = process.env.VERSION;
+            }
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+          "
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install MCP Publisher CLI
+        run: |
+          git clone https://github.com/modelcontextprotocol/registry /tmp/mcp-registry
+          cd /tmp/mcp-registry
+          make publisher
+          sudo mv bin/mcp-publisher /usr/local/bin/
+          mcp-publisher --version
+
+      - name: Authenticate with GitHub OIDC
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: |
+          echo "Publishing ${GITHUB_REPOSITORY} to MCP Registry at version ${{ needs.release-please.outputs.version }}"
+          mcp-publisher publish
+
+      - name: MCP Registry summary
+        run: |
+          echo "## MCP Registry Publication" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Published io.github.ooples/console-automation-mcp v${{ needs.release-please.outputs.version }} to https://registry.modelcontextprotocol.io" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notify Release
+    runs-on: ubuntu-latest
+    needs: [release-please, publish-npm]
+    if: needs.release-please.outputs.release_created == 'true'
+    steps:
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Create notification message
+        id: notification
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ needs.release-please.outputs.tag_name }}"
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          MESSAGE="New release: ${PACKAGE_NAME} v${VERSION}\n"
+          MESSAGE="${MESSAGE}Release notes: ${RELEASE_URL}\n"
+          MESSAGE="${MESSAGE}npm: https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}"
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post to Discord (if configured)
+        if: vars.DISCORD_WEBHOOK_URL != ''
+        run: |
+          MESSAGE='${{ steps.notification.outputs.message }}'
+          curl -X POST "${{ vars.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"$MESSAGE\"}" \
+            || echo "Discord notification failed (optional)"
+
+      - name: Post to Slack (if configured)
+        if: vars.SLACK_WEBHOOK_URL != ''
+        run: |
+          MESSAGE='${{ steps.notification.outputs.message }}'
+          curl -X POST "${{ vars.SLACK_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"$MESSAGE\"}" \
+            || echo "Slack notification failed (optional)"
+
+      - name: Comment on related issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ needs.release-please.outputs.version }}';
+            const tag = '${{ needs.release-please.outputs.tag_name }}';
+            const releaseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${tag}`;
+
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag
+            });
+
+            const issueNumbers = [...new Set(
+              (release.body || '').match(/#(\d+)/g)?.map(m => parseInt(m.slice(1))) || []
+            )];
+
+            for (const number of issueNumbers) {
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: number,
+                  body: `This is included in [${version}](${releaseUrl}). :tada:`
+                });
+              } catch (err) {
+                console.log(`Could not comment on #${number}: ${err.message}`);
+              }
+            }
