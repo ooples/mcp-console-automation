@@ -11,6 +11,7 @@ on:
 
 jobs:
   unit-tests:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Unit Tests
     runs-on: ubuntu-latest
     strategy:
@@ -47,6 +48,7 @@ jobs:
         name: codecov-umbrella
 
   integration-tests:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Integration Tests
     runs-on: ${{ matrix.os }}
     strategy:
@@ -102,6 +104,7 @@ jobs:
       run: npm test -- --testPathPattern="test/integration/session-management\.test\.ts$" --testTimeout=45000
 
   ssh-tests:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: SSH Integration Tests
     runs-on: ubuntu-latest
     
@@ -160,6 +163,7 @@ jobs:
         SSH_TEST_KEY: ./test_key
 
   stress-tests:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Stress and Load Tests
     runs-on: ubuntu-latest
     
@@ -190,6 +194,7 @@ jobs:
         # Add any performance metric collection here
 
   security-scan:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Security Scan
     runs-on: ubuntu-latest
     
@@ -221,6 +226,7 @@ jobs:
       uses: github/codeql-action/analyze@v3
 
   docker-tests:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Docker Tests
     runs-on: ubuntu-latest
     
@@ -289,6 +295,7 @@ jobs:
         docker rm test-container
 
   cross-platform-tests:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Cross-Platform Tests
     runs-on: ${{ matrix.os }}
     strategy:
@@ -334,6 +341,7 @@ jobs:
   release-tests:
     name: Release Tests
     runs-on: ubuntu-latest
+    # Already push-to-main only, so it never runs on a (release-please) PR.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     needs: [unit-tests, integration-tests, ssh-tests, stress-tests, security-scan]
@@ -370,6 +378,7 @@ jobs:
   benchmark-tests:
     name: Performance Benchmarks
     runs-on: ubuntu-latest
+    # Schedule/dispatch only, so it never runs on a (release-please) PR.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     
     steps:
@@ -412,7 +421,8 @@ jobs:
   notify-results:
     name: Notify Results
     runs-on: ubuntu-latest
-    if: always()
+    # Runs even when upstream jobs fail, but still skip it on a (release-please) PR.
+    if: ${{ always() && !startsWith(github.head_ref, 'release-please--') }}
     needs: [unit-tests, integration-tests, ssh-tests, stress-tests, security-scan, docker-tests]
     
     steps:
