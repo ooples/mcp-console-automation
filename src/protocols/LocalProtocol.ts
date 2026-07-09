@@ -1,5 +1,7 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { platform } from 'os';
+import { existsSync } from 'fs';
+import { isAbsolute } from 'path';
 import { BaseProtocol } from '../core/BaseProtocol.js';
 import {
   ConsoleType,
@@ -460,42 +462,145 @@ export class LocalProtocol extends BaseProtocol {
     command: string;
     args: string[];
   } {
-    // If a direct command is provided, use it instead of the shell wrapper
-    // This is for executing programs directly (like .NET console apps, python scripts, etc.)
-    if (options?.command) {
+    const command = options?.command;
+
+    // A direct command is treated as a program to execute ONLY when it looks
+    // like a path to an actual executable (absolute path, contains a path
+    // separator, or a known executable extension). Bare command names such as
+    // shell builtins or PowerShell cmdlets (e.g. "Get-Date", "Write-Output",
+    // "ls") must be run THROUGH the selected shell -- spawning them directly
+    // fails with ENOENT and immediately tears the session down, which surfaced
+    // downstream as "Session <id> not found".
+    if (command && this.looksLikeExecutablePath(command)) {
       return {
-        command: options.command,
-        args: options.args || [],
+        command,
+        args: options?.args || [],
       };
     }
+
+    // If a (non-path) command is provided, wrap it so it runs inside the shell.
+    const shellCommand =
+      command && options?.args && options.args.length > 0
+        ? `${command} ${options.args.join(' ')}`
+        : command;
 
     // Otherwise, return the appropriate shell for interactive sessions
     switch (this.type) {
       case 'cmd':
+        if (shellCommand) {
+          return { command: 'cmd.exe', args: ['/d', '/s', '/c', shellCommand] };
+        }
         return { command: 'cmd.exe', args: ['/k'] };
-      case 'powershell':
+      case 'powershell': {
+        const pwshBin = this.resolvePowerShell();
+        if (shellCommand) {
+          return {
+            command: pwshBin,
+            args: ['-NoLogo', '-NoProfile', '-Command', shellCommand],
+          };
+        }
         // For one-shot sessions, don't use -NoExit so PowerShell closes after command
         return {
-          command: 'powershell.exe',
+          command: pwshBin,
           args: options?.isOneShot ? ['-NoLogo'] : ['-NoLogo', '-NoExit'],
         };
+      }
       case 'pwsh':
+        if (shellCommand) {
+          return {
+            command: 'pwsh',
+            args: ['-NoLogo', '-NoProfile', '-Command', shellCommand],
+          };
+        }
         // For one-shot sessions, don't use -NoExit so PowerShell Core closes after command
         return {
           command: 'pwsh',
           args: options?.isOneShot ? ['-NoLogo'] : ['-NoLogo', '-NoExit'],
         };
-      case 'bash':
-        return { command: 'bash', args: ['--login'] };
+      case 'bash': {
+        const bashBin = this.resolveBash();
+        if (shellCommand) {
+          return { command: bashBin, args: ['-c', shellCommand] };
+        }
+        return { command: bashBin, args: ['--login'] };
+      }
       case 'zsh':
+        if (shellCommand) {
+          return { command: 'zsh', args: ['-c', shellCommand] };
+        }
         return { command: 'zsh', args: ['-l'] };
       case 'sh':
+        if (shellCommand) {
+          return { command: 'sh', args: ['-c', shellCommand] };
+        }
         return { command: 'sh', args: [] };
       case 'auto':
         return this.getDefaultShell(options);
       default:
         throw new Error(`Unsupported shell type: ${this.type}`);
     }
+  }
+
+  /**
+   * Determine whether a provided command should be spawned as a standalone
+   * executable (a path to a program) rather than run through the shell.
+   */
+  private looksLikeExecutablePath(command: string): boolean {
+    const trimmed = command.trim();
+    if (!trimmed) {
+      return false;
+    }
+    // Absolute path or contains a path separator -> treat as an executable path.
+    if (isAbsolute(trimmed) || /[\\/]/.test(trimmed)) {
+      return true;
+    }
+    // Known executable/script extensions in the bare name.
+    if (/\.(exe|bat|cmd|com|ps1|sh)$/i.test(trimmed)) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Resolve a usable Windows PowerShell executable. Falls back to the bare
+   * name (PATH lookup) on non-Windows or if no known install is found.
+   */
+  private resolvePowerShell(): string {
+    if (platform() !== 'win32') {
+      return 'powershell.exe';
+    }
+    const candidates = [
+      `${process.env.SystemRoot || 'C:\\Windows'}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`,
+    ];
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return 'powershell.exe';
+  }
+
+  /**
+   * Resolve a usable bash executable. On Windows, `bash` is typically not on
+   * PATH; locate Git Bash (or WSL bash) instead of failing with ENOENT.
+   */
+  private resolveBash(): string {
+    if (platform() !== 'win32') {
+      return 'bash';
+    }
+    const candidates = [
+      `${process.env.ProgramFiles || 'C:\\Program Files'}\\Git\\bin\\bash.exe`,
+      `${process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)'}\\Git\\bin\\bash.exe`,
+      `${process.env.LOCALAPPDATA || ''}\\Programs\\Git\\bin\\bash.exe`,
+      `${process.env.ProgramFiles || 'C:\\Program Files'}\\Git\\usr\\bin\\bash.exe`,
+      `${process.env.SystemRoot || 'C:\\Windows'}\\System32\\bash.exe`,
+    ];
+    for (const candidate of candidates) {
+      if (candidate && existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return 'bash';
   }
 
   private getDefaultShell(options?: SessionOptions): {
@@ -506,13 +611,13 @@ export class LocalProtocol extends BaseProtocol {
       case 'win32':
         // For one-shot sessions, don't use -NoExit so PowerShell closes after command
         return {
-          command: 'powershell.exe',
+          command: this.resolvePowerShell(),
           args: options?.isOneShot ? ['-NoLogo'] : ['-NoLogo', '-NoExit'],
         };
       case 'darwin':
         return { command: 'zsh', args: ['-l'] };
       default:
-        return { command: 'bash', args: ['--login'] };
+        return { command: this.resolveBash(), args: ['--login'] };
     }
   }
 
@@ -570,9 +675,17 @@ export class LocalProtocol extends BaseProtocol {
       case 'cmd':
         return ['/C', 'ver'];
       case 'powershell':
-        return ['-Command', '$PSVersionTable.PSVersion.ToString()'];
+        return [
+          '-NoProfile',
+          '-Command',
+          '$PSVersionTable.PSVersion.ToString()',
+        ];
       case 'pwsh':
-        return ['-Command', '$PSVersionTable.PSVersion.ToString()'];
+        return [
+          '-NoProfile',
+          '-Command',
+          '$PSVersionTable.PSVersion.ToString()',
+        ];
       case 'bash':
         return ['--version'];
       case 'zsh':
@@ -587,7 +700,11 @@ export class LocalProtocol extends BaseProtocol {
           defaultShell.command.includes('powershell') ||
           defaultShell.command.includes('pwsh')
         ) {
-          return ['-Command', '$PSVersionTable.PSVersion.ToString()'];
+          return [
+            '-NoProfile',
+            '-Command',
+            '$PSVersionTable.PSVersion.ToString()',
+          ];
         } else if (defaultShell.command.includes('cmd')) {
           return ['/C', 'ver'];
         } else {
