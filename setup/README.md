@@ -43,13 +43,13 @@ Restart Claude Code (or `/mcp` reconnect) afterward so the MCP tools load.
 
 Once your machine's pubkey is on the server, connect via the shared profile:
 
-```
+```text
 console_use_profile  name=ooples-prod
 ```
 
 or explicitly:
 
-```
+```text
 console_create_session  consoleType=ssh
   sshOptions={ host: <from server.json>, username: <from server.json>,
                privateKeyPath: ~/.ssh/claude_automation }

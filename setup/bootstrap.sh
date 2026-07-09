@@ -13,8 +13,12 @@ echo "[1/4] Build the MCP"
 
 echo "[2/4] Register the MCP with Claude Code (user scope)"
 if command -v claude >/dev/null 2>&1; then
-  claude mcp add console-automation --scope user -- node "$REPO/dist/mcp/server.js" 2>/dev/null \
-    || echo "  (already registered or add manually)"
+  if ! output=$(claude mcp add console-automation --scope user -- node "$REPO/dist/mcp/server.js" 2>&1); then
+    case "$output" in
+      *already*) echo "  (already registered)" ;;
+      *) echo "$output" >&2; exit 1 ;;
+    esac
+  fi
 fi
 
 echo "[3/4] Ensure this machine's ed25519 key"
