@@ -675,9 +675,17 @@ export class LocalProtocol extends BaseProtocol {
       case 'cmd':
         return ['/C', 'ver'];
       case 'powershell':
-        return ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()'];
+        return [
+          '-NoProfile',
+          '-Command',
+          '$PSVersionTable.PSVersion.ToString()',
+        ];
       case 'pwsh':
-        return ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()'];
+        return [
+          '-NoProfile',
+          '-Command',
+          '$PSVersionTable.PSVersion.ToString()',
+        ];
       case 'bash':
         return ['--version'];
       case 'zsh':
@@ -692,7 +700,11 @@ export class LocalProtocol extends BaseProtocol {
           defaultShell.command.includes('powershell') ||
           defaultShell.command.includes('pwsh')
         ) {
-          return ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()'];
+          return [
+            '-NoProfile',
+            '-Command',
+            '$PSVersionTable.PSVersion.ToString()',
+          ];
         } else if (defaultShell.command.includes('cmd')) {
           return ['/C', 'ver'];
         } else {
