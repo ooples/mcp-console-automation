@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   bundle-size:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Bundle Size Analysis
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -36,6 +37,7 @@ jobs:
           fi
 
   lint:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -53,6 +55,7 @@ jobs:
         run: npm run lint
 
   typecheck:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Type Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
