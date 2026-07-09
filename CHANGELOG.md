@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/ooples/mcp-console-automation/compare/v1.1.0...v1.1.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* **remote:** honor private-key path, find git bash, run shell builtins via shell ([#80](https://github.com/ooples/mcp-console-automation/issues/80)) ([e6615b2](https://github.com/ooples/mcp-console-automation/commit/e6615b23937df85417791df0843d87de8143d4a1))
+
 ## [1.1.0](https://github.com/ooples/mcp-console-automation/compare/v1.0.2...v1.1.0) (2026-07-08)
 
 
