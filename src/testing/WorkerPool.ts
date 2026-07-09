@@ -262,9 +262,12 @@ export class WorkerPool extends EventEmitter {
     workerInfo.currentTask = undefined;
     workerInfo.tasksCompleted++;
 
+    // The worker posts its payload as { taskId, result: TestResult }; unwrap to the inner
+    // TestResult so consumers get { test, status, duration, ... } rather than that wrapper
+    // (the wrapper has no test/duration, which surfaced as NaN speedup and undefined fields).
     const workerResult: WorkerResult = {
       taskId: task.id,
-      result,
+      result: result && result.result !== undefined ? result.result : result,
     };
 
     this.emit('task-complete', workerResult);

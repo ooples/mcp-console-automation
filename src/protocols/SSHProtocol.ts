@@ -113,7 +113,13 @@ export class SSHProtocol extends BaseProtocol {
         port: options.sshOptions.port,
         username: options.sshOptions.username,
         password: options.sshOptions.password,
-        privateKey: options.sshOptions.privateKey,
+        // SSHAdapter treats `privateKey` as a filesystem PATH (uses `ssh -i`
+        // for key auth). Accept `privateKeyPath` as an alias so key-only
+        // callers authenticate instead of failing with "authentication
+        // methods failed".
+        privateKey:
+          options.sshOptions.privateKey ||
+          (options.sshOptions as any).privateKeyPath,
         strictHostKeyChecking: options.sshOptions.strictHostKeyChecking,
         timeout: options.timeout || this.capabilities.defaultTimeout,
       };
@@ -212,7 +218,9 @@ export class SSHProtocol extends BaseProtocol {
             port: session.sshOptions.port,
             username: session.sshOptions.username,
             password: session.sshOptions.password,
-            privateKey: session.sshOptions.privateKey,
+            privateKey:
+              session.sshOptions.privateKey ||
+              (session.sshOptions as any).privateKeyPath,
             strictHostKeyChecking: session.sshOptions.strictHostKeyChecking,
             timeout: this.capabilities.defaultTimeout,
           };

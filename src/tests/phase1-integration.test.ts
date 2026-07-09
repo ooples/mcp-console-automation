@@ -97,14 +97,14 @@ describe('Phase 1 Integration Tests', () => {
 
       expect(savedRecording.name).toBe('e2e-test');
       expect(savedRecording.steps.length).toBe(3);
-      expect(fs.existsSync(path.join(testDir, 'e2e_test.json'))).toBe(true);
+      expect(fs.existsSync(path.join(testDir, 'e2e-test.json'))).toBe(true);
 
       // Step 3: List recordings
       const recordings = TestRecorder.listRecordings(testDir);
-      expect(recordings).toContain('e2e_test');
+      expect(recordings).toContain('e2e-test');
 
       // Step 4: Load and verify
-      const loaded = TestRecorder.loadRecording('e2e_test', testDir);
+      const loaded = TestRecorder.loadRecording('e2e-test', testDir);
       expect(loaded.name).toBe('e2e-test');
       expect(loaded.steps.length).toBe(3);
       expect(loaded.metadata.description).toBe(
@@ -187,7 +187,11 @@ describe('Phase 1 Integration Tests', () => {
 
       const recording = recorder.stopRecording();
 
-      expect(recording.steps[0].timestamp).toBe(0);
+      // The recorder anchors timestamps to startRecording(), so the first step is
+      // "close to 0" rather than exactly 0 — a sub-millisecond gap before the first
+      // recordSendInput can make it 1 on a slow runner. This matches the recorder's
+      // own contract asserted in TestRecorder.test.ts (steps[0] <= 5).
+      expect(recording.steps[0].timestamp).toBeLessThanOrEqual(5);
       expect(recording.steps[1].timestamp).toBeGreaterThan(40);
       expect(recording.steps[2].timestamp).toBeGreaterThan(
         recording.steps[1].timestamp
@@ -206,7 +210,7 @@ describe('Phase 1 Integration Tests', () => {
       recorder.recordCreateSession('s1', { command: 'bash' });
       recorder.stopRecording();
 
-      const loaded = TestRecorder.loadRecording('metadata_test', testDir);
+      const loaded = TestRecorder.loadRecording('metadata-test', testDir);
 
       expect(loaded.metadata.author).toBe(metadata.author);
       expect(loaded.metadata.description).toBe(metadata.description);
@@ -333,7 +337,7 @@ describe('Phase 1 Integration Tests', () => {
       recorder.startRecording({ name: 'delete-test' });
       recorder.stopRecording();
 
-      const filepath = path.join(testDir, 'delete_test.json');
+      const filepath = path.join(testDir, 'delete-test.json');
       expect(fs.existsSync(filepath)).toBe(true);
 
       TestRecorder.deleteRecording('delete-test', testDir);

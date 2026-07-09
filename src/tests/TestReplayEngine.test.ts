@@ -19,11 +19,11 @@ describe('TestReplayEngine', () => {
     mockConsoleManager = new ConsoleManager() as jest.Mocked<ConsoleManager>;
     engine = new TestReplayEngine(mockConsoleManager);
 
-    // Setup default mocks
-    mockConsoleManager.createSession = jest.fn().mockResolvedValue({
-      sessionId: 'test-session-123',
-      success: true,
-    });
+    // Setup default mocks. createSession resolves to the session id string (its real return type
+    // is Promise<string>), so the engine maps recorded session ids to 'test-session-123'.
+    mockConsoleManager.createSession = jest
+      .fn()
+      .mockResolvedValue('test-session-123');
 
     mockConsoleManager.sendInput = jest.fn().mockResolvedValue({
       success: true,
@@ -107,11 +107,11 @@ describe('TestReplayEngine', () => {
       const result = await engine.replay(recording);
 
       expect(result.status).toBe('success');
-      expect(mockConsoleManager.waitForOutput).toHaveBeenCalledWith({
-        sessionId: 'test-session-123',
-        pattern: 'prompt>',
-        timeout: 5000,
-      });
+      expect(mockConsoleManager.waitForOutput).toHaveBeenCalledWith(
+        'test-session-123',
+        'prompt>',
+        { timeout: 5000 }
+      );
     });
 
     it('should skip assertion and snapshot steps (Phase 2)', async () => {
