@@ -37,7 +37,11 @@ jobs:
         run: npx commitlint --from HEAD~1 --to HEAD --verbose
 
       - name: Validate PR commits
-        if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+        # Dependabot commit subjects ("build(deps): Bump X from Y to Z") use a
+        # fixed, capitalized "Bump" that the subject-case rule rejects. The bot's
+        # format is trusted and not author-editable, so skip commitlint for its
+        # PRs instead of failing every dependency bump.
+        if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && github.actor != 'dependabot[bot]'
         id: commitlint
         run: |
           echo "::group::Debug Information"
