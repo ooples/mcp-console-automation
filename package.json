@@ -87,7 +87,7 @@
     "ssh2": "^1.17.0",
     "ssh2-sftp-client": "^10.0.3",
     "strip-ansi": "^7.1.0",
-    "systeminformation": "^5.27.14",
+    "systeminformation": "^5.31.6",
     "uuid": "^14.0.0",
     "winston": "^3.11.0",
     "ws": "^8.21.0",
