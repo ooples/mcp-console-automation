@@ -153,8 +153,10 @@ export class RetryManager {
    */
   getRetryStatistics(retryResults: RetryResult[]) {
     const totalTests = retryResults.length;
+    // Every entry here is a retried previously-failed test, so a pass on the first retry
+    // (attempts === 1) already counts as "succeeded after retry".
     const successAfterRetry = retryResults.filter(
-      (r) => r.finalResult.status === 'pass' && r.attempts > 1
+      (r) => r.finalResult.status === 'pass' && r.attempts >= 1
     ).length;
     const failedAfterRetry = retryResults.filter(
       (r) => r.finalResult.status !== 'pass'

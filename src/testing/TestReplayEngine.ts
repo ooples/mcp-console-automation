@@ -87,12 +87,29 @@ export class TestReplayEngine {
 
         lastStepTime = step.timestamp;
 
-        // Execute step
-        const stepResult = await this.executeStep(step, validateOutput);
+        // Execute the step, racing it against the remaining overall-timeout budget so a single
+        // slow/hanging step can't blow past the timeout (the pre-step check alone can't catch that).
+        const remaining = timeout - (Date.now() - startTime);
+        if (remaining <= 0) {
+          throw new Error(`Replay timeout exceeded: ${timeout}ms`);
+        }
+        let stepTimer: ReturnType<typeof setTimeout> | undefined;
+        const stepResult = await Promise.race<StepResult>([
+          this.executeStep(step, validateOutput),
+          new Promise<StepResult>((_resolve, reject) => {
+            stepTimer = setTimeout(
+              () => reject(new Error(`Replay timeout exceeded: ${timeout}ms`)),
+              remaining
+            );
+          }),
+        ]).finally(() => {
+          if (stepTimer) clearTimeout(stepTimer);
+        });
         results.push(stepResult);
 
-        // Check step result
-        if (stepResult.status === 'fail' || stepResult.status === 'skip') {
+        // Check step result. A skipped step (e.g. assert/snapshot, deferred to Phase 2) is not a
+        // failure — only a genuine 'fail' marks the replay failed.
+        if (stepResult.status === 'fail') {
           overallStatus = 'failure';
           if (stopOnError) {
             break;

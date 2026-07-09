@@ -239,11 +239,13 @@ export class Matchers {
       throw new Error('toContainError requires actual to be a string');
     }
 
+    // Match common error phrasings, not just the colon-suffixed forms — "Exception occurred" and
+    // "Fatal error" are errors too, so don't require a trailing colon.
     const defaultErrorPatterns = [
-      /error:/i,
-      /exception:/i,
-      /fatal:/i,
-      /failed:/i,
+      /error/i,
+      /exception/i,
+      /fatal/i,
+      /fail(ed|ure)?/i,
       /cannot/i,
       /unable to/i,
       /permission denied/i,

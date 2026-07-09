@@ -275,7 +275,9 @@ export class CodeGenerator {
     switch (lang) {
       case 'javascript':
       case 'typescript':
-        return `await manager.sendInput({ sessionId, input: "${escaped}" });`;
+        // Single-quote the shell input so commands containing double quotes (e.g. echo "hello")
+        // render readably instead of being backslash-escaped inside a double-quoted string.
+        return `await manager.sendInput({ sessionId, input: '${this.escapeSingleQuoted(input)}' });`;
 
       case 'python':
         return `self.manager.send_input(self.session_id, "${escaped}")`;
@@ -394,6 +396,16 @@ export class CodeGenerator {
     return str
       .replace(/\\/g, '\\\\')
       .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t');
+  }
+
+  // Escape for a single-quoted JS string literal (keeps embedded double quotes readable).
+  private escapeSingleQuoted(str: string): string {
+    return str
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
       .replace(/\n/g, '\\n')
       .replace(/\r/g, '\\r')
       .replace(/\t/g, '\\t');

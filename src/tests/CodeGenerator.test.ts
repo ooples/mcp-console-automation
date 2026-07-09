@@ -28,7 +28,12 @@ describe('CodeGenerator', () => {
     if (fs.existsSync(testOutputDir)) {
       const files = fs.readdirSync(testOutputDir);
       files.forEach((file) => {
-        fs.unlinkSync(path.join(testOutputDir, file));
+        // rmSync (recursive) removes both files and the subdirectories some tests create;
+        // unlinkSync throws on a directory (EPERM on Windows, EISDIR on Linux).
+        fs.rmSync(path.join(testOutputDir, file), {
+          recursive: true,
+          force: true,
+        });
       });
     }
   });

@@ -15,11 +15,12 @@ describe('OutputFilterEngine', () => {
   // Helper function to create test console output
   const createTestOutput = (
     lines: string[],
-    baseTimestamp = Date.now()
+    baseTimestamp = Date.now(),
+    intervalMs = 1000
   ): ConsoleOutput[] => {
     return lines.map((line, index) => ({
       sessionId: 'test-session',
-      timestamp: new Date(baseTimestamp + index * 1000), // 1 second apart
+      timestamp: new Date(baseTimestamp + index * intervalMs),
       type: 'stdout' as const,
       data: line,
     }));
@@ -111,8 +112,9 @@ describe('OutputFilterEngine', () => {
       const now = new Date();
       const output = createTestOutput(
         ['Old log entry', 'Another old entry', 'Recent entry', 'Latest entry'],
-        now.getTime() - 10000
-      ); // 10 seconds ago
+        now.getTime() - 10000,
+        3000
+      ); // 4 entries 3s apart spanning the last 10s (the 1s default clustered them all >5s old)
 
       const filterTime = new Date(now.getTime() - 5000).toISOString(); // 5 seconds ago
 
@@ -128,8 +130,9 @@ describe('OutputFilterEngine', () => {
       const now = Date.now();
       const output = createTestOutput(
         ['Very old entry', 'Old entry', 'Recent entry', 'Latest entry'],
-        now - 600000
-      ); // 10 minutes ago
+        now - 600000,
+        180000
+      ); // 4 entries 3min apart spanning the last 10min; `since: 5m` keeps the last 2
 
       const result = await filterEngine.filter(output, {
         since: '5m', // Last 5 minutes
@@ -151,8 +154,9 @@ describe('OutputFilterEngine', () => {
         const now = Date.now();
         const output = createTestOutput(
           ['Old entry', 'Recent entry'],
-          now - (testCase.milliseconds + 1000)
-        ); // Just outside the window
+          now - Math.floor(testCase.milliseconds * 1.5),
+          testCase.milliseconds
+        ); // Old entry 1.5x-window old (outside); recent entry 0.5x-window old (safely inside)
 
         const result = await filterEngine.filter(output, {
           since: testCase.format,
@@ -244,7 +248,10 @@ describe('OutputFilterEngine', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.filteredOutput).toHaveLength(3); // Only ERRORs containing 'Database'
+      // Only 2 lines contain BOTH 'ERROR' and 'Database':
+      // "ERROR: Database connection failed" and "ERROR: Database timeout".
+      // ("ERROR: Authentication failed" has ERROR but not Database.)
+      expect(result.filteredOutput).toHaveLength(2);
     });
 
     test('should handle OR logic with multiple patterns', async () => {
@@ -319,7 +326,9 @@ describe('OutputFilterEngine', () => {
 
       expect(result.success).toBe(true);
       expect(result.metrics.totalLines).toBe(150000);
-      expect(result.metrics.filteredLines).toBe(300); // Every 500th line is WARN
+      // Every 500th line is WARN or ERROR (300 lines), but the every-1000th (150) are ERROR,
+      // so exactly 150 are WARN.
+      expect(result.metrics.filteredLines).toBe(150);
       // Note: streamingUsed property not available in current metrics interface
     });
 
@@ -333,7 +342,9 @@ describe('OutputFilterEngine', () => {
 
       expect(result.success).toBe(true);
       expect(result.metrics.totalLines).toBe(50000); // Should only process 50k
-      expect(result.metrics.filteredLines).toBe(500); // Every 100th line in first 50k
+      // In the first 50k, i%100===0 gives 500 lines, but 100 of those are WARN/ERROR
+      // (i%500===0), so exactly 400 are INFO.
+      expect(result.metrics.filteredLines).toBe(400);
     });
 
     test('should maintain performance with complex regex patterns', async () => {
