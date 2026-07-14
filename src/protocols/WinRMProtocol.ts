@@ -1,4 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
+import { readFileSync } from 'node:fs';
 import * as https from 'https';
 import * as http from 'http';
 import * as xml2js from 'xml2js';
@@ -129,8 +130,6 @@ export class WinRMProtocol extends BaseProtocol {
       explicitArray: false,
       ignoreAttrs: false,
     });
-
-    this.isInitialized = true;
   }
 
   /**
@@ -878,8 +877,7 @@ export class WinRMProtocol extends BaseProtocol {
     }
 
     // Read local file
-    const fs = require('fs');
-    const fileContent = fs.readFileSync(localPath);
+    const fileContent = readFileSync(localPath);
     const base64Content = fileContent.toString('base64');
 
     // Use PowerShell to write file on remote system

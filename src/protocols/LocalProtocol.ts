@@ -736,7 +736,6 @@ export class LocalProtocol extends BaseProtocol {
 
       // Add to BaseProtocol's output buffer
       this.addToOutputBuffer(session.id, output);
-      this.emit('output', output);
     });
 
     // Handle stderr
@@ -755,7 +754,6 @@ export class LocalProtocol extends BaseProtocol {
 
       // Add to BaseProtocol's output buffer
       this.addToOutputBuffer(session.id, output);
-      this.emit('output', output);
     });
 
     // Handle process exit

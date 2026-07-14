@@ -21,10 +21,10 @@ import { SecurityTester } from '../../security/protocol-security.js';
 
 // Mock Azure SDK
 jest.mock('@azure/identity');
-jest.mock('@azure/arm-resources');
+jest.mock('@azure/arm-resources', () => ({}), { virtual: true });
 jest.mock('@azure/arm-compute');
-jest.mock('@azure/arm-storage');
-jest.mock('@azure/storage-file-share');
+jest.mock('@azure/arm-storage', () => ({}), { virtual: true });
+jest.mock('@azure/storage-file-share', () => ({}), { virtual: true });
 
 const mockCredential = {
   getToken: jest.fn<any>().mockResolvedValue({
@@ -157,7 +157,7 @@ describeIfCloud('AzureShellProtocol Integration Tests', () => {
 
     jest.doMock('@azure/arm-resources', () => ({
       ResourceManagementClient: jest.fn(() => mockResourcesClient)
-    }));
+    }), { virtual: true });
 
     jest.doMock('@azure/arm-compute', () => ({
       ComputeManagementClient: jest.fn(() => mockComputeClient)
@@ -165,7 +165,7 @@ describeIfCloud('AzureShellProtocol Integration Tests', () => {
 
     jest.doMock('@azure/arm-storage', () => ({
       StorageManagementClient: jest.fn(() => mockStorageClient)
-    }));
+    }), { virtual: true });
 
     // Mock WebSocket for Azure Cloud Shell
     (global as any).WebSocket = MockAzureCloudShellWebSocket;

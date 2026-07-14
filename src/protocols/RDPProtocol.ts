@@ -4,10 +4,11 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import * as forge from 'node-forge';
+import { moduleRequire } from '../utils/moduleRequire.js';
 // Canvas import made optional to handle missing dependency
 let createCanvas: any, Canvas: any, CanvasRenderingContext2D: any;
 try {
-  const canvasModule = require('canvas');
+  const canvasModule = moduleRequire('canvas');
   createCanvas = canvasModule.createCanvas;
   Canvas = canvasModule.Canvas;
   CanvasRenderingContext2D = canvasModule.CanvasRenderingContext2D;
@@ -33,7 +34,7 @@ import { Logger } from '../utils/logger.js';
 // Import node-rdpjs-2 dynamically to handle potential missing dependency
 let rdp: any;
 try {
-  rdp = require('node-rdpjs-2');
+  rdp = moduleRequire('node-rdpjs-2');
 } catch (error) {
   console.warn('node-rdpjs-2 not available, falling back to native RDP tools');
 }

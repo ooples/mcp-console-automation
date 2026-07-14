@@ -1719,7 +1719,6 @@ export class VNCProtocol extends BaseProtocol {
 
     if (this.options.bellCommand) {
       // Execute custom bell command
-      const { spawn } = require('child_process');
       spawn(this.options.bellCommand, [], { detached: true, stdio: 'ignore' });
     }
 

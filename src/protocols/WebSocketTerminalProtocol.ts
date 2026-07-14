@@ -549,7 +549,7 @@ export class WebSocketTerminalProtocol extends EventEmitter {
 
   private log(level: string, message: string): void {
     if (this.shouldLog(level)) {
-      console.log(
+      console.error(
         `[WebSocketTerminalProtocol:${level.toUpperCase()}] ${message}`
       );
     }

@@ -162,7 +162,6 @@ export class TriggerManager extends EventEmitter {
         });
       },
       {
-        scheduled: true,
         timezone: schedule.timezone || 'UTC',
       }
     );
@@ -171,7 +170,7 @@ export class TriggerManager extends EventEmitter {
 
     // Update metrics with next execution time
     const metrics = this.triggerMetrics.get(triggerId)!;
-    const nextRun = task.getStatus().nextExecution;
+    const nextRun = task.getNextRun();
     if (nextRun) {
       metrics.nextExecution = nextRun;
     }

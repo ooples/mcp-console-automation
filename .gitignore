@@ -43,6 +43,12 @@ logs/
 # Testing
 coverage/
 .nyc_output/
+test-report.xml
+data/benchmarks/parallel-vs-sequential.json
+data/generated-tests/
+data/recordings/integration-test/
+data/recordings/test/
+data/sessions.json
 
 # OS
 .DS_Store

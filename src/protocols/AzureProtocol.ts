@@ -11,6 +11,7 @@ import {
   SessionState as BaseSessionState,
   ErrorContext,
 } from '../core/IProtocol.js';
+import { moduleRequire } from '../utils/moduleRequire.js';
 
 // Azure SDK imports - made optional to handle missing dependencies
 let DefaultAzureCredential: any,
@@ -22,7 +23,7 @@ let DefaultAzureCredential: any,
   ClientCertificateCredential: any;
 
 try {
-  const identityModule = require('@azure/identity');
+  const identityModule = moduleRequire('@azure/identity');
   DefaultAzureCredential = identityModule.DefaultAzureCredential;
   ClientSecretCredential = identityModule.ClientSecretCredential;
   ManagedIdentityCredential = identityModule.ManagedIdentityCredential;
@@ -41,7 +42,7 @@ let ComputeManagementClient: any,
   SecretClient: any;
 
 try {
-  const computeModule = require('@azure/arm-compute');
+  const computeModule = moduleRequire('@azure/arm-compute');
   ComputeManagementClient = computeModule.ComputeManagementClient;
 } catch (error) {
   console.warn(
@@ -50,7 +51,7 @@ try {
 }
 
 try {
-  const networkModule = require('@azure/arm-network');
+  const networkModule = moduleRequire('@azure/arm-network');
   NetworkManagementClient = networkModule.NetworkManagementClient;
 } catch (error) {
   console.warn(
@@ -59,7 +60,7 @@ try {
 }
 
 try {
-  const keyVaultModule = require('@azure/keyvault-secrets');
+  const keyVaultModule = moduleRequire('@azure/keyvault-secrets');
   SecretClient = keyVaultModule.SecretClient;
 } catch (error) {
   console.warn(

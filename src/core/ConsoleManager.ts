@@ -119,6 +119,25 @@ interface SessionCommandQueue {
   bookmarks: SessionBookmark[];
 }
 
+type PendingProtocolEvent =
+  | { type: 'output'; data: ConsoleOutput }
+  | { type: 'error'; data: unknown; emittedError?: unknown }
+  | {
+      type: 'session-complete';
+      data: { sessionId: string; exitCode?: number };
+    }
+  | {
+      type: 'session-closed';
+      data: { sessionId: string; exitCode?: number } | string;
+    };
+
+class SessionCreationCancelledError extends Error {
+  constructor(sessionId: string) {
+    super(`Session creation cancelled: ${sessionId}`);
+    this.name = 'SessionCreationCancelledError';
+  }
+}
+
 // Enhanced session persistence interfaces
 interface SessionPersistentData {
   sessionId: string;
@@ -279,6 +298,18 @@ export class ConsoleManager extends EventEmitter {
     { protocol: IProtocol; type: ConsoleType; protocolSessionId?: string }
   >;
   private protocolSessionIdMap: Map<string, string>; // Maps ConsoleManager sessionId to protocol sessionId
+  private protocolSessionMappings = new WeakMap<
+    IProtocol,
+    Map<string, string>
+  >();
+  private protocolsWithEventHandlers = new WeakSet<IProtocol>();
+  private pendingProtocolEvents = new WeakMap<
+    IProtocol,
+    Map<string, PendingProtocolEvent[]>
+  >();
+  private pendingProtocolSessionCreations = new WeakMap<IProtocol, number>();
+  private initializingUnifiedSessions = new Set<string>();
+  private sessionsPendingTeardown = new Set<string>();
 
   // Azure monitoring support (kept separate as it's not a protocol)
   private azureMonitoring: AzureMonitoring;
@@ -679,71 +710,171 @@ export class ConsoleManager extends EventEmitter {
   /**
    * Setup protocol event handlers
    */
-  private setupProtocolEventHandlers(
-    sessionId: string,
-    protocol: IProtocol,
-    type: ConsoleType
-  ): void {
-    // Get the protocol's sessionId for this ConsoleManager sessionId
-    const protocolSessionId =
-      this.protocolSessionIdMap.get(sessionId) || sessionId;
+  private setupProtocolEventHandlers(protocol: IProtocol): void {
+    if (!this.protocolSessionMappings.has(protocol)) {
+      this.protocolSessionMappings.set(protocol, new Map<string, string>());
+    }
+    // A protocol instance is shared by every session of the same type. Attach
+    // one dispatcher per protocol instead of four listeners per session.
+    if (this.protocolsWithEventHandlers.has(protocol)) return;
+    this.protocolsWithEventHandlers.add(protocol);
 
     // Handle protocol output
     protocol.on('output', (output: ConsoleOutput) => {
-      // Check if the output is for this session (using protocol's sessionId)
-      if (output.sessionId === protocolSessionId) {
-        this.handleProtocolOutput(sessionId, output);
-      }
+      this.routeProtocolEvent(protocol, { type: 'output', data: output });
     });
 
     // Handle protocol errors
-    protocol.on('error', (error: Error) => {
-      this.logger.error(`Protocol error for session ${sessionId}:`, error);
-      this.handleSessionError(sessionId, error, 'protocol_error');
+    protocol.on('error', (payload: unknown, emittedError?: unknown) => {
+      this.routeProtocolEvent(protocol, {
+        type: 'error',
+        data: payload,
+        emittedError,
+      });
     });
 
     // Handle session completion
     protocol.on(
       'session-complete',
       (data: { sessionId: string; exitCode?: number }) => {
-        // Check if completion is for this session (using protocol's sessionId)
-        if (data.sessionId === protocolSessionId) {
-          const session = this.sessions.get(sessionId);
-          if (session) {
-            session.status = 'stopped';
-            session.exitCode = data.exitCode;
-          }
-          this.emit('sessionClosed', sessionId);
-        }
+        this.routeProtocolEvent(protocol, { type: 'session-complete', data });
       }
     );
 
     // Handle session closed (LocalProtocol emits this)
     protocol.on(
       'session-closed',
-      (data: { sessionId: string; exitCode?: number }) => {
-        // Check if completion is for this session (using protocol's sessionId)
-        if (data.sessionId === protocolSessionId) {
-          const session = this.sessions.get(sessionId);
-          if (session) {
-            session.status = 'stopped';
-            session.exitCode = data.exitCode;
-          }
-
-          console.error(
-            `[MAPPING-FIX] Protocol session ${protocolSessionId} closed, emitting console-event for ConsoleManager session ${sessionId}`
-          );
-
-          // Emit console-event that our Promise is waiting for
-          this.emit('console-event', {
-            sessionId: sessionId, // Use ConsoleManager sessionId, not protocol sessionId
-            type: 'stopped',
-            timestamp: new Date(),
-            data: { exitCode: data.exitCode },
-          });
-        }
+      (data: { sessionId: string; exitCode?: number } | string) => {
+        this.routeProtocolEvent(protocol, { type: 'session-closed', data });
       }
     );
+  }
+
+  private routeProtocolEvent(
+    protocol: IProtocol,
+    event: PendingProtocolEvent
+  ): void {
+    const sessionMappings = this.protocolSessionMappings.get(protocol);
+    const protocolSessionId =
+      event.type === 'output'
+        ? event.data.sessionId
+        : event.type === 'error'
+          ? typeof event.data === 'string'
+            ? event.data
+            : typeof event.data === 'object' &&
+                event.data !== null &&
+                'sessionId' in event.data
+              ? String((event.data as { sessionId: unknown }).sessionId)
+              : undefined
+          : typeof event.data === 'string'
+            ? event.data
+            : event.data.sessionId;
+    const managerSessionId = protocolSessionId
+      ? sessionMappings?.get(protocolSessionId)
+      : undefined;
+
+    if (!managerSessionId) {
+      const pendingCreations =
+        this.pendingProtocolSessionCreations.get(protocol) ?? 0;
+      if (protocolSessionId && pendingCreations > 0) {
+        let pendingBySession = this.pendingProtocolEvents.get(protocol);
+        if (!pendingBySession) {
+          pendingBySession = new Map<string, PendingProtocolEvent[]>();
+          this.pendingProtocolEvents.set(protocol, pendingBySession);
+        }
+        const pendingEvents = pendingBySession.get(protocolSessionId) ?? [];
+        pendingEvents.push(event);
+        pendingBySession.set(protocolSessionId, pendingEvents.slice(-100));
+        return;
+      }
+
+      if (event.type === 'error') {
+        const error = this.getProtocolError(event.data, event.emittedError);
+        this.logger.error('Protocol-level error:', error);
+        for (const mappedSessionId of sessionMappings?.values() ?? []) {
+          this.emit('console-event', {
+            sessionId: mappedSessionId,
+            type: 'error',
+            timestamp: new Date(),
+            data: { error: error.message },
+          });
+          void this.handleSessionError(
+            mappedSessionId,
+            error,
+            'protocol_error'
+          );
+        }
+      }
+      return;
+    }
+
+    if (event.type === 'output') {
+      this.handleProtocolOutput(managerSessionId, event.data);
+      return;
+    }
+
+    if (event.type === 'error') {
+      const error = this.getProtocolError(event.data, event.emittedError);
+      this.logger.error(
+        `Protocol error for session ${managerSessionId}:`,
+        error
+      );
+      this.emit('console-event', {
+        sessionId: managerSessionId,
+        type: 'error',
+        timestamp: new Date(),
+        data: { error: error.message },
+      });
+      void this.handleSessionError(managerSessionId, error, 'protocol_error');
+      return;
+    }
+
+    const exitCode =
+      typeof event.data === 'string' ? undefined : event.data.exitCode;
+    const session = this.sessions.get(managerSessionId);
+    if (session) {
+      session.status = 'stopped';
+      session.exitCode = exitCode;
+    }
+    if (event.type === 'session-complete') {
+      this.emit('sessionClosed', managerSessionId);
+    }
+    this.emit('console-event', {
+      sessionId: managerSessionId,
+      type: 'stopped',
+      timestamp: new Date(),
+      data: { exitCode },
+    });
+  }
+
+  private getProtocolError(payload: unknown, emittedError?: unknown): Error {
+    const protocolError =
+      emittedError ??
+      (typeof payload === 'object' && payload !== null && 'error' in payload
+        ? (payload as { error: unknown }).error
+        : payload);
+    return protocolError instanceof Error
+      ? protocolError
+      : new Error(String(protocolError));
+  }
+
+  private registerProtocolSessionMapping(
+    protocol: IProtocol,
+    protocolSessionId: string,
+    managerSessionId: string
+  ): void {
+    const sessionMappings = this.protocolSessionMappings.get(protocol);
+    if (!sessionMappings) {
+      throw new Error('Protocol event handlers were not initialized');
+    }
+    sessionMappings.set(protocolSessionId, managerSessionId);
+
+    const pendingBySession = this.pendingProtocolEvents.get(protocol);
+    const pendingEvents = pendingBySession?.get(protocolSessionId) ?? [];
+    pendingBySession?.delete(protocolSessionId);
+    for (const event of pendingEvents) {
+      this.routeProtocolEvent(protocol, event);
+    }
   }
 
   /**
@@ -767,9 +898,6 @@ export class ConsoleManager extends EventEmitter {
     } as ConsoleOutput);
 
     // Also emit console-event that executeCommand Promise is waiting for
-    console.error(
-      `[MAPPING-FIX] Emitting console-event output for session ${sessionId}, data length: ${output.data?.length || 0}`
-    );
     this.emit('console-event', {
       sessionId: sessionId, // Use ConsoleManager sessionId
       type: 'output',
@@ -1132,20 +1260,6 @@ export class ConsoleManager extends EventEmitter {
     duration: number;
     status: 'completed' | 'failed' | 'timeout';
   }> {
-    console.error(
-      `[DEBUG-HANG] executeCommandInSession called with:`,
-      JSON.stringify(
-        {
-          sessionId,
-          command,
-          args,
-          timeout,
-        },
-        null,
-        2
-      )
-    );
-
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -4604,6 +4718,7 @@ export class ConsoleManager extends EventEmitter {
     // Store session in initializing state first to prevent race conditions
     session.status = 'initializing';
     this.sessions.set(sessionId, session);
+    this.initializingUnifiedSessions.add(sessionId);
 
     try {
       // Initialize session command tracking
@@ -4624,11 +4739,43 @@ export class ConsoleManager extends EventEmitter {
         this.protocolInstances.set(protocolType, protocol);
       }
 
+      this.setupProtocolEventHandlers(protocol);
+      if (this.sessionsPendingTeardown.has(sessionId)) {
+        throw new SessionCreationCancelledError(sessionId);
+      }
+
       // Create session using the protocol
-      console.error(
-        `[EVENT-FIX] About to call protocol.createSession with resolvedOptions.isOneShot = ${resolvedOptions.isOneShot}`
-      );
-      const protocolSession = await protocol.createSession(resolvedOptions);
+      const pendingCreations =
+        this.pendingProtocolSessionCreations.get(protocol) ?? 0;
+      this.pendingProtocolSessionCreations.set(protocol, pendingCreations + 1);
+      let protocolSession: ConsoleSession;
+      try {
+        protocolSession = await protocol.createSession(resolvedOptions);
+      } finally {
+        const remainingCreations =
+          (this.pendingProtocolSessionCreations.get(protocol) ?? 1) - 1;
+        if (remainingCreations > 0) {
+          this.pendingProtocolSessionCreations.set(
+            protocol,
+            remainingCreations
+          );
+        } else {
+          this.pendingProtocolSessionCreations.delete(protocol);
+        }
+      }
+
+      if (this.sessionsPendingTeardown.has(sessionId)) {
+        this.pendingProtocolEvents.get(protocol)?.delete(protocolSession.id);
+        try {
+          await protocol.closeSession(protocolSession.id);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to close cancelled protocol session ${protocolSession.id}:`,
+            error
+          );
+        }
+        throw new SessionCreationCancelledError(sessionId);
+      }
 
       // Store protocol session mapping with protocol's sessionId
       this.protocolSessions.set(sessionId, {
@@ -4638,13 +4785,18 @@ export class ConsoleManager extends EventEmitter {
       });
       this.protocolSessionIdMap.set(sessionId, protocolSession.id);
 
-      // Setup protocol event handlers
-      this.setupProtocolEventHandlers(sessionId, protocol, protocolType);
-
       // Mark session as running only after successful initialization
       session.status = 'running';
       session.lastActivity = new Date();
       this.sessions.set(sessionId, session);
+
+      // Route output and completion events that arrived while the protocol
+      // session was being created only after the manager mapping is ready.
+      this.registerProtocolSessionMapping(
+        protocol,
+        protocolSession.id,
+        sessionId
+      );
 
       // Record successful session creation
       this.diagnosticsManager.recordEvent({
@@ -4662,6 +4814,15 @@ export class ConsoleManager extends EventEmitter {
 
       return sessionId;
     } catch (error) {
+      if (error instanceof SessionCreationCancelledError) {
+        await this.sessionManager.unregisterSession(
+          sessionId,
+          'creation cancelled'
+        );
+        this.cleanupSession(sessionId);
+        throw error;
+      }
+
       // Update session manager about the failure
       await this.sessionManager.updateSessionStatus(sessionId, 'failed', {
         error: error instanceof Error ? error.message : String(error),
@@ -4679,6 +4840,11 @@ export class ConsoleManager extends EventEmitter {
 
       this.logger.error(`Failed to create session: ${error}`);
       throw error;
+    } finally {
+      this.initializingUnifiedSessions.delete(sessionId);
+      if (!this.protocolSessions.has(sessionId)) {
+        this.sessionsPendingTeardown.delete(sessionId);
+      }
     }
   }
 
@@ -8961,6 +9127,52 @@ export class ConsoleManager extends EventEmitter {
     }
   }
 
+  private async teardownUnifiedSession(
+    sessionId: string,
+    reason: string
+  ): Promise<void> {
+    this.sessionsPendingTeardown.add(sessionId);
+
+    const protocolInfo = this.protocolSessions.get(sessionId);
+    if (protocolInfo) {
+      const protocolSessionId =
+        this.protocolSessionIdMap.get(sessionId) ??
+        protocolInfo.protocolSessionId ??
+        sessionId;
+
+      // Remove routing before closing the protocol so close events cannot
+      // recursively start another teardown for the same session.
+      this.protocolSessionMappings
+        .get(protocolInfo.protocol)
+        ?.delete(protocolSessionId);
+      this.protocolSessions.delete(sessionId);
+      this.protocolSessionIdMap.delete(sessionId);
+
+      try {
+        await protocolInfo.protocol.closeSession(protocolSessionId);
+      } catch (error) {
+        this.logger.warn(
+          `Protocol close failed during ${reason} for ${sessionId}:`,
+          error
+        );
+      }
+    }
+
+    const healthCheckInterval =
+      this.sessionHealthCheckIntervals?.get(sessionId);
+    if (healthCheckInterval) {
+      clearInterval(healthCheckInterval);
+      this.sessionHealthCheckIntervals.delete(sessionId);
+    }
+
+    await this.sessionManager.unregisterSession(sessionId, reason);
+    this.cleanupSession(sessionId);
+
+    if (!this.initializingUnifiedSessions.has(sessionId)) {
+      this.sessionsPendingTeardown.delete(sessionId);
+    }
+  }
+
   async stopSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
 
@@ -8988,37 +9200,12 @@ export class ConsoleManager extends EventEmitter {
 
     // First try unified protocol system
     const protocolInfo = this.protocolSessions.get(sessionId);
-    if (protocolInfo) {
-      try {
-        const protocolSessionId =
-          this.protocolSessionIdMap.get(sessionId) || sessionId;
-        await protocolInfo.protocol.closeSession(protocolSessionId);
-        this.protocolSessions.delete(sessionId);
-        this.protocolSessionIdMap.delete(sessionId);
-
-        // Clean up health check interval if exists
-        if (this.sessionHealthCheckIntervals?.has(sessionId)) {
-          clearInterval(this.sessionHealthCheckIntervals.get(sessionId));
-          this.sessionHealthCheckIntervals.delete(sessionId);
-        }
-
-        this.logger.info(
-          `${protocolInfo.type} session ${sessionId} stopped via unified protocol`
-        );
-
-        // Clean up session data
-        this.sessions.delete(sessionId);
-        this.outputBuffers.delete(sessionId);
-        this.streamManagers.delete(sessionId);
-
-        return;
-      } catch (error) {
-        this.logger.error(
-          `Error stopping ${protocolInfo.type} session ${sessionId}:`,
-          error
-        );
-        throw error;
-      }
+    if (protocolInfo || this.initializingUnifiedSessions.has(sessionId)) {
+      await this.teardownUnifiedSession(sessionId, 'manual stop');
+      this.logger.info(
+        `${protocolInfo?.type ?? session.type} session ${sessionId} stopped via unified protocol`
+      );
+      return;
     }
 
     // Legacy fallback for sessions not yet migrated to unified system
@@ -9171,7 +9358,19 @@ export class ConsoleManager extends EventEmitter {
         if (session.status !== 'running') {
           const age = now - session.createdAt.getTime();
           if (age > 5 * 60 * 1000) {
-            this.cleanupSession(id);
+            if (this.protocolSessions.has(id)) {
+              void this.teardownUnifiedSession(
+                id,
+                'stale stopped session cleanup'
+              ).catch((error) => {
+                this.logger.warn(
+                  `Failed to clean up stale unified session ${id}:`,
+                  error
+                );
+              });
+            } else {
+              this.cleanupSession(id);
+            }
           }
         }
       });
@@ -9339,6 +9538,11 @@ export class ConsoleManager extends EventEmitter {
       const startTime = Date.now();
 
       const checkOutput = () => {
+        if (!this.sessions.has(sessionId)) {
+          reject(new Error(`Session ${sessionId} not found`));
+          return;
+        }
+
         let output = this.getLastOutput(sessionId, 150);
 
         if (stripAnsi) {
@@ -9439,7 +9643,9 @@ export class ConsoleManager extends EventEmitter {
       });
       return {
         detected: false,
-        output: this.getLastOutput(sessionId),
+        output: this.sessions.has(sessionId)
+          ? this.getLastOutput(sessionId)
+          : '',
       };
     }
   }
@@ -9449,27 +9655,6 @@ export class ConsoleManager extends EventEmitter {
     args?: string[],
     options?: Partial<SessionOptions>
   ): Promise<{ output: string; exitCode?: number }> {
-    console.error(
-      `[EVENT-FIX] ConsoleManager.executeCommand called with:`,
-      JSON.stringify(
-        {
-          command,
-          args,
-          options: {
-            ...options,
-            sshOptions: options?.sshOptions
-              ? {
-                  host: options.sshOptions.host,
-                  username: options.sshOptions.username,
-                }
-              : undefined,
-          },
-        },
-        null,
-        2
-      )
-    );
-
     // Create session with all options
     const sessionOptions: SessionOptions = {
       command,
@@ -9479,7 +9664,7 @@ export class ConsoleManager extends EventEmitter {
     };
 
     // Detect protocol type if not specified
-    if (!sessionOptions.consoleType) {
+    if (!sessionOptions.consoleType || sessionOptions.consoleType === 'auto') {
       sessionOptions.consoleType = this.detectProtocolType(sessionOptions);
     }
 
@@ -9501,194 +9686,153 @@ export class ConsoleManager extends EventEmitter {
 
     // Create a one-shot session
     const sessionId = uuidv4();
-    console.error(
-      `[EVENT-FIX] About to call createSessionInternal with sessionId: ${sessionId}`
-    );
 
-    try {
-      const sessionIdResult = await this.createSessionInternal(
-        sessionId,
-        sessionOptions,
-        true
-      );
-      console.error(
-        `[EVENT-FIX] createSessionInternal completed, sessionIdResult:`,
-        sessionIdResult
-      );
+    return new Promise((resolve, reject) => {
+      const outputs: string[] = [];
+      const timeoutMs = options?.timeout || 120000;
+      let timeoutHandle: NodeJS.Timeout | null = null;
+      let settled = false;
 
-      // Record one-shot session creation
-      this.diagnosticsManager.recordEvent({
-        level: 'info',
-        category: 'session',
-        operation: 'one_shot_session_created',
-        sessionId,
-        message: 'Created one-shot session for command execution',
-        data: { command, args },
-      });
+      const cleanup = async () => {
+        this.removeListener('console-event', handleEvent);
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+          timeoutHandle = null;
+        }
 
-      // CRITICAL FIX: Actually send the command to the session after creating it
-      const fullCommand =
-        args && args.length > 0 ? `${command} ${args.join(' ')}` : command;
-      console.error(
-        `[EVENT-FIX] About to send command to session: "${fullCommand}"`
-      );
+        this.diagnosticsManager.recordEvent({
+          level: 'info',
+          category: 'session',
+          operation: 'one_shot_cleanup',
+          sessionId,
+          message: 'Cleaning up one-shot session after command execution',
+        });
+        await this.teardownUnifiedSession(sessionId, 'one-shot cleanup');
+      };
 
-      await this.sendInput(sessionId, fullCommand + '\n');
-      console.error(
-        `[EVENT-FIX] Command sent successfully to session ${sessionId}`
-      );
+      const resolveAfterCleanup = (
+        result: { output: string; exitCode?: number },
+        cleanupContext: string
+      ) => {
+        if (settled) return;
+        settled = true;
+        void cleanup()
+          .catch((error) => {
+            this.logger.warn(`Cleanup error during ${cleanupContext}:`, error);
+          })
+          .then(() => resolve(result));
+      };
 
-      console.error(
-        `[EVENT-FIX] Creating Promise for command execution, sessionId: ${sessionId}`
-      );
-      return new Promise((resolve, reject) => {
-        console.error(
-          `[EVENT-FIX] Inside Promise executor, setting up event handlers`
-        );
-        const outputs: string[] = [];
-        let timeoutHandle: NodeJS.Timeout | null = null;
-        const timeoutMs = options?.timeout || 120000; // 2 minute timeout for production (reverted from regression)
-        console.error(`[EVENT-FIX] Timeout set to: ${timeoutMs}ms`);
-
-        const cleanup = async () => {
-          this.removeListener('console-event', handleEvent);
-          if (timeoutHandle) {
-            clearTimeout(timeoutHandle);
-          }
-
-          // Always cleanup one-shot sessions
-          const session = this.sessions.get(sessionId);
-          if (session?.sessionType === 'one-shot') {
-            this.diagnosticsManager.recordEvent({
-              level: 'info',
-              category: 'session',
-              operation: 'one_shot_cleanup',
-              sessionId,
-              message: 'Cleaning up one-shot session after command execution',
-            });
-            await this.cleanupSession(sessionId);
-          }
-        };
-
-        const handleEvent = (event: ConsoleEvent) => {
-          console.error(
-            `[EVENT-FIX] handleEvent received event:`,
-            JSON.stringify(
-              {
-                type: event.type,
-                sessionId: event.sessionId,
-                targetSessionId: sessionId,
-                matches: event.sessionId === sessionId,
-                hasData: !!event.data,
-              },
-              null,
-              2
-            )
-          );
-
-          if (event.sessionId !== sessionId) return;
-
-          console.error(
-            `[EVENT-FIX] Processing event for our session, type: ${event.type}`
-          );
-
-          if (event.type === 'output') {
-            outputs.push(event.data.data);
-            console.error(
-              `[EVENT-FIX] Added output, total length: ${outputs.join('').length}`
+      const rejectAfterCleanup = (error: Error, cleanupContext: string) => {
+        if (settled) return;
+        settled = true;
+        void cleanup()
+          .catch((cleanupError) => {
+            this.logger.warn(
+              `Cleanup error during ${cleanupContext}:`,
+              cleanupError
             );
-          } else if (
-            event.type === 'stopped' ||
-            event.type === 'terminated' ||
-            event.type === 'session-closed'
-          ) {
-            console.error(
-              `[EVENT-FIX] Session completion event received: ${event.type}`
-            );
-            cleanup()
-              .then(() => {
-                resolve({
-                  output: outputs.join(''),
-                  exitCode: event.data?.exitCode || 0,
-                });
-              })
-              .catch((err) => {
-                this.logger.warn('Cleanup error during session stop:', err);
-                resolve({
-                  output: outputs.join(''),
-                  exitCode: event.data?.exitCode || 0,
-                });
-              });
-          } else if (event.type === 'error') {
-            console.error(`[EVENT-FIX] Error event received:`, event.data);
-            // Only reject on serious errors, not command output errors
-            if (
-              event.data.error &&
-              (event.data.error.includes('connection') ||
-                event.data.error.includes('authentication') ||
-                event.data.error.includes('timeout') ||
-                event.data.error.includes('network'))
-            ) {
-              cleanup()
-                .then(() => {
-                  reject(new Error(`Session error: ${event.data.error}`));
-                })
-                .catch((err) => {
-                  this.logger.warn('Cleanup error during session error:', err);
-                  reject(new Error(`Session error: ${event.data.error}`));
-                });
-            }
-            // Otherwise, treat errors as part of command output and continue
-          }
-        };
+          })
+          .then(() => reject(error));
+      };
 
-        // Set up timeout for the command execution
-        console.error(
-          `[EVENT-FIX] Setting up timeout handler for ${timeoutMs}ms`
-        );
-        timeoutHandle = setTimeout(() => {
-          console.error(
-            `[EVENT-FIX] TIMEOUT TRIGGERED! Command execution timed out after ${timeoutMs}ms, sessionId: ${sessionId}`
+      const handleEvent = (event: ConsoleEvent) => {
+        if (settled || event.sessionId !== sessionId) return;
+
+        if (event.type === 'output') {
+          outputs.push(event.data.data);
+        } else if (
+          event.type === 'stopped' ||
+          event.type === 'terminated' ||
+          event.type === 'session-closed'
+        ) {
+          resolveAfterCleanup(
+            {
+              output: outputs.join(''),
+              exitCode: event.data?.exitCode,
+            },
+            'session stop'
           );
+        } else if (event.type === 'error' && event.data.error) {
+          rejectAfterCleanup(
+            new Error(`Session error: ${event.data.error}`),
+            'session error'
+          );
+        }
+      };
+
+      this.on('console-event', handleEvent);
+      timeoutHandle = setTimeout(() => {
+        this.diagnosticsManager.recordEvent({
+          level: 'warn',
+          category: 'session',
+          operation: 'one_shot_timeout',
+          sessionId,
+          message: `One-shot session timed out after ${timeoutMs}ms`,
+        });
+        rejectAfterCleanup(
+          new Error(`Command execution timeout after ${timeoutMs}ms`),
+          'timeout'
+        );
+      }, timeoutMs);
+
+      void (async () => {
+        try {
+          await this.createSessionInternal(sessionId, sessionOptions, true);
+          if (settled) return;
+
           this.diagnosticsManager.recordEvent({
-            level: 'warn',
+            level: 'info',
             category: 'session',
-            operation: 'one_shot_timeout',
+            operation: 'one_shot_session_created',
             sessionId,
-            message: `One-shot session timed out after ${timeoutMs}ms`,
+            message: 'Created one-shot session for command execution',
+            data: {
+              protocolType: sessionOptions.consoleType,
+              argumentCount: sessionOptions.args?.length ?? 0,
+            },
           });
 
-          cleanup()
-            .then(() => {
-              // Return whatever output we have collected so far
-              resolve({
-                output: outputs.join('') + '\n[Command timed out]',
-                exitCode: 124, // Standard timeout exit code
-              });
-            })
-            .catch((err) => {
-              this.logger.warn('Cleanup error during timeout:', err);
-              reject(
-                new Error(`Command execution timeout after ${timeoutMs}ms`)
-              );
-            });
-        }, timeoutMs);
-
-        console.error(
-          `[EVENT-FIX] Registering event listener for 'console-event' on sessionId: ${sessionId}`
-        );
-        this.on('console-event', handleEvent);
-        console.error(
-          `[EVENT-FIX] Event listener registered, Promise setup complete`
-        );
-      });
-    } catch (error) {
-      console.error(
-        `[EVENT-FIX] Failed to create session or send command:`,
-        error
-      );
-      throw new Error(`Failed to execute command: ${error}`);
-    }
+          // Local protocols execute the supplied command while creating the
+          // process. Writing it again can race process exit and raise EPIPE.
+          const commandRunsDuringCreation = [
+            'cmd',
+            'powershell',
+            'pwsh',
+            'bash',
+            'zsh',
+            'sh',
+          ].includes(sessionOptions.consoleType!);
+          if (!commandRunsDuringCreation) {
+            const protocolInfo = this.protocolSessions.get(sessionId);
+            if (!protocolInfo) {
+              if (settled) return;
+              throw new Error('Protocol session unavailable after creation');
+            }
+            const protocolSessionId =
+              this.protocolSessionIdMap.get(sessionId) ??
+              protocolInfo.protocolSessionId ??
+              sessionId;
+            await protocolInfo.protocol.executeCommand(
+              protocolSessionId,
+              sessionOptions.command,
+              sessionOptions.args
+            );
+          }
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          this.logger.error(
+            'Failed to create session or send command',
+            message
+          );
+          rejectAfterCleanup(
+            new Error(`Failed to execute command: ${message}`),
+            'command failure'
+          );
+        }
+      })();
+    });
   }
 
   /**
