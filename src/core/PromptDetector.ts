@@ -244,6 +244,35 @@ export class PromptDetector {
   /**
    * Configure prompt detection for a session
    */
+  /**
+   * Whether a session has been configured. Callers use this to stay idempotent,
+   * since configureSession() resets the session's output buffer.
+   */
+  hasSession(sessionId: string): boolean {
+    return this.sessionConfigs.has(sessionId);
+  }
+
+  /**
+   * Whether an explicit, caller-supplied prompt pattern matches the end of the
+   * buffer.
+   *
+   * The pattern is applied to the final non-empty line rather than the whole
+   * buffer: a prompt is the last thing a shell writes before blocking on input,
+   * whereas command output is always followed by more output. Matching anywhere
+   * lets loose patterns fire on ordinary output (`94%` from df, `84.4%` from
+   * top, `ooples-#` from psql) and acknowledge a command that is still running.
+   */
+  matchesPromptTail(buffer: string, pattern: RegExp): boolean {
+    const tail = buffer.replace(/\s+$/, '');
+    if (!tail) return false;
+
+    const lastLine = tail.slice(tail.lastIndexOf('\n') + 1);
+
+    // A caller-supplied /g or /y regex makes .test() stateful across calls.
+    pattern.lastIndex = 0;
+    return pattern.test(lastLine);
+  }
+
   configureSession(config: PromptDetectorConfig): void {
     this.sessionConfigs.set(config.sessionId, {
       enableAnsiStripping: true,
