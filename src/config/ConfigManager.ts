@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   copyFileSync,
+  chmodSync,
 } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
@@ -116,7 +117,7 @@ export class ConfigManager {
       this.logger.info(
         `Migrating config from ${oldConfigDir} to ${newConfigDir}`
       );
-      mkdirSync(newConfigDir, { recursive: true });
+      mkdirSync(newConfigDir, { recursive: true, mode: 0o700 });
 
       // Copy config file if it exists
       if (existsSync(oldConfigFile)) {
@@ -127,7 +128,7 @@ export class ConfigManager {
 
     // Create new directory if it doesn't exist
     if (!existsSync(newConfigDir)) {
-      mkdirSync(newConfigDir, { recursive: true });
+      mkdirSync(newConfigDir, { recursive: true, mode: 0o700 });
       this.logger.info(`Created config directory: ${newConfigDir}`);
     }
 
@@ -215,7 +216,10 @@ export class ConfigManager {
   private saveConfig(config?: MCPConfig): void {
     try {
       const configToSave = config || this.config;
-      writeFileSync(this.configPath, JSON.stringify(configToSave, null, 2));
+      writeFileSync(this.configPath, JSON.stringify(configToSave, null, 2), {
+        mode: 0o600,
+      });
+      chmodSync(this.configPath, 0o600);
       this.logger.debug(`Config saved to ${this.configPath}`);
     } catch (error) {
       this.logger.error(`Failed to save config: ${error}`);
@@ -284,7 +288,17 @@ export class ConfigManager {
   }
 
   public listConnectionProfiles(): ConnectionProfile[] {
-    return this.config.connectionProfiles;
+    return this.config.connectionProfiles.map((profile) => ({
+      ...profile,
+      sshOptions: profile.sshOptions
+        ? {
+            ...profile.sshOptions,
+            password: undefined,
+            privateKey: undefined,
+            passphrase: undefined,
+          }
+        : undefined,
+    }));
   }
 
   // Application Profile Management
@@ -312,6 +326,22 @@ export class ConfigManager {
     type: string
   ): ApplicationProfile | undefined {
     return this.config.applicationProfiles.find((p) => p.type === type);
+  }
+
+  public listApplicationProfiles(): Array<
+    Omit<ApplicationProfile, 'environmentVariables'> & {
+      environmentVariableNames?: string[];
+    }
+  > {
+    return this.config.applicationProfiles.map((profile) => {
+      const { environmentVariables, ...safeProfile } = profile;
+      return {
+        ...safeProfile,
+        environmentVariableNames: environmentVariables
+          ? Object.keys(environmentVariables)
+          : undefined,
+      };
+    });
   }
 
   // .NET specific methods

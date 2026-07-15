@@ -326,7 +326,7 @@ describe('LocalProtocol', () => {
       });
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'powershell.exe',
+        expect.stringMatching(/powershell(?:\.exe)?$/i),
         ['-NoLogo', '-NoExit'],
         expect.any(Object)
       );

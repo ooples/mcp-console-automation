@@ -718,7 +718,7 @@ The system integrates with monitoring platforms:
 Enable detailed logging:
 
 ```bash
-node dist/index.js --log-level debug
+MCP_DEBUG_LOG=./mcp-debug.log node dist/mcp/server.js
 ```
 
 Health check endpoints:

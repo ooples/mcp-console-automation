@@ -228,8 +228,15 @@ export class SSHProtocol extends BaseProtocol {
         }
       }
 
-      // Build full command
-      const fullCommand = args ? `${command} ${args.join(' ')}` : command;
+      // Preserve argument boundaries when converting the structured command
+      // contract to the remote POSIX shell command string.
+      const quoteShellArgument = (value: string) =>
+        /^[A-Za-z0-9_@%+=:,./-]+$/.test(value)
+          ? value
+          : `'${value.replace(/'/g, `'"'"'`)}'`;
+      const fullCommand = [command, ...(args ?? [])]
+        .map(quoteShellArgument)
+        .join(' ');
 
       // Send command via SSH adapter
       await adapter.sendCommand(fullCommand);

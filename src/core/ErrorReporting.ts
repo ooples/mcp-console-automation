@@ -399,7 +399,7 @@ export class ErrorReporter {
             await this.writeToFile(report, integration.filePath!);
             break;
           case 'console':
-            console.log(this.formatForConsole(report));
+            console.error(this.formatForConsole(report));
             break;
           case 'custom':
             if (integration.customHandler) {
