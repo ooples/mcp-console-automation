@@ -183,7 +183,6 @@ interface CommandQueueConfig {
   interCommandDelay: number;
   acknowledgmentTimeout: number;
   enablePromptDetection: boolean;
-  defaultPromptPattern: RegExp;
 }
 
 // Network performance monitoring for adaptive timeouts
@@ -475,7 +474,6 @@ export class ConsoleManager extends EventEmitter {
       interCommandDelay: 500,
       acknowledgmentTimeout: 10000,
       enablePromptDetection: true,
-      defaultPromptPattern: /[$#%>]\s*$/m,
     };
 
     // Initialize adaptive timeout configuration
@@ -7920,7 +7918,34 @@ export class ConsoleManager extends EventEmitter {
   /**
    * Initialize command queue for a session with persistence support
    */
+  /**
+   * Register a session with the prompt detector.
+   *
+   * Must run before any output reaches PromptDetector.addOutput(): without a
+   * session config that call logs a warning and drops the data on the floor, so
+   * the detector's buffer stays empty and detectPrompt() always returns null.
+   * Idempotent — configureSession() resets the buffer, so only configure once.
+   */
+  private ensurePromptDetection(sessionId: string): void {
+    if (this.promptDetector.hasSession(sessionId)) {
+      return;
+    }
+
+    const session = this.sessions.get(sessionId);
+    this.promptDetector.configureSession({
+      sessionId,
+      shellType: this.detectShellType(session?.type),
+      hostname: session?.sshOptions?.host,
+      username: session?.sshOptions?.username,
+      adaptiveLearning: true,
+    });
+  }
+
   private initializeCommandQueue(sessionId: string): void {
+    // Output handlers are attached right after this call, so the detector has
+    // to be configured now or every chunk they feed it is discarded.
+    this.ensurePromptDetection(sessionId);
+
     if (!this.commandQueues.has(sessionId)) {
       const persistentData = this.sessionPersistenceData.get(sessionId);
       const bookmarks = this.sessionBookmarks.get(sessionId) || [];
@@ -7932,7 +7957,10 @@ export class ConsoleManager extends EventEmitter {
         lastCommandTime: 0,
         acknowledgmentTimeout: null,
         outputBuffer: '',
-        expectedPrompt: this.queueConfig.defaultPromptPattern,
+        // Left unset so acknowledgment goes through the confidence-scored
+        // PromptDetector. setPromptPattern() populates this to force a
+        // specific pattern instead.
+        expectedPrompt: undefined,
         persistentData,
         bookmarks,
       };
@@ -8139,6 +8167,10 @@ export class ConsoleManager extends EventEmitter {
         if (!command.sent) {
           // Send the command
           try {
+            // Drop anything already buffered — notably the prompt the shell
+            // printed when the *previous* command finished. Left in place it
+            // would acknowledge this command the instant it is sent.
+            queue.outputBuffer = '';
             await this.sendCommandToSSH(sessionId, command, sshChannel);
             command.sent = true;
             command.timestamp = new Date();
@@ -8179,8 +8211,8 @@ export class ConsoleManager extends EventEmitter {
         }
 
         // Check for acknowledgment
-        if (this.queueConfig.enablePromptDetection && queue.expectedPrompt) {
-          if (queue.expectedPrompt.test(queue.outputBuffer)) {
+        if (this.queueConfig.enablePromptDetection) {
+          if (this.hasReturnedToPrompt(sessionId, queue)) {
             // Command acknowledged
             command.acknowledged = true;
             command.resolve();
@@ -8207,6 +8239,37 @@ export class ConsoleManager extends EventEmitter {
     if (queue.commands.length > 0) {
       setTimeout(() => this.processCommandQueue(sessionId), 100);
     }
+  }
+
+  /**
+   * Whether the shell has finished the in-flight command and returned to a prompt.
+   *
+   * Only the tail of the buffer is considered. A prompt is the last thing the
+   * shell writes before it blocks on input, whereas command output is always
+   * followed by more output — so matching anywhere in the buffer (as a naive
+   * /m pattern does) misreads ordinary output lines ending in $ # % > as a
+   * prompt (`94%` from df, `84.4%` from top, `ooples-#` from psql). That
+   * acknowledges the command early and sends the next one into a still-running
+   * shell, which is how long sessions drift out of sync and wedge.
+   */
+  private hasReturnedToPrompt(
+    sessionId: string,
+    queue: SessionCommandQueue
+  ): boolean {
+    // An explicit per-session override always wins, but is still anchored to the
+    // tail so it cannot match mid-output.
+    if (queue.expectedPrompt) {
+      return this.promptDetector.matchesPromptTail(
+        queue.outputBuffer,
+        queue.expectedPrompt
+      );
+    }
+
+    const result = this.promptDetector.detectPrompt(
+      sessionId,
+      queue.outputBuffer
+    );
+    return result?.detected === true;
   }
 
   /**
@@ -9084,6 +9147,10 @@ export class ConsoleManager extends EventEmitter {
     // Clear command queue for this session
     this.clearCommandQueue(sessionId);
 
+    // Drop prompt-detection state so its buffers/learned patterns don't
+    // accumulate for the lifetime of the server.
+    this.promptDetector.removeSession(sessionId);
+
     // Ensure monitoring is stopped
     if (this.monitoringSystem.isSessionBeingMonitored(sessionId)) {
       this.monitoringSystem.stopSessionMonitoring(sessionId);
@@ -9329,7 +9396,7 @@ export class ConsoleManager extends EventEmitter {
   ): Promise<{ output: string; promptDetected?: PromptDetectionResult }> {
     const timeout = options.timeout || 5000;
     const requirePrompt = options.requirePrompt || false;
-    const stripAnsi = options.stripAnsi !== false;
+    const stripAnsiOutput = options.stripAnsi !== false;
     const promptTimeout = options.promptTimeout || timeout;
 
     // Use enhanced waitForOutput implementation
@@ -9338,14 +9405,37 @@ export class ConsoleManager extends EventEmitter {
         typeof pattern === 'string' ? new RegExp(pattern, 'im') : pattern;
       const startTime = Date.now();
 
+      // Accumulate every chunk seen from this point on. The session's own
+      // buffers are rolling windows (last 150 chunks / last 10k prompt chars),
+      // so under a burst of output the pattern can scroll out of view between
+      // two 50ms polls and then never match, even though it did appear.
+      let accumulated = this.getLastOutput(sessionId, 150);
+
+      const onConsoleEvent = (event: ConsoleEvent) => {
+        if (event.sessionId !== sessionId || event.type !== 'output') return;
+        const payload = event.data;
+        const chunk =
+          typeof payload === 'string' ? payload : (payload?.data ?? '');
+        if (chunk) accumulated += chunk;
+      };
+      this.on('console-event', onConsoleEvent);
+
+      const settle = <T>(fn: (value: T) => void) => {
+        return (value: T) => {
+          this.off('console-event', onConsoleEvent);
+          fn(value);
+        };
+      };
+      const finish = settle(resolve);
+      const fail = settle(reject);
+
       const checkOutput = () => {
-        let output = this.getLastOutput(sessionId, 150);
+        const output = stripAnsiOutput ? stripAnsi(accumulated) : accumulated;
 
-        if (stripAnsi) {
-          output = this.promptDetector.getBuffer(sessionId) || output;
-        }
-
-        // Test pattern match
+        // Test pattern match. lastIndex is reset because a caller-supplied
+        // /g or /y regex makes .test() stateful, which would make it alternate
+        // between match and no-match across polls.
+        regex.lastIndex = 0;
         const patternMatch = regex.test(output);
 
         // Check for prompt if required
@@ -9358,7 +9448,7 @@ export class ConsoleManager extends EventEmitter {
           patternMatch &&
           (!requirePrompt || (promptResult && promptResult.detected))
         ) {
-          resolve({
+          finish({
             output,
             promptDetected: promptResult || undefined,
           });
@@ -9367,7 +9457,7 @@ export class ConsoleManager extends EventEmitter {
 
         if (!this.isSessionRunning(sessionId)) {
           const sessionInfo = this.sessions.get(sessionId);
-          reject(
+          fail(
             new Error(
               `Session ${sessionId} has stopped (status: ${sessionInfo?.status || 'unknown'})`
             )
@@ -9397,7 +9487,7 @@ export class ConsoleManager extends EventEmitter {
             `Timeout waiting for pattern in session ${sessionId}`,
             debugInfo
           );
-          reject(
+          fail(
             new Error(
               `Timeout waiting for pattern: ${pattern}. Last output: "${output.slice(-200)}"`
             )
@@ -9420,17 +9510,30 @@ export class ConsoleManager extends EventEmitter {
     timeout: number = 10000
   ): Promise<{ detected: boolean; prompt?: string; output: string }> {
     const queue = this.commandQueues.get(sessionId);
-    const defaultPattern =
-      queue?.expectedPrompt || this.queueConfig.defaultPromptPattern;
+    this.ensurePromptDetection(sessionId);
 
     try {
-      const result = await this.waitForOutput(sessionId, defaultPattern, {
-        timeout,
-      });
+      // With an explicit override, match it against the tail. Otherwise defer to
+      // the detector's structured, shell-specific patterns — no generic regex
+      // can tell a zsh `%` prompt from `84.4%` in top's output.
+      if (queue?.expectedPrompt) {
+        const pattern = queue.expectedPrompt;
+        const result = await this.waitForOutput(sessionId, pattern, { timeout });
+        return {
+          detected: true,
+          prompt: result.output.match(pattern)?.[0],
+          output: result.output,
+        };
+      }
+
+      const detection = await this.promptDetector.waitForPrompt(
+        sessionId,
+        timeout
+      );
       return {
-        detected: true,
-        prompt: result.output.match(defaultPattern)?.[0],
-        output: result.output,
+        detected: detection.detected,
+        prompt: detection.matchedText,
+        output: this.promptDetector.getBuffer(sessionId),
       };
     } catch (error) {
       this.logger.error(`Failed to wait for prompt in session ${sessionId}`, {
