@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/ooples/mcp-console-automation/compare/v1.1.1...v1.1.2) (2026-07-15)
+
+
+### Bug Fixes
+
+* harden console automation mcp ([#92](https://github.com/ooples/mcp-console-automation/issues/92)) ([3e7d369](https://github.com/ooples/mcp-console-automation/commit/3e7d3696f40c0b2e0e705630eb78b7d4ab88747e))
+
 ## [1.1.1](https://github.com/ooples/mcp-console-automation/compare/v1.1.0...v1.1.1) (2026-07-09)
 
 
