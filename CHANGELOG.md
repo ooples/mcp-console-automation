@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/ooples/mcp-console-automation/compare/v1.1.2...v1.1.3) (2026-07-15)
+
+
+### Bug Fixes
+
+* **ssh:** stop acknowledging commands on their own output, which wedged long sessions ([#95](https://github.com/ooples/mcp-console-automation/issues/95)) ([ffb7a45](https://github.com/ooples/mcp-console-automation/commit/ffb7a456634569df080a528af91b2e66dc818a7b))
+
 ## [1.1.2](https://github.com/ooples/mcp-console-automation/compare/v1.1.1...v1.1.2) (2026-07-15)
 
 
