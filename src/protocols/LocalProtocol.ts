@@ -1,7 +1,7 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { platform } from 'os';
 import { existsSync } from 'fs';
-import { isAbsolute } from 'path';
+import { isAbsolute, join } from 'path';
 import { BaseProtocol } from '../core/BaseProtocol.js';
 import {
   ConsoleType,
@@ -557,6 +557,52 @@ export class LocalProtocol extends BaseProtocol {
     // Known executable/script extensions in the bare name.
     if (/\.(exe|bat|cmd|com|ps1|sh)$/i.test(trimmed)) {
       return true;
+    }
+    // A bare NAME that resolves on PATH ("powershell", "node", "git") is still a
+    // program, not a shell builtin. Without this it fell through to the
+    // string-joining branch in getShellInfo, where the caller's argv was
+    // flattened into one string and handed to an OUTER shell -- which expanded
+    // PowerShell variables before the real shell ever saw them:
+    //   sent      $x = 7; Write-Output "x-is-$x"
+    //   executed  = 7; Write-Output "x-is-"
+    // Silent corruption rather than an error, so it never surfaced as a failure.
+    return this.resolvesOnPath(trimmed);
+  }
+
+  /**
+   * True when a bare command name resolves to an executable on PATH.
+   *
+   * Follows the platform's own rules: PATHEXT candidates on Windows, the exact
+   * name elsewhere. Deliberately does NOT match shell builtins or cmdlets
+   * (Get-Date, ls), which must still run through the shell.
+   */
+  private resolvesOnPath(name: string): boolean {
+    const pathValue = process.env.PATH || process.env.Path || '';
+    if (!pathValue) {
+      return false;
+    }
+
+    const isWindows = platform() === 'win32';
+    const separator = isWindows ? ';' : ':';
+    const extensions = isWindows
+      ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM')
+          .split(';')
+          .filter(Boolean)
+      : [''];
+
+    for (const dir of pathValue.split(separator)) {
+      if (!dir) {
+        continue;
+      }
+      for (const ext of extensions) {
+        try {
+          if (existsSync(join(dir, name + ext))) {
+            return true;
+          }
+        } catch {
+          // An unreadable PATH entry is simply not a match; keep looking.
+        }
+      }
     }
     return false;
   }
