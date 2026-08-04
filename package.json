@@ -117,7 +117,7 @@
     "jest-junit": "^16.0.0",
     "jest-sonar-reporter": "^2.0.0",
     "prettier": "^3.6.2",
-    "sharp": "^0.34.4",
+    "sharp": "^0.35.3",
     "ts-jest": "^29.4.4",
     "tsx": "^4.22.4",
     "typescript": "^5.3.3"
@@ -136,5 +136,10 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^9.0.7"
+    }
   }
 }

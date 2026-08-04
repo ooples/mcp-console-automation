@@ -162,7 +162,10 @@ export class TriggerManager extends EventEmitter {
         });
       },
       {
-        scheduled: true,
+        // `scheduled: true` was removed in node-cron 4: schedule() starts the
+        // task itself, and the option is no longer part of TaskOptions. Passing
+        // it was a type error and bought nothing -- the behaviour it asked for
+        // is now the default.
         timezone: schedule.timezone || 'UTC',
       }
     );
@@ -171,7 +174,13 @@ export class TriggerManager extends EventEmitter {
 
     // Update metrics with next execution time
     const metrics = this.triggerMetrics.get(triggerId)!;
-    const nextRun = task.getStatus().nextExecution;
+    // getNextRun(), not getStatus(). In node-cron 4 getStatus() returns a
+    // STATUS STRING ('stopped' | 'idle' | 'running' | 'destroyed'), so reading
+    // .nextExecution off it was reading a property that does not exist on a
+    // string -- always undefined, so the next-execution metric was never
+    // populated. getNextRun() returns Date | null, which is exactly what
+    // TriggerMetrics.nextExecution is typed as.
+    const nextRun = task.getNextRun();
     if (nextRun) {
       metrics.nextExecution = nextRun;
     }
