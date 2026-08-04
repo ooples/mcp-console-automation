@@ -1,6 +1,6 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { platform } from 'os';
-import { existsSync } from 'fs';
+import { existsSync, statSync, accessSync, constants as fsConstants } from 'fs';
 import { isAbsolute, join } from 'path';
 import { BaseProtocol } from '../core/BaseProtocol.js';
 import {
@@ -126,7 +126,7 @@ export class LocalProtocol extends BaseProtocol {
 
       const spawnOptions: SpawnOptions = {
         cwd: options.cwd || process.cwd(),
-        env: { ...process.env, ...options.env } as NodeJS.ProcessEnv,
+        env: this.spawnEnv(options),
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false,
       };
@@ -471,7 +471,7 @@ export class LocalProtocol extends BaseProtocol {
     // "ls") must be run THROUGH the selected shell -- spawning them directly
     // fails with ENOENT and immediately tears the session down, which surfaced
     // downstream as "Session <id> not found".
-    if (command && this.looksLikeExecutablePath(command)) {
+    if (command && this.looksLikeExecutablePath(command, this.spawnEnv(options))) {
       return {
         command,
         args: options?.args || [],
@@ -545,7 +545,10 @@ export class LocalProtocol extends BaseProtocol {
    * Determine whether a provided command should be spawned as a standalone
    * executable (a path to a program) rather than run through the shell.
    */
-  private looksLikeExecutablePath(command: string): boolean {
+  private looksLikeExecutablePath(
+    command: string,
+    env: NodeJS.ProcessEnv
+  ): boolean {
     const trimmed = command.trim();
     if (!trimmed) {
       return false;
@@ -566,18 +569,27 @@ export class LocalProtocol extends BaseProtocol {
     //   sent      $x = 7; Write-Output "x-is-$x"
     //   executed  = 7; Write-Output "x-is-"
     // Silent corruption rather than an error, so it never surfaced as a failure.
-    return this.resolvesOnPath(trimmed);
+    return this.resolvesOnPath(trimmed, env);
   }
 
   /**
    * True when a bare command name resolves to an executable on PATH.
    *
+   * RESOLVED AGAINST THE SPAWN ENVIRONMENT, not this process's. The child is
+   * spawned with `options.env` merged over `process.env`, so a caller that
+   * supplies its own PATH gets a process able to run programs that
+   * `process.env.PATH` never mentions. Judging "program or shell builtin" from
+   * a different environment than the child receives decides it on the wrong
+   * facts, and the failure is SILENT: the command is quietly wrapped in a shell
+   * and its argv flattened into one string -- the exact corruption this method
+   * exists to prevent.
+   *
    * Follows the platform's own rules: PATHEXT candidates on Windows, the exact
    * name elsewhere. Deliberately does NOT match shell builtins or cmdlets
    * (Get-Date, ls), which must still run through the shell.
    */
-  private resolvesOnPath(name: string): boolean {
-    const pathValue = process.env.PATH || process.env.Path || '';
+  private resolvesOnPath(name: string, env: NodeJS.ProcessEnv): boolean {
+    const pathValue = env.PATH || env.Path || '';
     if (!pathValue) {
       return false;
     }
@@ -585,9 +597,7 @@ export class LocalProtocol extends BaseProtocol {
     const isWindows = platform() === 'win32';
     const separator = isWindows ? ';' : ':';
     const extensions = isWindows
-      ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM')
-          .split(';')
-          .filter(Boolean)
+      ? (env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean)
       : [''];
 
     for (const dir of pathValue.split(separator)) {
@@ -595,16 +605,41 @@ export class LocalProtocol extends BaseProtocol {
         continue;
       }
       for (const ext of extensions) {
+        const candidate = join(dir, name + ext);
         try {
-          if (existsSync(join(dir, name + ext))) {
-            return true;
+          // A DIRECTORY is not a program. existsSync said yes to one, so a
+          // directory named `node` on PATH made this claim the command was an
+          // executable; it was then spawned directly and died with EACCES/EISDIR
+          // instead of running through the shell as it should have.
+          if (!statSync(candidate).isFile()) {
+            continue;
           }
+          // POSIX additionally requires the execute bit -- the same test the
+          // shell itself applies, and accessSync checks it for THIS user rather
+          // than guessing from mode bits. Windows has no such bit and relies on
+          // PATHEXT, which the extension loop above already covers.
+          if (!isWindows) {
+            accessSync(candidate, fsConstants.X_OK);
+          }
+          return true;
         } catch {
-          // An unreadable PATH entry is simply not a match; keep looking.
+          // Missing, unreadable, or not executable: not a match. Keep looking,
+          // so one bad PATH entry never hides a good later one.
         }
       }
     }
     return false;
+  }
+
+  /**
+   * The environment the child will actually receive.
+   *
+   * Used by BOTH spawn and executable resolution so the two cannot drift: if
+   * resolution consulted a different environment than the child is given, the
+   * decision it makes is about a process that never runs.
+   */
+  private spawnEnv(options?: SessionOptions): NodeJS.ProcessEnv {
+    return { ...process.env, ...options?.env } as NodeJS.ProcessEnv;
   }
 
   /**
