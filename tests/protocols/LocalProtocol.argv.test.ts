@@ -190,4 +190,56 @@ describe('LocalProtocol executable resolution', () => {
 
     expect(info.command).not.toBe('definitely-not-a-real-program-xyz');
   });
+
+  it('resolves a RELATIVE PATH entry against the spawn cwd, keeping argv discrete', () => {
+    // `toolbox` is relative, so it only names a real directory when resolved
+    // against options.cwd -- the directory the CHILD starts in. Resolving it
+    // against this process's cwd finds nothing, and the command would then be
+    // shell-wrapped with its argv flattened into one string.
+    const toolbox = join(work, 'toolbox');
+    mkdirSync(toolbox, { recursive: true });
+
+    const name = 'relativetool';
+    const file = join(toolbox, isWindows ? `${name}.cmd` : name);
+    writeFileSync(
+      file,
+      isWindows ? '@echo off\r\necho hi\r\n' : '#!/bin/sh\necho hi\n'
+    );
+    if (!isWindows) {
+      chmodSync(file, 0o755);
+    }
+
+    const protocol = new LocalProtocol(isWindows ? 'powershell' : 'bash');
+    const info = shellInfoFor(protocol, {
+      command: name,
+      args: ['--flag', 'value with spaces'],
+      cwd: work,
+      env: { PATH: 'toolbox', PATHEXT: '.CMD;.EXE' },
+    } as SessionOptions);
+
+    expect(info.command).toBe(name);
+    // Discrete argv, not one re-parsed string.
+    expect(info.args).toEqual(['--flag', 'value with spaces']);
+  });
+
+  it('treats an EMPTY posix PATH entry as the spawn cwd', () => {
+    if (isWindows) return; // Windows ignores empty PATH entries by design.
+
+    const name = 'cwdtool';
+    const file = join(work, name);
+    writeFileSync(file, '#!/bin/sh\necho hi\n');
+    chmodSync(file, 0o755);
+
+    const protocol = new LocalProtocol('bash');
+    const info = shellInfoFor(protocol, {
+      command: name,
+      args: ['--flag'],
+      cwd: work,
+      // A leading separator is the usual way an empty entry gets written.
+      env: { PATH: ':/nonexistent-dir' },
+    } as SessionOptions);
+
+    expect(info.command).toBe(name);
+    expect(info.args).toEqual(['--flag']);
+  });
 });

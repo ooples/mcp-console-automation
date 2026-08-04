@@ -1,7 +1,7 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { platform } from 'os';
 import { existsSync, statSync, accessSync, constants as fsConstants } from 'fs';
-import { isAbsolute, join } from 'path';
+import { isAbsolute, join, resolve } from 'path';
 import { BaseProtocol } from '../core/BaseProtocol.js';
 import {
   ConsoleType,
@@ -125,7 +125,7 @@ export class LocalProtocol extends BaseProtocol {
       const shellInfo = this.getShellInfo(options);
 
       const spawnOptions: SpawnOptions = {
-        cwd: options.cwd || process.cwd(),
+        cwd: this.spawnCwd(options),
         env: this.spawnEnv(options),
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false,
@@ -157,7 +157,7 @@ export class LocalProtocol extends BaseProtocol {
         id: sessionId,
         command: shellInfo.command,
         args: shellInfo.args,
-        cwd: options.cwd || process.cwd(),
+        cwd: this.spawnCwd(options),
         env: Object.fromEntries(
           Object.entries({ ...process.env, ...options.env }).filter(
             ([_, value]) => typeof value === 'string'
@@ -471,7 +471,14 @@ export class LocalProtocol extends BaseProtocol {
     // "ls") must be run THROUGH the selected shell -- spawning them directly
     // fails with ENOENT and immediately tears the session down, which surfaced
     // downstream as "Session <id> not found".
-    if (command && this.looksLikeExecutablePath(command, this.spawnEnv(options))) {
+    if (
+      command &&
+      this.looksLikeExecutablePath(
+        command,
+        this.spawnEnv(options),
+        this.spawnCwd(options)
+      )
+    ) {
       return {
         command,
         args: options?.args || [],
@@ -547,7 +554,8 @@ export class LocalProtocol extends BaseProtocol {
    */
   private looksLikeExecutablePath(
     command: string,
-    env: NodeJS.ProcessEnv
+    env: NodeJS.ProcessEnv,
+    cwd: string
   ): boolean {
     const trimmed = command.trim();
     if (!trimmed) {
@@ -569,7 +577,7 @@ export class LocalProtocol extends BaseProtocol {
     //   sent      $x = 7; Write-Output "x-is-$x"
     //   executed  = 7; Write-Output "x-is-"
     // Silent corruption rather than an error, so it never surfaced as a failure.
-    return this.resolvesOnPath(trimmed, env);
+    return this.resolvesOnPath(trimmed, env, cwd);
   }
 
   /**
@@ -588,7 +596,11 @@ export class LocalProtocol extends BaseProtocol {
    * name elsewhere. Deliberately does NOT match shell builtins or cmdlets
    * (Get-Date, ls), which must still run through the shell.
    */
-  private resolvesOnPath(name: string, env: NodeJS.ProcessEnv): boolean {
+  private resolvesOnPath(
+    name: string,
+    env: NodeJS.ProcessEnv,
+    cwd: string
+  ): boolean {
     const pathValue = env.PATH || env.Path || '';
     if (!pathValue) {
       return false;
@@ -600,12 +612,22 @@ export class LocalProtocol extends BaseProtocol {
       ? (env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean)
       : [''];
 
-    for (const dir of pathValue.split(separator)) {
+    for (const entry of pathValue.split(separator)) {
+      // An EMPTY PATH entry means the current directory on POSIX -- a leading,
+      // trailing or doubled separator (":/usr/bin") is the usual way that gets
+      // written, and skipping it lost a legitimate lookup location. Windows has
+      // no such rule and simply ignores empty entries.
+      const dir = entry || (isWindows ? '' : '.');
       if (!dir) {
         continue;
       }
+      // A relative entry resolves against the CHILD's cwd. join() would have
+      // resolved it against this process's, which is a different directory
+      // whenever the caller passed options.cwd -- the same class of mistake as
+      // reading PATH from the wrong environment.
+      const base = isAbsolute(dir) ? dir : resolve(cwd, dir);
       for (const ext of extensions) {
-        const candidate = join(dir, name + ext);
+        const candidate = join(base, name + ext);
         try {
           // A DIRECTORY is not a program. existsSync said yes to one, so a
           // directory named `node` on PATH made this claim the command was an
@@ -640,6 +662,18 @@ export class LocalProtocol extends BaseProtocol {
    */
   private spawnEnv(options?: SessionOptions): NodeJS.ProcessEnv {
     return { ...process.env, ...options?.env } as NodeJS.ProcessEnv;
+  }
+
+  /**
+   * The working directory the child will actually start in.
+   *
+   * Paired with spawnEnv for the same reason: a PATH entry may be RELATIVE, and
+   * a relative entry means "relative to the process that runs the program" --
+   * the child, not us. Resolving it against this process's cwd asks about a
+   * directory the child may never see.
+   */
+  private spawnCwd(options?: SessionOptions): string {
+    return options?.cwd || process.cwd();
   }
 
   /**
