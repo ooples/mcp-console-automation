@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { Client as SSHClient } from 'ssh2';
-import SFTPClient = require('ssh2-sftp-client');
+import SFTPClient from 'ssh2-sftp-client';
 import { promises as fs, createReadStream, createWriteStream, Stats } from 'fs';
 import { join, dirname, basename, resolve } from 'path';
 import { pipeline } from 'stream/promises';
@@ -520,7 +520,7 @@ export class SFTPProtocol extends EventEmitter {
       const connectConfig = {
         ...this.options,
         debug: this.options.debug
-          ? (info: string) => console.log(`SSH Debug: ${info}`)
+          ? (info: string) => this.logger.debug(`SSH Debug: ${info}`)
           : undefined,
       };
       this.sshClient!.connect(connectConfig);

@@ -21,6 +21,7 @@ import { SSHBridge } from './SSHBridge.js';
 import { fileURLToPath } from 'url';
 import * as path from 'path';
 import * as fs from 'fs';
+import { homedir } from 'node:os';
 import { config as mcpConfig } from '../config/mcp-config.js';
 // Phase 2: Assertion Framework
 import { AssertionEngine } from '../testing/AssertionEngine.js';
@@ -28,12 +29,109 @@ import { SnapshotManager } from '../testing/SnapshotManager.js';
 import { SnapshotDiffer } from '../testing/SnapshotDiffer.js';
 import { Assertion, SessionSnapshot } from '../types/test-framework.js';
 
-// Debug logging to file
-const DEBUG_LOG_FILE = path.join(process.cwd(), 'mcp-debug.log');
+const PACKAGE_VERSION = (
+  JSON.parse(
+    fs.readFileSync(
+      fileURLToPath(new URL('../../package.json', import.meta.url)),
+      'utf8'
+    )
+  ) as { version: string }
+).version;
+
+// Debug logging is opt-in because tool arguments can contain credentials,
+// private keys, environment variables, and commands with embedded secrets.
+const DEBUG_LOG_FILE = process.env.MCP_DEBUG_LOG?.trim();
+const SENSITIVE_LOG_KEY =
+  /pass(word|phrase)?|private.?key|token|secret|credential|authorization|api.?key/i;
+const ENVIRONMENT_LOG_KEY = /^(?:env|environment|environmentVariables)$/i;
+const SENSITIVE_COMMAND_FLAG =
+  /(--(?:password|passphrase|private[-_]?key|token|secret|credential|authorization|api[-_]?key)(?:=|\s+))("[^"]*"|'[^']*'|\S+)/gi;
+
+function sanitizeDebugValue(
+  value: unknown,
+  key = '',
+  seen = new WeakSet<object>(),
+  depth = 0
+): unknown {
+  if (SENSITIVE_LOG_KEY.test(key) || ENVIRONMENT_LOG_KEY.test(key)) {
+    return '[REDACTED]';
+  }
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const sanitizedValue = value.replace(
+      SENSITIVE_COMMAND_FLAG,
+      '$1[REDACTED]'
+    );
+    if (
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(sanitizedValue) ||
+      /\b(?:basic|bearer)\s+[a-z0-9._~+/=-]+/i.test(sanitizedValue)
+    ) {
+      return '[REDACTED]';
+    }
+    return sanitizedValue.length > 2000
+      ? `${sanitizedValue.slice(0, 2000)}...[TRUNCATED]`
+      : sanitizedValue;
+  }
+  if (typeof value !== 'object') {
+    return value;
+  }
+  if (depth >= 6 || seen.has(value)) {
+    return '[TRUNCATED]';
+  }
+  seen.add(value);
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: sanitizeDebugValue(value.message, 'message', seen, depth + 1),
+      code: sanitizeDebugValue(
+        (value as NodeJS.ErrnoException).code,
+        'code',
+        seen,
+        depth + 1
+      ),
+    };
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeDebugValue(item, '', seen, depth + 1));
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([entryKey, entryValue]) => [
+      entryKey,
+      sanitizeDebugValue(entryValue, entryKey, seen, depth + 1),
+    ])
+  );
+}
+
 function debugLog(...args: any[]) {
+  if (!DEBUG_LOG_FILE) {
+    return;
+  }
   const timestamp = new Date().toISOString();
-  const message = `[${timestamp}] ${args.map((a) => (typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a))).join(' ')}\n`;
-  fs.appendFileSync(DEBUG_LOG_FILE, message, 'utf8');
+  const message = `[${timestamp}] ${args
+    .map((arg) => {
+      const sanitized = sanitizeDebugValue(arg);
+      return typeof sanitized === 'string'
+        ? sanitized
+        : JSON.stringify(sanitized);
+    })
+    .join(' ')}\n`;
+  try {
+    const debugLogPath = path.resolve(DEBUG_LOG_FILE);
+    fs.mkdirSync(path.dirname(debugLogPath), { recursive: true, mode: 0o700 });
+    const descriptor = fs.openSync(debugLogPath, 'a', 0o600);
+    try {
+      if (process.platform !== 'win32') {
+        fs.fchmodSync(descriptor, 0o600);
+      }
+      fs.writeFileSync(descriptor, message, 'utf8');
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  } catch {
+    // Diagnostics must never interrupt the MCP protocol or a deployment task.
+  }
 }
 
 // Error classification for intelligent recovery
@@ -70,7 +168,14 @@ export class ConsoleAutomationServer {
   constructor() {
     this.logger = new Logger('MCPServer');
     this.consoleManager = new ConsoleManager();
-    this.sessionManager = new SessionManager();
+    const persistenceEnabled =
+      process.env.MCP_SESSION_PERSISTENCE?.toLowerCase() === 'true';
+    this.sessionManager = new SessionManager({
+      persistenceEnabled,
+      persistencePath:
+        process.env.MCP_SESSION_PERSISTENCE_PATH ||
+        path.join(homedir(), '.console-automation-mcp', 'sessions.json'),
+    });
     this.sshBridge = new SSHBridge();
     this.assertionEngine = new AssertionEngine();
     this.snapshotManager = new SnapshotManager();
@@ -82,7 +187,7 @@ export class ConsoleAutomationServer {
     this.server = new Server(
       {
         name: 'console-automation',
-        version: '1.0.0',
+        version: PACKAGE_VERSION,
       },
       {
         capabilities: {
@@ -92,10 +197,6 @@ export class ConsoleAutomationServer {
     );
 
     this.setupHandlers();
-    this.setupCleanup();
-    this.setupStdioProtection();
-    this.setupPersistence();
-    this.setupErrorIsolation();
   }
 
   private setupHandlers() {
@@ -107,20 +208,7 @@ export class ConsoleAutomationServer {
       try {
         const { name, arguments: args } = request.params;
 
-        // CRITICAL DEBUG: Log ALL tool calls
-        debugLog(`[CRITICAL] Tool called: ${name}`);
-        debugLog(`[CRITICAL] Tool args:`, args);
-
-        // Special debug for use_profile
-        if (name === 'console_use_profile') {
-          debugLog('[CRITICAL] *** console_use_profile RECEIVED ***');
-          // Try direct file write to ensure message is saved
-          fs.appendFileSync(
-            'C:\\Users\\yolan\\source\\repos\\mcp-console-automation\\urgent.log',
-            `[${new Date().toISOString()}] console_use_profile called with: ${JSON.stringify(args)}\n`,
-            'utf8'
-          );
-        }
+        debugLog('[TOOL]', name);
 
         // Enable MCP server mode to prevent stdio corruption
         process.env.MCP_SERVER_MODE = 'true';
@@ -299,7 +387,7 @@ export class ConsoleAutomationServer {
   }
 
   private getTools(): Tool[] {
-    return [
+    const tools: Tool[] = [
       {
         name: 'console_create_session',
         description: 'Create a new console session for running a command',
@@ -343,18 +431,38 @@ export class ConsoleAutomationServer {
                 host: { type: 'string', description: 'SSH host' },
                 port: { type: 'number', description: 'SSH port (default: 22)' },
                 username: { type: 'string', description: 'SSH username' },
-                password: { type: 'string', description: 'SSH password' },
+                password: {
+                  type: 'string',
+                  description: 'One-time SSH password; prefer passwordEnvVar',
+                },
+                passwordEnvVar: {
+                  type: 'string',
+                  description:
+                    'Environment variable containing the SSH password',
+                },
                 privateKey: {
                   type: 'string',
-                  description: 'Private key content',
+                  description:
+                    'One-time private key content; prefer privateKeyEnvVar or privateKeyPath',
                 },
                 privateKeyPath: {
                   type: 'string',
                   description: 'Path to private key file',
                 },
+                privateKeyEnvVar: {
+                  type: 'string',
+                  description:
+                    'Environment variable containing private-key material',
+                },
                 passphrase: {
                   type: 'string',
-                  description: 'Private key passphrase',
+                  description:
+                    'One-time key passphrase; prefer passphraseEnvVar',
+                },
+                passphraseEnvVar: {
+                  type: 'string',
+                  description:
+                    'Environment variable containing the key passphrase',
                 },
               },
             },
@@ -879,10 +987,22 @@ export class ConsoleAutomationServer {
                 host: { type: 'string' },
                 port: { type: 'number' },
                 username: { type: 'string' },
-                password: { type: 'string' },
-                privateKey: { type: 'string' },
+                passwordEnvVar: {
+                  type: 'string',
+                  description:
+                    'Environment variable containing the SSH password',
+                },
                 privateKeyPath: { type: 'string' },
-                passphrase: { type: 'string' },
+                privateKeyEnvVar: {
+                  type: 'string',
+                  description:
+                    'Environment variable containing private-key material',
+                },
+                passphraseEnvVar: {
+                  type: 'string',
+                  description:
+                    'Environment variable containing the key passphrase',
+                },
               },
             },
             dockerOptions: {
@@ -1275,17 +1395,83 @@ export class ConsoleAutomationServer {
         },
       },
     ];
+
+    const readOnlyTools = new Set([
+      'console_get_output',
+      'console_get_stream',
+      'console_wait_for_output',
+      'console_list_sessions',
+      'console_detect_errors',
+      'console_get_resource_usage',
+      'console_get_session_state',
+      'console_get_command_history',
+      'console_get_system_metrics',
+      'console_get_session_metrics',
+      'console_get_alerts',
+      'console_get_monitoring_dashboard',
+      'console_list_profiles',
+      'console_get_job_status',
+      'console_get_job_output',
+      'console_list_jobs',
+      'console_get_job_progress',
+      'console_get_job_result',
+      'console_get_job_metrics',
+      'console_assert_output',
+      'console_assert_exit_code',
+      'console_assert_no_errors',
+      'console_compare_snapshots',
+      'console_assert_state',
+    ]);
+    const destructiveTools = new Set([
+      'console_create_session',
+      'console_send_input',
+      'console_send_key',
+      'console_stop_session',
+      'console_cleanup_sessions',
+      'console_execute_command',
+      'console_clear_output',
+      'console_save_profile',
+      'console_remove_profile',
+      'console_use_profile',
+      'console_execute_async',
+      'console_cancel_job',
+      'console_cleanup_jobs',
+    ]);
+    const idempotentWriteTools = new Set([
+      'console_stop_session',
+      'console_clear_output',
+      'console_stop_monitoring',
+      'console_cancel_job',
+    ]);
+    const localOnlyTools = new Set([
+      'console_get_system_metrics',
+      'console_get_job_metrics',
+      'console_compare_snapshots',
+    ]);
+
+    return tools.map((tool) => {
+      const readOnly = readOnlyTools.has(tool.name);
+      return {
+        ...tool,
+        annotations: {
+          title: tool.name
+            .replace(/^console_/, '')
+            .split('_')
+            .map((part) => part[0].toUpperCase() + part.slice(1))
+            .join(' '),
+          readOnlyHint: readOnly,
+          destructiveHint: destructiveTools.has(tool.name),
+          idempotentHint: readOnly || idempotentWriteTools.has(tool.name),
+          openWorldHint: !localOnlyTools.has(tool.name),
+        },
+      };
+    });
   }
 
   private async handleCreateSession(args: SessionOptions) {
     debugLog('[DEBUG] === handleCreateSession START ===');
-    debugLog('[DEBUG] Args:', args);
     debugLog('[DEBUG] Current error count:', this.errorCount);
     debugLog('[DEBUG] Connection state:', this.connectionState);
-    this.logger.debug(
-      'MCP handleCreateSession received args:',
-      JSON.stringify(args, null, 2)
-    );
 
     try {
       // Check if SSH options are present - use new SSH bridge for SSH sessions
@@ -2454,6 +2640,18 @@ export class ConsoleAutomationServer {
 
       // Add connection-specific options based on type
       if (args.connectionType === 'ssh' && args.sshOptions) {
+        if (
+          args.sshOptions.password ||
+          args.sshOptions.privateKey ||
+          args.sshOptions.passphrase
+        ) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Saved SSH profiles cannot contain inline credentials. Use ' +
+              'passwordEnvVar, privateKeyEnvVar/privateKeyPath, and ' +
+              'passphraseEnvVar instead.'
+          );
+        }
         connectionProfile.sshOptions = args.sshOptions;
       } else if (args.connectionType === 'docker' && args.dockerOptions) {
         connectionProfile.dockerOptions = args.dockerOptions;
@@ -2499,7 +2697,7 @@ export class ConsoleAutomationServer {
   private async handleListProfiles() {
     const connectionProfiles = this.consoleManager.listConnectionProfiles();
     const configManager = (this.consoleManager as any).configManager;
-    const applicationProfiles = configManager.config.applicationProfiles;
+    const applicationProfiles = configManager.listApplicationProfiles();
 
     return {
       content: [
@@ -2550,19 +2748,17 @@ export class ConsoleAutomationServer {
     cwd?: string;
     env?: any;
   }) {
-    console.error('[URGENT] handleUseProfile called with:', args);
     this.logger.info(
       `handleUseProfile called with profile: ${args.profileName}`
     );
     debugLog('[PROFILE] Using profile:', args.profileName);
-    debugLog('[DEBUG] handleUseProfile called with:', args);
 
     try {
       // Load and validate the profile BEFORE creating the session
       const profile = this.consoleManager
         .getConfigManager()
         .getConnectionProfile(args.profileName);
-      debugLog('[DEBUG] Profile loaded:', profile);
+      debugLog('[DEBUG] Profile loaded:', args.profileName);
 
       if (!profile) {
         debugLog('[DEBUG] Profile not found, throwing error');
@@ -2570,43 +2766,6 @@ export class ConsoleAutomationServer {
           ErrorCode.InvalidParams,
           `Profile not found: ${args.profileName}`
         );
-      }
-
-      // Check for Windows SSH password authentication early
-      if (profile.type === 'ssh' && profile.sshOptions) {
-        const platform = require('os').platform();
-        console.error(
-          '[URGENT] Server-side Windows check - Platform detected:',
-          platform
-        );
-        debugLog('[DEBUG] Platform detected:', platform);
-        debugLog('[DEBUG] SSH options:', {
-          hasPassword: !!profile.sshOptions.password,
-          hasPrivateKey: !!profile.sshOptions.privateKey,
-        });
-
-        if (
-          platform === 'win32' &&
-          profile.sshOptions.password &&
-          !profile.sshOptions.privateKey
-        ) {
-          console.error(
-            '[URGENT] SERVER: Windows SSH password detected - throwing immediate error'
-          );
-          debugLog(
-            '[DEBUG] Windows SSH password detected - throwing immediate error'
-          );
-          // Fail immediately with clear error
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            'SSH password authentication is not supported on Windows. ' +
-              'Windows OpenSSH requires interactive terminal input for passwords. ' +
-              'Please use SSH key-based authentication instead:\n' +
-              '1. Generate an SSH key: ssh-keygen -t rsa -b 4096\n' +
-              '2. Copy the public key to the server: ssh-copy-id ubuntu@github-runner-server\n' +
-              '3. Update your profile to use the private key path instead of password'
-          );
-        }
       }
 
       debugLog(
@@ -2672,8 +2831,6 @@ export class ConsoleAutomationServer {
           env: args.env,
           profileName: args.profileName,
         } as any;
-
-        debugLog('[DEBUG] Creating session with options:', sessionOptions);
 
         const sessionId =
           await this.consoleManager.createSession(sessionOptions);
@@ -3463,101 +3620,23 @@ export class ConsoleAutomationServer {
       this.logger.info('Received SIGINT, shutting down...');
       debugLog('[SIGNAL] SIGINT received');
       await this.gracefulShutdown();
-      process.exit(0);
     });
 
     process.on('SIGTERM', async () => {
       this.logger.info('Received SIGTERM, shutting down...');
       debugLog('[SIGNAL] SIGTERM received');
       await this.gracefulShutdown();
-      process.exit(0);
-    });
-
-    process.on('uncaughtException', async (error) => {
-      this.logger.error('Uncaught exception:', error);
-      debugLog('[UNCAUGHT EXCEPTION]', error);
-      await this.gracefulShutdown();
-      process.exit(1);
-    });
-
-    process.on('unhandledRejection', (reason) => {
-      this.logger.error(`Unhandled rejection: ${reason}`);
-      debugLog('[UNHANDLED REJECTION]', reason);
     });
   }
 
-  private setupErrorIsolation() {
-    // Remove any existing listeners to ensure we're the only handler
-    process.removeAllListeners('uncaughtException');
-    process.removeAllListeners('unhandledRejection');
-
-    // STDIO ISOLATION: Protect MCP transport from corruption
-    this.setupStdioProtection();
-
-    // Catch and isolate uncaught exceptions
-    process.on('uncaughtException', (error) => {
-      debugLog('[DEBUG] ============================================');
-      debugLog('[DEBUG] UNCAUGHT EXCEPTION CAUGHT!');
-      debugLog('[DEBUG] Error message:', error.message);
-      debugLog('[DEBUG] Error stack:', error.stack);
-      debugLog('[DEBUG] Error code:', (error as any).code);
-      debugLog('[DEBUG] Error details:', error);
-      debugLog('[DEBUG] ============================================');
-
-      const classification = this.classifyError(error);
-      debugLog('[DEBUG] Error classification:', classification);
-
-      // NEVER terminate for SSH or network errors
-      if (
-        classification.category === 'ssh' ||
-        classification.category === 'network'
-      ) {
-        debugLog('[DEBUG] *** SSH/Network error - Server MUST continue ***');
-        this.logger.warn(
-          'SSH/Network error isolated, continuing:',
-          error.message
-        );
-        this.handleRecoverableError(error);
-        return; // Explicitly return to prevent any default behavior
-      }
-
-      if (classification.severity === 'critical') {
-        // Only truly critical errors terminate the server
-        debugLog('[DEBUG] *** CRITICAL ERROR - Server will shutdown ***');
-        this.logger.error('Critical error detected:', error);
-        // Don't use async here - it can cause issues with error handling
-        this.gracefulShutdown().catch(() => {});
-        setTimeout(() => process.exit(1), 2000);
-      } else {
-        // Recover from non-critical errors
-        debugLog('[DEBUG] *** RECOVERABLE ERROR - Server will continue ***');
-        this.logger.warn('Recoverable error isolated:', error);
-        this.handleRecoverableError(error);
-      }
-    });
-
-    process.on('unhandledRejection', (reason) => {
-      debugLog('[DEBUG] ============================================');
-      debugLog('[DEBUG] UNHANDLED REJECTION CAUGHT!');
-      debugLog('[DEBUG] Reason:', reason);
-      debugLog('[DEBUG] Stack:', (reason as any)?.stack);
-      debugLog('[DEBUG] ============================================');
-      this.logger.warn('Unhandled rejection isolated:', reason);
-      this.handleRecoverableError(new Error(String(reason)));
-      // Prevent default termination behavior
-    });
-
-    // Ensure error isolation is maintained
-    process.setMaxListeners(100); // Increase max listeners to prevent warnings
-  }
-
-  private setupPersistence() {
+  private setupConnectionMonitoring() {
     // Keep process alive with health checks
     this.healthCheckInterval = setInterval(() => {
       if (this.connectionState === 'connected') {
         this.performHealthCheck();
       }
     }, 30000); // Health check every 30 seconds
+    this.healthCheckInterval.unref();
 
     // Start keepalive heartbeat
     this.startKeepAlive();
@@ -3577,6 +3656,7 @@ export class ConsoleAutomationServer {
         }
       }
     }, 15000); // Send keepalive every 15 seconds
+    this.keepAliveInterval.unref();
   }
 
   private stopKeepAlive() {
@@ -3693,7 +3773,7 @@ export class ConsoleAutomationServer {
     await this.server.connect(this.transport);
   }
 
-  private async gracefulShutdown() {
+  private async gracefulShutdown(exitProcess = true) {
     if (this.isShuttingDown) {
       return;
     }
@@ -3702,33 +3782,38 @@ export class ConsoleAutomationServer {
     debugLog('[SHUTDOWN] Starting graceful shutdown');
     this.logger.info('Initiating graceful shutdown...');
 
-    try {
-      this.stopKeepAlive();
+    this.stopKeepAlive();
 
-      if (this.healthCheckInterval) {
-        clearInterval(this.healthCheckInterval);
-        this.healthCheckInterval = undefined;
-      }
-
-      // Destroy SSH Bridge first
-      await this.sshBridge.destroy();
-      debugLog('[SHUTDOWN] SSH Bridge destroyed');
-
-      // Then ConsoleManager
-      await this.consoleManager.destroy();
-      debugLog('[SHUTDOWN] ConsoleManager destroyed');
-
-      // Finally SessionManager
-      this.sessionManager.destroy();
-      debugLog('[SHUTDOWN] SessionManager destroyed');
-
-      debugLog('[SHUTDOWN] Graceful shutdown complete');
-    } catch (error: any) {
-      debugLog('[SHUTDOWN ERROR]', error);
-      this.logger.error('Error during shutdown:', error);
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = undefined;
     }
 
-    process.exit(0);
+    const cleanupSteps: Array<{
+      name: string;
+      run: () => Promise<void>;
+    }> = [
+      { name: 'MCP Server', run: () => this.server.close() },
+      { name: 'SSH Bridge', run: () => this.sshBridge.destroy() },
+      { name: 'ConsoleManager', run: () => this.consoleManager.destroy() },
+      { name: 'SessionManager', run: () => this.sessionManager.shutdown() },
+    ];
+
+    for (const step of cleanupSteps) {
+      try {
+        await step.run();
+        debugLog(`[SHUTDOWN] ${step.name} destroyed`);
+      } catch (error) {
+        debugLog(`[SHUTDOWN ERROR] ${step.name}`, error);
+        this.logger.error(`Error shutting down ${step.name}:`, error);
+      }
+    }
+
+    debugLog('[SHUTDOWN] Graceful shutdown complete');
+
+    if (exitProcess) {
+      process.exit(0);
+    }
   }
 
   private classifyError(error: any): ErrorClassification {
@@ -3869,52 +3954,6 @@ export class ConsoleAutomationServer {
     return null;
   }
 
-  private setupStdioProtection() {
-    debugLog('[INIT] Setting up STDIO protection');
-
-    // Save original stdout/stderr write methods
-    const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-    const originalStderrWrite = process.stderr.write.bind(process.stderr);
-
-    // Override stdout.write to filter out non-MCP content
-    process.stdout.write = function (
-      chunk: any,
-      encoding?: any,
-      callback?: any
-    ): boolean {
-      // Convert chunk to string for inspection
-      const str = chunk?.toString ? chunk.toString() : String(chunk);
-
-      // Only allow JSON-RPC messages through stdout
-      // MCP protocol uses JSON-RPC 2.0 format
-      if (
-        str.trim().startsWith('{') &&
-        (str.includes('"jsonrpc":"2.0"') ||
-          str.includes('"method"') ||
-          str.includes('"result"'))
-      ) {
-        return originalStdoutWrite(chunk, encoding, callback);
-      }
-
-      // Redirect non-MCP content to debug log
-      debugLog('[STDOUT-FILTERED]', str);
-      return true;
-    } as any;
-
-    // Keep stderr as-is but log it for debugging
-    process.stderr.write = function (
-      chunk: any,
-      encoding?: any,
-      callback?: any
-    ): boolean {
-      const str = chunk?.toString ? chunk.toString() : String(chunk);
-      debugLog('[STDERR]', str);
-      return originalStderrWrite(chunk, encoding, callback);
-    } as any;
-
-    debugLog('[INIT] STDIO protection enabled');
-  }
-
   async start() {
     debugLog('[DEBUG] === SERVER START ===');
     debugLog('[DEBUG] Process argv:', process.argv);
@@ -3928,6 +3967,8 @@ export class ConsoleAutomationServer {
       process.env.MCP_SERVER_MODE = 'true';
       debugLog('[DEBUG] Set MCP_SERVER_MODE to true');
 
+      this.setupCleanup();
+
       debugLog('[DEBUG] Creating StdioServerTransport...');
       this.transport = new StdioServerTransport();
       debugLog('[DEBUG] Connecting server to transport...');
@@ -3935,9 +3976,14 @@ export class ConsoleAutomationServer {
       debugLog('[DEBUG] Server connected successfully');
 
       this.connectionState = 'connected';
+      this.setupConnectionMonitoring();
       debugLog('[DEBUG] Connection state set to:', this.connectionState);
       this.logger.info(
-        'MCP server started successfully with persistence enabled'
+        `MCP server started successfully (session persistence ${
+          process.env.MCP_SESSION_PERSISTENCE?.toLowerCase() === 'true'
+            ? 'enabled'
+            : 'disabled'
+        })`
       );
       this.logger.info('Connection monitoring and auto-reconnection active');
       this.logger.info('Keepalive heartbeat active (15s interval)');
@@ -3945,13 +3991,9 @@ export class ConsoleAutomationServer {
     } catch (error: any) {
       this.logger.error('Failed to start server:', error);
 
-      // Try to recover from startup errors
       await this.attemptRecovery();
-
-      // If still failing, schedule reconnection
-      if (this.connectionState !== 'connected') {
-        this.handleDisconnection();
-      }
+      await this.gracefulShutdown(false);
+      throw error;
     }
   }
 }

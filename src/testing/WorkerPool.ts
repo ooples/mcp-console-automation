@@ -43,6 +43,13 @@ export class WorkerPool extends EventEmitter {
   private shuttingDown = false;
   private config: WorkerPoolConfig;
   private heartbeatTimer?: NodeJS.Timeout;
+  private pendingTasks: Map<
+    string,
+    {
+      resolve: (result: WorkerResult) => void;
+      reject: (error: Error) => void;
+    }
+  > = new Map();
 
   constructor(config: Partial<WorkerPoolConfig> = {}) {
     super();
@@ -97,6 +104,31 @@ export class WorkerPool extends EventEmitter {
       workerData: { workerId },
     });
 
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        worker.removeListener('message', handleReady);
+        worker.removeListener('error', handleStartupError);
+        worker.removeListener('exit', handleStartupExit);
+      };
+      const handleReady = (message: { type?: string }) => {
+        if (message.type !== 'ready') return;
+        cleanup();
+        resolve();
+      };
+      const handleStartupError = (error: Error) => {
+        cleanup();
+        reject(error);
+      };
+      const handleStartupExit = (code: number) => {
+        cleanup();
+        reject(new Error(`Worker exited before ready with code ${code}`));
+      };
+
+      worker.on('message', handleReady);
+      worker.once('error', handleStartupError);
+      worker.once('exit', handleStartupExit);
+    });
+
     const workerInfo: WorkerInfo = {
       id: workerId,
       worker,
@@ -135,29 +167,14 @@ export class WorkerPool extends EventEmitter {
       throw new Error('Worker pool is shutting down');
     }
 
-    return new Promise((resolve, reject) => {
+    if (this.pendingTasks.has(task.id)) {
+      throw new Error(`Task ID is already pending: ${task.id}`);
+    }
+
+    return new Promise<WorkerResult>((resolve, reject) => {
       // Add to queue
       this.taskQueue.push(task);
-
-      // Set up one-time listener for this task
-      const resultHandler = (result: WorkerResult) => {
-        if (result.taskId === task.id) {
-          this.removeListener('task-complete', resultHandler);
-          this.removeListener('task-error', errorHandler);
-          resolve(result);
-        }
-      };
-
-      const errorHandler = (error: { taskId: string; error: Error }) => {
-        if (error.taskId === task.id) {
-          this.removeListener('task-complete', resultHandler);
-          this.removeListener('task-error', errorHandler);
-          reject(error.error);
-        }
-      };
-
-      this.on('task-complete', resultHandler);
-      this.on('task-error', errorHandler);
+      this.pendingTasks.set(task.id, { resolve, reject });
 
       // Try to assign task immediately
       this.assignTasks();
@@ -270,6 +287,9 @@ export class WorkerPool extends EventEmitter {
       result: result && result.result !== undefined ? result.result : result,
     };
 
+    const pendingTask = this.pendingTasks.get(task.id);
+    this.pendingTasks.delete(task.id);
+    pendingTask?.resolve(workerResult);
     this.emit('task-complete', workerResult);
 
     // Assign next task if available
@@ -292,9 +312,14 @@ export class WorkerPool extends EventEmitter {
     workerInfo.busy = false;
     workerInfo.currentTask = undefined;
 
+    const workerError =
+      error instanceof Error ? error : new Error(error?.error ?? String(error));
+    const pendingTask = this.pendingTasks.get(task.id);
+    this.pendingTasks.delete(task.id);
+    pendingTask?.reject(workerError);
     this.emit('task-error', {
       taskId: task.id,
-      error: error instanceof Error ? error : new Error(String(error)),
+      error: workerError,
     });
 
     // Assign next task if available
@@ -305,20 +330,24 @@ export class WorkerPool extends EventEmitter {
    * Handle task timeout
    */
   private handleTaskTimeout(workerInfo: WorkerInfo, task: WorkerTask): void {
-    console.warn(`Task ${task.id} timed out on worker ${workerInfo.id}`);
+    if (workerInfo.taskTimeout) {
+      clearTimeout(workerInfo.taskTimeout);
+      workerInfo.taskTimeout = undefined;
+    }
+    workerInfo.busy = true;
+    workerInfo.currentTask = undefined;
 
-    // Terminate the worker and create a new one
-    this.terminateWorker(workerInfo.id, true);
-
+    const timeoutError = new Error(`Task timeout after ${task.timeout}ms`);
+    const pendingTask = this.pendingTasks.get(task.id);
+    this.pendingTasks.delete(task.id);
+    pendingTask?.reject(timeoutError);
     this.emit('task-error', {
       taskId: task.id,
-      error: new Error(`Task timed out after ${task.timeout}ms`),
+      error: timeoutError,
     });
 
-    // Create replacement worker
-    this.createWorker().catch((err) => {
-      console.error('Failed to create replacement worker:', err);
-    });
+    // The exit handler creates one replacement and resumes queued work.
+    void this.terminateWorker(workerInfo.id, true);
   }
 
   /**
@@ -328,28 +357,44 @@ export class WorkerPool extends EventEmitter {
     console.error(`Worker ${workerId} error:`, error);
 
     const workerInfo = this.workers.get(workerId);
+    if (workerInfo) {
+      workerInfo.busy = true;
+    }
     if (workerInfo?.currentTask) {
+      const taskId = workerInfo.currentTask.id;
+      workerInfo.currentTask = undefined;
+      const pendingTask = this.pendingTasks.get(taskId);
+      this.pendingTasks.delete(taskId);
+      pendingTask?.reject(error);
       this.emit('task-error', {
-        taskId: workerInfo.currentTask.id,
+        taskId,
         error,
       });
     }
 
     this.emit('worker-error', { workerId, error });
+    void this.terminateWorker(workerId, true);
   }
 
   /**
    * Handle worker exit
    */
   private handleWorkerExit(workerId: number, code: number): void {
-    console.log(`Worker ${workerId} exited with code ${code}`);
-
     const workerInfo = this.workers.get(workerId);
     if (workerInfo?.currentTask) {
+      const taskId = workerInfo.currentTask.id;
+      const exitError = new Error(`Worker exited with code ${code}`);
+      const pendingTask = this.pendingTasks.get(taskId);
+      this.pendingTasks.delete(taskId);
+      pendingTask?.reject(exitError);
       this.emit('task-error', {
-        taskId: workerInfo.currentTask.id,
-        error: new Error(`Worker exited with code ${code}`),
+        taskId,
+        error: exitError,
       });
+    }
+
+    if (workerInfo?.taskTimeout) {
+      clearTimeout(workerInfo.taskTimeout);
     }
 
     this.workers.delete(workerId);
@@ -357,9 +402,11 @@ export class WorkerPool extends EventEmitter {
 
     // Create replacement worker if not shutting down
     if (!this.shuttingDown && this.workers.size < this.config.maxWorkers) {
-      this.createWorker().catch((err) => {
-        console.error('Failed to create replacement worker:', err);
-      });
+      this.createWorker()
+        .then(() => this.assignTasks())
+        .catch((err) => {
+          console.error('Failed to create replacement worker:', err);
+        });
     }
   }
 
@@ -379,10 +426,10 @@ export class WorkerPool extends EventEmitter {
             workerId,
             new Error('Worker heartbeat timeout')
           );
-          this.terminateWorker(workerId, true);
         }
       }
     }, this.config.heartbeatInterval);
+    this.heartbeatTimer.unref();
   }
 
   /**
@@ -480,6 +527,15 @@ export class WorkerPool extends EventEmitter {
     );
 
     await Promise.all(terminationPromises);
+
+    const shutdownError = new Error(
+      'Worker pool shut down before task completion'
+    );
+    for (const { reject } of this.pendingTasks.values()) {
+      reject(shutdownError);
+    }
+    this.pendingTasks.clear();
+    this.taskQueue.length = 0;
 
     this.emit('shutdown');
   }

@@ -518,9 +518,12 @@ export interface SSHConnectionOptions {
   port?: number;
   username: string;
   password?: string;
+  passwordEnvVar?: string;
   privateKey?: string;
   privateKeyPath?: string;
+  privateKeyEnvVar?: string;
   passphrase?: string;
+  passphraseEnvVar?: string;
   strictHostKeyChecking?: boolean;
   knownHostsFile?: string;
   timeout?: number;

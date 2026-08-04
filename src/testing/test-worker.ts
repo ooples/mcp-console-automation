@@ -23,6 +23,10 @@ class TestWorker {
     this.startHeartbeat();
   }
 
+  announceReady(): void {
+    this.sendMessage({ type: 'ready' });
+  }
+
   /**
    * Start sending heartbeat messages
    */
@@ -197,6 +201,7 @@ if (parentPort) {
   parentPort.on('message', (message: WorkerMessage) => {
     worker.handleMessage(message);
   });
+  worker.announceReady();
 } else {
   console.error('This file must be run as a worker thread');
   process.exit(1);

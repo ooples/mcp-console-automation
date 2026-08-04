@@ -1,327 +1,121 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# MCP Console Automation Installer for Unix-like systems
-# Supports: Claude Desktop, Google AI Studio, OpenAI Desktop, and custom MCP clients
+set -euo pipefail
 
-set -e
+target="codex"
+custom_path=""
+dev=false
+skip_dependencies=false
+keep_dev_dependencies=false
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+usage() {
+  cat <<'EOF'
+Usage: ./install.sh [options]
 
-# Functions for colored output
-success() { echo -e "${GREEN}$1${NC}"; }
-info() { echo -e "${CYAN}$1${NC}"; }
-warning() { echo -e "${YELLOW}$1${NC}"; }
-error() { echo -e "${RED}$1${NC}"; exit 1; }
+Options:
+  --target codex|custom       MCP client to configure (default: codex)
+  --custom-path PATH          New JSON config path for --target custom
+  --dev                       Keep development dependencies installed
+  --skip-dependencies         Reuse the current node_modules directory
+  --keep-dev-dependencies     Do not prune development/optional packages
+  --help                      Show this help
+EOF
+}
 
-# Parse arguments
-TARGET="claude"
-CUSTOM_PATH=""
-DEV_MODE=false
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --target)
-            TARGET="$2"
-            shift 2
-            ;;
-        --custom-path)
-            CUSTOM_PATH="$2"
-            shift 2
-            ;;
-        --dev)
-            DEV_MODE=true
-            shift
-            ;;
-        --help)
-            echo "Usage: $0 [OPTIONS]"
-            echo "Options:"
-            echo "  --target [claude|google|openai|custom|all]  Target platform (default: claude)"
-            echo "  --custom-path PATH                          Path for custom configuration"
-            echo "  --dev                                       Run in development mode"
-            echo "  --help                                      Show this help message"
-            exit 0
-            ;;
-        *)
-            error "Unknown option: $1"
-            ;;
-    esac
+while (($#)); do
+  case "$1" in
+    --target)
+      target="${2:?--target requires a value}"
+      shift 2
+      ;;
+    --custom-path)
+      custom_path="${2:?--custom-path requires a value}"
+      shift 2
+      ;;
+    --dev)
+      dev=true
+      shift
+      ;;
+    --skip-dependencies)
+      skip_dependencies=true
+      shift
+      ;;
+    --keep-dev-dependencies)
+      keep_dev_dependencies=true
+      shift
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
 done
 
-info "==================================================="
-info "MCP Console Automation Server - Installer"
-info "==================================================="
-
-# Get installation directory
-INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Check Node.js installation
-info "\nChecking Node.js installation..."
-if command -v node &> /dev/null; then
-    NODE_VERSION=$(node --version)
-    success "✓ Node.js $NODE_VERSION found"
-else
-    error "✗ Node.js not found. Please install Node.js 18+ from https://nodejs.org"
+if [[ "$target" != "codex" && "$target" != "custom" ]]; then
+  echo "Invalid target: $target" >&2
+  exit 2
 fi
 
-# Install dependencies
-info "\nInstalling dependencies..."
-cd "$INSTALL_DIR"
-npm install --production
+install_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+server_path="$install_dir/dist/mcp/server.js"
+node_bin="$(command -v node || true)"
+npm_bin="$(command -v npm || true)"
 
-# Build TypeScript
-info "Building TypeScript..."
+[[ -n "$node_bin" ]] || { echo 'Node.js 18 or newer is required.' >&2; exit 1; }
+[[ -n "$npm_bin" ]] || { echo 'npm is required.' >&2; exit 1; }
+
+node_major="$(node --version | sed -E 's/^v([0-9]+).*/\1/')"
+if ((node_major < 18)); then
+  echo "Node.js 18 or newer is required; found $(node --version)." >&2
+  exit 1
+fi
+
+cd "$install_dir"
+if [[ "$skip_dependencies" == false ]]; then
+  npm ci
+fi
 npm run build
 
-if [ ! -f "dist/index.js" ]; then
-    error "✗ Build failed. dist/index.js not found"
+if [[ "$dev" == false && "$keep_dev_dependencies" == false ]]; then
+  npm prune --omit=dev --omit=optional
 fi
 
-success "✓ Build completed successfully"
+[[ -f "$server_path" ]] || { echo "Missing MCP entry point: $server_path" >&2; exit 1; }
 
-# Configuration functions
-install_claude() {
-    info "\nConfiguring for Claude Desktop..."
-    
-    local CONFIG_DIR=""
-    local CONFIG_PATH=""
-    
-    case "$(uname -s)" in
-        Darwin)
-            CONFIG_DIR="$HOME/Library/Application Support/Claude"
-            ;;
-        Linux)
-            CONFIG_DIR="$HOME/.config/Claude"
-            ;;
-        *)
-            error "Unsupported OS for Claude Desktop"
-            ;;
-    esac
-    
-    CONFIG_PATH="$CONFIG_DIR/claude_desktop_config.json"
-    
-    mkdir -p "$CONFIG_DIR"
-    
-    if [ -f "$CONFIG_PATH" ]; then
-        # Backup existing config
-        cp "$CONFIG_PATH" "${CONFIG_PATH}.backup"
-    fi
-    
-    # Create or update configuration
-    if [ "$DEV_MODE" = true ]; then
-        SERVER_COMMAND="npx"
-        SERVER_ARGS='["tsx", "'$INSTALL_DIR'/src/index.ts"]'
-    else
-        SERVER_COMMAND="node"
-        SERVER_ARGS='["'$INSTALL_DIR'/dist/index.js"]'
-    fi
-    
-    # Use Python to safely update JSON
-    python3 -c "
-import json
-import os
+if [[ "$target" == "codex" ]]; then
+  command -v codex >/dev/null || { echo 'Codex CLI is required.' >&2; exit 1; }
+  if codex mcp get console-automation >/dev/null 2>&1; then
+    codex mcp remove console-automation
+  fi
+  codex mcp add console-automation --env LOG_LEVEL=warn -- "$node_bin" "$server_path"
+  codex mcp get console-automation
+  echo 'Installation complete. Restart Codex, then use /mcp to verify the server.'
+  exit 0
+fi
 
-config_path = '$CONFIG_PATH'
-config = {}
+[[ -n "$custom_path" ]] || { echo '--custom-path is required for --target custom.' >&2; exit 2; }
+[[ ! -e "$custom_path" ]] || { echo "Refusing to overwrite $custom_path" >&2; exit 1; }
+mkdir -p "$(dirname "$custom_path")"
 
-if os.path.exists(config_path):
-    with open(config_path, 'r') as f:
-        config = json.load(f)
+node --input-type=module - "$custom_path" "$node_bin" "$server_path" <<'NODE'
+import fs from 'node:fs';
 
-if 'mcpServers' not in config:
-    config['mcpServers'] = {}
+const [, , outputPath, nodePath, serverPath] = process.argv;
+const config = {
+  mcpServers: {
+    'console-automation': {
+      command: nodePath,
+      args: [serverPath],
+      env: { LOG_LEVEL: 'warn' },
+    },
+  },
+};
+fs.writeFileSync(outputPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+NODE
 
-config['mcpServers']['console-automation'] = {
-    'command': '$SERVER_COMMAND',
-    'args': $SERVER_ARGS,
-    'env': {
-        'LOG_LEVEL': 'info'
-    }
-}
-
-with open(config_path, 'w') as f:
-    json.dump(config, f, indent=2)
-"
-    
-    success "✓ Claude Desktop configured at: $CONFIG_PATH"
-    warning "  Please restart Claude Desktop for changes to take effect"
-}
-
-install_google() {
-    info "\nConfiguring for Google AI Studio..."
-    
-    local CONFIG_DIR="$HOME/.config/google-ai-studio"
-    local CONFIG_PATH="$CONFIG_DIR/mcp_config.json"
-    
-    mkdir -p "$CONFIG_DIR"
-    
-    python3 -c "
-import json
-import os
-
-config_path = '$CONFIG_PATH'
-config = {'servers': {}}
-
-if os.path.exists(config_path):
-    with open(config_path, 'r') as f:
-        config = json.load(f)
-
-config['servers']['console-automation'] = {
-    'type': 'stdio',
-    'command': 'node',
-    'args': ['$INSTALL_DIR/dist/index.js'],
-    'description': 'Console application automation and monitoring'
-}
-
-with open(config_path, 'w') as f:
-    json.dump(config, f, indent=2)
-"
-    
-    success "✓ Google AI Studio configured at: $CONFIG_PATH"
-}
-
-install_openai() {
-    info "\nConfiguring for OpenAI Desktop..."
-    
-    local CONFIG_DIR=""
-    case "$(uname -s)" in
-        Darwin)
-            CONFIG_DIR="$HOME/Library/Application Support/OpenAI/desktop"
-            ;;
-        Linux)
-            CONFIG_DIR="$HOME/.local/share/openai/desktop"
-            ;;
-        *)
-            error "Unsupported OS for OpenAI Desktop"
-            ;;
-    esac
-    
-    local CONFIG_PATH="$CONFIG_DIR/mcp_servers.json"
-    mkdir -p "$CONFIG_DIR"
-    
-    python3 -c "
-import json
-import os
-
-config_path = '$CONFIG_PATH'
-config = {'servers': []}
-
-if os.path.exists(config_path):
-    with open(config_path, 'r') as f:
-        config = json.load(f)
-
-# Remove existing entry if present
-config['servers'] = [s for s in config.get('servers', []) if s.get('name') != 'console-automation']
-
-config['servers'].append({
-    'name': 'console-automation',
-    'command': 'node',
-    'args': ['$INSTALL_DIR/dist/index.js'],
-    'type': 'stdio'
-})
-
-with open(config_path, 'w') as f:
-    json.dump(config, f, indent=2)
-"
-    
-    success "✓ OpenAI Desktop configured at: $CONFIG_PATH"
-}
-
-install_custom() {
-    info "\nConfiguring for custom MCP client..."
-    
-    if [ -z "$CUSTOM_PATH" ]; then
-        warning "Please provide a config file path with --custom-path parameter"
-        return
-    fi
-    
-    local CONFIG_DIR="$(dirname "$CUSTOM_PATH")"
-    mkdir -p "$CONFIG_DIR"
-    
-    info "Add the following to your MCP configuration:"
-    cat << EOF
-{
-  "console-automation": {
-    "command": "node",
-    "args": ["$INSTALL_DIR/dist/index.js"],
-    "env": {
-      "LOG_LEVEL": "info"
-    }
-  }
-}
-EOF
-    
-    if [ -f "$CUSTOM_PATH" ]; then
-        warning "\nConfiguration file exists at: $CUSTOM_PATH"
-        warning "Please manually add the above configuration to avoid overwriting"
-    else
-        python3 -c "
-import json
-
-config = {
-    'servers': {
-        'console-automation': {
-            'command': 'node',
-            'args': ['$INSTALL_DIR/dist/index.js'],
-            'env': {
-                'LOG_LEVEL': 'info'
-            }
-        }
-    }
-}
-
-with open('$CUSTOM_PATH', 'w') as f:
-    json.dump(config, f, indent=2)
-"
-        success "✓ Configuration written to: $CUSTOM_PATH"
-    fi
-}
-
-# Perform installation based on target
-case "$TARGET" in
-    claude)
-        install_claude
-        ;;
-    google)
-        install_google
-        ;;
-    openai)
-        install_openai
-        ;;
-    custom)
-        install_custom
-        ;;
-    all)
-        install_claude
-        install_google
-        install_openai
-        ;;
-    *)
-        error "Invalid target: $TARGET"
-        ;;
-esac
-
-# Create test script
-cat > "$INSTALL_DIR/test-server.sh" << 'EOF'
-#!/bin/bash
-cd "$(dirname "${BASH_SOURCE[0]}")"
-echo "Starting MCP Console Automation Server in development mode..."
-npm run dev
-EOF
-chmod +x "$INSTALL_DIR/test-server.sh"
-
-success "\n✓ Installation completed successfully!"
-info "
-Next steps:
-1. Restart your MCP client ($TARGET)
-2. The console-automation server should appear in available tools
-3. Test with a simple command like 'echo Hello World'
-
-Test the server: $INSTALL_DIR/test-server.sh
-
-For documentation, visit: https://github.com/ooples/console-automation-mcp
-"
+echo "Custom MCP configuration written to $custom_path"

@@ -48,14 +48,8 @@ module.exports = {
     '^uuid$': '<rootDir>/src/tests/__mocks__/uuid.cjs'
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node', 'mjs'],
-  globals: {
-    'ts-jest': {
-      tsconfig: '<rootDir>/tsconfig.test.json',
-      isolatedModules: true
-    }
-  },
   transform: {
-    '^.+\\.tsx?$': 'ts-jest',
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }],
     '^.+\\.(js|jsx|cjs)$': 'babel-jest'
   },
   transformIgnorePatterns: [

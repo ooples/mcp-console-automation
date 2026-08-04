@@ -112,7 +112,7 @@ export class CodeGenerator {
       case 'javascript':
       case 'typescript':
         imports.push(
-          "import { ConsoleManager } from '@mcp/console-automation';"
+          "import { ConsoleManager } from 'console-automation-mcp';"
         );
         if (options.framework === 'jest') {
           imports.push(

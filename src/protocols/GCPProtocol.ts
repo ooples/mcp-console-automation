@@ -12,6 +12,9 @@ import {
   SessionState as BaseSessionState,
   ErrorContext,
 } from '../core/IProtocol.js';
+import { moduleRequire } from '../utils/moduleRequire.js';
+import { lstatSync, readFileSync } from 'node:fs';
+import { extname, resolve } from 'node:path';
 
 // Google Cloud SDK imports - made optional to handle missing dependencies
 let GoogleAuth: any, JWT: any, OAuth2Client: any, UserRefreshClient: any;
@@ -21,7 +24,7 @@ let createTunnel: any;
 let gcpMetadata: any;
 
 try {
-  const authModule = require('google-auth-library');
+  const authModule = moduleRequire('google-auth-library');
   GoogleAuth = authModule.GoogleAuth;
   JWT = authModule.JWT;
   OAuth2Client = authModule.OAuth2Client;
@@ -33,7 +36,7 @@ try {
 }
 
 try {
-  const computeModule = require('@google-cloud/compute');
+  const computeModule = moduleRequire('@google-cloud/compute');
   Compute = computeModule.Compute;
   InstancesClient = computeModule.InstancesClient;
   ZonesClient = computeModule.ZonesClient;
@@ -44,7 +47,7 @@ try {
 }
 
 try {
-  const osLoginModule = require('@google-cloud/os-login');
+  const osLoginModule = moduleRequire('@google-cloud/os-login');
   OSLoginServiceClient = osLoginModule.OSLoginServiceClient;
 } catch (error) {
   console.warn(
@@ -53,7 +56,7 @@ try {
 }
 
 try {
-  const tunnelModule = require('tunnel-ssh');
+  const tunnelModule = moduleRequire('tunnel-ssh');
   createTunnel = tunnelModule.createTunnel;
 } catch (error) {
   console.warn(
@@ -62,7 +65,7 @@ try {
 }
 
 try {
-  gcpMetadata = require('gcp-metadata');
+  gcpMetadata = moduleRequire('gcp-metadata');
 } catch (error) {
   console.warn(
     'gcp-metadata not available, metadata service functionality will be disabled'
@@ -864,7 +867,19 @@ export class GCPProtocol extends BaseProtocol {
     if (options.keyFile) {
       credentials = JSON.parse(options.keyFile);
     } else if (options.keyFilename) {
-      credentials = require(options.keyFilename);
+      const credentialPath = resolve(options.keyFilename);
+      if (extname(credentialPath).toLowerCase() !== '.json') {
+        throw new Error(
+          'Service account credential file must use the .json extension'
+        );
+      }
+      const credentialStats = lstatSync(credentialPath);
+      if (!credentialStats.isFile() || credentialStats.isSymbolicLink()) {
+        throw new Error(
+          'Service account credential path must be a regular JSON file'
+        );
+      }
+      credentials = JSON.parse(readFileSync(credentialPath, 'utf8'));
     } else if (options.credentials) {
       credentials = options.credentials;
     } else {

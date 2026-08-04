@@ -118,7 +118,7 @@ case 'console_generate_test_code':
 **Output Formats**:
 ```javascript
 // Generated JavaScript test
-const { ConsoleAutomation } = require('@mcp/console-automation');
+const { ConsoleAutomation } = require('console-automation-mcp');
 
 async function deployTest() {
   const automation = new ConsoleAutomation();

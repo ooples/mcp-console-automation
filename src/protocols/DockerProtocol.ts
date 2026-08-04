@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import stripAnsi from 'strip-ansi';
 import * as path from 'path';
 import * as os from 'os';
+import { moduleRequire } from '../utils/moduleRequire.js';
 
 import {
   DockerConnectionOptions,
@@ -59,12 +60,9 @@ interface DockerAPI {
 // Dynamic Docker import with fallback
 let Docker: (new (options?: any) => DockerAPI) | null = null;
 try {
-  Docker = require('dockerode');
-} catch (error) {
-  // dockerode is optional dependency
-  console.warn(
-    'Docker support requires dockerode package. Install with: npm install dockerode'
-  );
+  Docker = moduleRequire('dockerode');
+} catch {
+  // dockerode is optional; Docker methods return a targeted error when used.
 }
 
 export interface DockerProtocolEvents {

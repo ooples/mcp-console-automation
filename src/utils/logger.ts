@@ -2,6 +2,56 @@ import * as winston from 'winston';
 import * as path from 'path';
 import * as fs from 'fs';
 
+const SENSITIVE_KEY =
+  /pass(word|phrase)?|private.?key|token|secret|credential|authorization|api.?key/i;
+
+function redactLogValue(
+  value: unknown,
+  key = '',
+  seen = new WeakSet<object>(),
+  depth = 0
+): unknown {
+  if (SENSITIVE_KEY.test(key)) return '[REDACTED]';
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string') {
+    if (
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(value) ||
+      /\b(?:basic|bearer)\s+[a-z0-9._~+/=-]+/i.test(value)
+    ) {
+      return '[REDACTED]';
+    }
+    return value;
+  }
+  if (typeof value !== 'object') return value;
+  if (depth >= 6 || seen.has(value)) return '[TRUNCATED]';
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactLogValue(item, key, seen, depth + 1));
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([childKey, childValue]) => [
+      childKey,
+      redactLogValue(childValue, childKey, seen, depth + 1),
+    ])
+  );
+}
+
+const redactFormat = winston.format((info) => {
+  for (const key of Object.keys(info)) {
+    if (key !== 'level') {
+      info[key] = redactLogValue(info[key], key);
+    }
+  }
+
+  const splat = Symbol.for('splat');
+  if (Array.isArray(info[splat])) {
+    info[splat] = info[splat].map((value: unknown) => redactLogValue(value));
+  }
+  return info;
+});
+
 export class Logger {
   private static instance: Logger;
   private logger: winston.Logger;
@@ -27,17 +77,21 @@ export class Logger {
       );
     }
 
-    // Always use file logging for MCP servers
-    if (isMCPServer || process.env.NODE_ENV === 'production') {
-      const logDir = path.join(process.cwd(), 'logs');
+    // MCP file logging is deliberately opt-in. Console commands and SSH
+    // failures can contain sensitive values, so a stdio server must not leave
+    // persistent logs merely because it was started.
+    const configuredLogDir = process.env.MCP_LOG_DIR?.trim();
+    if (configuredLogDir) {
+      const logDir = path.resolve(configuredLogDir);
       if (!fs.existsSync(logDir)) {
-        fs.mkdirSync(logDir, { recursive: true });
+        fs.mkdirSync(logDir, { recursive: true, mode: 0o700 });
       }
 
       transports.push(
         new winston.transports.File({
           filename: path.join(logDir, 'mcp-error.log'),
           level: 'error',
+          options: { mode: 0o600 },
           format: winston.format.combine(
             winston.format.timestamp(),
             winston.format.json()
@@ -45,6 +99,7 @@ export class Logger {
         }),
         new winston.transports.File({
           filename: path.join(logDir, 'mcp-combined.log'),
+          options: { mode: 0o600 },
           format: winston.format.combine(
             winston.format.timestamp(),
             winston.format.json()
@@ -59,11 +114,13 @@ export class Logger {
         winston.format.timestamp(),
         winston.format.errors({ stack: true }),
         winston.format.splat(),
+        redactFormat(),
         winston.format.json()
       ),
       defaultMeta: { service: 'mcp-console', context, mcpMode: isMCPServer },
       transports,
-      // CRITICAL: Prevent any console output in MCP mode
+      // Never write application logs to stdout in MCP mode. Stdout belongs
+      // exclusively to the JSON-RPC transport.
       silent: isMCPServer && transports.length === 0,
     });
   }

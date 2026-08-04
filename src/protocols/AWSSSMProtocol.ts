@@ -4,6 +4,7 @@ import {
   SessionState as BaseSessionState,
 } from '../core/IProtocol.js';
 import { Logger } from '../utils/logger.js';
+import { moduleRequire } from '../utils/moduleRequire.js';
 import { v4 as uuidv4 } from 'uuid';
 import { WebSocket } from 'ws';
 
@@ -116,7 +117,7 @@ let SSMClient: any,
   CommandStatusValues: any;
 
 try {
-  const ssmModule = require('@aws-sdk/client-ssm');
+  const ssmModule = moduleRequire('@aws-sdk/client-ssm');
   SSMClient = ssmModule.SSMClient;
   StartSessionCommand = ssmModule.StartSessionCommand;
   TerminateSessionCommand = ssmModule.TerminateSessionCommand;
@@ -148,7 +149,7 @@ try {
 let EC2Client: any, DescribeInstancesCommand: any, DescribeTagsCommand: any;
 
 try {
-  const ec2Module = require('@aws-sdk/client-ec2');
+  const ec2Module = moduleRequire('@aws-sdk/client-ec2');
   EC2Client = ec2Module.EC2Client;
   DescribeInstancesCommand = ec2Module.DescribeInstancesCommand;
   DescribeTagsCommand = ec2Module.DescribeTagsCommand;
@@ -165,7 +166,7 @@ let STSClient: any,
   GetSessionTokenCommand: any;
 
 try {
-  const stsModule = require('@aws-sdk/client-sts');
+  const stsModule = moduleRequire('@aws-sdk/client-sts');
   STSClient = stsModule.STSClient;
   AssumeRoleCommand = stsModule.AssumeRoleCommand;
   GetCallerIdentityCommand = stsModule.GetCallerIdentityCommand;
@@ -183,7 +184,7 @@ let S3Client: any,
   GetObjectCommand: any;
 
 try {
-  const s3Module = require('@aws-sdk/client-s3');
+  const s3Module = moduleRequire('@aws-sdk/client-s3');
   S3Client = s3Module.S3Client;
   HeadBucketCommand = s3Module.HeadBucketCommand;
   PutObjectCommand = s3Module.PutObjectCommand;
@@ -202,7 +203,7 @@ let CloudWatchLogsClient: any,
   DescribeLogGroupsCommand: any;
 
 try {
-  const logsModule = require('@aws-sdk/client-cloudwatch-logs');
+  const logsModule = moduleRequire('@aws-sdk/client-cloudwatch-logs');
   CloudWatchLogsClient = logsModule.CloudWatchLogsClient;
   CreateLogGroupCommand = logsModule.CreateLogGroupCommand;
   CreateLogStreamCommand = logsModule.CreateLogStreamCommand;
@@ -223,7 +224,7 @@ let fromEnv: any,
   fromWebToken: any;
 
 try {
-  const credModule = require('@aws-sdk/credential-providers');
+  const credModule = moduleRequire('@aws-sdk/credential-providers');
   fromEnv = credModule.fromEnv;
   fromIni = credModule.fromIni;
   fromInstanceMetadata = credModule.fromInstanceMetadata;

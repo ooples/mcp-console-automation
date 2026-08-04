@@ -1,5 +1,11 @@
 import { EventEmitter } from 'events';
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
+import {
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  mkdirSync,
+  chmodSync,
+} from 'fs';
 import { dirname } from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
@@ -73,14 +79,14 @@ export class SessionManager extends EventEmitter {
       maxSessions: config.maxSessions ?? 100,
       sessionTimeout: config.sessionTimeout ?? 24 * 60 * 60 * 1000, // 24 hours
       cleanupInterval: config.cleanupInterval ?? 5 * 60 * 1000, // 5 minutes
-      persistenceEnabled: config.persistenceEnabled ?? true,
+      persistenceEnabled: config.persistenceEnabled ?? false,
       persistencePath: config.persistencePath ?? './data/sessions.json',
       recoveryOptions: {
         enableAutoRecovery: config.recoveryOptions?.enableAutoRecovery ?? true,
         maxRecoveryAttempts: config.recoveryOptions?.maxRecoveryAttempts ?? 3,
         recoveryDelay: config.recoveryOptions?.recoveryDelay ?? 5000,
         backoffMultiplier: config.recoveryOptions?.backoffMultiplier ?? 2.0,
-        persistSessionData: config.recoveryOptions?.persistSessionData ?? true,
+        persistSessionData: config.recoveryOptions?.persistSessionData ?? false,
         healthCheckInterval:
           config.recoveryOptions?.healthCheckInterval ?? 30 * 1000,
       },
@@ -615,7 +621,13 @@ export class SessionManager extends EventEmitter {
       // Ensure persistence directory exists
       const persistenceDir = dirname(this.config.persistencePath);
       if (!existsSync(persistenceDir)) {
-        mkdirSync(persistenceDir, { recursive: true });
+        mkdirSync(persistenceDir, { recursive: true, mode: 0o700 });
+      }
+      if (process.platform !== 'win32') {
+        chmodSync(persistenceDir, 0o700);
+        if (existsSync(this.config.persistencePath)) {
+          chmodSync(this.config.persistencePath, 0o600);
+        }
       }
 
       // Load existing sessions
@@ -625,10 +637,12 @@ export class SessionManager extends EventEmitter {
       this.persistenceTimer = setInterval(async () => {
         await this.persistSessions();
       }, 60000); // Persist every minute
+      this.persistenceTimer.unref();
     } catch (error) {
       if (this.config.enableLogging) {
         this.logger.error('Failed to initialize persistence:', error);
       }
+      throw error;
     }
   }
 
@@ -687,14 +701,59 @@ export class SessionManager extends EventEmitter {
     }
 
     try {
-      const sessions = Array.from(this.sessions.values());
+      const sessions = Array.from(this.sessions.values()).map((session) =>
+        this.sanitizeSessionForPersistence(session)
+      );
       const data = JSON.stringify(sessions, null, 2);
-      writeFileSync(this.config.persistencePath, data, 'utf8');
+      writeFileSync(this.config.persistencePath, data, {
+        encoding: 'utf8',
+        mode: 0o600,
+      });
+      if (process.platform !== 'win32') {
+        chmodSync(this.config.persistencePath, 0o600);
+      }
     } catch (error) {
       if (this.config.enableLogging) {
         this.logger.error('Failed to persist sessions:', error);
       }
+      if (process.platform !== 'win32') {
+        throw error;
+      }
     }
+  }
+
+  private sanitizeSessionForPersistence(session: SessionState): SessionState {
+    const originalSession = session.metadata?.originalSession as
+      | ConsoleSession
+      | undefined;
+    const persistentData = session.persistentData
+      ? { ...session.persistentData, env: undefined }
+      : undefined;
+    if (!originalSession) {
+      return { ...session, persistentData };
+    }
+
+    const sshOptions = originalSession.sshOptions
+      ? { ...originalSession.sshOptions }
+      : undefined;
+    if (sshOptions) {
+      delete sshOptions.password;
+      delete sshOptions.privateKey;
+      delete sshOptions.passphrase;
+    }
+
+    return {
+      ...session,
+      persistentData,
+      metadata: {
+        ...session.metadata,
+        originalSession: {
+          ...originalSession,
+          env: undefined,
+          sshOptions,
+        },
+      },
+    };
   }
 
   /**
@@ -708,6 +767,7 @@ export class SessionManager extends EventEmitter {
     this.heartbeatInterval = setInterval(async () => {
       await this.performHealthCheck();
     }, this.config.heartbeatInterval);
+    this.heartbeatInterval.unref();
   }
 
   /**
@@ -721,6 +781,7 @@ export class SessionManager extends EventEmitter {
     this.cleanupInterval = setInterval(async () => {
       await this.performCleanup();
     }, this.config.cleanupInterval);
+    this.cleanupInterval.unref();
   }
 
   /**
@@ -1063,5 +1124,20 @@ export class SessionManager extends EventEmitter {
     this.backgroundJobs.clear();
     this.jobQueue.length = 0;
     this.activeJobs.clear();
+
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    if (this.persistenceTimer) {
+      clearInterval(this.persistenceTimer);
+      this.persistenceTimer = null;
+    }
+
+    this.removeAllListeners();
   }
 }

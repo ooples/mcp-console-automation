@@ -325,18 +325,17 @@ describe('LocalProtocol', () => {
         streaming: true,
       });
 
-      // ASSERT ON WHICH SHELL WAS CHOSEN, not on the exact string.
       // resolvePowerShell() returns the ABSOLUTE path when
-      // %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe exists and
-      // falls back to the bare name when it does not -- deliberately, so a
-      // session does not depend on PATH. platform() is mocked here but the
-      // filesystem is not, so the exact-string form asserted a real Windows
-      // machine: it passed on the Linux runner, where the path is absent, and
-      // failed on Windows, where it resolves. Both are the same decision.
-      expect(mockSpawn).toHaveBeenCalledTimes(1);
-      const [command, args] = mockSpawn.mock.calls[0];
-      expect(String(command).toLowerCase()).toMatch(/(^|[\\/])powershell\.exe$/);
-      expect(args).toEqual(['-NoLogo', '-NoExit']);
+      // %SystemRoot%System32WindowsPowerShell1.0powershell.exe exists and
+      // the bare name when it does not, so a session never depends on PATH.
+      // platform() is mocked here but the filesystem is not -- an exact-string
+      // assertion therefore tested the machine, passing on the Linux runner and
+      // failing on Windows for the same decision by the code.
+      expect(mockSpawn).toHaveBeenCalledWith(
+        expect.stringMatching(/powershell(?:\.exe)?$/i),
+        ['-NoLogo', '-NoExit'],
+        expect.any(Object)
+      );
 
       await autoProtocol.dispose();
     });

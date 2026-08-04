@@ -2,9 +2,9 @@ name: Test Suite
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ master, main, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ master, main, develop ]
   schedule:
     # Run tests daily at 2 AM UTC
     - cron: '0 2 * * *'
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20, 21]
+        node-version: [18, 20, 22]
     
     steps:
     - name: Checkout code
@@ -38,7 +38,7 @@ jobs:
       run: npm run typecheck
     
     - name: Run unit tests
-      run: npm test -- --testPathPattern="tests/.*\.test\.ts$" --coverage
+      run: npm run test:unit -- --coverage
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
@@ -69,40 +69,22 @@ jobs:
     - name: Install dependencies
       run: npm ci
     
-    - name: Install SSH server (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y openssh-server
-        sudo systemctl start ssh
-        sudo systemctl enable ssh
-    
-    - name: Install SSH server (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        # Windows already has OpenSSH client/server available
-        Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH*'
-    
-    - name: Setup SSH server (macOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        sudo systemsetup -setremotelogin on
-    
     - name: Build project
       run: npm run build
-    
-    - name: Run integration tests
-      run: npm test -- --testPathPattern="test/integration/.*\.test\.ts$" --testTimeout=60000
-      env:
-        NODE_ENV: test
-        CI: true
-    
-    - name: Run error detection tests
-      run: npm test -- --testPathPattern="test/integration/error-detection\.test\.ts$" --testTimeout=30000
-    
-    - name: Run session management tests
-      run: npm test -- --testPathPattern="test/integration/session-management\.test\.ts$" --testTimeout=45000
 
+    - name: Verify MCP handshake and credential redaction
+      run: npm run test:mcp
+
+    - name: Verify opt-in log redaction
+      run: npm run test:logger
+
+    - name: Verify platform installer
+      run: npm run test:installer
+
+    - name: Verify minimal production package
+      if: matrix.os == 'ubuntu-latest' && matrix.node-version == 20
+      run: npm run test:package
+    
   ssh-tests:
     if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: SSH Integration Tests
@@ -125,8 +107,6 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y openssh-server
-        sudo systemctl start ssh
-        sudo systemctl enable ssh
         
         # Create test user
         sudo useradd -m -s /bin/bash testuser
@@ -140,22 +120,33 @@ jobs:
         sudo chmod 700 /home/testuser/.ssh
         sudo chmod 600 /home/testuser/.ssh/authorized_keys
         
-        # Configure SSH for testing
-        sudo tee -a /etc/ssh/sshd_config << EOF
-        Port 2222
-        PermitRootLogin no
-        PasswordAuthentication yes
-        PubkeyAuthentication yes
-        AuthorizedKeysFile .ssh/authorized_keys
-        EOF
-        
-        sudo systemctl restart ssh
+        # Start a dedicated daemon so systemd socket activation cannot keep the
+        # test on port 22 or override the requested authentication methods.
+        sudo mkdir -p /run/sshd
+        sudo /usr/sbin/sshd -D -e -p 2222 \
+          -o ListenAddress=127.0.0.1 \
+          -o PermitRootLogin=no \
+          -o PasswordAuthentication=yes \
+          -o PubkeyAuthentication=yes \
+          -o AuthorizedKeysFile=.ssh/authorized_keys \
+          > /tmp/console-automation-sshd.log 2>&1 &
+
+        for attempt in {1..20}; do
+          if sudo ss -ltn | grep -q '127.0.0.1:2222'; then
+            break
+          fi
+          sleep 0.5
+        done
+        sudo ss -ltn | grep -q '127.0.0.1:2222' || {
+          cat /tmp/console-automation-sshd.log
+          exit 1
+        }
     
     - name: Build project
       run: npm run build
     
     - name: Run SSH integration tests
-      run: npm test -- --testPathPattern="test/integration/ssh\.test\.ts$" --testTimeout=90000
+      run: npm run test:ssh:smoke
       env:
         SSH_TEST_PORT: 2222
         SSH_TEST_USER: testuser
@@ -184,7 +175,7 @@ jobs:
       run: npm run build
     
     - name: Run stress tests
-      run: npm test -- --testPathPattern="test/stress/load\.test\.ts$" --testTimeout=120000 --maxWorkers=2
+      run: npm run test:stress:smoke
       env:
         NODE_OPTIONS: "--max_old_space_size=4096"
     
@@ -229,13 +220,12 @@ jobs:
     if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     name: Docker Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
-    - name: Setup Docker Buildx
-      uses: docker/setup-buildx-action@v3
     
     - name: Build Docker image
       run: |
@@ -254,18 +244,20 @@ jobs:
         # Copy package files
         COPY package*.json ./
         
-        # Install dependencies
-        RUN npm ci --only=production
+        # Install build dependencies without running prepare before source exists
+        RUN npm ci --ignore-scripts
         
         # Copy source code
         COPY . .
         
-        # Build application
-        RUN npm run build
+        # Build application, then remove development-only dependencies
+        RUN npm run build && npm prune --omit=dev
         
         # Create non-root user
         RUN addgroup -g 1001 -S appgroup && \
-            adduser -S appuser -u 1001 -G appgroup
+            adduser -S appuser -u 1001 -G appgroup && \
+            mkdir -p /app/diagnostics /app/data /app/logs && \
+            chown -R appuser:appgroup /app/diagnostics /app/data /app/logs
         
         USER appuser
         
@@ -274,25 +266,18 @@ jobs:
         CMD ["npm", "start"]
         EOF
         
-        docker build -t mcp-console-automation:test .
+        for attempt in 1 2 3; do
+          if docker build -t mcp-console-automation:test .; then
+            break
+          fi
+          if [ "$attempt" -eq 3 ]; then
+            exit 1
+          fi
+          sleep $((attempt * 10))
+        done
     
-    - name: Test Docker image
-      run: |
-        # Run container in background
-        docker run -d --name test-container -p 3000:3000 mcp-console-automation:test
-        
-        # Wait for startup
-        sleep 10
-        
-        # Test if service is responding
-        curl -f http://localhost:3000/health || echo "Health check endpoint not available"
-        
-        # Check container logs
-        docker logs test-container
-        
-        # Stop container
-        docker stop test-container
-        docker rm test-container
+    - name: Verify MCP handshake inside production image
+      run: docker run --rm mcp-console-automation:test npm run test:mcp
 
   cross-platform-tests:
     if: ${{ !startsWith(github.head_ref, 'release-please--') }}

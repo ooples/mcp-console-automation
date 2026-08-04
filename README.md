@@ -1,22 +1,21 @@
 # Console Automation MCP Server
 
-**Production-Ready** Model Context Protocol (MCP) server that enables AI assistants to fully interact with console applications, monitor output, detect errors, and automate terminal workflows - similar to how Playwright works for web browsers.
+Model Context Protocol (MCP) server for controlled interaction with local console applications and remote SSH sessions, including output monitoring, error detection, and long-running workflows.
 
-[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)](https://github.com/ooples/console-automation-mcp)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](https://github.com/ooples/mcp-console-automation)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org)
 
-## Production Status ✅
+## Security status
 
-This server is **fully production-ready** with:
-- ✅ No native compilation required (removed node-pty dependency)
-- ✅ Full cross-platform support (Windows, macOS, Linux)
-- ✅ Streaming support for long-running processes
-- ✅ Multiple console type support (cmd, PowerShell, bash, zsh, sh)
-- ✅ Resource management and automatic cleanup
-- ✅ Comprehensive error handling and recovery
-- ✅ Easy installation scripts for all major MCP clients
-- ✅ All tests passing (see test-functionality.js)
+This server can execute arbitrary commands and open remote SSH sessions. Treat it like a privileged terminal, not a low-risk documentation connector:
+
+- keep MCP tool approvals enabled for command/session mutations;
+- prefer SSH keys or environment-variable credential references over inline secrets;
+- use a restricted deployment account and a separate production approval step;
+- leave `MCP_DEBUG_LOG` and `MCP_LOG_DIR` unset unless diagnostics are explicitly required;
+- leave session persistence disabled unless recovery metadata is explicitly required;
+- install cloud, container, and serial integrations only when needed.
 
 ## Features
 
@@ -34,7 +33,7 @@ This server is **fully production-ready** with:
 
 - **Full SSH Support**: Password and key-based authentication with passphrase support
 - **SSH Options**: Custom ports, connection timeouts, keep-alive settings
-- **Connection Profiles**: Save and reuse SSH configurations for quick access
+- **Connection Profiles**: Save reusable SSH metadata and environment-variable credential references
 - **Cloud Platform Support**: Azure, AWS, GCP, Kubernetes connections via saved profiles
 - **Container Support**: Docker and WSL integration for containerized workflows
 
@@ -84,65 +83,51 @@ This server is **fully production-ready** with:
 
 ## Quick Installation
 
-### Windows (PowerShell as Administrator)
+### Windows
 ```powershell
-git clone https://github.com/ooples/console-automation-mcp.git
-cd console-automation-mcp
-.\install.ps1 -Target claude  # or google, openai, custom, all
+git clone https://github.com/ooples/mcp-console-automation.git
+cd mcp-console-automation
+.\install.ps1 -Target codex
 ```
 
 ### macOS/Linux
 ```bash
-git clone https://github.com/ooples/console-automation-mcp.git
-cd console-automation-mcp
+git clone https://github.com/ooples/mcp-console-automation.git
+cd mcp-console-automation
 chmod +x install.sh
-./install.sh --target claude  # or google, openai, custom, all
+./install.sh --target codex
 ```
 
 ### Manual Installation
 ```bash
-git clone https://github.com/ooples/console-automation-mcp.git
-cd console-automation-mcp
-npm install --production
+git clone https://github.com/ooples/mcp-console-automation.git
+cd mcp-console-automation
+npm ci
 npm run build
+codex mcp add console-automation --env LOG_LEVEL=warn -- node "$PWD/dist/mcp/server.js"
 ```
 
 ## Configuration
 
-### For Claude Desktop
+Codex stores MCP configuration in `~/.codex/config.toml`. The installers use `codex mcp add` and safely replace an existing `console-automation` registration. Restart Codex after installation and use `/mcp` to verify the connection.
 
-Add to your Claude Desktop configuration file:
+For another MCP client, generate a new JSON configuration without overwriting an existing file:
 
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "console-automation": {
-      "command": "npx",
-      "args": ["@mcp/console-automation"],
-      "env": {
-        "LOG_LEVEL": "info"
-      }
-    }
-  }
-}
+```powershell
+.\install.ps1 -Target custom -CustomPath C:\path\to\new-mcp-config.json
 ```
 
-### For other MCP clients
+The npm package has not been published, so `npx console-automation-mcp` and `@mcp/console-automation` are not valid installation paths.
 
-```bash
-# Start the server with new name
-console-automation-mcp --log-level info
+### Saved SSH credentials
 
-# Or with backward compatible name
-mcp-console --log-level info
+`console_save_profile` rejects inline passwords, private-key material, and passphrases. Use `passwordEnvVar`, `privateKeyEnvVar` or `privateKeyPath`, and `passphraseEnvVar`. Profile-list responses never return credential values, and configuration files are created with owner-only permissions where the operating system supports POSIX modes.
 
-# Or with npx
-npx console-automation-mcp --log-level info
-```
+### Session persistence
+
+Session persistence is disabled by default because session recovery data can include commands, paths, and environment values. To opt in, set `MCP_SESSION_PERSISTENCE=true`. The default file is `~/.console-automation-mcp/sessions.json`; override it with `MCP_SESSION_PERSISTENCE_PATH`. Persisted command/environment recovery data remains disabled unless enabled through the programmatic `SessionManager` configuration.
+
+The production installers remove development and optional protocol packages. Local consoles and SSH remain available. Install only the peer packages required for Docker, cloud, Kubernetes, serial, or other optional adapters.
 
 ## Available Tools (40 Total)
 
@@ -405,7 +390,7 @@ npm run lint
 ## Architecture
 
 The server is built with:
-- **node-pty**: For creating and managing pseudo-terminals
+- **Node child processes and ssh2**: For local command execution and SSH sessions
 - **@modelcontextprotocol/sdk**: MCP protocol implementation
 - **TypeScript**: For type safety and better developer experience
 - **Winston**: For structured logging
@@ -421,13 +406,20 @@ The server is built with:
 
 - Node.js >= 18.0.0
 - Windows, macOS, or Linux operating system
-- No additional build tools required!
+- Optional serial-port integrations can require platform build tools.
 
 ## Testing
 
-Run the included test suite to verify functionality:
+Run static validation, the build, MCP smoke tests, and the test suite:
 ```bash
-node test-functionality.js
+npm run lint
+npm run typecheck
+npm run build
+npm run test:mcp
+npm run test:logger
+npm run test:installer
+npm run test:package
+npm test
 ```
 
 ## Troubleshooting
@@ -435,7 +427,7 @@ node test-functionality.js
 ### Common Issues
 
 1. **Permission denied errors**: Ensure the server has permission to spawn processes
-2. **node-pty compilation errors**: Install build tools for your platform
+2. **Optional native dependency errors**: Install platform build tools only when enabling serial-port integrations
 3. **Session not responding**: Check if the command requires TTY interaction
 4. **Output not captured**: Some applications may write directly to terminal, bypassing stdout
 
@@ -456,7 +448,7 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues, questions, or suggestions, please open an issue on GitHub:
-https://github.com/ooples/console-automation-mcp/issues
+https://github.com/ooples/mcp-console-automation/issues
 
 ## Roadmap
 

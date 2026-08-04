@@ -516,7 +516,7 @@ export class AlertManager extends EventEmitter {
   private sendConsoleNotification(alert: Alert): void {
     const severity = alert.severity.toUpperCase();
     const timestamp = alert.timestamp.toISOString();
-    console.log(
+    this.logger.warn(
       `[${timestamp}] [ALERT-${severity}] ${alert.title}: ${alert.description}`
     );
   }

@@ -61,9 +61,13 @@ export class SSHBridge {
         host: options.sshOptions?.host || options.host,
         port: options.sshOptions?.port || options.port || 22,
         username: options.sshOptions?.username || options.username,
-        password: options.sshOptions?.password || options.password,
+        password: this.resolveSecret(options, 'password', 'passwordEnvVar'),
         privateKey: resolvedPrivateKey,
-        passphrase: options.sshOptions?.passphrase || options.passphrase,
+        passphrase: this.resolveSecret(
+          options,
+          'passphrase',
+          'passphraseEnvVar'
+        ),
         tryKeyboard: options.sshOptions?.tryKeyboard !== false,
         keepAliveInterval: options.sshOptions?.keepAliveInterval || 10000,
         readyTimeout: options.sshOptions?.readyTimeout || 30000,
@@ -98,6 +102,18 @@ export class SSHBridge {
    * rather than PEM/OpenSSH content, it is read from disk.
    */
   private resolvePrivateKey(options: any): string | undefined {
+    const keyEnvVar: string | undefined =
+      options.sshOptions?.privateKeyEnvVar || options.privateKeyEnvVar;
+    if (keyEnvVar) {
+      const keyFromEnvironment = process.env[keyEnvVar];
+      if (!keyFromEnvironment) {
+        throw new Error(
+          `SSH private-key environment variable is not set: ${keyEnvVar}`
+        );
+      }
+      return keyFromEnvironment.replace(/\\n/g, '\n');
+    }
+
     const inlineKey: string | undefined =
       options.sshOptions?.privateKey || options.privateKey;
     const keyPath: string | undefined =
@@ -129,6 +145,25 @@ export class SSHBridge {
       // Not a readable path -- fall back to treating it as raw key content.
       return inlineKey;
     }
+  }
+
+  private resolveSecret(
+    options: any,
+    valueProperty: 'password' | 'passphrase',
+    envProperty: 'passwordEnvVar' | 'passphraseEnvVar'
+  ): string | undefined {
+    const environmentVariable =
+      options.sshOptions?.[envProperty] || options[envProperty];
+    if (environmentVariable) {
+      const value = process.env[environmentVariable];
+      if (value === undefined) {
+        throw new Error(
+          `SSH ${valueProperty} environment variable is not set: ${environmentVariable}`
+        );
+      }
+      return value;
+    }
+    return options.sshOptions?.[valueProperty] || options[valueProperty];
   }
 
   /**
@@ -212,9 +247,14 @@ export class SSHBridge {
       const info = this.sshHandler.getSessionInfo(sshId);
       if (info) {
         sessions.push({
-          sessionId: mcpId,
+          id: mcpId,
           sshSessionId: sshId,
-          ...info,
+          command: info.commandHistory?.at(-1) || '',
+          status: 'running',
+          type: 'ssh',
+          streaming: false,
+          createdAt: info.created,
+          lastActivity: info.lastActivity,
         });
       }
     }

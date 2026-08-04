@@ -1,4 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
+import { unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { BaseProtocol } from '../core/BaseProtocol.js';
 import {
   ConsoleSession,
@@ -75,6 +79,7 @@ export class ChefProtocol extends BaseProtocol {
   public readonly capabilities: ProtocolCapabilities;
 
   private chefProcesses = new Map<string, ChildProcess>();
+  private chefAttributeFiles = new Map<string, string>();
 
   // Compatibility property for old ProtocolFactory interface
   public get healthStatus(): ProtocolHealthStatus {
@@ -222,18 +227,24 @@ export class ChefProtocol extends BaseProtocol {
     const chefOptions = options.chefOptions || ({} as ChefConnectionOptions);
 
     // Build Chef command
-    const chefCommand = this.buildChefCommand(chefOptions);
+    const chefCommand = this.buildChefCommand(chefOptions, sessionId);
 
     // Spawn Chef process
-    const chefProcess = spawn(chefCommand[0], chefCommand.slice(1), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: options.cwd || chefOptions.chefRepoPath || process.cwd(),
-      env: {
-        ...process.env,
-        ...this.buildEnvironment(chefOptions),
-        ...options.env,
-      },
-    });
+    let chefProcess: ChildProcess;
+    try {
+      chefProcess = spawn(chefCommand[0], chefCommand.slice(1), {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: options.cwd || chefOptions.chefRepoPath || process.cwd(),
+        env: {
+          ...process.env,
+          ...this.buildEnvironment(chefOptions),
+          ...options.env,
+        },
+      });
+    } catch (error) {
+      this.cleanupTemporaryAttributesFile(sessionId);
+      throw error;
+    }
 
     // Set up output handling
     chefProcess.stdout?.on('data', (data) => {
@@ -257,11 +268,13 @@ export class ChefProtocol extends BaseProtocol {
     });
 
     chefProcess.on('error', (error) => {
+      this.cleanupTemporaryAttributesFile(sessionId);
       this.logger.error(`Chef process error for session ${sessionId}:`, error);
       this.emit('session-error', { sessionId, error });
     });
 
     chefProcess.on('close', (code) => {
+      this.cleanupTemporaryAttributesFile(sessionId);
       this.logger.info(
         `Chef process closed for session ${sessionId} with code ${code}`
       );
@@ -437,7 +450,10 @@ export class ChefProtocol extends BaseProtocol {
     });
   }
 
-  private buildChefCommand(options: ChefConnectionOptions): string[] {
+  private buildChefCommand(
+    options: ChefConnectionOptions,
+    sessionId: string
+  ): string[] {
     const command = [];
 
     // Chef executable
@@ -478,9 +494,16 @@ export class ChefProtocol extends BaseProtocol {
     if (options.jsonAttributes) {
       command.push('--json-attributes', options.jsonAttributes);
     } else if (options.attributes) {
-      // Create temporary JSON file for attributes
-      const tempFile = `/tmp/chef-attributes-${Date.now()}.json`;
-      require('fs').writeFileSync(tempFile, JSON.stringify(options.attributes));
+      const tempFile = join(
+        tmpdir(),
+        `console-automation-chef-${randomUUID()}.json`
+      );
+      writeFileSync(tempFile, JSON.stringify(options.attributes), {
+        encoding: 'utf8',
+        flag: 'wx',
+        mode: 0o600,
+      });
+      this.chefAttributeFiles.set(sessionId, tempFile);
       command.push('--json-attributes', tempFile);
     }
 
@@ -563,6 +586,22 @@ export class ChefProtocol extends BaseProtocol {
     }
 
     return command;
+  }
+
+  private cleanupTemporaryAttributesFile(sessionId: string): void {
+    const tempFile = this.chefAttributeFiles.get(sessionId);
+    if (!tempFile) return;
+
+    this.chefAttributeFiles.delete(sessionId);
+    try {
+      unlinkSync(tempFile);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        this.logger.warn(
+          `Failed to remove temporary Chef attributes for session ${sessionId}`
+        );
+      }
+    }
   }
 
   private buildEnvironment(

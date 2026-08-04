@@ -3,7 +3,7 @@ import * as http from 'http';
 import * as https from 'https';
 import * as net from 'net';
 import WebSocket, { WebSocketServer } from 'ws';
-import * as express from 'express';
+import express from 'express';
 import { BaseProtocol } from '../core/BaseProtocol.js';
 import {
   ConsoleSession,
@@ -174,8 +174,6 @@ export class WeTTYProtocol extends BaseProtocol {
         },
       },
     };
-
-    this.isInitialized = true;
   }
 
   /**
@@ -214,31 +212,14 @@ export class WeTTYProtocol extends BaseProtocol {
     }
 
     // Check for required modules
-    try {
-      require('express');
-      this.healthStatus.dependencies.express = {
-        available: true,
-        version: 'installed',
-      };
-    } catch {
-      this.healthStatus.dependencies.express = {
-        available: false,
-        version: 'not installed',
-      };
-    }
-
-    try {
-      require('ws');
-      this.healthStatus.dependencies.ws = {
-        available: true,
-        version: 'installed',
-      };
-    } catch {
-      this.healthStatus.dependencies.ws = {
-        available: false,
-        version: 'not installed',
-      };
-    }
+    this.healthStatus.dependencies.express = {
+      available: true,
+      version: 'installed',
+    };
+    this.healthStatus.dependencies.ws = {
+      available: true,
+      version: 'installed',
+    };
 
     this.isInitialized = true;
   }
@@ -499,7 +480,6 @@ export class WeTTYProtocol extends BaseProtocol {
     session: WeTTYSession
   ): Promise<void> {
     try {
-      const express = require('express');
       const app = express();
 
       // Setup static files

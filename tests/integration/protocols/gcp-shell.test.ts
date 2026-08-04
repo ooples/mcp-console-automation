@@ -21,10 +21,10 @@ import { SecurityTester } from '../../security/protocol-security.js';
 
 // Mock Google Cloud SDK
 jest.mock('@google-cloud/compute');
-jest.mock('@google-cloud/storage');
-jest.mock('@google-cloud/container');
-jest.mock('@google-cloud/functions');
-jest.mock('@google-cloud/iam');
+jest.mock('@google-cloud/storage', () => ({}), { virtual: true });
+jest.mock('@google-cloud/container', () => ({}), { virtual: true });
+jest.mock('@google-cloud/functions', () => ({}), { virtual: true });
+jest.mock('@google-cloud/iam', () => ({}), { virtual: true });
 
 const mockComputeClient = {
   getInstances: jest.fn<any>(),
@@ -148,19 +148,19 @@ describeIfCloud('GCPShellProtocol Integration Tests', () => {
 
     jest.doMock('@google-cloud/storage', () => ({
       Storage: jest.fn(() => mockStorageClient)
-    }));
+    }), { virtual: true });
 
     jest.doMock('@google-cloud/container', () => ({
       ClusterManagerClient: jest.fn(() => mockContainerClient)
-    }));
+    }), { virtual: true });
 
     jest.doMock('@google-cloud/functions', () => ({
       CloudFunctionsServiceClient: jest.fn(() => mockFunctionsClient)
-    }));
+    }), { virtual: true });
 
     jest.doMock('@google-cloud/iam', () => ({
       IAMClient: jest.fn(() => mockIAMClient)
-    }));
+    }), { virtual: true });
 
     // Mock WebSocket for GCP Cloud Shell
     (global as any).WebSocket = MockGCPCloudShellWebSocket;
