@@ -9724,7 +9724,9 @@ export class ConsoleManager extends EventEmitter {
       // can tell a zsh `%` prompt from `84.4%` in top's output.
       if (queue?.expectedPrompt) {
         const pattern = queue.expectedPrompt;
-        const result = await this.waitForOutput(sessionId, pattern, { timeout });
+        const result = await this.waitForOutput(sessionId, pattern, {
+          timeout,
+        });
         return {
           detected: true,
           prompt: result.output.match(pattern)?.[0],
