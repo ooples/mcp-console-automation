@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.4](https://github.com/ooples/mcp-console-automation/compare/v1.1.3...v1.1.4) (2026-08-11)
+
+
+### Bug Fixes
+
+* **deps:** clear the six advisories that fail Security Scan on every PR ([#104](https://github.com/ooples/mcp-console-automation/issues/104)) ([5f5fa7b](https://github.com/ooples/mcp-console-automation/commit/5f5fa7b8ff4874479f210306cd076d1ce04ea95c))
+* **local:** a bare executable name had its argv flattened and re-parsed ([#100](https://github.com/ooples/mcp-console-automation/issues/100)) ([d395ba8](https://github.com/ooples/mcp-console-automation/commit/d395ba8857b6f3ed1a4c70758c66c008a34e3ce4))
+
 ## [1.1.3](https://github.com/ooples/mcp-console-automation/compare/v1.1.2...v1.1.3) (2026-07-15)
 
 
