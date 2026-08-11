@@ -194,11 +194,8 @@
   },
   "overrides": {
     "express-rate-limit": "^8.5.2",
-    "ip-address": "^10.2.0",
-    "protobufjs": "^7.6.5",
-    "@typescript-eslint/typescript-estree": {
-      "minimatch": "^9.0.7"
-    }
+    "ip-address": "^10.4.0",
+    "protobufjs": "^7.6.5"
   },
   "devDependencies": {
     "@aws-sdk/client-cloudwatch-logs": "^3.1086.0",
@@ -239,7 +236,7 @@
     "jest-html-reporters": "^3.1.7",
     "jest-junit": "^17.0.0",
     "jest-sonar-reporter": "^2.0.0",
-    "js-yaml": "^4.3.0",
+    "js-yaml": "^4.3.1",
     "node-cron": "^4.6.0",
     "node-forge": "^1.4.0",
     "prettier": "^3.6.2",
