@@ -325,6 +325,12 @@ describe('LocalProtocol', () => {
         streaming: true,
       });
 
+      // resolvePowerShell() returns the ABSOLUTE path when
+      // %SystemRoot%System32WindowsPowerShell1.0powershell.exe exists and
+      // the bare name when it does not, so a session never depends on PATH.
+      // platform() is mocked here but the filesystem is not -- an exact-string
+      // assertion therefore tested the machine, passing on the Linux runner and
+      // failing on Windows for the same decision by the code.
       expect(mockSpawn).toHaveBeenCalledWith(
         expect.stringMatching(/powershell(?:\.exe)?$/i),
         ['-NoLogo', '-NoExit'],

@@ -1,0 +1,15 @@
+# Normalise line endings in the repository and on checkout.
+#
+# Without this the blobs are LF while a Windows checkout is CRLF, and git
+# silently normalises the difference back on commit. Prettier is configured with
+# its default endOfLine "lf", so `format:check` fails locally on every file and
+# `format` produces a diff git then discards -- which makes it impossible to
+# tell a real formatting problem from a line-ending artifact.
+* text=auto eol=lf
+
+# Binary and generated artifacts must not be touched.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary
