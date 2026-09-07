@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { platform } from 'os';
 import { Logger } from '../utils/logger.js';
 import { SSHOptions } from './SSHAdapter.js';
+import { describeSshFailure, isFatalSshStderr } from './SshStderrClassifier.js';
 
 /**
  * Windows-specific SSH adapter that handles password authentication
@@ -11,6 +12,9 @@ import { SSHOptions } from './SSHAdapter.js';
 export class WindowsSSHAdapter extends EventEmitter {
   private process: ChildProcess | null = null;
   private outputBuffer: string = '';
+
+  /** Everything SSH has written to stderr on this connection, for classification and reporting. */
+  private stderrBuffer: string = '';
   private isConnected: boolean = false;
   private logger: Logger;
   private sessionId: string;
@@ -244,7 +248,16 @@ while (!$process.HasExited) {
     if (this.process.stderr) {
       this.process.stderr.on('data', (data: Buffer) => {
         const text = data.toString();
-        this.emit('error', text);
+
+        // Same rule as SSHAdapter, and the same reason. This adapter sets both
+        // StrictHostKeyChecking=no AND UserKnownHostsFile=/dev/null, so SSH prints the known-hosts warning on
+        // EVERY connection, not just the first - which made a warning the guaranteed cause of death here.
+        this.stderrBuffer += text;
+        this.emit('stderr', text);
+
+        if (isFatalSshStderr(this.stderrBuffer)) {
+          this.emit('error', this.stderrBuffer);
+        }
       });
     }
 
@@ -261,7 +274,7 @@ while (!$process.HasExited) {
   private waitForConnection(timeout: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error('Connection timeout'));
+        reject(new Error(describeSshFailure('Connection timeout', this.stderrBuffer)));
       }, timeout);
 
       const onConnected = () => {
