@@ -124,4 +124,53 @@ describe('SSH stderr is a verdict only while connecting', () => {
       expect(errors).toEqual([]);
     });
   });
+
+  /**
+   * `connect()` falls back plink -> PowerShell -> ssh, and the plink path alone tries several executables, so
+   * one connect can spawn several children. Classification runs against the ACCUMULATED buffer, so without a
+   * reset the next attempt's first harmless chunk re-matched the previous attempt's fatal text and rejected a
+   * healthy connection — reporting the wrong mechanism's error while doing so.
+   */
+  describe('WindowsSSHAdapter discards a failed attempt before the next', () => {
+    it('does not carry a failed attempt’s fatal stderr into the next attempt', () => {
+      const adapter = new WindowsSSHAdapter('test-session');
+      const errors: string[] = [];
+      adapter.on('error', (message: string) => errors.push(String(message)));
+
+      const first = createFakeProcess();
+      (adapter as any).process = first;
+      (adapter as any).isConnected = false;
+      (adapter as any).setupHandlers();
+
+      first.stderr.emit('data', Buffer.from('Permission denied (publickey).\n'));
+      expect(errors).toHaveLength(1);
+
+      // plink failed; connect() falls back to the next mechanism.
+      (adapter as any).beginConnectionAttempt();
+      const second = createFakeProcess();
+      (adapter as any).process = second;
+      (adapter as any).setupHandlers();
+
+      // Routine chatter on a healthy attempt must not inherit the previous verdict.
+      second.stderr.emit(
+        'data',
+        Buffer.from("Warning: Permanently added 'host' (ED25519) to the list of known hosts.\n"),
+      );
+
+      expect(errors).toHaveLength(1);
+    });
+
+    it('kills and detaches the abandoned child', () => {
+      const adapter = new WindowsSSHAdapter('test-session');
+      const first = createFakeProcess();
+      (adapter as any).process = first;
+      (adapter as any).setupHandlers();
+
+      (adapter as any).beginConnectionAttempt();
+
+      expect(first.kill).toHaveBeenCalled();
+      expect(first.stderr.listenerCount('data')).toBe(0);
+      expect(first.stdout.listenerCount('data')).toBe(0);
+    });
+  });
 });

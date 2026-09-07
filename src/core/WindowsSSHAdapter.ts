@@ -68,6 +68,7 @@ while (!$process.HasExited) {
     `.trim();
 
     try {
+      this.beginConnectionAttempt();
       this.process = spawn('powershell', ['-NoProfile', '-Command', psScript], {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
@@ -117,6 +118,7 @@ while (!$process.HasExited) {
       let plinkFound = false;
       for (const plinkPath of plinkPaths) {
         try {
+          this.beginConnectionAttempt();
           this.process = spawn(plinkPath, args, {
             stdio: ['pipe', 'pipe', 'pipe'],
             windowsHide: true,
@@ -214,6 +216,7 @@ while (!$process.HasExited) {
     args.push(`${options.username}@${options.host}`);
 
     try {
+      this.beginConnectionAttempt();
       this.process = spawn('ssh', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
@@ -226,6 +229,40 @@ while (!$process.HasExited) {
     } catch (error) {
       throw new Error(`SSH key connection failed: ${error}`);
     }
+  }
+
+  /**
+   * Discard the previous attempt before starting another one.
+   *
+   * `connect()` falls back plink -> PowerShell -> ssh, and the plink path alone tries several executables, so a
+   * single connect can spawn several children. Two things leaked across those attempts:
+   *
+   * - `stderrBuffer` carried the FAILED attempt's text forward. Classification runs against the accumulated
+   *   buffer, so the next attempt's first harmless stderr chunk re-matched the stale fatal message and
+   *   `waitForConnection` rejected a perfectly healthy connection — with the previous attempt's error text,
+   *   which points the reader at the wrong transport entirely.
+   * - the abandoned child was never killed and its handlers stayed attached, so a dead attempt could still
+   *   emit into the adapter after a later attempt had taken over.
+   */
+  private beginConnectionAttempt(): void {
+    if (this.process) {
+      this.process.stdout?.removeAllListeners();
+      this.process.stderr?.removeAllListeners();
+      this.process.removeAllListeners();
+
+      if (!this.process.killed) {
+        try {
+          this.process.kill();
+        } catch {
+          // Already gone; there is nothing left to clean up.
+        }
+      }
+    }
+
+    this.process = null;
+    this.stderrBuffer = '';
+    this.outputBuffer = '';
+    this.isConnected = false;
   }
 
   private setupHandlers(): void {
