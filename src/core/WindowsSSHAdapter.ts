@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { platform } from 'os';
 import { Logger } from '../utils/logger.js';
 import { SSHOptions } from './SSHAdapter.js';
-import { describeSshFailure, isFatalSshStderr } from './SshStderrClassifier.js';
+import { appendBoundedStderr, describeSshFailure, isFatalSshStderr } from './SshStderrClassifier.js';
 
 /**
  * Windows-specific SSH adapter that handles password authentication
@@ -252,10 +252,13 @@ while (!$process.HasExited) {
         // Same rule as SSHAdapter, and the same reason. This adapter sets both
         // StrictHostKeyChecking=no AND UserKnownHostsFile=/dev/null, so SSH prints the known-hosts warning on
         // EVERY connection, not just the first - which made a warning the guaranteed cause of death here.
-        this.stderrBuffer += text;
+        this.stderrBuffer = appendBoundedStderr(this.stderrBuffer, text);
         this.emit('stderr', text);
 
-        if (isFatalSshStderr(this.stderrBuffer)) {
+        // Connection phase only, for the same reason as SSHAdapter: this handler outlives the handshake, so
+        // after `connected` the stream is the remote command's stderr, where "Permission denied" is ordinary
+        // program output rather than a dead transport.
+        if (!this.isConnected && isFatalSshStderr(this.stderrBuffer)) {
           this.emit('error', this.stderrBuffer);
         }
       });

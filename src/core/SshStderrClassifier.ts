@@ -45,6 +45,37 @@ const FATAL_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
+ * How much stderr an adapter keeps.
+ *
+ * The retained buffer is re-scanned on every chunk, so leaving it unbounded costs memory AND turns a chatty
+ * session into repeated scans of an ever-growing string — quadratic in the number of chunks. The tail is the
+ * part that explains an ending, so that is what is kept.
+ *
+ * 16 KiB is orders of magnitude longer than the longest pattern above, so trimming to this window cannot cut
+ * a match that the complete buffer would have found — including one split across chunk boundaries.
+ */
+export const MAX_RETAINED_STDERR = 16 * 1024;
+
+/**
+ * Append a stderr chunk, retaining only the trailing window.
+ *
+ * @param buffer Text retained so far.
+ * @param chunk The newly arrived slice.
+ * @param limit Maximum characters to retain; defaults to {@link MAX_RETAINED_STDERR}.
+ */
+export function appendBoundedStderr(
+  buffer: string,
+  chunk: string,
+  limit: number = MAX_RETAINED_STDERR,
+): string {
+  const combined = buffer + chunk;
+  if (limit <= 0 || combined.length <= limit) {
+    return combined;
+  }
+  return combined.slice(-limit);
+}
+
+/**
  * Whether SSH's stderr says the connection has failed.
  *
  * @param text Accumulated stderr, not a single chunk. A stream hands out arbitrary slices, so

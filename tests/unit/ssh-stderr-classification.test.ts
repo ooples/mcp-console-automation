@@ -1,4 +1,9 @@
-import { describeSshFailure, isFatalSshStderr } from '../../src/core/SshStderrClassifier.js';
+import {
+  MAX_RETAINED_STDERR,
+  appendBoundedStderr,
+  describeSshFailure,
+  isFatalSshStderr,
+} from '../../src/core/SshStderrClassifier.js';
 
 /**
  * Regression tests for "a correctly configured host is unreachable".
@@ -91,6 +96,40 @@ describe('SSH stderr is diagnostic unless it says the connection is over', () =>
 
       expect(message).toContain('the actual ending');
       expect(message.length).toBeLessThan(1000);
+    });
+  });
+
+  /**
+   * The retained buffer is re-scanned on every chunk, so an unbounded one costs memory and makes a chatty
+   * session quadratic. Trimming must never cost us a verdict, which is the point of the last two cases.
+   */
+  describe('retained stderr stays bounded', () => {
+    it('keeps short output verbatim', () => {
+      expect(appendBoundedStderr('Permission ', 'denied')).toBe('Permission denied');
+    });
+
+    it('never grows past the retention window', () => {
+      let buffer = '';
+      for (let i = 0; i < 500; i++) {
+        buffer = appendBoundedStderr(buffer, 'debug1: chatter\n'.repeat(100));
+      }
+
+      expect(buffer.length).toBeLessThanOrEqual(MAX_RETAINED_STDERR);
+    });
+
+    it('keeps the tail, which is the part that explains the ending', () => {
+      const buffer = appendBoundedStderr('x'.repeat(MAX_RETAINED_STDERR), 'Permission denied');
+
+      expect(buffer.length).toBe(MAX_RETAINED_STDERR);
+      expect(buffer.endsWith('Permission denied')).toBe(true);
+    });
+
+    it('still sees a failure split across chunks after trimming', () => {
+      let buffer = appendBoundedStderr('', 'debug1: chatter\n'.repeat(4000));
+      buffer = appendBoundedStderr(buffer, 'Permission de');
+      buffer = appendBoundedStderr(buffer, 'nied');
+
+      expect(isFatalSshStderr(buffer)).toBe(true);
     });
   });
 });

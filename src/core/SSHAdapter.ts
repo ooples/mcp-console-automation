@@ -6,7 +6,7 @@ import { readFileSync } from 'fs';
 import { RetryManager } from './RetryManager.js';
 import { ErrorRecovery, ErrorContext } from './ErrorRecovery.js';
 import { Logger } from '../utils/logger.js';
-import { describeSshFailure, isFatalSshStderr } from './SshStderrClassifier.js';
+import { appendBoundedStderr, describeSshFailure, isFatalSshStderr } from './SshStderrClassifier.js';
 
 export interface SSHOptions {
   host: string;
@@ -768,7 +768,7 @@ export class SSHAdapter extends EventEmitter {
 
             // Accumulated, not per-chunk: a stream hands out arbitrary slices, so "Permission denied" can
             // arrive as "Permission de" + "nied", and a per-chunk test would miss it exactly when it matters.
-            this.stderrBuffer += text;
+            this.stderrBuffer = appendBoundedStderr(this.stderrBuffer, text);
 
             // Surface stderr for observability, but as DIAGNOSTIC output rather than a verdict. This used to
             // emit 'error' unconditionally, and waitForConnection rejects on the first 'error' - so SSH's
@@ -776,17 +776,24 @@ export class SSHAdapter extends EventEmitter {
             // made with StrictHostKeyChecking=no, which is the default this adapter sets.
             this.emit('stderr', text);
 
-            if (isFatalSshStderr(this.stderrBuffer)) {
-              this.emit('error', this.stderrBuffer);
-            }
+            // Only the CONNECTION phase gets to read stderr as a verdict. These handlers stay attached for
+            // the life of the process, so once the session is up this stream carries the remote command's
+            // stderr - and a remote command may legitimately print "Permission denied" (a denied sudo, an
+            // unreadable path) while the SSH transport is perfectly healthy. Classifying that as fatal emits
+            // a false 'error' and a false 'auth-failed' for what is ordinary program output.
+            if (!this.isConnected) {
+              if (isFatalSshStderr(this.stderrBuffer)) {
+                this.emit('error', this.stderrBuffer);
+              }
 
-            // Check for common SSH errors
-            if (this.stderrBuffer.includes('Permission denied')) {
-              this.emit('auth-failed');
-            } else if (this.stderrBuffer.includes('Connection refused')) {
-              this.emit('connection-refused');
-            } else if (this.stderrBuffer.includes('No route to host')) {
-              this.emit('host-unreachable');
+              // Check for common SSH errors
+              if (this.stderrBuffer.includes('Permission denied')) {
+                this.emit('auth-failed');
+              } else if (this.stderrBuffer.includes('Connection refused')) {
+                this.emit('connection-refused');
+              } else if (this.stderrBuffer.includes('No route to host')) {
+                this.emit('host-unreachable');
+              }
             }
           } catch (handlerError) {
             this.logger.error(`Error in stderr handler: ${handlerError}`);
