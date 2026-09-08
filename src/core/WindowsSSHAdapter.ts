@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { platform } from 'os';
 import { Logger } from '../utils/logger.js';
 import { SSHOptions } from './SSHAdapter.js';
+import { appendBoundedStderr, describeSshFailure, isFatalSshStderr } from './SshStderrClassifier.js';
 
 /**
  * Windows-specific SSH adapter that handles password authentication
@@ -11,6 +12,9 @@ import { SSHOptions } from './SSHAdapter.js';
 export class WindowsSSHAdapter extends EventEmitter {
   private process: ChildProcess | null = null;
   private outputBuffer: string = '';
+
+  /** Everything SSH has written to stderr on this connection, for classification and reporting. */
+  private stderrBuffer: string = '';
   private isConnected: boolean = false;
   private logger: Logger;
   private sessionId: string;
@@ -64,6 +68,7 @@ while (!$process.HasExited) {
     `.trim();
 
     try {
+      this.beginConnectionAttempt();
       this.process = spawn('powershell', ['-NoProfile', '-Command', psScript], {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
@@ -113,6 +118,7 @@ while (!$process.HasExited) {
       let plinkFound = false;
       for (const plinkPath of plinkPaths) {
         try {
+          this.beginConnectionAttempt();
           this.process = spawn(plinkPath, args, {
             stdio: ['pipe', 'pipe', 'pipe'],
             windowsHide: true,
@@ -210,6 +216,7 @@ while (!$process.HasExited) {
     args.push(`${options.username}@${options.host}`);
 
     try {
+      this.beginConnectionAttempt();
       this.process = spawn('ssh', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
@@ -222,6 +229,40 @@ while (!$process.HasExited) {
     } catch (error) {
       throw new Error(`SSH key connection failed: ${error}`);
     }
+  }
+
+  /**
+   * Discard the previous attempt before starting another one.
+   *
+   * `connect()` falls back plink -> PowerShell -> ssh, and the plink path alone tries several executables, so a
+   * single connect can spawn several children. Two things leaked across those attempts:
+   *
+   * - `stderrBuffer` carried the FAILED attempt's text forward. Classification runs against the accumulated
+   *   buffer, so the next attempt's first harmless stderr chunk re-matched the stale fatal message and
+   *   `waitForConnection` rejected a perfectly healthy connection — with the previous attempt's error text,
+   *   which points the reader at the wrong transport entirely.
+   * - the abandoned child was never killed and its handlers stayed attached, so a dead attempt could still
+   *   emit into the adapter after a later attempt had taken over.
+   */
+  private beginConnectionAttempt(): void {
+    if (this.process) {
+      this.process.stdout?.removeAllListeners();
+      this.process.stderr?.removeAllListeners();
+      this.process.removeAllListeners();
+
+      if (!this.process.killed) {
+        try {
+          this.process.kill();
+        } catch {
+          // Already gone; there is nothing left to clean up.
+        }
+      }
+    }
+
+    this.process = null;
+    this.stderrBuffer = '';
+    this.outputBuffer = '';
+    this.isConnected = false;
   }
 
   private setupHandlers(): void {
@@ -244,7 +285,19 @@ while (!$process.HasExited) {
     if (this.process.stderr) {
       this.process.stderr.on('data', (data: Buffer) => {
         const text = data.toString();
-        this.emit('error', text);
+
+        // Same rule as SSHAdapter, and the same reason. This adapter sets both
+        // StrictHostKeyChecking=no AND UserKnownHostsFile=/dev/null, so SSH prints the known-hosts warning on
+        // EVERY connection, not just the first - which made a warning the guaranteed cause of death here.
+        this.stderrBuffer = appendBoundedStderr(this.stderrBuffer, text);
+        this.emit('stderr', text);
+
+        // Connection phase only, for the same reason as SSHAdapter: this handler outlives the handshake, so
+        // after `connected` the stream is the remote command's stderr, where "Permission denied" is ordinary
+        // program output rather than a dead transport.
+        if (!this.isConnected && isFatalSshStderr(this.stderrBuffer)) {
+          this.emit('error', this.stderrBuffer);
+        }
       });
     }
 
@@ -261,7 +314,7 @@ while (!$process.HasExited) {
   private waitForConnection(timeout: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error('Connection timeout'));
+        reject(new Error(describeSshFailure('Connection timeout', this.stderrBuffer)));
       }, timeout);
 
       const onConnected = () => {

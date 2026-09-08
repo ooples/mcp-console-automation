@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import { RetryManager } from './RetryManager.js';
 import { ErrorRecovery, ErrorContext } from './ErrorRecovery.js';
 import { Logger } from '../utils/logger.js';
+import { appendBoundedStderr, describeSshFailure, isFatalSshStderr } from './SshStderrClassifier.js';
 
 export interface SSHOptions {
   host: string;
@@ -23,6 +24,9 @@ export class SSHAdapter extends EventEmitter {
   private sshClient: SSHClient | null = null;
   private sshChannel: ClientChannel | null = null;
   private outputBuffer: string = '';
+
+  /** Everything SSH has written to stderr on this connection, for classification and reporting. */
+  private stderrBuffer: string = '';
   private isConnected: boolean = false;
   private connectionOptions: SSHOptions | null = null;
   private retryManager: RetryManager;
@@ -609,6 +613,7 @@ export class SSHAdapter extends EventEmitter {
     this.process = null;
     this.isConnected = false;
     this.outputBuffer = '';
+    this.stderrBuffer = '';
   }
 
   private getSSHCommands(): string[] {
@@ -760,15 +765,35 @@ export class SSHAdapter extends EventEmitter {
         this.process.stderr.on('data', (data: Buffer) => {
           try {
             const text = data.toString();
-            this.emit('error', text);
 
-            // Check for common SSH errors
-            if (text.includes('Permission denied')) {
-              this.emit('auth-failed');
-            } else if (text.includes('Connection refused')) {
-              this.emit('connection-refused');
-            } else if (text.includes('No route to host')) {
-              this.emit('host-unreachable');
+            // Accumulated, not per-chunk: a stream hands out arbitrary slices, so "Permission denied" can
+            // arrive as "Permission de" + "nied", and a per-chunk test would miss it exactly when it matters.
+            this.stderrBuffer = appendBoundedStderr(this.stderrBuffer, text);
+
+            // Surface stderr for observability, but as DIAGNOSTIC output rather than a verdict. This used to
+            // emit 'error' unconditionally, and waitForConnection rejects on the first 'error' - so SSH's
+            // routine "Warning: Permanently added ... to the list of known hosts." killed every connection
+            // made with StrictHostKeyChecking=no, which is the default this adapter sets.
+            this.emit('stderr', text);
+
+            // Only the CONNECTION phase gets to read stderr as a verdict. These handlers stay attached for
+            // the life of the process, so once the session is up this stream carries the remote command's
+            // stderr - and a remote command may legitimately print "Permission denied" (a denied sudo, an
+            // unreadable path) while the SSH transport is perfectly healthy. Classifying that as fatal emits
+            // a false 'error' and a false 'auth-failed' for what is ordinary program output.
+            if (!this.isConnected) {
+              if (isFatalSshStderr(this.stderrBuffer)) {
+                this.emit('error', this.stderrBuffer);
+              }
+
+              // Check for common SSH errors
+              if (this.stderrBuffer.includes('Permission denied')) {
+                this.emit('auth-failed');
+              } else if (this.stderrBuffer.includes('Connection refused')) {
+                this.emit('connection-refused');
+              } else if (this.stderrBuffer.includes('No route to host')) {
+                this.emit('host-unreachable');
+              }
             }
           } catch (handlerError) {
             this.logger.error(`Error in stderr handler: ${handlerError}`);
@@ -805,7 +830,9 @@ export class SSHAdapter extends EventEmitter {
   private waitForConnection(timeout: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error('SSH connection timeout'));
+        // An unrecognised fatal message is not swallowed: whatever SSH said travels with the timeout, so the
+        // classifier can never become the place an explanation goes to die.
+        reject(new Error(describeSshFailure('SSH connection timeout', this.stderrBuffer)));
       }, timeout);
 
       const onConnected = () => {
@@ -972,6 +999,7 @@ export class SSHAdapter extends EventEmitter {
 
   clearOutput(): void {
     this.outputBuffer = '';
+    this.stderrBuffer = '';
   }
 
   disconnect(): void {
