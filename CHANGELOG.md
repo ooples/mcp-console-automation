@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.5](https://github.com/ooples/mcp-console-automation/compare/v1.1.4...v1.1.5) (2026-09-08)
+
+
+### Bug Fixes
+
+* **deps:** break the security-audit deadlock blocking dependency PRs ([#112](https://github.com/ooples/mcp-console-automation/issues/112)) ([d3e0b75](https://github.com/ooples/mcp-console-automation/commit/d3e0b757aad5ccc412381698f3e51cae933d0e00))
+* **ssh:** stop a known-hosts warning from killing every connection ([#111](https://github.com/ooples/mcp-console-automation/issues/111)) ([6bed1a9](https://github.com/ooples/mcp-console-automation/commit/6bed1a9e37ea2b651a0ccf78f62826c59595b829))
+
 ## [1.1.4](https://github.com/ooples/mcp-console-automation/compare/v1.1.3...v1.1.4) (2026-08-11)
 
 
