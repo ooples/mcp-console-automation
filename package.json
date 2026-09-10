@@ -59,7 +59,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "axios": "^1.18.1",
     "eventemitter3": "^5.0.4",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^9.1.1",
     "p-queue": "^8.1.1",
     "simple-statistics": "^7.9.3",
     "ssh2": "^1.17.0",
