@@ -13,6 +13,41 @@ import {
   SSHConnectionOptions,
   ConsoleType,
 } from '../types/index.js';
+import { randomBytes } from 'node:crypto';
+
+const quoteShellArgument = (value: string) =>
+  /^[A-Za-z0-9_@%+=:,./-]+$/.test(value)
+    ? value
+    : `'${value.replace(/'/g, `'"'"'`)}'`;
+
+/**
+ * Builds the line sent to the remote shell. `command` is a shell command line and is sent as
+ * written, so `cd /srv && ls; echo done` keeps its operators; quoting it turned the whole line
+ * into one program name ("No such file or directory"). Only `args` are quoted, which keeps
+ * their boundaries intact.
+ */
+export function buildRemoteCommand(command: string, args?: string[]): string {
+  return [command, ...(args ?? []).map(quoteShellArgument)].join(' ');
+}
+
+/**
+ * A per-command marker that reports the command's real exit status. The terminal echoes the
+ * command line back, and that echo contains the printf format (`%d`), never the rendered
+ * `<nonce>_<status>` text, so only the actual output can match.
+ */
+export function createCompletionMarker(nonce = randomBytes(8).toString('hex')): {
+  suffix: string;
+  parse: (output: string) => number | undefined;
+} {
+  const pattern = new RegExp(`__MCP_DONE_${nonce}_(\\d+)__`);
+  return {
+    suffix: `; printf '\\n__MCP_DONE_%s_%d__\\n' ${nonce} "$?"`,
+    parse: (output: string) => {
+      const match = pattern.exec(output);
+      return match ? Number(match[1]) : undefined;
+    },
+  };
+}
 
 /**
  * SSH Protocol implementation for secure remote shell access
@@ -228,24 +263,26 @@ export class SSHProtocol extends BaseProtocol {
         }
       }
 
-      // Preserve argument boundaries when converting the structured command
-      // contract to the remote POSIX shell command string.
-      const quoteShellArgument = (value: string) =>
-        /^[A-Za-z0-9_@%+=:,./-]+$/.test(value)
-          ? value
-          : `'${value.replace(/'/g, `'"'"'`)}'`;
-      const fullCommand = [command, ...(args ?? [])]
-        .map(quoteShellArgument)
-        .join(' ');
+      const fullCommand = buildRemoteCommand(command, args);
 
-      // Send command via SSH adapter
-      await adapter.sendCommand(fullCommand);
-
-      // For one-shot sessions, mark as complete when command is sent
       if (sessionState.isOneShot) {
-        setTimeout(() => {
-          this.markSessionComplete(sessionId, 0);
-        }, 1000); // Give time for output to be captured
+        // The remote side is an interactive shell, so "the command finished" is only knowable
+        // from the shell itself. Append a marker that prints the real exit status and complete
+        // the session when it arrives; ConsoleManager's timeout still bounds a hung command.
+        const marker = createCompletionMarker();
+        let received = '';
+        const onData = (data: string) => {
+          received = (received + data).slice(-4096);
+          const exitCode = marker.parse(received);
+          if (exitCode !== undefined) {
+            adapter.off('data', onData);
+            this.markSessionComplete(sessionId, exitCode);
+          }
+        };
+        adapter.on('data', onData);
+        await adapter.sendCommand(`${fullCommand}${marker.suffix}`);
+      } else {
+        await adapter.sendCommand(fullCommand);
       }
 
       this.emit('commandExecuted', {
