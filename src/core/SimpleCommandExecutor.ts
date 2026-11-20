@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { promisify } from 'util';
 import { Logger } from '../utils/logger.js';
 import { SessionOptions, SSHConnectionOptions } from '../types/index.js';
+import { DEFAULT_HOST_KEY_POLICY, openSshStrictHostKeyChecking } from './KnownHosts.js';
 
 const execAsync = promisify(exec);
 
@@ -191,8 +192,11 @@ export class SimpleCommandExecutor {
       sshArgs.push('-i', sshOptions.privateKeyPath);
     }
 
-    // Add strict host key checking control
-    sshArgs.push('-o', 'StrictHostKeyChecking=no');
+    // Host key policy: same default as SSHAdapter (accept-new), never silently "no"
+    sshArgs.push(
+      '-o',
+      `StrictHostKeyChecking=${openSshStrictHostKeyChecking(sshOptions.strictHostKeyChecking ?? DEFAULT_HOST_KEY_POLICY)}`
+    );
 
     // Build connection string
     const connectionString = `${sshOptions.username}@${sshOptions.host}`;

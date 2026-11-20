@@ -30,6 +30,39 @@ export interface CircuitBreakerState {
   successCount: number;
 }
 
+/**
+ * Steps that fit the failure. A fixed list told every caller to "check your network connection",
+ * including for an unknown host key or a rejected key, where the network was fine and the
+ * advice sent people the wrong way.
+ */
+export function remediationSteps(message: string): string[] {
+  if (/Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED|host key .* does not match/i.test(message)) {
+    return [
+      "If this is the first connection to the host, connect with sshOptions.strictHostKeyChecking: 'accept-new' (the default) to trust and record its key, or add it with ssh-keyscan",
+      'If the host was known before, its key changed: confirm the change with the server owner, then remove the old entry with ssh-keygen -R <host>',
+      'Never set strictHostKeyChecking: false for a host you have not verified; it allows interception',
+    ];
+  }
+  if (/Permission denied|authentication methods failed|Authentication failed|Too many authentication failures/i.test(message)) {
+    return [
+      'Check the username',
+      "Check that the server accepts this key or password (for a key: its public half must be in the user's ~/.ssh/authorized_keys)",
+      'If the key has a passphrase, provide passphraseEnvVar',
+      'The network is fine: the server answered and refused the credentials',
+    ];
+  }
+  if (/Could not resolve hostname|getaddrinfo|ENOTFOUND/i.test(message)) {
+    return ['Check the host name for typos', 'Check DNS resolution for the host from this machine'];
+  }
+  return [
+    'Check your network connection and firewall settings',
+    'Verify credentials and permissions',
+    'Check if the target system is accessible and responsive',
+    'Consider waiting a few minutes before retrying manually',
+    'Review the system logs for additional error details',
+  ];
+}
+
 export class RetryManager extends EventEmitter {
   private logger: Logger;
   private circuitBreakers: Map<string, CircuitBreakerState>;
@@ -510,11 +543,9 @@ export class RetryManager extends EventEmitter {
         `Duration: ${Date.now() - context.startTime}ms\n\n` +
         `Guidance: ${userGuidance}\n\n` +
         `To resolve this issue:\n` +
-        `1. Check your network connection and firewall settings\n` +
-        `2. Verify credentials and permissions\n` +
-        `3. Check if the target system is accessible and responsive\n` +
-        `4. Consider waiting a few minutes before retrying manually\n` +
-        `5. Review the system logs for additional error details`
+        remediationSteps(originalError.message)
+          .map((step, index) => `${index + 1}. ${step}`)
+          .join('\n')
     );
 
     enhancedError.name = originalError.name;

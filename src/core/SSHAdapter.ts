@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import { RetryManager } from './RetryManager.js';
 import { ErrorRecovery, ErrorContext } from './ErrorRecovery.js';
 import { Logger } from '../utils/logger.js';
+import { HostKeyPolicy, DEFAULT_HOST_KEY_POLICY, openSshStrictHostKeyChecking, verifyHostKey } from './KnownHosts.js';
 import { appendBoundedStderr, describeSshFailure, isFatalSshStderr } from './SshStderrClassifier.js';
 
 export interface SSHOptions {
@@ -14,7 +15,8 @@ export interface SSHOptions {
   username: string;
   password?: string;
   privateKey?: string;
-  strictHostKeyChecking?: boolean;
+  /** Host key policy; defaults to 'accept-new'. See KnownHosts.ts. */
+  strictHostKeyChecking?: HostKeyPolicy;
   knownHostsFile?: string;
   timeout?: number;
 }
@@ -311,10 +313,20 @@ export class SSHAdapter extends EventEmitter {
         }
       }
 
-      // Disable strict host key checking if requested
-      if (options.strictHostKeyChecking === false) {
-        connectConfig.hostVerifier = () => true;
-      }
+      // Without a hostVerifier, ssh2 accepts any host key, so a password would be sent to
+      // whoever answers. Check known_hosts under the same policy the native path uses.
+      let hostKeyRefusal: string | undefined;
+      connectConfig.hostVerifier = (key: Buffer) => {
+        const result = verifyHostKey({
+          host: options.host,
+          port: connectConfig.port,
+          keyBlob: key,
+          policy: options.strictHostKeyChecking,
+          knownHostsFile: options.knownHostsFile,
+        });
+        if (!result.accepted) hostKeyRefusal = result.reason;
+        return result.accepted;
+      };
 
       this.logger.debug(
         `[SSH2] Connecting to ${options.host}:${connectConfig.port} as ${options.username}`
@@ -348,9 +360,12 @@ export class SSHAdapter extends EventEmitter {
 
       this.sshClient.once('error', (error) => {
         clearTimeout(connectionTimeout);
-        this.logger.error(`[SSH2] Connection error: ${error.message}`);
-        this.emit('error', error.message);
-        reject(error);
+        const failure = hostKeyRefusal
+          ? new Error(`Host key verification failed: ${hostKeyRefusal}`)
+          : error;
+        this.logger.error(`[SSH2] Connection error: ${failure.message}`);
+        this.emit('error', failure.message);
+        reject(failure);
       });
 
       this.sshClient.once('close', () => {
@@ -660,10 +675,13 @@ export class SSHAdapter extends EventEmitter {
       args.push('-i', options.privateKey);
     }
 
-    // Security options
-    if (options.strictHostKeyChecking === false) {
-      args.push('-o', 'StrictHostKeyChecking=no');
+    // Host key policy (default accept-new: trust and record a new host, refuse a changed key)
+    const hostKeyPolicy = options.strictHostKeyChecking ?? DEFAULT_HOST_KEY_POLICY;
+    args.push('-o', `StrictHostKeyChecking=${openSshStrictHostKeyChecking(hostKeyPolicy)}`);
+    if (hostKeyPolicy === false) {
       args.push('-o', 'UserKnownHostsFile=/dev/null');
+    } else if (options.knownHostsFile) {
+      args.push('-o', `UserKnownHostsFile=${options.knownHostsFile}`);
     }
 
     // Authentication configuration to prevent hanging

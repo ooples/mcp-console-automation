@@ -7,6 +7,7 @@ import { Client as SSHClient, ClientChannel, ConnectConfig } from 'ssh2';
 import { EventEmitter } from 'events';
 import { Logger } from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
+import { HostKeyPolicy, verifyHostKey } from './KnownHosts.js';
 
 export interface SSHSessionOptions {
   host: string;
@@ -21,6 +22,9 @@ export interface SSHSessionOptions {
   term?: string;
   cols?: number;
   rows?: number;
+  /** Host key policy; defaults to 'accept-new'. See KnownHosts.ts. */
+  strictHostKeyChecking?: HostKeyPolicy;
+  knownHostsFile?: string;
 }
 
 export interface SSHSession {
@@ -186,6 +190,20 @@ export class SSHSessionHandler extends EventEmitter {
         readyTimeout: options.readyTimeout || 30000,
       };
 
+      // Without a hostVerifier, ssh2 accepts any host key; check known_hosts instead.
+      let hostKeyRefusal: string | undefined;
+      config.hostVerifier = (key: Buffer) => {
+        const result = verifyHostKey({
+          host: options.host,
+          port: options.port || 22,
+          keyBlob: key,
+          policy: options.strictHostKeyChecking,
+          knownHostsFile: options.knownHostsFile,
+        });
+        if (!result.accepted) hostKeyRefusal = result.reason;
+        return result.accepted;
+      };
+
       client.on('ready', () => {
         clearTimeout(timeout);
         this.logger.debug(`SSH client ready for session ${sessionId}`);
@@ -194,11 +212,14 @@ export class SSHSessionHandler extends EventEmitter {
 
       client.on('error', (err) => {
         clearTimeout(timeout);
+        const failure = hostKeyRefusal
+          ? new Error(`Host key verification failed: ${hostKeyRefusal}`)
+          : err;
         this.logger.error(
           `SSH connection error for session ${sessionId}:`,
-          err
+          failure
         );
-        reject(err);
+        reject(failure);
       });
 
       client.on('end', () => {
