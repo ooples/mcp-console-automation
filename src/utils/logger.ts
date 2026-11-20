@@ -52,6 +52,16 @@ const redactFormat = winston.format((info) => {
   return info;
 });
 
+/**
+ * winston merges `meta` into the log record, so a string becomes one field per character
+ * ({"0":"N","1":"o",...}). Wrap primitives so they are logged as one readable value.
+ */
+export function normalizeMeta(meta: unknown): unknown {
+  if (meta === undefined || meta === null) return meta;
+  if (typeof meta === 'object') return meta;
+  return { detail: meta };
+}
+
 export class Logger {
   private static instance: Logger;
   private logger: winston.Logger;
@@ -131,19 +141,19 @@ export class Logger {
   }
 
   info(message: string, meta?: any) {
-    this.logger.info(message, meta);
+    this.logger.info(message, normalizeMeta(meta));
   }
 
   error(message: string, meta?: any) {
-    this.logger.error(message, meta);
+    this.logger.error(message, normalizeMeta(meta));
   }
 
   warn(message: string, meta?: any) {
-    this.logger.warn(message, meta);
+    this.logger.warn(message, normalizeMeta(meta));
   }
 
   debug(message: string, meta?: any) {
-    this.logger.debug(message, meta);
+    this.logger.debug(message, normalizeMeta(meta));
   }
 
   getWinstonLogger(): winston.Logger {

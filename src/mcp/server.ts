@@ -449,6 +449,15 @@ export class ConsoleAutomationServer {
                   type: 'string',
                   description: 'Path to private key file',
                 },
+                strictHostKeyChecking: {
+                  description:
+                    "Host key policy: 'accept-new' (default) trusts and records an unknown host and refuses a changed key; true requires the key to be in known_hosts already; false accepts any key (allows interception).",
+                  anyOf: [{ type: 'boolean' }, { type: 'string', enum: ['accept-new'] }],
+                },
+                knownHostsFile: {
+                  type: 'string',
+                  description: 'known_hosts file to use (default ~/.ssh/known_hosts)',
+                },
                 privateKeyEnvVar: {
                   type: 'string',
                   description:
@@ -788,6 +797,15 @@ export class ConsoleAutomationServer {
                   type: 'string',
                   description: 'Path to private key file',
                 },
+                strictHostKeyChecking: {
+                  description:
+                    "Host key policy: 'accept-new' (default) trusts and records an unknown host and refuses a changed key; true requires the key to be in known_hosts already; false accepts any key (allows interception).",
+                  anyOf: [{ type: 'boolean' }, { type: 'string', enum: ['accept-new'] }],
+                },
+                knownHostsFile: {
+                  type: 'string',
+                  description: 'known_hosts file to use (default ~/.ssh/known_hosts)',
+                },
                 passphrase: {
                   type: 'string',
                   description: 'Private key passphrase',
@@ -993,6 +1011,15 @@ export class ConsoleAutomationServer {
                     'Environment variable containing the SSH password',
                 },
                 privateKeyPath: { type: 'string' },
+                strictHostKeyChecking: {
+                  description:
+                    "Host key policy: 'accept-new' (default) trusts and records an unknown host and refuses a changed key; true requires the key to be in known_hosts already; false accepts any key (allows interception).",
+                  anyOf: [{ type: 'boolean' }, { type: 'string', enum: ['accept-new'] }],
+                },
+                knownHostsFile: {
+                  type: 'string',
+                  description: 'known_hosts file to use (default ~/.ssh/known_hosts)',
+                },
                 privateKeyEnvVar: {
                   type: 'string',
                   description:

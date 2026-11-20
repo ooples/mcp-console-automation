@@ -121,6 +121,7 @@ export class SSHProtocol extends BaseProtocol {
           options.sshOptions.privateKey ||
           (options.sshOptions as any).privateKeyPath,
         strictHostKeyChecking: options.sshOptions.strictHostKeyChecking,
+        knownHostsFile: options.sshOptions.knownHostsFile,
         timeout: options.timeout || this.capabilities.defaultTimeout,
       };
 
@@ -222,6 +223,7 @@ export class SSHProtocol extends BaseProtocol {
               session.sshOptions.privateKey ||
               (session.sshOptions as any).privateKeyPath,
             strictHostKeyChecking: session.sshOptions.strictHostKeyChecking,
+            knownHostsFile: session.sshOptions.knownHostsFile,
             timeout: this.capabilities.defaultTimeout,
           };
           await adapter.connect(sshOptions);

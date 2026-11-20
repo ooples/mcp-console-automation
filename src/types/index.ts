@@ -524,7 +524,8 @@ export interface SSHConnectionOptions {
   privateKeyEnvVar?: string;
   passphrase?: string;
   passphraseEnvVar?: string;
-  strictHostKeyChecking?: boolean;
+  /** true = must be known; 'accept-new' (default) = trust on first use; false = accept any. */
+  strictHostKeyChecking?: boolean | 'accept-new';
   knownHostsFile?: string;
   timeout?: number;
   keepAliveCountMax?: number;

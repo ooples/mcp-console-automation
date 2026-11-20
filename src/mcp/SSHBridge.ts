@@ -74,6 +74,8 @@ export class SSHBridge {
         term: options.term || 'xterm-256color',
         cols: options.cols || 80,
         rows: options.rows || 24,
+        strictHostKeyChecking: options.sshOptions?.strictHostKeyChecking,
+        knownHostsFile: options.sshOptions?.knownHostsFile,
       };
 
       // Create SSH session
