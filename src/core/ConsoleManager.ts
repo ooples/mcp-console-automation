@@ -78,6 +78,7 @@ import {
   ApplicationProfile,
 } from '../config/ConfigManager.js';
 import { DockerProtocol } from '../protocols/DockerProtocol.js';
+import { extractOneShotOutput } from '../protocols/SSHProtocol.js';
 // JobManager functionality integrated into SessionManager
 import PQueue from 'p-queue';
 import { platform } from 'os';
@@ -9853,9 +9854,15 @@ export class ConsoleManager extends EventEmitter {
           event.type === 'terminated' ||
           event.type === 'session-closed'
         ) {
+          const rawOutput = outputs.join('');
           resolveAfterCleanup(
             {
-              output: outputs.join(''),
+              // An SSH one-shot runs in an interactive login shell; return only what the
+              // command printed, not the banner, echoes, prompts and escape sequences.
+              output:
+                sessionOptions.consoleType === 'ssh'
+                  ? extractOneShotOutput(rawOutput)
+                  : rawOutput,
               exitCode: event.data?.exitCode,
             },
             'session stop'
