@@ -10,6 +10,7 @@
 import {
   buildRemoteCommand,
   createCompletionMarker,
+  extractOneShotOutput,
 } from '../../src/protocols/SSHProtocol.js';
 
 describe('buildRemoteCommand', () => {
@@ -54,3 +55,33 @@ describe('createCompletionMarker', () => {
     expect(createCompletionMarker().suffix).not.toBe(createCompletionMarker().suffix);
   });
 });
+
+describe('extractOneShotOutput', () => {
+  const ESC = String.fromCharCode(27);
+  const BEL = String.fromCharCode(7);
+  const marker = createCompletionMarker('00ff00ff00ff00ff');
+  const typed = `ls /tmp${marker.suffix}`;
+  // Shape recorded from a live Ubuntu 26.04 login: banner, the line echoed before and after the
+  // prompt, OSC 3008 shell-integration sequences, colored prompt, output, marker, next prompt.
+  const transcript =
+    'Welcome to Ubuntu 26.04 LTS\r\n\r\n*** System restart required ***\r\n' +
+    `${typed}\r\n` +
+    `${ESC}]3008;start=abc;type=shell${ESC}\\${ESC}[?2004h${ESC}]0;ubuntu@host: ~${BEL}` +
+    `${ESC}[01;32mubuntu@host${ESC}[00m:~$ ${typed}\r\n${ESC}[?2004l\r` +
+    `${ESC}]3008;start=def;type=command${ESC}\\a.txt\r\nb.txt\r\n` +
+    '__MCP_DONE_00ff00ff00ff00ff_0__\r\n' +
+    `${ESC}]3008;end=def;exit=success${ESC}\\ubuntu@host:~$ `;
+
+  it('keeps only what the command printed', () => {
+    expect(extractOneShotOutput(transcript)).toBe('a.txt\nb.txt');
+  });
+
+  it('returns empty output for a silent command', () => {
+    expect(extractOneShotOutput(`${typed}\r\n__MCP_DONE_00ff00ff00ff00ff_7__\r\n`)).toBe('');
+  });
+
+  it('only strips escape sequences when no marker arrived', () => {
+    expect(extractOneShotOutput(`partial ${ESC}[01;32mgreen${ESC}[00m\r\n`)).toBe('partial green\n');
+  });
+});
+

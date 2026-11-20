@@ -49,6 +49,30 @@ export function createCompletionMarker(nonce = randomBytes(8).toString('hex')): 
   };
 }
 
+// CSI (ESC [ ... final), OSC (ESC ] ... BEL or ESC \), and other two-byte escapes.
+const ESCAPE_SEQUENCES =
+  /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b[@-Z\\-_]/g;
+const COMPLETION_MARKER = /__MCP_DONE_[0-9a-f]+_\d+__/;
+
+/**
+ * Reduces a one-shot command's interactive-shell transcript to what the command printed.
+ * One-shot commands run in a login shell with a terminal, so the raw stream also holds the
+ * login banner (MOTD), the echoed command line (often twice), prompts and terminal escape
+ * sequences. The command's own output is exactly what lies between the last echo of the
+ * command line (it ends with the marker's `"$?"`) and the rendered completion marker.
+ * Without a marker (for example after a timeout) only the escape sequences are removed.
+ */
+export function extractOneShotOutput(raw: string): string {
+  // A lone \r is the terminal moving the cursor, not output; drop it rather than make a line.
+  const text = raw.replace(ESCAPE_SEQUENCES, '').replace(/\r\n/g, '\n').replace(/\r/g, '');
+  const marker = COMPLETION_MARKER.exec(text);
+  if (!marker) return text;
+  const beforeMarker = text.slice(0, marker.index);
+  const echoEnd = beforeMarker.lastIndexOf('"$?"');
+  const start = echoEnd < 0 ? 0 : beforeMarker.indexOf('\n', echoEnd) + 1;
+  return beforeMarker.slice(start).replace(/\n$/, '');
+}
+
 /**
  * SSH Protocol implementation for secure remote shell access
  * Uses the robust SSHAdapter for actual SSH connections with retry/recovery
